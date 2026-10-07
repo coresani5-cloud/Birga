@@ -1,0 +1,509 @@
+// Birga — messenjer serveri (Express + Socket.IO + SQLite)
+require('./env');
+const path = require('path');
+const fs = require('fs');
+const crypto = require('crypto');
+const http = require('http');
+const express = require('express');
+const multer = require('multer');
+const jwt = require('jsonwebtoken');
+const Database = require('better-sqlite3');
+const { Server } = require('socket.io');
+const { parsePhoneNumberFromString } = require('libphonenumber-js/max');
+const sms = require('./sms');
+const media = require('./media');
+const { createPush } = require('./push');
+
+const PORT = process.env.PORT || 3000;
+const JWT_SECRET = process.env.JWT_SECRET || 'birga-dev-secret-ozgartiring';
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
+const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
+fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+fs.mkdirSync(DATA_DIR, { recursive: true });
+
+// ---------- Ma'lumotlar bazasi ----------
+const db = new Database(path.join(DATA_DIR, 'birga.db'));
+db.pragma('journal_mode = WAL');
+db.pragma('synchronous = NORMAL');
+db.exec(`
+CREATE TABLE IF NOT EXISTS users(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  phone TEXT UNIQUE NOT NULL,
+  name TEXT, username TEXT UNIQUE, bio TEXT DEFAULT '', avatar TEXT,
+  created_at INTEGER, last_seen INTEGER
+);
+CREATE TABLE IF NOT EXISTS codes(
+  phone TEXT PRIMARY KEY, code_hash TEXT, expires INTEGER, attempts INTEGER DEFAULT 0, sent_at INTEGER
+);
+CREATE TABLE IF NOT EXISTS sms_log(phone TEXT, ip TEXT, country TEXT, at INTEGER);
+CREATE INDEX IF NOT EXISTS idx_sms_at ON sms_log(at);
+CREATE TABLE IF NOT EXISTS chats(
+  id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT DEFAULT 'private', created_at INTEGER
+);
+CREATE TABLE IF NOT EXISTS chat_members(
+  chat_id INTEGER, user_id INTEGER, last_read_id INTEGER DEFAULT 0,
+  PRIMARY KEY(chat_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_members_user ON chat_members(user_id);
+CREATE TABLE IF NOT EXISTS messages(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  chat_id INTEGER, sender_id INTEGER,
+  type TEXT, text TEXT, file TEXT, mime TEXT, size INTEGER, duration REAL, meta TEXT,
+  reply_to INTEGER, created_at INTEGER, deleted INTEGER DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_msg_chat ON messages(chat_id, id);
+`);
+// eski bazalar uchun yangi ustunlar
+const cols = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
+if (!cols.includes('country')) db.exec('ALTER TABLE users ADD COLUMN country TEXT');
+if (!cols.includes('lang')) db.exec("ALTER TABLE users ADD COLUMN lang TEXT DEFAULT 'uz'");
+
+const now = () => Date.now();
+const hash = (s) => crypto.createHmac('sha256', JWT_SECRET).update(String(s)).digest('hex');
+const online = new Map(); // userId -> sockets soni
+const getUser = (id) => db.prepare('SELECT * FROM users WHERE id=?').get(id);
+
+// Telefon raqami faqat egasiga ko'rinadi (maxfiylik)
+function publicUser(u, self = false) {
+  if (!u) return null;
+  const o = { id: u.id, name: u.name, username: u.username, bio: u.bio, avatar: u.avatar, last_seen: u.last_seen, online: online.has(u.id), country: u.country };
+  if (self) { o.phone = u.phone; o.lang = u.lang; }
+  return o;
+}
+
+// Har qanday davlat raqamini E.164 formatiga keltirish va tekshirish
+function parsePhone(input, defaultCountry) {
+  const s = String(input || '').trim();
+  if (!s) return null;
+  let p;
+  if (s.startsWith('+')) p = parsePhoneNumberFromString(s);
+  else if (defaultCountry) p = parsePhoneNumberFromString(s, defaultCountry);
+  else p = parsePhoneNumberFromString('+' + s.replace(/\D/g, ''));
+  if (!p || !p.isValid()) return null;
+  return { e164: p.number, country: p.country || null };
+}
+
+const LANGS = ['uz', 'ru', 'en'];
+const tr = (lang, uz, ru, en) => ({ uz, ru, en }[LANGS.includes(lang) ? lang : 'en']);
+
+// ---------- Ilovalar: push, TURN ----------
+const push = createPush(db, DATA_DIR);
+
+function iceServersFor(uid) {
+  const list = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] }];
+  // O'z TURN serveringiz (coturn, install.sh o'rnatadi) — vaqtinchalik parol bilan
+  if (process.env.TURN_SECRET && process.env.TURN_HOST) {
+    const user = `${Math.floor(now() / 1000) + 12 * 3600}:${uid}`;
+    const credential = crypto.createHmac('sha1', process.env.TURN_SECRET).update(user).digest('base64');
+    const h = process.env.TURN_HOST;
+    const urls = [`stun:${h}:3478`, `turn:${h}:3478?transport=udp`, `turn:${h}:3478?transport=tcp`];
+    if (process.env.TURN_TLS_PORT) urls.push(`turns:${h}:${process.env.TURN_TLS_PORT}?transport=tcp`);
+    list.push({ urls, username: user, credential });
+  }
+  // Tashqi TURN (masalan metered.ca)
+  if (process.env.TURN_URL) list.push({ urls: process.env.TURN_URL.split(',').map((s) => s.trim()), username: process.env.TURN_USER, credential: process.env.TURN_PASS });
+  return list;
+}
+
+// ---------- Express ----------
+const app = express();
+app.set('trust proxy', 1);
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+  res.set({
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'same-origin',
+    'X-Frame-Options': 'SAMEORIGIN',
+    'Permissions-Policy': 'camera=(self), microphone=(self), geolocation=()',
+  });
+  next();
+});
+app.use(express.json({ limit: '1mb' }));
+// Ilova fayllari odatda public/ papkasida. Agar ular repo ildiziga (papkasiz) yuklangan bo'lsa ham ishlaydi —
+// bunda faqat ruxsat etilgan fayllar beriladi, server kodi tashqariga chiqmaydi.
+const PUBLIC_DIR = fs.existsSync(path.join(__dirname, 'public', 'index.html')) ? path.join(__dirname, 'public') : null;
+const INDEX_HTML = PUBLIC_DIR ? path.join(PUBLIC_DIR, 'index.html') : path.join(__dirname, 'index.html');
+const noCacheSW = (res, p) => { if (p.endsWith('sw.js')) res.set('Cache-Control', 'no-cache'); };
+if (PUBLIC_DIR) app.use(express.static(PUBLIC_DIR, { setHeaders: noCacheSW }));
+else {
+  const FLAT = {
+    '/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/i18n.js': 'i18n.js', '/styles.css': 'styles.css',
+    '/sw.js': 'sw.js', '/manifest.webmanifest': 'manifest.webmanifest', '/icons/icon-192.png': 'icon-192.png',
+    '/icons/icon-512.png': 'icon-512.png', '/icons/mark.png': 'mark.png', '/icons/logo-full.jpg': 'logo-full.jpg',
+  };
+  app.get(Object.keys(FLAT), (req, res) => {
+    const f = path.join(__dirname, FLAT[req.path]);
+    if (req.path.endsWith('.webmanifest')) res.type('application/manifest+json');
+    res.sendFile(f, { headers: req.path === '/sw.js' ? { 'Cache-Control': 'no-cache' } : {} });
+  });
+}
+const PN_DIR = path.join(__dirname, 'node_modules', 'libphonenumber-js');
+app.get('/vendor/phone.js', (req, res) => res.sendFile(path.join(PN_DIR, 'bundle', 'libphonenumber-mobile.js'), { maxAge: '7d' }));
+app.get('/vendor/phone-examples.json', (req, res) => res.sendFile(path.join(PN_DIR, 'examples.mobile.json'), { maxAge: '7d' }));
+app.use('/uploads', express.static(UPLOAD_DIR, { maxAge: '30d', immutable: true }));
+
+// IP bo'yicha cheklov
+const hits = new Map();
+function rateLimit(key, max, windowMs) {
+  return (req, res, next) => {
+    const k = key + ':' + req.ip; const t = now();
+    const arr = (hits.get(k) || []).filter((x) => t - x < windowMs);
+    if (arr.length >= max) return res.status(429).json({ error: tr(req.body?.lang || req.query.lang, 'Juda ko‘p urinish. Birozdan keyin qayta urinib ko‘ring', 'Слишком много попыток. Попробуйте позже', 'Too many attempts. Please try again later') });
+    arr.push(t); hits.set(k, arr); next();
+  };
+}
+setInterval(() => {
+  const t = now();
+  for (const [k, a] of hits) if (!a.some((x) => t - x < 24 * 3600e3)) hits.delete(k);
+  db.prepare('DELETE FROM sms_log WHERE at<?').run(t - 7 * 24 * 3600e3);
+  db.prepare('DELETE FROM codes WHERE expires<?').run(t - 3600e3);
+}, 600e3).unref();
+
+function auth(req, res, next) {
+  const t = (req.headers.authorization || '').replace('Bearer ', '');
+  try {
+    const { uid } = jwt.verify(t, JWT_SECRET);
+    req.user = getUser(uid);
+    if (!req.user) throw 0;
+    next();
+  } catch { res.status(401).json({ error: 'unauthorized' }); }
+}
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: UPLOAD_DIR,
+    filename: (req, f, cb) => {
+      const ext = (path.extname(f.originalname) || '').slice(0, 8).replace(/[^.\w]/g, '');
+      cb(null, crypto.randomBytes(16).toString('hex') + ext);
+    },
+  }),
+  limits: { fileSize: (Number(process.env.MAX_UPLOAD_MB) || 100) * 1024 * 1024 },
+});
+
+app.get('/api/config', (req, res) => {
+  res.json({ pushKey: push.publicKey, devSms: !sms.anyReal });
+});
+app.get('/api/ice', auth, (req, res) => res.json({ iceServers: iceServersFor(req.user.id) }));
+
+// ===== 1) Kod yuborish (SMS) =====
+const SMS_PER_PHONE_DAY = Number(process.env.SMS_PER_PHONE_DAY) || 6;
+const SMS_PER_IP_DAY = Number(process.env.SMS_PER_IP_DAY) || 12;
+const SMS_PER_COUNTRY_HOUR = Number(process.env.SMS_PER_COUNTRY_HOUR) || 300; // "SMS pumping" firibgarligidan himoya
+const BLOCKED = new Set(String(process.env.SMS_BLOCKED_COUNTRIES || '').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean));
+
+app.post('/api/auth/send-code', rateLimit('code', 8, 3600e3), async (req, res) => {
+  const lang = req.body.lang;
+  const p = parsePhone(req.body.phone);
+  if (!p) return res.status(400).json({ error: tr(lang, 'Telefon raqam noto‘g‘ri. Davlat va raqamni tekshiring', 'Неверный номер. Проверьте страну и номер', 'Invalid phone number. Check the country and number') });
+  const phone = p.e164;
+  if (p.country && BLOCKED.has(p.country)) return res.status(403).json({ error: tr(lang, 'Bu davlatga SMS vaqtincha yuborilmaydi', 'SMS в эту страну временно недоступны', 'SMS to this country is temporarily unavailable') });
+  const prev = db.prepare('SELECT * FROM codes WHERE phone=?').get(phone);
+  if (prev && now() - prev.sent_at < 60_000)
+    return res.status(429).json({ phone, error: tr(lang, 'Kod yuborilgan. Biroz kuting', 'Код уже отправлен. Подождите', 'Code already sent. Please wait'), wait: Math.ceil((60_000 - (now() - prev.sent_at)) / 1000) });
+  const day = now() - 24 * 3600e3;
+  const byPhone = db.prepare('SELECT COUNT(*) c FROM sms_log WHERE phone=? AND at>?').get(phone, day).c;
+  const byIp = db.prepare('SELECT COUNT(*) c FROM sms_log WHERE ip=? AND at>?').get(req.ip, day).c;
+  const byCountry = db.prepare('SELECT COUNT(*) c FROM sms_log WHERE country=? AND at>?').get(p.country, now() - 3600e3).c;
+  if (byPhone >= SMS_PER_PHONE_DAY || byIp >= SMS_PER_IP_DAY || byCountry >= SMS_PER_COUNTRY_HOUR)
+    return res.status(429).json({ error: tr(lang, 'Bugun juda ko‘p kod so‘raldi. Ertaga urinib ko‘ring', 'Слишком много запросов кода сегодня. Попробуйте завтра', 'Too many code requests today. Try again tomorrow') });
+
+  const code = String(crypto.randomInt(10000, 100000));
+  try { await sms.sendCode(phone, code, lang); }
+  catch (e) { console.error('SMS:', e.message); return res.status(502).json({ error: tr(lang, 'SMS yuborib bo‘lmadi, keyinroq urinib ko‘ring', 'Не удалось отправить SMS, попробуйте позже', 'Could not send SMS, please try again later') }); }
+  db.prepare('INSERT OR REPLACE INTO codes(phone,code_hash,expires,attempts,sent_at) VALUES(?,?,?,?,?)').run(phone, hash(phone + code), now() + 5 * 60_000, 0, now());
+  db.prepare('INSERT INTO sms_log(phone,ip,country,at) VALUES(?,?,?,?)').run(phone, req.ip, p.country, now());
+  const out = { ok: true, phone, country: p.country, timeout: 60 };
+  if (sms.isDevFor(phone)) out.devCode = code; // faqat test rejimida
+  res.json(out);
+});
+
+// ===== 2) Kodni tekshirish =====
+app.post('/api/auth/verify', rateLimit('verify', 30, 3600e3), (req, res) => {
+  const lang = req.body.lang;
+  const p = parsePhone(req.body.phone);
+  const phone = p?.e164;
+  const code = String(req.body.code || '').trim();
+  const row = phone && db.prepare('SELECT * FROM codes WHERE phone=?').get(phone);
+  if (!row) return res.status(400).json({ error: tr(lang, 'Avval kod so‘rang', 'Сначала запросите код', 'Request a code first') });
+  if (row.expires < now()) return res.status(400).json({ error: tr(lang, 'Kod muddati tugagan. Yangi kod so‘rang', 'Срок кода истёк. Запросите новый', 'The code has expired. Request a new one') });
+  if (row.attempts >= 5) return res.status(429).json({ error: tr(lang, 'Urinishlar ko‘p. Yangi kod so‘rang', 'Слишком много попыток. Запросите новый код', 'Too many attempts. Request a new code') });
+  if (!crypto.timingSafeEqual(Buffer.from(row.code_hash), Buffer.from(hash(phone + code)))) {
+    db.prepare('UPDATE codes SET attempts=attempts+1 WHERE phone=?').run(phone);
+    return res.status(400).json({ error: tr(lang, 'Kod noto‘g‘ri', 'Неверный код', 'Wrong code') });
+  }
+  db.prepare('DELETE FROM codes WHERE phone=?').run(phone);
+  let user = db.prepare('SELECT * FROM users WHERE phone=?').get(phone);
+  if (!user) {
+    const r = db.prepare('INSERT INTO users(phone,country,lang,created_at,last_seen) VALUES(?,?,?,?,?)')
+      .run(phone, p.country, LANGS.includes(lang) ? lang : 'en', now(), now());
+    user = getUser(r.lastInsertRowid);
+  }
+  const token = jwt.sign({ uid: user.id }, JWT_SECRET, { expiresIn: '365d' });
+  res.json({ token, user: publicUser(user, true), isNew: !user.name });
+});
+
+app.get('/api/me', auth, (req, res) => res.json(publicUser(req.user, true)));
+
+// ===== 3) Ro'yxatdan o'tish / profil =====
+app.post('/api/profile', auth, (req, res) => {
+  const lang = req.body.lang || req.user.lang;
+  const name = String(req.body.name || '').trim().slice(0, 64);
+  let username = String(req.body.username || '').trim().replace(/^@/, '').toLowerCase();
+  const bio = String(req.body.bio ?? req.user.bio ?? '').slice(0, 140);
+  if (!name) return res.status(400).json({ error: tr(lang, 'Ism kiriting', 'Введите имя', 'Enter your name') });
+  if (username) {
+    if (!/^[a-z][a-z0-9_]{4,31}$/.test(username))
+      return res.status(400).json({ error: tr(lang, 'Username: 5–32 belgi, lotin harflari, raqam va _', 'Username: 5–32 символа, латиница, цифры и _', 'Username: 5–32 characters, latin letters, digits and _') });
+    if (db.prepare('SELECT id FROM users WHERE username=? AND id<>?').get(username, req.user.id))
+      return res.status(400).json({ error: tr(lang, 'Bu username band', 'Этот username занят', 'This username is taken') });
+  } else username = null;
+  const newLang = LANGS.includes(req.body.lang) ? req.body.lang : req.user.lang;
+  db.prepare('UPDATE users SET name=?, username=?, bio=?, lang=? WHERE id=?').run(name, username, bio, newLang, req.user.id);
+  const u = getUser(req.user.id);
+  broadcastUser(u);
+  res.json(publicUser(u, true));
+});
+
+app.post('/api/profile/lang', auth, (req, res) => {
+  if (LANGS.includes(req.body.lang)) db.prepare('UPDATE users SET lang=? WHERE id=?').run(req.body.lang, req.user.id);
+  res.json({ ok: true });
+});
+
+app.post('/api/profile/avatar', auth, upload.single('file'), (req, res) => {
+  if (!req.file || !/^image\//.test(req.file.mimetype)) return res.status(400).json({ error: 'image required' });
+  db.prepare('UPDATE users SET avatar=? WHERE id=?').run('/uploads/' + req.file.filename, req.user.id);
+  const u = getUser(req.user.id);
+  broadcastUser(u);
+  res.json(publicUser(u, true));
+});
+
+app.get('/api/users/search', auth, (req, res) => {
+  const q = String(req.query.q || '').trim();
+  if (!q) return res.json([]);
+  if (/^[+\d\s()-]{6,}$/.test(q)) {
+    const p = parsePhone(q, req.user.country || undefined);
+    const u = p && db.prepare('SELECT * FROM users WHERE phone=? AND name IS NOT NULL').get(p.e164);
+    return res.json(u ? [publicUser(u)] : []);
+  }
+  const t = q.replace(/^@/, '');
+  const rows = db.prepare('SELECT * FROM users WHERE name IS NOT NULL AND id<>? AND (username LIKE ? OR name LIKE ?) LIMIT 20')
+    .all(req.user.id, t.toLowerCase() + '%', '%' + t + '%');
+  res.json(rows.map((u) => publicUser(u)));
+});
+
+app.get('/api/users/:id', auth, (req, res) => {
+  const u = getUser(req.params.id);
+  if (!u) return res.status(404).json({ error: 'not found' });
+  res.json(publicUser(u, u.id === req.user.id));
+});
+
+function fmtMsg(m) { return { ...m, meta: m.meta ? JSON.parse(m.meta) : null, deleted: !!m.deleted }; }
+
+function chatSummary(chatId, uid) {
+  const peer = db.prepare('SELECT u.* FROM chat_members m JOIN users u ON u.id=m.user_id WHERE m.chat_id=? AND m.user_id<>?').get(chatId, uid) || getUser(uid);
+  const me = db.prepare('SELECT last_read_id FROM chat_members WHERE chat_id=? AND user_id=?').get(chatId, uid);
+  const peerRead = db.prepare('SELECT last_read_id FROM chat_members WHERE chat_id=? AND user_id<>?').get(chatId, uid);
+  const last = db.prepare('SELECT * FROM messages WHERE chat_id=? ORDER BY id DESC LIMIT 1').get(chatId);
+  const unread = db.prepare('SELECT COUNT(*) c FROM messages WHERE chat_id=? AND id>? AND sender_id<>?').get(chatId, me?.last_read_id || 0, uid).c;
+  return { id: chatId, peer: publicUser(peer, peer.id === uid), last: last ? fmtMsg(last) : null, unread, peerReadId: peerRead?.last_read_id || 0, self: peer.id === uid };
+}
+
+app.get('/api/chats', auth, (req, res) => {
+  const ids = db.prepare('SELECT chat_id FROM chat_members WHERE user_id=?').all(req.user.id).map((r) => r.chat_id);
+  res.json(ids.map((id) => chatSummary(id, req.user.id)).sort((a, b) => (b.last?.created_at || 0) - (a.last?.created_at || 0)));
+});
+
+function getOrCreatePrivate(a, b) {
+  const row = a === b
+    ? db.prepare(`SELECT m.chat_id FROM chat_members m WHERE m.user_id=? AND (SELECT COUNT(*) FROM chat_members x WHERE x.chat_id=m.chat_id)=1`).get(a)
+    : db.prepare('SELECT a.chat_id FROM chat_members a JOIN chat_members b ON a.chat_id=b.chat_id WHERE a.user_id=? AND b.user_id=?').get(a, b);
+  if (row) return row.chat_id;
+  const id = db.prepare('INSERT INTO chats(type,created_at) VALUES(?,?)').run('private', now()).lastInsertRowid;
+  db.prepare('INSERT INTO chat_members(chat_id,user_id) VALUES(?,?)').run(id, a);
+  if (a !== b) db.prepare('INSERT INTO chat_members(chat_id,user_id) VALUES(?,?)').run(id, b);
+  return id;
+}
+
+app.post('/api/chats', auth, (req, res) => {
+  const peer = getUser(req.body.userId);
+  if (!peer || !peer.name) return res.status(404).json({ error: 'not found' });
+  res.json(chatSummary(getOrCreatePrivate(req.user.id, peer.id), req.user.id));
+});
+
+const isMember = (chatId, uid) => !!db.prepare('SELECT 1 FROM chat_members WHERE chat_id=? AND user_id=?').get(chatId, uid);
+const membersOf = (chatId) => db.prepare('SELECT user_id FROM chat_members WHERE chat_id=?').all(chatId).map((r) => r.user_id);
+
+app.get('/api/chats/:id/messages', auth, (req, res) => {
+  const chatId = Number(req.params.id);
+  if (!isMember(chatId, req.user.id)) return res.status(403).json({ error: 'forbidden' });
+  const before = Number(req.query.before) || 1e15;
+  res.json(db.prepare('SELECT * FROM messages WHERE chat_id=? AND id<? ORDER BY id DESC LIMIT 50').all(chatId, before).reverse().map(fmtMsg));
+});
+
+// Fayl yuklash. Ovozli/video xabarlar universal formatga o'tkaziladi.
+app.post('/api/upload', auth, upload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'no file' });
+  const kind = String(req.query.kind || '');
+  let out = { url: '/uploads/' + req.file.filename, mime: req.file.mimetype, size: req.file.size, name: req.file.originalname };
+  if (['voice', 'round', 'video'].includes(kind)) {
+    try {
+      const r = await media.normalize(req.file.path, kind, req.file.mimetype);
+      if (r) out = { ...out, url: '/uploads/' + r.name, alt: '/uploads/' + r.alt, mime: r.mime, size: r.size, duration: r.duration };
+    } catch (e) { console.error('media:', e.message); }
+  }
+  res.json(out);
+});
+
+app.post('/api/push/subscribe', auth, (req, res) => res.json({ ok: push.subscribe(req.user.id, req.body) }));
+app.post('/api/push/unsubscribe', auth, (req, res) => { push.unsubscribe(req.body.endpoint); res.json({ ok: true }); });
+
+app.get(/^\/(?!api\/|uploads\/|socket\.io\/|vendor\/).*/, (req, res) => res.sendFile(INDEX_HTML));
+
+// ---------- Socket.IO (real-vaqt + qo'ng'iroq signallari) ----------
+const server = http.createServer(app);
+const io = new Server(server, { maxHttpBufferSize: 1e6, pingInterval: 20000, pingTimeout: 25000 });
+
+function broadcastUser(raw) {
+  const u = publicUser(raw);
+  const peers = new Set();
+  db.prepare('SELECT chat_id FROM chat_members WHERE user_id=?').all(raw.id).forEach((r) => membersOf(r.chat_id).forEach((m) => peers.add(m)));
+  peers.forEach((p) => io.to('u' + p).emit('user:update', p === raw.id ? publicUser(raw, true) : u));
+}
+
+const PREVIEW = {
+  image: ['🖼 Rasm', '🖼 Фото', '🖼 Photo'], video: ['🎬 Video', '🎬 Видео', '🎬 Video'], voice: ['🎤 Ovozli xabar', '🎤 Голосовое сообщение', '🎤 Voice message'],
+  round: ['⏺ Video xabar', '⏺ Видеосообщение', '⏺ Video message'], file: ['📎 Fayl', '📎 Файл', '📎 File'],
+};
+function previewFor(m, lang) {
+  const i = Math.max(0, LANGS.indexOf(lang));
+  if (m.type === 'text') return m.text.slice(0, 120);
+  return (PREVIEW[m.type]?.[i] || '') + (m.text ? ': ' + m.text.slice(0, 80) : '');
+}
+
+io.use((socket, next) => {
+  try { socket.uid = jwt.verify(socket.handshake.auth?.token, JWT_SECRET).uid; if (!getUser(socket.uid)) throw 0; next(); }
+  catch { next(new Error('unauthorized')); }
+});
+
+function cleanMeta(meta) {
+  if (!meta || typeof meta !== 'object') return null;
+  const o = {};
+  if (Array.isArray(meta.waveform)) o.waveform = meta.waveform.slice(0, 64).map((v) => Math.max(0, Math.min(1, Number(v) || 0)));
+  if (typeof meta.name === 'string') o.name = meta.name.slice(0, 200);
+  if (typeof meta.alt === 'string' && /^\/uploads\/[\w.-]+$/.test(meta.alt)) o.alt = meta.alt;
+  return Object.keys(o).length ? JSON.stringify(o) : null;
+}
+const MSG_TYPES = new Set(['text', 'image', 'video', 'voice', 'round', 'file']);
+// Ilovasi yopiq odamga qo'ng'iroq: push yuboriladi, u ilovani ochganda qo'ng'iroq yetkaziladi
+const pendingCalls = new Map(); // calleeId -> { offer, ice[], expires, callId, from }
+
+io.on('connection', (socket) => {
+  const uid = socket.uid;
+  socket.join('u' + uid);
+  online.set(uid, (online.get(uid) || 0) + 1);
+  db.prepare('UPDATE users SET last_seen=? WHERE id=?').run(now(), uid);
+  broadcastUser(getUser(uid));
+
+  const pc = pendingCalls.get(uid);
+  if (pc && pc.expires > now()) {
+    setTimeout(() => {
+      socket.emit('call:offer', pc.offer);
+      pc.ice.forEach((c) => socket.emit('call:ice', c));
+      io.to('u' + pc.from).emit('call:ringing', { callId: pc.callId, from: uid });
+    }, 300);
+  }
+
+  socket.on('message:send', (p, ack) => {
+    try {
+      const chatId = Number(p?.chatId);
+      if (!isMember(chatId, uid) || !MSG_TYPES.has(p.type)) return ack?.({ error: 'bad request' });
+      const text = String(p.text || '').slice(0, 4096);
+      if (p.type === 'text' && !text.trim()) return ack?.({ error: 'empty' });
+      const file = p.file && /^\/uploads\/[\w.-]+$/.test(p.file) ? p.file : null;
+      if (p.type !== 'text' && !file) return ack?.({ error: 'no file' });
+      const r = db.prepare(`INSERT INTO messages(chat_id,sender_id,type,text,file,mime,size,duration,meta,reply_to,created_at)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?)`).run(chatId, uid, p.type, text, file, p.mime || null, Number(p.size) || null,
+        Number(p.duration) || null, cleanMeta(p.meta), Number(p.replyTo) || null, now());
+      const msg = fmtMsg(db.prepare('SELECT * FROM messages WHERE id=?').get(r.lastInsertRowid));
+      db.prepare('UPDATE chat_members SET last_read_id=? WHERE chat_id=? AND user_id=?').run(msg.id, chatId, uid);
+      const sender = getUser(uid);
+      membersOf(chatId).forEach((m) => {
+        io.to('u' + m).emit('message:new', { message: msg, chat: chatSummary(chatId, m) });
+        if (m !== uid && !online.has(m)) {
+          const rcp = getUser(m);
+          push.send(m, { type: 'msg', chatId, title: sender.name, body: previewFor(msg, rcp?.lang), icon: sender.avatar, tag: 'chat' + chatId });
+        }
+      });
+      ack?.({ ok: true, message: msg });
+    } catch (e) { console.error(e); ack?.({ error: 'server' }); }
+  });
+
+  socket.on('message:delete', ({ id } = {}) => {
+    const m = db.prepare('SELECT * FROM messages WHERE id=?').get(id);
+    if (!m || m.sender_id !== uid) return;
+    db.prepare("UPDATE messages SET deleted=1, text='', file=NULL WHERE id=?").run(id);
+    if (m.file) fs.unlink(path.join(UPLOAD_DIR, path.basename(m.file)), () => {});
+    try { const alt = JSON.parse(m.meta || '{}').alt; if (alt) fs.unlink(path.join(UPLOAD_DIR, path.basename(alt)), () => {}); } catch {}
+    membersOf(m.chat_id).forEach((u) => io.to('u' + u).emit('message:deleted', { id, chatId: m.chat_id }));
+  });
+
+  socket.on('chat:read', ({ chatId, messageId } = {}) => {
+    if (!isMember(chatId, uid)) return;
+    db.prepare('UPDATE chat_members SET last_read_id=MAX(last_read_id,?) WHERE chat_id=? AND user_id=?').run(messageId, chatId, uid);
+    membersOf(chatId).forEach((u) => u !== uid && io.to('u' + u).emit('chat:read', { chatId, userId: uid, messageId }));
+  });
+
+  socket.on('typing', ({ chatId, kind } = {}) => {
+    if (!isMember(chatId, uid)) return;
+    membersOf(chatId).forEach((u) => u !== uid && io.to('u' + u).emit('typing', { chatId, userId: uid, kind: kind || 'text' }));
+  });
+
+  // ===== WebRTC signal almashinuvi =====
+  socket.on('call:offer', (p) => {
+    const to = Number(p?.to); const callee = getUser(to);
+    if (!callee || to === uid) return;
+    const offer = { ...p, from: uid, fromUser: publicUser(getUser(uid)) };
+    pendingCalls.set(to, { offer, ice: [], expires: now() + 45_000, callId: p.callId, from: uid });
+    io.to('u' + to).emit('call:offer', offer);
+    if (!online.has(to)) socket.emit('call:status', { callId: p.callId, status: 'offline' });
+    const name = getUser(uid).name;
+    push.send(to, { type: 'call', callId: p.callId, title: name, body: tr(callee.lang, p.video ? '📹 Kiruvchi video qo‘ng‘iroq' : '📞 Kiruvchi qo‘ng‘iroq', p.video ? '📹 Входящий видеозвонок' : '📞 Входящий звонок', p.video ? '📹 Incoming video call' : '📞 Incoming call'), tag: 'call' }, { ttl: 45, urgency: 'high' });
+  });
+  socket.on('call:ice', (p) => {
+    const to = Number(p?.to); if (!to) return;
+    const pc2 = pendingCalls.get(to);
+    if (pc2 && pc2.callId === p.callId && pc2.from === uid) pc2.ice.push({ ...p, from: uid });
+    io.to('u' + to).emit('call:ice', { ...p, from: uid });
+  });
+  const clearPending = (p) => { for (const [k, v] of pendingCalls) if (v.callId === p?.callId) pendingCalls.delete(k); };
+  ['call:answer', 'call:reject', 'call:end', 'call:busy'].forEach((ev) => socket.on(ev, (p) => {
+    clearPending(p);
+    if (p?.to) io.to('u' + p.to).emit(ev, { ...p, from: uid });
+    if (ev === 'call:answer' || ev === 'call:reject') socket.to('u' + uid).emit('call:handled', { callId: p?.callId }); // boshqa qurilmalarda jiringlashni to'xtatish
+  }));
+  ['call:ringing', 'call:media', 'call:renego'].forEach((ev) => socket.on(ev, (p) => { if (p?.to) io.to('u' + p.to).emit(ev, { ...p, from: uid }); }));
+
+  socket.on('call:log', ({ chatId, peerId, video, duration, status } = {}) => {
+    let cid = Number(chatId);
+    if (!cid || !isMember(cid, uid)) { if (!getUser(peerId)) return; cid = getOrCreatePrivate(uid, Number(peerId)); }
+    const r = db.prepare('INSERT INTO messages(chat_id,sender_id,type,text,duration,meta,created_at) VALUES(?,?,?,?,?,?,?)')
+      .run(cid, uid, 'call', '', Number(duration) || 0, JSON.stringify({ video: !!video, status: String(status || '') }), now());
+    const msg = fmtMsg(db.prepare('SELECT * FROM messages WHERE id=?').get(r.lastInsertRowid));
+    membersOf(cid).forEach((m) => io.to('u' + m).emit('message:new', { message: msg, chat: chatSummary(cid, m) }));
+  });
+
+  socket.on('disconnect', () => {
+    const n = (online.get(uid) || 1) - 1;
+    if (n <= 0) online.delete(uid); else online.set(uid, n);
+    db.prepare('UPDATE users SET last_seen=? WHERE id=?').run(now(), uid);
+    const u = getUser(uid);
+    if (u) broadcastUser(u);
+  });
+});
+setInterval(() => { for (const [k, v] of pendingCalls) if (v.expires < now()) pendingCalls.delete(k); }, 30e3).unref();
+
+server.listen(PORT, () => {
+  console.log(`\n🟣 Birga ishga tushdi: http://localhost:${PORT}`);
+  console.log(`   SMS: ${sms.anyReal ? 'yoqilgan' : 'TEST rejimi (kod ekranda)'} · ffmpeg: ${media.available ? 'bor' : 'YO‘Q'} · TURN: ${process.env.TURN_SECRET || process.env.TURN_URL ? 'bor' : 'YO‘Q'}`);
+  if (JWT_SECRET.startsWith('birga-dev')) console.warn('   ⚠️  .env da JWT_SECRET ni o‘zgartiring!');
+});

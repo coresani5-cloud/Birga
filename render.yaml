@@ -1,0 +1,15 @@
+# Render.com — GitHub'dan bir tugma bilan joylash (Blueprint)
+services:
+  - type: web
+    name: birga
+    runtime: docker
+    plan: free            # bepul reja: 15 daqiqa harakatsizlikdan keyin uxlaydi, ma'lumotlar saqlanmaydi (sinov uchun)
+    autoDeploy: true
+    healthCheckPath: /api/config
+    envVars:
+      - key: JWT_SECRET
+        generateValue: true
+      - key: SMS_PROVIDER
+        value: console
+      - key: NODE_ENV
+        value: production

@@ -7,4 +7,4 @@ COPY . .
 ENV NODE_ENV=production DATA_DIR=/data/db UPLOAD_DIR=/data/uploads PORT=3000
 VOLUME /data
 EXPOSE 3000
-CMD ["node", "server.js"]
+CMD ["node", "server.txt"]

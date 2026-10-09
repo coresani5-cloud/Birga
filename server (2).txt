@@ -1,0 +1,2 @@
+// Eski sozlama "node server.txt" bo'lsa ham yangi Birga ishga tushadi
+require('./server.js');

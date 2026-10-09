@@ -6,6 +6,11 @@
 Telegram / WhatsApp / Max uslubidagi mustaqil messenjer. Boshqa hech qanday ilovaga bog'liq emas:
 foydalanuvchi faqat telefon raqami va SMS kod bilan ro'yxatdan o'tadi.
 
+## v4.6: Doim yangi
+- **Pastga tortib yangilash** (chatlar va kontaktlar): aylanuvchi belgi, yangi xabarlar darhol keladi, uzilgan aloqa qayta ulanadi.
+- Ilovaga qaytganda yoki internet tiklanganda chatlar o'zi yangilanadi.
+- **Avtomatik yangilanish:** yangi versiya joylansa ilova o'zi qayta yuklanadi (bo'sh paytda darhol; yozayotgan/qo'ng'iroqda bo'lsa — "Yangi versiya tayyor" tugmasi, ilova fonga o'tganda jimgina).
+
 ## v4.2: Media foydalanuvchi qurilmasida
 - Har bir rasm, video, ovozli/video xabar va fayl qabul qiluvchining qurilmasiga avtomatik yuklab olinadi va keyin o'sha yerdan ochiladi (internetsiz ham).
 - Hamma qabul qiluvchi yuklab olgach fayl **serverdan o'chiriladi** (WhatsApp usuli) — server/Supabase to'lmaydi.

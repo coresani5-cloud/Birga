@@ -253,6 +253,7 @@ async function logout(silent) {
 /* ======================= ILOVA ======================= */
 async function boot() {
   try { S.config = await api('/api/config'); } catch {}
+  Updater.init(S.config?.v);
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
   const jq = new URLSearchParams(location.search).get('join'); if (jq) store.set('birga_join', jq); // ro'yxatdan keyin qo'shiladi
   // Sessiya: localStorage'dagi token yoki (u o'chib ketgan bo'lsa) serverdagi doimiy cookie
@@ -310,6 +311,7 @@ async function connectSocket() {
   for (let i = 0; typeof io === 'undefined'; i++) { try { await loadScript('/socket.io/socket.io.js?r=' + i); } catch { await new Promise((r) => setTimeout(r, 3000)); } }
   const s = io({ auth: { token: S.token }, transports: ['websocket', 'polling'] });
   S.socket = s;
+  s.on('app:version', ({ v }) => Updater.seen(v));
   s.on('connect', () => { $('#conn-bar').classList.add('hidden'); if (S.current) loadMessages(S.current); loadChats().catch(() => {}); });
   s.on('disconnect', () => $('#conn-bar').classList.remove('hidden'));
   s.on('connect_error', (e) => { if (e.message === 'unauthorized') logout(true); $('#conn-bar').classList.remove('hidden'); });
@@ -2234,5 +2236,78 @@ async function storageModal() {
   $('#st-folder')?.addEventListener('click', () => { closeModal(); (Media.dir && !Media.dirOk) ? Media.resumeFolder() : Media.pickFolder(); });
   $('#st-clear').onclick = async () => { if (!confirm(t('storage_clear_confirm'))) return; await Media.clear(); closeModal(); toast(t('done')); };
 }
+
+
+/* ======================= AVTOMATIK YANGILANISH ======================= */
+// Yangi versiya joylansa (deploy), ilova o'zi yangilanadi: bo'sh paytda — darhol, band bo'lsa — tugma chiqadi.
+const Updater = {
+  v: null, pending: false,
+  init(v) {
+    if (this.v) return; this.v = v || null;
+    setInterval(() => this.check(), 3 * 60e3);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) { this.check(); if (S.me) softRefresh(); } });
+    window.addEventListener('online', () => { this.check(); if (S.me) softRefresh(); });
+    // faqat avval boshqa SW bo'lgan bo'lsa (birinchi ochilishda emas) — yangi SW = yangi versiya
+    if (navigator.serviceWorker?.controller) navigator.serviceWorker.addEventListener('controllerchange', () => this.later());
+  },
+  async check() {
+    try { const r = await fetch('/api/version', { cache: 'no-store' }).then((x) => x.json()); this.seen(r.v); } catch {}
+    try { (await navigator.serviceWorker?.getRegistration())?.update(); } catch {}
+  },
+  seen(v) { if (!v) return; if (!this.v) { this.v = v; return; } if (v !== this.v) this.later(); },
+  busy() {
+    return (typeof Call !== 'undefined' && Call.active) || Rec.active || !$('#modal').classList.contains('hidden') || !$('#round-rec').classList.contains('hidden')
+      || (textEl?.value || '').trim() || [...S.msgs.values()].some((l) => l.some((m) => m.pending))
+      || (!$('#auth').classList.contains('hidden') && (!!$('#email').value.trim() || $('#step-email').classList.contains('hidden')));
+  },
+  later() {
+    if (this.pending) return; this.pending = true;
+    const go = () => { try { sessionStorage.setItem('birga_updated', '1'); } catch {} location.reload(); };
+    if (!this.busy()) return go();
+    const bar = $('#update-bar'); bar.classList.remove('hidden'); bar.onclick = go;
+    const t2 = setInterval(() => { if (!this.busy() && document.hidden) { clearInterval(t2); go(); } }, 5000); // fonga o'tganda jimgina yangilanadi
+  },
+};
+try { if (sessionStorage.getItem('birga_updated')) { sessionStorage.removeItem('birga_updated'); setTimeout(() => toast(t('updated_ok')), 1200); } } catch {}
+
+// Ilova qayta ochilganda / internet qaytganda — yangi xabarlarni darhol olish
+let softT = 0;
+async function softRefresh() {
+  if (Date.now() - softT < 3000) return; softT = Date.now();
+  await loadChats().catch(() => {});
+  if (S.current) loadMessages(S.current);
+  Stories.load(); Media.syncPending();
+  if (S.socket && !S.socket.connected) S.socket.connect();
+}
+
+/* ======================= PASTGA TORTIB YANGILASH ======================= */
+function pullToRefresh(pane, onRefresh) {
+  const scroller = pane.querySelector('.scroll');
+  const ind = document.createElement('div'); ind.className = 'ptr'; ind.innerHTML = `<div class="ptr-spin">${icon('refresh')}</div>`;
+  pane.appendChild(ind);
+  let y0 = null, dy = 0, busy = false;
+  const set = (h, rot) => { ind.style.transform = `translateY(${h}px)`; ind.style.opacity = Math.min(1, h / 40); ind.querySelector('svg').style.transform = `rotate(${rot}deg)`; ind.classList.toggle('ready', h >= 64); };
+  pane.addEventListener('touchstart', (e) => { if (busy || scroller.scrollTop > 0 || e.target.closest('.stories, input, .modal')) { y0 = null; return; } y0 = e.touches[0].clientY; dy = 0; }, { passive: true });
+  pane.addEventListener('touchmove', (e) => {
+    if (y0 == null) return;
+    dy = e.touches[0].clientY - y0;
+    if (dy <= 0 || scroller.scrollTop > 0) { set(0, 0); return; }
+    const h = Math.min(90, dy * 0.5); set(h, dy * 1.6);
+    if (h > 8 && e.cancelable) e.preventDefault();
+  }, { passive: false });
+  pane.addEventListener('touchend', async () => {
+    if (y0 == null) return; y0 = null;
+    if (Math.min(90, dy * 0.5) < 64) { ind.classList.add('back'); set(0, 0); setTimeout(() => ind.classList.remove('back'), 250); return; }
+    busy = true; ind.classList.add('loading'); set(56, 0);
+    navigator.vibrate?.(15);
+    const t0 = Date.now();
+    try { await onRefresh(); } catch {}
+    await new Promise((r) => setTimeout(r, Math.max(0, 600 - (Date.now() - t0))));
+    ind.classList.remove('loading'); ind.classList.add('back'); set(0, 0); setTimeout(() => ind.classList.remove('back'), 250); busy = false;
+  });
+}
+const fullRefresh = async () => { softT = 0; await Promise.all([softRefresh(), Updater.check()]); };
+pullToRefresh($('#pane-chats'), fullRefresh);
+pullToRefresh($('#pane-contacts'), async () => { await loadContacts(); await Updater.check(); });
 
 boot();

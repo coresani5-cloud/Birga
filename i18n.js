@@ -2,6 +2,7 @@
 'use strict';
 const I18N = {
   uz: {
+    updated_ok: 'Ilova yangilandi ✨', update_ready: 'Yangi versiya tayyor — yangilash uchun bosing',
     media_gone: 'Bu fayl serverdan o‘chirilgan va qurilmangizda yo‘q', save_device: 'Qurilmaga saqlash', done: 'Bajarildi',
     storage_title: 'Xotira va media', storage_files: '{n} ta fayl qurilmada', storage_free: 'bo‘sh joy: {s}',
     storage_explain: 'Rasm, video, ovozli xabar va fayllar qurilmangizga yuklab olinadi va shu yerdan ochiladi. Hamma qabul qiluvchi yuklab olgach, fayl serverdan o‘chiriladi — xuddi WhatsApp kabi. Shuning uchun keshni tozalasangiz, eski media qaytmaydi.',
@@ -91,6 +92,7 @@ const I18N = {
     fmt_day: (d, m, y) => `${d}-${m}${y ? ' ' + y : ''}`,
   },
   ru: {
+    updated_ok: 'Приложение обновлено ✨', update_ready: 'Доступна новая версия — нажмите, чтобы обновить',
     media_gone: 'Файл удалён с сервера и отсутствует на устройстве', save_device: 'Сохранить на устройство', done: 'Готово',
     storage_title: 'Память и медиа', storage_files: '{n} файлов на устройстве', storage_free: 'свободно: {s}',
     storage_explain: 'Фото, видео, голосовые и файлы скачиваются на ваше устройство и открываются отсюда. Когда все получатели скачали файл, он удаляется с сервера — как в WhatsApp. Поэтому после очистки кэша старые медиа не вернутся.',
@@ -180,6 +182,7 @@ const I18N = {
     fmt_day: (d, m, y) => `${d} ${m}${y ? ' ' + y : ''}`,
   },
   en: {
+    updated_ok: 'App updated ✨', update_ready: 'New version ready — tap to update',
     media_gone: 'This file was removed from the server and is not on your device', save_device: 'Save to device', done: 'Done',
     storage_title: 'Storage & media', storage_files: '{n} files on this device', storage_free: 'free: {s}',
     storage_explain: 'Photos, videos, voice messages and files are downloaded to your device and opened from there. Once every recipient has them, the server deletes the file — just like WhatsApp. So if you clear the cache, old media will not come back.',

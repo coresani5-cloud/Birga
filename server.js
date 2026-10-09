@@ -108,6 +108,13 @@ else {
     res.sendFile(path.join(__dirname, FLAT[req.path]), { headers: req.path === '/sw.js' ? { 'Cache-Control': 'no-cache' } : {} });
   });
 }
+// Ilova versiyasi: fayllar o'zgarsa (yangi deploy) — mijozlar avtomatik yangilanadi
+const APP_VERSION = (() => {
+  const h = crypto.createHash('sha1');
+  for (const f of ['index.html', 'app.js', 'styles.css', 'i18n.js', 'sw.js']) { try { h.update(fs.readFileSync(PUBLIC_DIR ? path.join(PUBLIC_DIR, f) : path.join(__dirname, f))); } catch {} }
+  return h.digest('hex').slice(0, 10);
+})();
+app.get('/api/version', (req, res) => { res.set('Cache-Control', 'no-store'); res.json({ v: APP_VERSION }); });
 const PN_DIR = path.join(__dirname, 'node_modules', 'libphonenumber-js');
 app.get('/vendor/phone.js', (req, res) => res.sendFile(path.join(PN_DIR, 'bundle', 'libphonenumber-mobile.js'), { maxAge: '7d' }));
 app.get('/vendor/phone-examples.json', (req, res) => res.sendFile(path.join(PN_DIR, 'examples.mobile.json'), { maxAge: '7d' }));
@@ -157,7 +164,7 @@ const upload = multer({
   limits: { fileSize: (Number(process.env.MAX_UPLOAD_MB) || storage.maxMb) * 1024 * 1024 },
 });
 
-app.get('/api/config', (req, res) => res.json({ pushKey: push?.publicKey, devSms: !sms.anyReal, maxUploadMb: Number(process.env.MAX_UPLOAD_MB) || storage.maxMb, email: !!mailer, gifs: !!process.env.TENOR_API_KEY }));
+app.get('/api/config', (req, res) => res.json({ v: APP_VERSION, pushKey: push?.publicKey, devSms: !sms.anyReal, maxUploadMb: Number(process.env.MAX_UPLOAD_MB) || storage.maxMb, email: !!mailer, gifs: !!process.env.TENOR_API_KEY }));
 // Server va bazani "uyg'oq" ushlab turish uchun (cron-job.org shu manzilni chaqiradi)
 // ===== /holat — oddiy odam uchun bitta sahifada tekshiruv (✅ / ⚠️ / ❌) =====
 const STARTED = Date.now();
@@ -947,6 +954,7 @@ const on = (socket, ev, fn) => socket.on(ev, (...a) => Promise.resolve(fn(...a))
 io.on('connection', async (socket) => {
   const uid = socket.uid;
   socket.join('u' + uid);
+  socket.emit('app:version', { v: APP_VERSION });
   online.set(uid, (online.get(uid) || 0) + 1);
   await db.run('UPDATE users SET last_seen=? WHERE id=?', [now(), uid]).catch(() => {});
   getUser(uid).then((u) => u && broadcastUser(u)).catch(() => {});

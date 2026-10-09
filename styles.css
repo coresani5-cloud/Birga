@@ -700,3 +700,15 @@ svg { width: 24px; height: 24px; flex: none; }
 .folder-row b { flex: 1; }
 .folder-row span { font-size: 12px; color: var(--danger); font-weight: 700; }
 .folder-row span.on { color: var(--online); }
+
+/* ===== Pastga tortib yangilash, avtomatik yangilanish ===== */
+.ptr { position: absolute; left: 50%; top: 8px; margin-left: -19px; z-index: 6; pointer-events: none; opacity: 0; transform: translateY(0); }
+.ptr.back { transition: transform .25s ease, opacity .25s; }
+.ptr-spin { width: 38px; height: 38px; border-radius: 50%; background: var(--panel); box-shadow: var(--shadow); display: grid; place-items: center; color: var(--muted); }
+.ptr-spin svg { width: 22px; height: 22px; transition: color .15s; }
+.ptr.ready .ptr-spin svg, .ptr.loading .ptr-spin svg { color: var(--blue); }
+.ptr.loading .ptr-spin svg { animation: spin .8s linear infinite; }
+.update-bar { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 0 12px 8px; padding: 10px; border-radius: 14px; background: var(--grad); color: #fff; font-weight: 700; width: calc(100% - 24px); }
+.update-bar svg { width: 18px; height: 18px; }
+.update-bar.hidden { display: none; }
+.pane .scroll { overscroll-behavior-y: contain; }

@@ -39,12 +39,12 @@ async function normalize(file, kind, mime) {
   } else if (kind === 'round') {
     out = base + '-r.mp4';
     // kvadrat 480x480, markazdan kesish
-    args = ['-i', file, '-vf', "crop='min(iw,ih)':'min(iw,ih)',scale=480:480,fps=30", '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '26',
+    args = ['-i', file, '-vf', "crop='min(iw,ih)':'min(iw,ih)',scale=480:480,fps=30", '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '26',
       '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '80k', '-ac', '1', '-movflags', '+faststart', out];
   } else if (kind === 'video') {
-    if (/video\/mp4/.test(mime)) return null; // mp4 ko'p hollarda allaqachon mos
+    if (/video\/(mp4|quicktime)/.test(mime)) return null; // mp4/mov (H.264) ko'p hollarda allaqachon mos
     out = base + '-v.mp4';
-    args = ['-i', file, '-vf', "scale='min(1280,iw)':-2", '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '24',
+    args = ['-i', file, '-vf', "scale='min(1280,iw)':-2", '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '24',
       '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', out];
   } else return null;
   await run(args);

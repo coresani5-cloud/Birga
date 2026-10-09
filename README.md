@@ -6,6 +6,38 @@
 Telegram / WhatsApp / Max uslubidagi mustaqil messenjer. Boshqa hech qanday ilovaga bog'liq emas:
 foydalanuvchi faqat telefon raqami va SMS kod bilan ro'yxatdan o'tadi.
 
+## v4.2: Media foydalanuvchi qurilmasida
+- Har bir rasm, video, ovozli/video xabar va fayl qabul qiluvchining qurilmasiga avtomatik yuklab olinadi va keyin o'sha yerdan ochiladi (internetsiz ham).
+- Hamma qabul qiluvchi yuklab olgach fayl **serverdan o'chiriladi** (WhatsApp usuli) — server/Supabase to'lmaydi.
+- Ilovani ochmaganlar uchun fayl `MEDIA_TTL_DAYS` (standart 30) kun kutadi. Kanallar — faqat muddat bo'yicha; "Saqlangan xabarlar" — o'chirilmaydi.
+- Kompyuterda (Chrome/Edge): Sozlamalar → Xotira va media → Papka tanlash: `Birga/Rasmlar, Videolar, Ovozli xabarlar, Video xabarlar, Fayllar` papkalari yaratiladi va hamma media avtomatik yoziladi.
+- Telefonda: xabarni bosib turing → "Qurilmaga saqlash" (galereya / Fayllar).
+- Hammasini serverda saqlash kerak bo'lsa: `MEDIA_KEEP=1`.
+
+## v4.1: Email bilan kirish
+- Kirish: **email → 5 xonali kod → profil**. Bir marta ro'yxatdan o'tiladi; keyin istalgan qurilmadan shu email va kod bilan o'sha profilga kiriladi.
+- Sessiya doimiy: token har ochilganda yangilanadi (365 kun) va HttpOnly cookie'da ham saqlanadi — brauzer xotirasi tozalansa ham chiqib ketmaydi.
+- Server uxlab yotsa ilova "Ulanmoqda…" deb kutadi, login sahifasiga tashlamaydi.
+- Email yuborish: `BREVO_API_KEY` + `MAIL_FROM` (bepul, kuniga 300 ta). Kalit bo'lmasa — TEST rejimi (kod ekranda; ommaga ochishdan oldin albatta ulang!).
+- **Eng oson tekshirish:** `https://SAYTINGIZ/holat` — hamma narsa ✅/⚠️/❌ bilan va nima qilish kerakligi yozilgan.
+- Texnik tekshirish: `https://SAYTINGIZ/api/health` → `"db":"postgres"` va `"email":"on"` bo'lishi kerak.
+
+## v4 yangiliklari
+- **Guruhlar va kanallar**: yaratish, a'zo qo'shish/chiqarish, adminlar, taklif havolasi (`?join=...`), ommaviy @nom, kanalda faqat adminlar yozadi
+- **Xabarni uzatish** (bir nechta chatga birdan), **javob berish**: rasm/video/stikerga javobda kichik rasm ko'rinadi; telefonda xabarni chapga surib javob berish
+- **Emoji paneli** (3600+ emoji, qidiruv, yaqinda ishlatilganlar), **animatsion stikerlar** (kulgi, sevgi, g'am, jahl, hayrat...), GIF (ixtiyoriy `TENOR_API_KEY`)
+- **Telefon kontaktlaridan** Birga'dagilarni topish (Android Chrome)
+- **SMS kelmasa — kodni emailga olish** (bepul, barcha davlatlar): `BREVO_API_KEY` + `MAIL_FROM`
+- Ovoz yozishda jonli to'lqin, qo'ng'iroqlarda ulanish barqarorligi yaxshilandi
+
+## v3 yangiliklari
+- **Hikoyalar (stories)**: rasm/video, 24 soat, kim ko'rganini ko'rish, hikoyaga javob, profilda "Postlar" sifatida saqlash
+- **Profil sahifasi** (Telegram kabi): katta rasm, Xabar / Ovozsiz / Qo'ng'iroq / Video tugmalari, bo'limlar: Postlar, Media, Ovozli, Fayllar, Havolalar
+- **Pastki menyu**: Chatlar, Kontaktlar, Sozlamalar, Profil; chatlarda **global qidiruv** (@username, ism, raqam) va "O'qilmagan" filtri
+- Suhbatni **ovozsiz qilish**, xabarni **tahrirlash**
+- Ovozli va video xabar: **bir marta bosing** — yozish boshlanadi, yana bosing — yuboriladi (bosib turish ham ishlaydi)
+- **Doimiy saqlash**: PostgreSQL (masalan bepul Supabase) + Supabase Storage — server qayta ishga tushsa ham hech narsa o'chmaydi
+
 ## Imkoniyatlar
 - **Barcha davlatlar**: 240+ davlat ro'yxati, qidiruv, bayroq, raqamni avtomatik formatlash va tekshirish (libphonenumber). Davlat foydalanuvchi joylashuviga qarab avtomatik tanlanadi.
 - **SMS kod** → tasdiqlash → ro'yxatdan o'tish (ism, @username, rasm). Android'da kod SMS'dan avtomatik o'qiladi.
@@ -85,5 +117,5 @@ install.sh     bir buyruqli o'rnatish
 ```
 
 ## Keyingi bosqichlar
-Guruhlar va kanallar, end-to-end shifrlash, Android/iOS native ilova (Flutter), stikerlar,
+End-to-end shifrlash, Android/iOS native ilova (Flutter), stikerlar,
 katta yuklama uchun PostgreSQL + Redis + bir nechta server, fayllar uchun S3/obyekt saqlash.

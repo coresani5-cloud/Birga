@@ -9,12 +9,16 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@iconify-json/noto": "^1.2.9",
     "better-sqlite3": "^13.0.3",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
     "libphonenumber-js": "^1.13.14",
     "multer": "^2.4.0",
+    "nodemailer": "^10.0.16",
+    "pg": "^8.23.1",
     "socket.io": "^4.8.4",
+    "unicode-emoji-json": "^0.9.0",
     "web-push": "^3.6.7"
   },
   "engines": {

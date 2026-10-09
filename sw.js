@@ -1,7 +1,7 @@
 // Birga service worker: ilova qobig'ini keshlash + push bildirishnomalar
-const CACHE = 'birga-v12';
+const CACHE = 'birga-v13';
 const MEDIA = 'birga-media'; // foydalanuvchi mediasi — versiya almashganda O'CHIRILMAYDI
-const SHELL = ['/', '/styles.css', '/app.js', '/i18n.js', '/vendor/phone.js', '/manifest.webmanifest', '/icons/mark.png', '/icons/icon-192.png'];
+const SHELL = ['/', '/styles.css', '/app.js', '/i18n.js', '/vendor/phone.js', '/manifest.webmanifest', '/icons/mark.png', '/icons/icon-192.png', '/socket.io/socket.io.js'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).catch(() => {})); self.skipWaiting(); });
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE && k !== MEDIA).map((k) => caches.delete(k)))));
@@ -39,9 +39,29 @@ self.addEventListener('fetch', (e) => {
     })());
     return;
   }
-  if (u.origin !== location.origin || u.pathname.startsWith('/api/') || u.pathname.startsWith('/socket.io/')) return;
-  e.respondWith(fetch(e.request).then((r) => { if (r.ok) { const cp = r.clone(); caches.open(CACHE).then((c) => c.put(e.request, cp)); } return r; })
-    .catch(() => caches.match(e.request).then((r) => r || caches.match('/'))));
+  if (u.origin !== location.origin || u.pathname.startsWith('/api/') || (u.pathname.startsWith('/socket.io/') && !u.pathname.endsWith('.js')) || u.pathname === '/holat') return;
+  // Ilova qobig'i: keshdan DARHOL ochiladi (server uxlab yotsa ham Birga logotipi ko'rinadi), fonda yangilanadi.
+  // Faqat Birga'ning o'z javoblari (X-Birga) keshlanadi — hostingning "uyg'onish" sahifasi hech qachon.
+  const key = e.request.mode === 'navigate' ? '/' : e.request;
+  e.respondWith((async () => {
+    const c = await caches.open(CACHE);
+    const cached = await c.match(key);
+    const net = fetch(e.request).then((r) => { if (r.ok && r.headers.get('x-birga')) c.put(key, r.clone()); return r; }).catch(() => null);
+    if (cached) { e.waitUntil(net); return cached; }
+    const r = await net;
+    if (r && (r.headers.get('x-birga') || e.request.mode !== 'navigate')) return r;
+    return (await caches.match('/')) || r || Response.error();
+  })());
+});
+
+// Yangi versiya: ilova so'raganda qobiq fayllarini serverdan qayta oladi
+self.addEventListener('message', (e) => {
+  if (e.data !== 'refresh-shell') return;
+  e.waitUntil((async () => {
+    const c = await caches.open(CACHE);
+    await Promise.all(SHELL.map(async (u) => { try { const r = await fetch(u, { cache: 'reload' }); if (r.ok && r.headers.get('x-birga')) await c.put(u, r); } catch {} }));
+    e.source?.postMessage('shell-ready');
+  })());
 });
 
 // ---- Push bildirishnomalar ----

@@ -91,11 +91,20 @@ app.use((req, res, next) => {
   res.set({ 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin', 'X-Frame-Options': 'SAMEORIGIN', 'Permissions-Policy': 'camera=(self), microphone=(self), geolocation=()' });
   next();
 });
+// Birga'ning o'z javoblari belgisi: service worker hosting'ning "uyg'onish" sahifasini keshlab qo'ymasligi uchun
+app.use((req, res, next) => { res.set('X-Birga', '1'); next(); });
 app.use(express.json({ limit: '1mb' }));
 
 // Ilova fayllari public/ papkasida yoki (GitHub'ga papkasiz yuklangan bo'lsa) ildizda turadi
 const PUBLIC_DIR = fs.existsSync(path.join(__dirname, 'public', 'index.html')) ? path.join(__dirname, 'public') : null;
 const INDEX_HTML = PUBLIC_DIR ? path.join(PUBLIC_DIR, 'index.html') : path.join(__dirname, 'index.html');
+// index.html ichiga joriy versiya yoziladi — ilova o'zi eskirganini bila oladi
+let INDEX_CACHE = null;
+function sendIndex(req, res) {
+  if (!INDEX_CACHE) INDEX_CACHE = fs.readFileSync(INDEX_HTML, 'utf8').replace('__APP_VERSION__', APP_VERSION);
+  res.set('Cache-Control', 'no-cache').type('html').send(INDEX_CACHE);
+}
+app.get(['/', '/index.html'], sendIndex);
 if (PUBLIC_DIR) app.use(express.static(PUBLIC_DIR, { setHeaders: (res, p) => { if (p.endsWith('sw.js')) res.set('Cache-Control', 'no-cache'); } }));
 else {
   const FLAT = {
@@ -880,7 +889,7 @@ app.get('/api/gifs', auth, wrap(async (req, res) => {
   res.json((j.results || []).map((g) => ({ id: g.id, mp4: g.media_formats?.mp4?.url, preview: g.media_formats?.tinygif?.url, w: g.media_formats?.mp4?.dims?.[0], h: g.media_formats?.mp4?.dims?.[1] })).filter((g) => g.mp4));
 }));
 
-app.get(/^\/(?!api\/|uploads\/|socket\.io\/|vendor\/|stickers\/).*/, (req, res) => res.sendFile(INDEX_HTML));
+app.get(/^\/(?!api\/|uploads\/|socket\.io\/|vendor\/|stickers\/).*/, sendIndex);
 
 // ---------- Socket.IO ----------
 const server = http.createServer(app);

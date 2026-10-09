@@ -712,3 +712,4 @@ svg { width: 24px; height: 24px; flex: none; }
 .update-bar svg { width: 18px; height: 18px; }
 .update-bar.hidden { display: none; }
 .pane .scroll { overscroll-behavior-y: contain; }
+.boot .wordmark { margin: -6px 0 0; font-size: 32px; }

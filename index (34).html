@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<title>Birga</title>
+<meta name="description" content="Birga — tezkor va xavfsiz messenjer">
+<meta name="app-version" content="__APP_VERSION__">
+<meta name="theme-color" content="#1F6BFF">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<!-- SVG ikonlar -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <linearGradient id="bg-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#00A8D6"/><stop offset=".52" stop-color="#1F6BFF"/><stop offset="1" stop-color="#8A2BE2"/>
+    </linearGradient>
+  </defs>
+  <symbol id="i-send" viewBox="0 0 24 24"><path fill="currentColor" d="M3.4 20.4 21 12 3.4 3.6 3.3 10l12.4 2-12.4 2z"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24"><path fill="currentColor" d="M12 15a3.5 3.5 0 0 0 3.5-3.5v-6a3.5 3.5 0 1 0-7 0v6A3.5 3.5 0 0 0 12 15Zm6.3-3.6a1 1 0 0 0-2 .2 4.3 4.3 0 0 1-8.6 0 1 1 0 0 0-2-.2 6.3 6.3 0 0 0 5.3 6.2V20H8.5a1 1 0 1 0 0 2h7a1 1 0 1 0 0-2H13v-2.4a6.3 6.3 0 0 0 5.3-6.2Z"/></symbol>
+  <symbol id="i-round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.2" fill="none" stroke="currentColor" stroke-width="2"/><path fill="currentColor" d="M8.5 9.6c0-.6.5-1.1 1.1-1.1h3.6c.6 0 1.1.5 1.1 1.1v.7l1.6-1c.4-.2.9.1.9.5v4.4c0 .4-.5.7-.9.5l-1.6-1v.7c0 .6-.5 1.1-1.1 1.1H9.6c-.6 0-1.1-.5-1.1-1.1Z"/></symbol>
+  <symbol id="i-clip" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="m20 11.5-7.8 7.8a5 5 0 0 1-7.1-7.1l8.2-8.2a3.3 3.3 0 0 1 4.7 4.7l-8.2 8.2a1.7 1.7 0 0 1-2.4-2.4l7.6-7.6"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><path fill="currentColor" d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1A17 17 0 0 1 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1z"/></symbol>
+  <symbol id="i-video" viewBox="0 0 24 24"><path fill="currentColor" d="M4 6h10a2 2 0 0 1 2 2v1.6l3.5-2.3c.7-.4 1.5.1 1.5.8v7.8c0 .8-.8 1.2-1.5.8L16 14.4V16a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z"/></symbol>
+  <symbol id="i-video-off" viewBox="0 0 24 24"><path fill="currentColor" d="M3.3 2.3 2 3.6 4.4 6H4a2 2 0 0 0-2 2v8c0 1.1.9 2 2 2h10c.4 0 .8-.1 1.1-.3l5.3 5.3 1.3-1.3zM21 7.3c0-.7-.8-1.2-1.5-.8L16 8.8V8a2 2 0 0 0-2-2H8.9L21 18.1z"/></symbol>
+  <symbol id="i-mic-off" viewBox="0 0 24 24"><path fill="currentColor" d="M3.3 2.3 2 3.6l6.5 6.5v1.4a3.5 3.5 0 0 0 5 3.2l1.6 1.6a4.3 4.3 0 0 1-7.4-2.7 1 1 0 0 0-2 .2 6.3 6.3 0 0 0 5.3 6.2V22h2v-2.6c1.3-.2 2.4-.7 3.4-1.5l3.9 3.9 1.3-1.3zM15.5 11.5v-6a3.5 3.5 0 0 0-6.8-1.1l6.7 6.7zm2.8-.1a1 1 0 0 0-2 .2c0 .5-.1 1-.3 1.4l1.5 1.5c.5-.9.8-2 .8-3.1z"/></symbol>
+  <symbol id="i-flip" viewBox="0 0 24 24"><path fill="currentColor" d="M20 5h-3.2L15 3H9L7.2 5H4a2 2 0 0 0-2 2v12c0 1.1.9 2 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Zm-5 11.5V14H9v2.5L5.5 13 9 9.5V12h6V9.5l3.5 3.5z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14Zm9 2-4-4"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M4 7h16M4 12h16M4 17h16"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M15 5 8 12l7 7"/></symbol>
+  <symbol id="i-pen" viewBox="0 0 24 24"><path fill="currentColor" d="M3 17.2V21h3.8L17.8 10l-3.8-3.8zM20.7 7a1 1 0 0 0 0-1.4l-2.3-2.3a1 1 0 0 0-1.4 0l-1.8 1.8 3.8 3.8z"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="m6 6 12 12M18 6 6 18"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path fill="currentColor" d="M8 5.5v13c0 .8.9 1.3 1.6.9l10-6.5c.6-.4.6-1.3 0-1.7l-10-6.5c-.7-.5-1.6 0-1.6.8Z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path fill="currentColor" d="M7 5h3.5v14H7zm6.5 0H17v14h-3.5z"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="m4 12.5 5 5L20 6.5"/></symbol>
+  <symbol id="i-check2" viewBox="0 0 28 24"><path fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" d="m2 12.5 5 5L18 6.5m-5.5 11L13 18 24 6.5"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path fill="currentColor" d="M14 2H6a2 2 0 0 0-2 2v16c0 1.1.9 2 2 2h12a2 2 0 0 0 2-2V8zm-1 7V3.5L18.5 9z"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><path fill="currentColor" d="M19 3H5a2 2 0 0 0-2 2v14c0 1.1.9 2 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Zm-1 15H6l3.5-4.5 2.5 3 3.5-4.5z M8.5 10a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><path fill="currentColor" d="M17 9V7A5 5 0 0 0 7 7v2a2 2 0 0 0-2 2v9c0 1.1.9 2 2 2h10a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2ZM9 7a3 3 0 0 1 6 0v2H9z"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path fill="currentColor" d="M6 19c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V7H6zM19 4h-3.5l-1-1h-5l-1 1H5v2h14z"/></symbol>
+  <symbol id="i-reply" viewBox="0 0 24 24"><path fill="currentColor" d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11Z"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><path fill="currentColor" d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12zm3 4H8a2 2 0 0 0-2 2v14c0 1.1.9 2 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Zm0 16H8V7h11z"/></symbol>
+  <symbol id="i-bookmark" viewBox="0 0 24 24"><path fill="currentColor" d="M17 3H7a2 2 0 0 0-2 2v16l7-3 7 3V5a2 2 0 0 0-2-2Z"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path fill="currentColor" d="M12.3 22A10 10 0 0 1 9.5 2.4a1 1 0 0 1 1.2 1.3 7.5 7.5 0 0 0 9.6 9.6 1 1 0 0 1 1.3 1.2A10 10 0 0 1 12.3 22Z"/></symbol>
+  <symbol id="i-logout" viewBox="0 0 24 24"><path fill="currentColor" d="M10 17v-3H3v-4h7V7l5 5zm2-15h7a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2h-7v-2h7V4h-7z"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><path fill="currentColor" d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm0 2c-4.4 0-9 2.2-9 5v3h18v-3c0-2.8-4.6-5-9-5Z"/></symbol>
+  <symbol id="i-camera" viewBox="0 0 24 24"><path fill="currentColor" d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4ZM9 2 7.2 4H4a2 2 0 0 0-2 2v12c0 1.1.9 2 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3.2L15 2Zm3 15a5 5 0 1 1 0-10 5 5 0 0 1 0 10Z"/></symbol>
+  <symbol id="i-call-in" viewBox="0 0 24 24"><path fill="currentColor" d="M20 5.4 18.6 4 7 15.6V9H5v10h10v-2H8.4z"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm6.9 6h-2.9a15.7 15.7 0 0 0-1.4-3.6A8 8 0 0 1 18.9 8ZM12 4c.8 1.2 1.5 2.5 1.9 4h-3.8c.4-1.5 1.1-2.8 1.9-4ZM4.3 14a8.2 8.2 0 0 1 0-4h3.4a16.5 16.5 0 0 0 0 4Zm.8 2h2.9c.3 1.3.8 2.5 1.4 3.6A8 8 0 0 1 5.1 16ZM8 8H5.1a8 8 0 0 1 4.3-3.6C8.8 5.5 8.3 6.7 8 8Zm4 12c-.8-1.2-1.5-2.5-1.9-4h3.8c-.4 1.5-1.1 2.8-1.9 4Zm2.3-6H9.7a14.7 14.7 0 0 1 0-4h4.6a14.7 14.7 0 0 1 0 4Zm.3 5.6c.6-1.1 1.1-2.3 1.4-3.6h2.9a8 8 0 0 1-4.3 3.6ZM16.3 14a16.5 16.5 0 0 0 0-4h3.4a8.2 8.2 0 0 1 0 4Z"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path fill="currentColor" d="M12 22a2.5 2.5 0 0 0 2.5-2.5h-5A2.5 2.5 0 0 0 12 22Zm7-6V11a7 7 0 0 0-5.5-6.8V3.5a1.5 1.5 0 0 0-3 0v.7A7 7 0 0 0 5 11v5l-2 2v1h18v-1z"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path fill="currentColor" d="M11 3h2v9.2l3.3-3.3 1.4 1.4L12 16l-5.7-5.7 1.4-1.4 3.3 3.3zM5 18h14v2H5z"/></symbol>
+  <symbol id="i-share" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2 7.8 6.2l1.4 1.4L11 5.8V15h2V5.8l1.8 1.8 1.4-1.4zM5 10h3v2H6v8h12v-8h-2v-2h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V11a1 1 0 0 1 1-1Z"/></symbol>
+  <symbol id="i-chats" viewBox="0 0 24 24"><path fill="currentColor" d="M4 3h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H9l-4 3.5V15H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm16 5a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-1v3l-3.5-3H10a2 2 0 0 1-2-2v-1h8a4 4 0 0 0 4-4z"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7 7 0 0 0-1.7-1L15 3h-4l-.4 2.9a7 7 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7 7 0 0 0 1.7 1L11 21h4l.4-2.9a7 7 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Z" transform="translate(-1 0)"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path stroke="currentColor" stroke-width="2.6" stroke-linecap="round" d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path fill="currentColor" d="M12 5C6.5 5 2.7 9.3 1.5 12c1.2 2.7 5 7 10.5 7s9.3-4.3 10.5-7C21.3 9.3 17.5 5 12 5Zm0 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8Zm0-2.2a1.8 1.8 0 1 0 0-3.6 1.8 1.8 0 0 0 0 3.6Z"/></symbol>
+  <symbol id="i-bell-off" viewBox="0 0 24 24"><path fill="currentColor" d="M3.3 2.3 2 3.6l4 4A7 7 0 0 0 5 11v5l-2 2v1h14.4l3 3 1.3-1.3zM12 22a2.5 2.5 0 0 0 2.5-2.5h-5A2.5 2.5 0 0 0 12 22Zm7-6V11a7 7 0 0 0-5.5-6.8V3.5a1.5 1.5 0 0 0-3 0v.7c-.8.2-1.6.5-2.3 1L19 16.5z"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M10 14a4.5 4.5 0 0 0 6.4 0l3.2-3.2a4.5 4.5 0 0 0-6.4-6.4L12 5.6M14 10a4.5 4.5 0 0 0-6.4 0l-3.2 3.2a4.5 4.5 0 0 0 6.4 6.4l1.2-1.2"/></symbol>
+  <symbol id="i-megaphone" viewBox="0 0 24 24"><path fill="currentColor" d="M18 3.5v15.2c0 .7-.8 1.2-1.4.8L11 16H8.5l.9 4.1c.1.5-.3.9-.8.9H7.2a.8.8 0 0 1-.8-.6L5.3 16H5a3 3 0 0 1-3-3v-3a3 3 0 0 1 3-3h6l5.6-4.3c.6-.4 1.4 0 1.4.8ZM20 9a3 3 0 0 1 0 5z"/></symbol>
+  <symbol id="i-group" viewBox="0 0 24 24"><path fill="currentColor" d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm7.5-.5a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4ZM9 13c-3.3 0-7 1.7-7 4.2V20h14v-2.8C16 14.7 12.3 13 9 13Zm7.6.1c1.5 1 2.4 2.4 2.4 4.1V20h3v-2.6c0-2.2-2.9-3.9-5.4-4.3Z"/></symbol>
+  <symbol id="i-forward" viewBox="0 0 24 24"><path fill="currentColor" d="M14 9V5l7 7-7 7v-4.1c-5 0-8.5 1.6-11 5.1 1-5 4-10 11-11Z"/></symbol>
+  <symbol id="i-smile" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16Zm-3.5-9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm7 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM12 17.5c2.3 0 4.3-1.4 5.1-3.5H6.9c.8 2.1 2.8 3.5 5.1 3.5Z"/></symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm0 2v.5l8 5 8-5V6zm16 2.8-7.5 4.7a1 1 0 0 1-1 0L4 8.8V18h16z"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path fill="currentColor" d="M17.7 6.3A8 8 0 1 0 19.7 14h-2.1a6 6 0 1 1-1.4-6.2L13 11h7V4z"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="m7 10 5 5 5-5"/></symbol>
+</svg>
+
+<!-- ============ KIRISH (AUTH) ============ -->
+<section id="auth" class="auth hidden">
+  <div class="auth-bg"></div>
+  <div class="auth-stripes"><i></i><i></i><i></i><i></i></div>
+  <div class="lang-switch" id="lang-switch"></div>
+  <div class="auth-card">
+    <!-- 1-qadam: email -->
+    <form id="step-email" class="step" novalidate>
+      <img src="/icons/mark.png" class="auth-logo" alt="">
+      <h1 class="wordmark">BIRGA</h1>
+      <p class="muted" data-i18n="email_intro"></p>
+      <div class="email-field">
+        <svg><use href="#i-mail"/></svg>
+        <input id="email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" placeholder="you@gmail.com" required>
+      </div>
+      <button class="btn-primary" id="btn-send-code" data-i18n="get_code"></button>
+      <p class="tiny muted" data-i18n="terms"></p>
+      <button type="button" class="install-btn hidden" data-install><svg><use href="#i-download"/></svg><span data-i18n="install_app"></span></button>
+    </form>
+
+    <!-- 2-qadam: emaildagi kod -->
+    <form id="step-code" class="step hidden" novalidate>
+      <button type="button" class="icon-btn back-step" data-back="email"><svg><use href="#i-back"/></svg></button>
+      <div class="sms-anim"><svg><use href="#i-mail"/></svg></div>
+      <p class="muted" data-i18n="code_sent_email"></p>
+      <h2 id="code-target" class="code-target">you@gmail.com</h2>
+      <div class="code-boxes" id="code-boxes">
+        <input inputmode="numeric" maxlength="1" autocomplete="one-time-code" aria-label="1"><input inputmode="numeric" maxlength="1" aria-label="2"><input inputmode="numeric" maxlength="1" aria-label="3"><input inputmode="numeric" maxlength="1" aria-label="4"><input inputmode="numeric" maxlength="1" aria-label="5">
+      </div>
+      <div id="dev-code" class="dev-code hidden"></div>
+      <p class="err" id="code-err"></p>
+      <button type="button" class="btn-ghost hidden" id="mail-open"><svg><use href="#i-mail"/></svg><span data-i18n="open_mail"></span></button>
+      <p class="tiny muted" data-i18n="check_spam"></p>
+      <button type="button" class="link-btn" id="btn-resend" disabled></button>
+      <button type="button" class="link-btn" data-back="email" data-i18n="change_email"></button>
+    </form>
+
+    <!-- 3-qadam: ro'yxatdan o'tish -->
+    <form id="step-profile" class="step hidden" novalidate>
+      <h2 data-i18n="your_profile"></h2>
+      <p class="muted" data-i18n="profile_hint"></p>
+      <label class="avatar-pick">
+        <input type="file" accept="image/*" id="reg-avatar" hidden>
+        <div class="avatar-xl" id="reg-avatar-preview"><svg><use href="#i-camera"/></svg></div>
+      </label>
+      <input class="field" id="reg-name" data-i18n-ph="name" maxlength="64" required>
+      <div class="field-wrap"><span>@</span><input class="field" id="reg-username" data-i18n-ph="username_opt" maxlength="32" autocapitalize="off"></div>
+      <p class="err" id="reg-err"></p>
+      <button class="btn-primary" data-i18n="start"></button>
+    </form>
+  </div>
+</section>
+
+<div class="boot hidden" id="boot"><img src="/icons/mark.png" alt=""><b class="wordmark">BIRGA</b><div class="spinner"></div><p id="boot-msg"></p></div>
+
+<!-- ============ ASOSIY ILOVA ============ -->
+<div id="app" class="app hidden">
+  <aside class="sidebar">
+    <!-- CHATLAR -->
+    <section class="pane" id="pane-chats">
+      <header class="pane-head">
+        <div class="brand"><img src="/icons/mark.png" alt=""><span>Birga</span></div>
+        <button class="icon-btn" id="btn-new-top"><svg><use href="#i-pen"/></svg></button>
+      </header>
+      <div class="stories" id="stories"></div>
+      <div class="search-row"><div class="search"><svg><use href="#i-search"/></svg><input id="chat-search" data-i18n-ph="search"></div></div>
+      <div class="chips" id="filters">
+        <button class="chip on" data-f="all" data-i18n="filter_all"></button>
+        <button class="chip" data-f="unread"><span data-i18n="filter_unread"></span> <b id="unread-count"></b></button>
+      </div>
+      <div class="conn-bar hidden" id="conn-bar" data-i18n="connecting"></div>
+      <button class="update-bar hidden" id="update-bar"><svg><use href="#i-refresh"/></svg><span data-i18n="update_ready"></span></button>
+      <div class="notif-bar hidden" id="notif-bar"><svg><use href="#i-bell"/></svg><span data-i18n="notif_banner"></span><button id="notif-enable" data-i18n="enable"></button><button class="icon-btn" id="notif-close"><svg><use href="#i-close"/></svg></button></div>
+      <div class="scroll">
+        <ul class="chat-list" id="chat-list"></ul>
+        <div class="global hidden" id="global-box"><div class="sub" data-i18n="global_search"></div><div id="global-results"></div></div>
+        <div class="list-empty hidden" id="list-empty">
+          <img src="/icons/mark.png" alt="">
+          <p data-i18n="no_chats"></p>
+          <span data-i18n="no_chats_hint"></span>
+        </div>
+      </div>
+      <button class="fab" id="btn-new"><svg><use href="#i-pen"/></svg></button>
+    </section>
+
+    <!-- KONTAKTLAR -->
+    <section class="pane hidden" id="pane-contacts">
+      <header class="pane-head"><h2 data-i18n="tab_contacts"></h2></header>
+      <div class="search-row"><div class="search"><svg><use href="#i-search"/></svg><input id="contact-search" data-i18n-ph="search_users"></div></div>
+      <div class="scroll">
+        <button class="row-btn" id="btn-invite"><span class="ri"><svg><use href="#i-share"/></svg></span><span data-i18n="invite"></span></button>
+        <button class="row-btn hidden" id="btn-sync"><span class="ri c5"><svg><use href="#i-user"/></svg></span><span data-i18n="find_contacts"></span></button>
+        <div id="contact-results"></div>
+        <div id="contact-list"></div>
+      </div>
+    </section>
+
+    <!-- SOZLAMALAR -->
+    <section class="pane hidden" id="pane-settings">
+      <header class="pane-head"><h2 data-i18n="tab_settings"></h2></header>
+      <div class="scroll">
+        <button class="me-card" id="set-me"></button>
+        <div class="group">
+          <button class="row-btn" data-set="lang"><span class="ri c1"><svg><use href="#i-globe"/></svg></span><span><span data-i18n="language"></span><small id="set-lang"></small></span></button>
+          <button class="row-btn" data-set="theme"><span class="ri c2"><svg><use href="#i-moon"/></svg></span><span><span data-i18n="night"></span><small id="theme-label"></small></span></button>
+          <button class="row-btn" data-set="notif"><span class="ri c3"><svg><use href="#i-bell"/></svg></span><span><span data-i18n="notifications"></span><small id="set-notif"></small></span></button>
+          <button class="row-btn" data-set="email"><span class="ri c5"><svg><use href="#i-mail"/></svg></span><span><span>Email</span><small id="set-email"></small></span></button>
+          <button class="row-btn" data-set="storage"><span class="ri c4"><svg><use href="#i-download"/></svg></span><span><span data-i18n="storage_title"></span><small id="set-storage"></small></span></button>
+        </div>
+        <div class="group">
+          <button class="row-btn" data-set="saved"><span class="ri c4"><svg><use href="#i-bookmark"/></svg></span><span data-i18n="saved"></span></button>
+          <button class="row-btn" data-install><span class="ri c5"><svg><use href="#i-download"/></svg></span><span data-i18n="install_app"></span></button>
+          <button class="row-btn" data-set="invite"><span class="ri c6"><svg><use href="#i-share"/></svg></span><span data-i18n="invite"></span></button>
+        </div>
+        <div class="group">
+          <button class="row-btn danger" data-set="logout"><span class="ri c7"><svg><use href="#i-logout"/></svg></span><span data-i18n="logout"></span></button>
+        </div>
+        <p class="version"><img src="/icons/mark.png" alt=""> Birga v4.0</p>
+      </div>
+    </section>
+
+    <!-- PROFIL (o'zim) -->
+    <section class="pane hidden" id="pane-profile"><div class="scroll" id="my-profile"></div></section>
+
+    <nav class="bottom-nav" id="bottom-nav">
+      <button data-tab="chats" class="on"><span class="nb"><svg><use href="#i-chats"/></svg><b class="badge hidden" id="nav-badge"></b></span><span data-i18n="tab_chats"></span></button>
+      <button data-tab="contacts"><span class="nb"><svg><use href="#i-user"/></svg></span><span data-i18n="tab_contacts"></span></button>
+      <button data-tab="settings"><span class="nb"><svg><use href="#i-gear"/></svg></span><span data-i18n="tab_settings"></span></button>
+      <button data-tab="profile"><span class="nb" id="nav-me"></span><span data-i18n="tab_profile"></span></button>
+    </nav>
+  </aside>
+
+  <main class="chat" id="chat">
+    <div class="chat-empty" id="chat-empty">
+      <img src="/icons/mark.png" alt="">
+      <p data-i18n="choose_chat"></p>
+    </div>
+
+    <header class="chat-head hidden" id="chat-head">
+      <button class="icon-btn" id="btn-back"><svg><use href="#i-back"/></svg></button>
+      <div class="peer" id="peer-info"></div>
+      <button class="icon-btn" id="btn-audio-call"><svg><use href="#i-phone"/></svg></button>
+      <button class="icon-btn" id="btn-video-call"><svg><use href="#i-video"/></svg></button>
+    </header>
+
+    <div class="messages hidden" id="messages"></div>
+
+    <div class="reply-bar hidden" id="reply-bar">
+      <svg id="reply-icon"><use href="#i-reply"/></svg>
+      <div><b id="reply-name"></b><span id="reply-text"></span></div>
+      <button class="icon-btn" id="reply-cancel"><svg><use href="#i-close"/></svg></button>
+    </div>
+
+    <div class="emoji-panel hidden" id="emoji-panel">
+      <div class="ep-tabs" id="ep-tabs"></div>
+      <div class="ep-cats" id="ep-cats"></div>
+      <input class="ep-search" id="ep-search" autocapitalize="off">
+      <div class="ep-body" id="ep-body"></div>
+    </div>
+    <footer class="composer hidden" id="composer">
+      <div class="composer-row" id="composer-row">
+        <button class="icon-btn" id="btn-attach"><svg><use href="#i-clip"/></svg></button>
+        <input type="file" id="file-input" multiple hidden>
+        <textarea id="text" rows="1" data-i18n-ph="write_msg"></textarea>
+        <button class="icon-btn" id="btn-emoji"><svg><use href="#i-smile"/></svg></button>
+        <button class="icon-btn rec-alt" id="btn-round" data-i18n-title="rec_round_title"><svg><use href="#i-round"/></svg></button>
+      </div>
+      <div class="rec-row hidden" id="rec-row">
+        <span class="rec-dot"></span><span id="rec-time">0:00</span><div class="rec-wave" id="rec-wave"></div>
+        <div class="rec-hint" id="rec-hint" data-i18n="slide_cancel"></div>
+        <button class="link-btn danger hidden" id="rec-cancel" data-i18n="cancel"></button>
+      </div>
+      <div class="rec-lock hidden" id="rec-lock"><svg><use href="#i-lock"/></svg><span>⌃</span></div>
+      <button class="send-btn" id="btn-action" aria-label="send" data-i18n-title="rec_voice_title">
+        <svg class="ic-send"><use href="#i-send"/></svg>
+        <svg class="ic-mic"><use href="#i-mic"/></svg>
+        <svg class="ic-round"><use href="#i-round"/></svg>
+      </button>
+    </footer>
+    <div class="channel-bar hidden" id="channel-bar"></div>
+  </main>
+</div>
+
+<!-- Profil sahifasi (boshqa foydalanuvchi) -->
+<div class="profile-page hidden" id="profile-page"><div class="pp-inner" id="profile-inner"></div></div>
+
+<!-- Hikoya ko'ruvchi -->
+<div class="story-viewer hidden" id="story-viewer">
+  <div class="sv-stage" id="sv-stage">
+    <div class="sv-bars" id="sv-bars"></div>
+    <div class="sv-head"><div id="sv-user"></div><button class="icon-btn light" id="sv-close"><svg><use href="#i-close"/></svg></button></div>
+    <div class="sv-media" id="sv-media"></div>
+    <div class="sv-caption" id="sv-caption"></div>
+    <div class="sv-foot" id="sv-foot"></div>
+  </div>
+</div>
+
+<!-- Yumaloq video yozish -->
+<div class="round-rec hidden" id="round-rec">
+  <div class="round-wrap">
+    <svg class="round-ring" viewBox="0 0 100 100"><circle cx="50" cy="50" r="48" class="track"/><circle cx="50" cy="50" r="48" class="prog" id="round-prog"/></svg>
+    <video id="round-preview" autoplay muted playsinline></video>
+  </div>
+  <div class="round-time" id="round-time">0:00</div>
+  <div class="round-actions">
+    <button class="icon-btn light" id="round-flip"><svg><use href="#i-flip"/></svg></button>
+    <span id="round-actions" class="round-actions hidden">
+      <button class="icon-btn light" id="round-cancel"><svg><use href="#i-trash"/></svg></button>
+      <button class="send-btn" id="round-send" data-mode="send"><svg class="ic-send"><use href="#i-send"/></svg></button>
+    </span>
+  </div>
+</div>
+
+<!-- Qo'ng'iroq oynasi -->
+<div class="call hidden" id="call">
+  <video id="remote-video" autoplay playsinline></video>
+  <audio id="remote-audio" autoplay></audio>
+  <video id="local-video" autoplay muted playsinline></video>
+  <div class="call-info" id="call-info">
+    <div class="call-avatar" id="call-avatar"></div>
+    <h2 id="call-name"></h2>
+    <p id="call-status"></p>
+  </div>
+  <div class="call-controls" id="call-controls">
+    <button class="cbtn" id="c-mute"><svg><use href="#i-mic"/></svg><span data-i18n="mic"></span></button>
+    <button class="cbtn" id="c-cam"><svg><use href="#i-video"/></svg><span data-i18n="camera"></span></button>
+    <button class="cbtn" id="c-flip"><svg><use href="#i-flip"/></svg><span data-i18n="flip"></span></button>
+    <button class="cbtn end" id="c-end"><svg><use href="#i-phone"/></svg><span data-i18n="end"></span></button>
+  </div>
+  <div class="call-controls hidden" id="call-incoming">
+    <button class="cbtn end" id="c-reject"><svg><use href="#i-phone"/></svg><span data-i18n="decline"></span></button>
+    <button class="cbtn accept" id="c-accept"><svg><use href="#i-phone"/></svg><span data-i18n="answer"></span></button>
+  </div>
+</div>
+
+<div class="viewer hidden" id="viewer"><button class="icon-btn light" id="viewer-close"><svg><use href="#i-close"/></svg></button><div id="viewer-body"></div></div>
+<div class="modal hidden" id="modal"><div class="modal-card" id="modal-card"></div></div>
+<div class="ctx hidden" id="ctx"></div>
+<div class="toast hidden" id="toast"></div>
+
+<script src="/vendor/phone.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script src="/i18n.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

@@ -34,6 +34,8 @@ async function api(path, opts = {}) {
   let r;
   try { r = await fetch(path, { method: opts.method || (body ? 'POST' : 'GET'), headers, body, credentials: 'same-origin' }); }
   catch { throw new Error(t('net_err')); }
+  // Server uxlab yotganda hosting o'z HTML sahifasini qaytaradi — buni tarmoq xatosi deb hisoblaymiz
+  if (!(r.headers.get('content-type') || '').includes('json') && !r.headers.get('x-birga')) throw new Error(t('net_err'));
   const j = await r.json().catch(() => ({}));
   if (r.status === 401 && S.token && !opts.noLogout) { toast(t('session_end')); logout(true); throw new Error(t('session_end')); }
   if (!r.ok) { const e = new Error(j.error || t('err')); e.data = j; e.status = r.status; throw e; }
@@ -252,8 +254,9 @@ async function logout(silent) {
 
 /* ======================= ILOVA ======================= */
 async function boot() {
+  $('#boot').classList.remove('hidden');
   try { S.config = await api('/api/config'); } catch {}
-  Updater.init(S.config?.v);
+  Updater.init(document.querySelector('meta[name="app-version"]')?.content || S.config?.v);
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
   const jq = new URLSearchParams(location.search).get('join'); if (jq) store.set('birga_join', jq); // ro'yxatdan keyin qo'shiladi
   // Sessiya: localStorage'dagi token yoki (u o'chib ketgan bo'lsa) serverdagi doimiy cookie
@@ -270,6 +273,8 @@ async function boot() {
     }
   }
   $('#boot').classList.add('hidden');
+  if (!S.config?.v) { try { S.config = await api('/api/config'); } catch {} }
+  Updater.seen(S.config?.v);
   navigator.storage?.persist?.().catch(() => {});
   if (!S.me.name) { $('#auth').classList.remove('hidden'); showStep('profile'); return; }
   if (S.me.lang && S.me.lang !== LANG && !store.get('birga_lang')) changeLang(S.me.lang);
@@ -2243,7 +2248,7 @@ async function storageModal() {
 const Updater = {
   v: null, pending: false,
   init(v) {
-    if (this.v) return; this.v = v || null;
+    if (this.inited) return; this.inited = true; this.v = v && !v.startsWith('__') ? v : null;
     setInterval(() => this.check(), 3 * 60e3);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) { this.check(); if (S.me) softRefresh(); } });
     window.addEventListener('online', () => { this.check(); if (S.me) softRefresh(); });
@@ -2262,7 +2267,15 @@ const Updater = {
   },
   later() {
     if (this.pending) return; this.pending = true;
-    const go = () => { try { sessionStorage.setItem('birga_updated', '1'); } catch {} location.reload(); };
+    const go = async () => {
+      // halqa bo'lib qolmasligi uchun: 1 daqiqada ko'pi bilan 2 marta
+      let n = []; try { n = JSON.parse(sessionStorage.getItem('birga_reloads') || '[]').filter((x) => Date.now() - x < 60000); } catch {}
+      if (n.length >= 2) return;
+      try { sessionStorage.setItem('birga_reloads', JSON.stringify([...n, Date.now()])); sessionStorage.setItem('birga_updated', '1'); } catch {}
+      const sw = navigator.serviceWorker?.controller;
+      if (sw) await new Promise((res) => { const t0 = setTimeout(res, 5000); navigator.serviceWorker.addEventListener('message', (e) => { if (e.data === 'shell-ready') { clearTimeout(t0); res(); } }); sw.postMessage('refresh-shell'); });
+      location.reload();
+    };
     if (!this.busy()) return go();
     const bar = $('#update-bar'); bar.classList.remove('hidden'); bar.onclick = go;
     const t2 = setInterval(() => { if (!this.busy() && document.hidden) { clearInterval(t2); go(); } }, 5000); // fonga o'tganda jimgina yangilanadi

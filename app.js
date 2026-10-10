@@ -242,16 +242,38 @@ async function verifyCode(code) {
   $('#code-err').textContent = '';
   try {
     const r = await api('/api/auth/email/verify', { body: { email: auth.email, code } });
-    S.token = r.token; store.set('birga_token', r.token); S.me = r.user;
     clearInterval(auth.timer);
-    navigator.storage?.persist?.().catch(() => {});
-    if (r.isNew || !r.user.name) showStep('profile'); else startApp();
+    if (r.need2fa) { ask2fa(r); return; }
+    loginDone(r);
   } catch (e) {
     $('#code-err').textContent = e.message;
     const cb = $('#code-boxes'); cb.classList.remove('shake'); void cb.offsetWidth; cb.classList.add('shake');
     boxes.forEach((b) => (b.value = '')); boxes[0].focus();
   } finally { verifying = false; }
 }
+
+function loginDone(r) {
+  S.token = r.token; store.set('birga_token', r.token); S.me = r.user;
+  navigator.storage?.persist?.().catch(() => {});
+  if (r.isNew || !r.user.name) showStep('profile'); else startApp();
+}
+// xavfsizlik kodi qo'yilgan akkaunt: email kodidan keyin shu kod so'raladi
+function ask2fa(r) {
+  auth.ticket = r.ticket;
+  $('#tf-pass').value = ''; $('#tf-err').textContent = '';
+  $('#tf-hint').textContent = r.hint ? t('tf_hint_is', { h: r.hint }) : ''; $('#tf-hint').classList.toggle('hidden', !r.hint);
+  showStep('2fa'); setTimeout(() => $('#tf-pass').focus(), 80);
+}
+$('#step-2fa').onsubmit = async (e) => {
+  e.preventDefault();
+  const btn = $('#tf-go'); if (btn.disabled) return;
+  btn.disabled = true; btn.classList.add('loading'); $('#tf-err').textContent = '';
+  try { loginDone(await api('/api/auth/2fa', { body: { ticket: auth.ticket, password: $('#tf-pass').value } })); }
+  catch (er) {
+    if (er.data?.expired) { showStep('email'); toast(er.message, 3500); return; }
+    $('#tf-err').textContent = er.message; $('#tf-pass').select();
+  } finally { btn.disabled = false; btn.classList.remove('loading'); }
+};
 
 let regAvatarFile = null;
 $('#reg-avatar').onchange = (e) => {
@@ -3251,6 +3273,67 @@ video.reel-frame { object-fit: contain; background: #000; cursor: pointer; }
 .reels-pick span { display: flex; flex-direction: column; }
 .reels-pick small { color: var(--muted); font-size: 12.5px; }
 </style>`);
+
+/* ======================= XAVFSIZLIK KODI (ikki bosqichli himoya) ======================= */
+try {
+  Object.assign(I18N.uz, { tf_title: 'Xavfsizlik kodi', tf_enter: 'Akkauntingiz qo‘shimcha kod bilan himoyalangan. Kirish uchun o‘zingiz qo‘ygan xavfsizlik kodini kiriting.', tf_continue: 'Davom etish',
+    tf_forgot: 'Kodni unutgan bo‘lsangiz, akkauntga kirib bo‘lmaydi — uni hech kimga aytmang va yodda saqlang.', tf_hint_is: 'Eslatma: {h}', tf_on: 'Yoqilgan', tf_off: 'O‘chirilgan',
+    tf_about: 'Yoqilsa, yangi qurilmadan kirishda emaildagi koddan tashqari shu kod ham so‘raladi. Emailingizga kimdir kirib olsa ham akkauntingizga kira olmaydi.',
+    tf_new: 'Yangi kod (kamida 4 belgi)', tf_repeat: 'Kodni takrorlang', tf_hint: 'Eslatma (ixtiyoriy)', tf_current: 'Joriy kod', tf_mismatch: 'Kodlar bir xil emas',
+    tf_set_ok: 'Xavfsizlik kodi o‘rnatildi', tf_changed: 'Xavfsizlik kodi almashtirildi', tf_off_ok: 'Xavfsizlik kodi o‘chirildi', tf_change: 'Kodni almashtirish', tf_disable: 'Kodni o‘chirish', tf_enable: 'Kodni yoqish' });
+  Object.assign(I18N.ru, { tf_title: 'Код безопасности', tf_enter: 'Ваш аккаунт защищён дополнительным кодом. Введите код безопасности, который вы установили.', tf_continue: 'Продолжить',
+    tf_forgot: 'Если вы забудете код, войти в аккаунт будет нельзя — никому его не сообщайте и запомните.', tf_hint_is: 'Подсказка: {h}', tf_on: 'Включён', tf_off: 'Выключен',
+    tf_about: 'При входе с нового устройства, кроме кода из email, будет запрашиваться этот код. Даже получив доступ к вашей почте, никто не войдёт в аккаунт.',
+    tf_new: 'Новый код (минимум 4 символа)', tf_repeat: 'Повторите код', tf_hint: 'Подсказка (необязательно)', tf_current: 'Текущий код', tf_mismatch: 'Коды не совпадают',
+    tf_set_ok: 'Код безопасности установлен', tf_changed: 'Код безопасности изменён', tf_off_ok: 'Код безопасности отключён', tf_change: 'Изменить код', tf_disable: 'Отключить код', tf_enable: 'Включить код' });
+  Object.assign(I18N.en, { tf_title: 'Security code', tf_enter: 'Your account is protected with an extra code. Enter the security code you set.', tf_continue: 'Continue',
+    tf_forgot: 'If you forget the code you will not be able to sign in — keep it safe and never share it.', tf_hint_is: 'Hint: {h}', tf_on: 'On', tf_off: 'Off',
+    tf_about: 'When signing in on a new device, this code will be asked in addition to the email code. Even someone with access to your email cannot get into your account.',
+    tf_new: 'New code (at least 4 characters)', tf_repeat: 'Repeat the code', tf_hint: 'Hint (optional)', tf_current: 'Current code', tf_mismatch: 'Codes do not match',
+    tf_set_ok: 'Security code set', tf_changed: 'Security code changed', tf_off_ok: 'Security code turned off', tf_change: 'Change code', tf_disable: 'Turn off code', tf_enable: 'Turn on code' });
+} catch {}
+{
+  $('#set-privacy')?.insertAdjacentHTML('afterend', `<button class="row-btn" id="set-2fa"><span class="ri c2"><svg><use href="#i-lock"/></svg></span><span><span data-t7="tf_title"></span><small id="set-2fa-v"></small></span></button>`);
+  const paint = () => {
+    $$('[data-t7]').forEach((x) => (x.textContent = t(x.dataset.t7)));
+    const v = $('#set-2fa-v'); if (v && S.me) v.textContent = t(S.me.has2fa ? 'tf_on' : 'tf_off');
+  };
+  const baseRS = renderSettings; renderSettings = function () { baseRS(); paint(); };
+  const baseCL = changeLang; changeLang = function (...a) { const r = baseCL(...a); paint(); return r; };
+  setTimeout(paint, 0);
+  const pw = (id, ph, ac) => `<input class="field" id="${id}" type="password" maxlength="64" autocomplete="${ac}" placeholder="${esc(t(ph))}">`;
+  const save = async (body, okKey) => {
+    try { const u = await api('/api/me/2fa', { body }); S.me = { ...S.me, ...u }; closeModal(); paint(); toast(t(okKey), 2500); }
+    catch (e) { const er = $('#tf-m-err'); if (er) er.textContent = e.message; }
+  };
+  function form(mode) { // mode: set | change | off
+    const has = !!S.me.has2fa;
+    modal(`<h3>${esc(t(mode === 'off' ? 'tf_disable' : mode === 'change' ? 'tf_change' : 'tf_title'))} <button class="icon-btn" data-close>${icon('close')}</button></h3>
+      ${mode === 'set' ? `<p class="rn-hint" style="line-height:1.45">${esc(t('tf_about'))}</p>` : ''}
+      ${has ? pw('tf-cur', 'tf_current', 'current-password') : ''}
+      ${mode !== 'off' ? pw('tf-new', 'tf_new', 'new-password') + pw('tf-rep', 'tf_repeat', 'new-password') + `<input class="field" id="tf-hnt" maxlength="64" autocomplete="off" placeholder="${esc(t('tf_hint'))}">` : ''}
+      ${mode !== 'off' ? `<p class="tiny muted" style="margin-top:10px">${esc(t('tf_forgot'))}</p>` : ''}
+      <p class="err" id="tf-m-err"></p>
+      <button class="btn-primary" id="tf-m-go">${esc(t(mode === 'off' ? 'tf_disable' : 'save'))}</button>`);
+    setTimeout(() => $('#modal-card input')?.focus(), 60);
+    $('#tf-m-go').onclick = () => {
+      const cur = $('#tf-cur')?.value;
+      if (mode === 'off') return save({ off: true, current: cur }, 'tf_off_ok');
+      const a = $('#tf-new').value, b = $('#tf-rep').value;
+      if (a !== b) { $('#tf-m-err').textContent = t('tf_mismatch'); return; }
+      save({ password: a, hint: $('#tf-hnt').value, current: cur }, has ? 'tf_changed' : 'tf_set_ok');
+    };
+    $('#modal-card').onkeydown = (e) => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') $('#tf-m-go').click(); };
+  }
+  $('#set-2fa').onclick = () => {
+    if (!S.me.has2fa) return form('set');
+    modal(`<h3>${esc(t('tf_title'))} <button class="icon-btn" data-close>${icon('close')}</button></h3>
+      <p class="rn-hint" style="line-height:1.45">${esc(t('tf_about'))}</p>
+      <div class="pp-card"><button class="act" id="tf-a-change">${icon('pen')}${esc(t('tf_change'))}</button><button class="act" id="tf-a-off" style="color:var(--danger,#E5484D)">${icon('lock')}${esc(t('tf_disable'))}</button></div>`);
+    $('#tf-a-change').onclick = () => form('change');
+    $('#tf-a-off').onclick = () => form('off');
+  };
+}
 
 function pullToRefresh(pane, onRefresh) {
   const scroller = pane.querySelector('.scroll');

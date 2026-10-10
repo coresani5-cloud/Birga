@@ -366,6 +366,7 @@ async function connectSocket() {
     c.peerReadId = Math.max(c.peerReadId || 0, messageId);
     renderChatList(); if (S.current === chatId) $$('.msg.out').forEach(updateTicks);
   });
+  s.on('message:reactions', onReactions);
   s.on('user:update', (u) => {
     S.users.set(u.id, { ...S.users.get(u.id), ...u });
     S.chats.forEach((c) => { if (c.peer?.id === u.id) c.peer = { ...c.peer, ...u, self: c.self }; });
@@ -382,7 +383,7 @@ async function connectSocket() {
   });
   s.on('message:edited', ({ message }) => {
     const arr = S.msgs.get(message.chat_id); const i = arr?.findIndex((x) => x.id === message.id);
-    if (i >= 0) arr[i] = message;
+    if (i >= 0) arr[i] = { ...arr[i], ...message };
     const c = S.chats.get(message.chat_id); if (c?.last?.id === message.id) c.last = message;
     if (S.current === message.chat_id) renderMessages(); renderChatList();
   });
@@ -522,16 +523,24 @@ function renderChatList() {
   const q = $('#chat-search').value.trim().toLowerCase().replace(/^@/, '');
   const all = [...S.chats.values()].filter((c) => c.last || c.id === S.current);
   const unreadChats = all.filter((c) => c.unread && c.id !== S.current);
-  const totalUnread = all.filter((c) => !c.muted).reduce((n, c) => n + (c.id !== S.current ? c.unread || 0 : 0), 0);
+  const totalUnread = all.filter((c) => !c.muted && !c.archived).reduce((n, c) => n + (c.id !== S.current ? c.unread || 0 : 0), 0);
   $('#unread-count').textContent = unreadChats.length || '';
   $('#nav-badge').textContent = totalUnread > 99 ? '99+' : totalUnread;
   $('#nav-badge').classList.toggle('hidden', !totalUnread);
+  const archived = all.filter((c) => c.archived);
+  if (S.archView && !archived.length) S.archView = false;
   const list = all
+    .filter((c) => q || (S.archView ? c.archived : !c.archived))
     .filter((c) => FILTER !== 'unread' || (c.unread && c.id !== S.current))
     .filter((c) => !q || (chatTitle(c) + ' ' + (c.peer?.username || c.username || '')).toLowerCase().includes(q))
-    .sort((a, b) => (b.last?.created_at || 0) - (a.last?.created_at || 0));
-  $('#list-empty').classList.toggle('hidden', list.length > 0 || !!q || FILTER !== 'all');
-  $('#chat-list').innerHTML = list.map((c) => {
+    .sort((a, b) => (q || S.archView ? 0 : (b.pinned || 0) - (a.pinned || 0)) || (b.last?.created_at || 0) - (a.last?.created_at || 0));
+  $('#list-empty').classList.toggle('hidden', list.length > 0 || !!q || FILTER !== 'all' || S.archView || archived.length > 0);
+  const archUnread = archived.reduce((n, c) => n + (c.id !== S.current ? c.unread || 0 : 0), 0);
+  const head = q ? '' : S.archView
+    ? `<li class="arch-head" data-arch="0">${icon('back')}<b>${esc(t('archive'))}</b><small>${archived.length}</small></li>`
+    : archived.length && FILTER === 'all' ? `<li class="chat-item arch-row" data-arch="1"><div class="av arch-av">${icon('archive')}</div><div class="ci-body"><div class="ci-row"><span class="ci-name">${esc(t('archive'))}</span></div>
+        <div class="ci-row"><span class="ci-sub">${esc(archived.slice(0, 4).map(chatTitle).join(', '))}</span>${archUnread ? `<span class="badge muted">${archUnread > 99 ? '99+' : archUnread}</span>` : ''}</div></div></li>` : '';
+  $('#chat-list').innerHTML = head + list.map((c) => {
     const tt = typingText(c.id);
     const mine = c.last && c.last.sender_id === S.me.id && !c.self && c.last.type !== 'service' && c.type !== 'channel';
     const ticks = mine ? icon(c.peerReadId >= c.last.id ? 'check2' : 'check') : '';
@@ -539,13 +548,16 @@ function renderChatList() {
     return `<li class="chat-item${c.id === S.current ? ' active' : ''}" data-id="${c.id}">
       ${chatAvatar(c)}
       <div class="ci-body">
-        <div class="ci-row"><span class="ci-name">${c.type !== 'private' ? icon(c.type === 'channel' ? 'megaphone' : 'group', 'type-ic') : ''}${esc(chatTitle(c))}${c.muted ? icon('bell-off', 'mute-ic') : ''}</span><span class="ci-time">${ticks}${fmtListTime(c.last?.created_at)}</span></div>
+        <div class="ci-row"><span class="ci-name">${c.type !== 'private' ? icon(c.type === 'channel' ? 'megaphone' : 'group', 'type-ic') : ''}${esc(chatTitle(c))}${c.muted ? icon('bell-off', 'mute-ic') : ''}</span><span class="ci-time">${c.pinned && !S.archView ? icon('pin', 'pin-ic') : ''}${ticks}${fmtListTime(c.last?.created_at)}</span></div>
         <div class="ci-row"><span class="ci-sub">${tt ? `<span class="tag">${tt}</span>` : (mine ? `<span class="tag">${t('you')}:</span> ` : who) + preview(c.last)}</span>
         ${c.unread && c.id !== S.current ? `<span class="badge${c.muted ? ' muted' : ''}">${c.unread > 99 ? '99+' : c.unread}</span>` : ''}</div>
       </div></li>`;
   }).join('');
 }
-$('#chat-list').onclick = (e) => { const li = e.target.closest('.chat-item'); if (li) openChat(+li.dataset.id); };
+$('#chat-list').onclick = (e) => {
+  const ar = e.target.closest('[data-arch]'); if (ar) { S.archView = ar.dataset.arch === '1'; renderChatList(); $('#chat-list').scrollTop = 0; return; }
+  const li = e.target.closest('.chat-item'); if (li) openChat(+li.dataset.id);
+};
 $('#chat-list').addEventListener('contextmenu', (e) => {
   const li = e.target.closest('.chat-item'); if (!li) return; e.preventDefault();
   chatMenu(+li.dataset.id, e.clientX, e.clientY);
@@ -554,6 +566,8 @@ function chatMenu(chatId, x, y) {
   const c = S.chats.get(chatId); if (!c) return;
   const el = $('#ctx');
   el.innerHTML = `${c.self ? '' : `<button data-a="profile">${icon(c.type === 'private' ? 'user' : 'group')}${t(c.type === 'private' ? 'view_profile' : 'info')}</button>`}
+    <button data-a="pin">${icon('pin')}${t(c.pinned ? 'unpin_chat' : 'pin_chat')}</button>
+    <button data-a="archive">${icon('archive')}${t(c.archived ? 'unarchive' : 'to_archive')}</button>
     <button data-a="mute">${icon(c.muted ? 'bell' : 'bell-off')}${t(c.muted ? 'unmute' : 'mute')}</button>`;
   el.classList.remove('hidden');
   const r = { width: el.offsetWidth, height: el.offsetHeight }; // animatsiya (scale) o'lchamni buzmasligi uchun
@@ -563,6 +577,7 @@ function chatMenu(chatId, x, y) {
     const a = ev.target.closest('[data-a]')?.dataset.a; el.classList.add('hidden');
     if (a === 'profile') { if (c.type === 'private') openProfile(c.peer.id); else openGroupInfo(chatId); }
     if (a === 'mute') setMuted(chatId, !c.muted);
+    if (a === 'pin' || a === 'archive') chatFlag(chatId, a, !(a === 'pin' ? c.pinned : c.archived));
   };
 }
 // mobil: chatni uzoq bosish = menyu
@@ -1017,7 +1032,9 @@ function updateTicks(el) {
 function msgHTML(m, c, tail, gap) {
   if (m.type === 'service') return `<div class="svc" data-id="${m.id}">${esc(serviceText(m))}</div>`;
   let inner = msgInner(m, c, tail, gap);
-  if (m.failed && m.tempId) inner = `<div class="msg-fail-wrap${m.sender_id === S.me.id ? ' out' : ''}">${inner}<div class="retry-row"><button data-retry="${m.tempId}">${icon('refresh')}${esc(t('retry_send'))}</button><button data-discard="${m.tempId}">${icon('trash')}</button></div></div>`;
+  const rx = m.id && !m.deleted && m.reactions ? reactsHTML(m) : '';
+  const fail = m.failed && m.tempId ? `<div class="retry-row"><button data-retry="${m.tempId}">${icon('refresh')}${esc(t('retry_send'))}</button><button data-discard="${m.tempId}">${icon('trash')}</button></div>` : '';
+  if (rx || fail) inner = `<div class="msg-fail-wrap${m.sender_id === S.me.id ? ' out' : ''}${gap ? ' gap' : ''}">${inner}${rx}${fail}</div>`;
   const grp = c?.type === 'group' && m.sender_id !== S.me.id;
   if (!grp) return inner;
   const u = S.users.get(m.sender_id) || { id: m.sender_id, name: '?' };
@@ -1054,7 +1071,7 @@ function msgInner(m, c, tail, gap) {
       return `<div ${attrs}><div class="bubble">${reply}<div class="voice" data-src="${src}" data-dur="${m.duration || 0}">
         <button class="vplay" aria-label="play">${icon('play')}</button>
         <div class="vbody"><div class="wave">${wf.map((v) => `<i style="height:${Math.max(12, Math.round(v * 100))}%"></i>`).join('')}</div>
-        <span class="vdur">${m.pending && m.progress >= 1 ? t('processing') : fmtDur(m.duration)}</span></div></div>${meta()}</div></div>`;
+        <span class="vdur">${m.pending && m.progress >= 1 ? t('processing') : fmtDur(m.duration)}</span><button class="vspeed" type="button">${fmtRate(voiceRate())}</button></div></div>${meta()}</div></div>`;
     }
     case 'round':
       return `<div ${attrs}>${reply ? `<div class="bubble mini">${reply}</div>` : ''}<div class="round-msg" data-dur="${m.duration || 0}">
@@ -1123,7 +1140,7 @@ $('#messages').addEventListener('click', (e) => {
       return;
     }
     stopPlayer(); stopRound();
-    const a = new Audio(v.dataset.src); player = { audio: a, el: v, src: v.dataset.src };
+    const a = new Audio(v.dataset.src); player = { audio: a, el: v, src: v.dataset.src }; a.defaultPlaybackRate = a.playbackRate = voiceRate();
     v.querySelector('.vplay').innerHTML = icon('pause');
     a.ontimeupdate = () => {
       const el = player?.el; if (!el) return;
@@ -1179,7 +1196,8 @@ $('#messages').addEventListener('scroll', () => { const el = $('#messages'); S.s
 function openCtx(x, y, m) {
   const out = m.sender_id === S.me.id;
   const el = $('#ctx');
-  el.innerHTML = `<button data-a="reply">${icon('reply')}${t('reply')}</button>
+  S.ctxMsg = m;
+  el.innerHTML = `${m.id && !m.deleted ? `<div class="rx-bar">${REACTS.map((e) => `<button data-r="${e}" class="${myReaction(m) === e ? 'me' : ''}">${e}</button>`).join('')}</div>` : ''}<button data-a="reply">${icon('reply')}${t('reply')}</button>
     ${m.text ? `<button data-a="copy">${icon('copy')}${t('copy')}</button>` : ''}
     ${out && m.type === 'text' ? `<button data-a="edit">${icon('pen')}${t('edit')}</button>` : ''}
     <button data-a="fwd">${icon('forward')}${t('forward')}</button>
@@ -1413,8 +1431,9 @@ function videoInfo(file) {
 const videoDuration = async (file) => (await videoInfo(file)).duration;
 async function imageDims(file) { try { const b = await createImageBitmap(file); const o = { w: b.width, h: b.height }; b.close?.(); return o; } catch { return {}; } }
 function attachPreview(files) {
-  const items = files.map((f) => {
+  const items = files.map((f, i) => {
     const u = URL.createObjectURL(f);
+    if (f.type.startsWith('image/') && f.type !== 'image/gif' && f.type !== 'image/svg+xml') return `<div class="pv-item"><img src="${u}" alt=""><button class="pv-edit" type="button" data-edit="${i}" title="${esc(t('edit_photo'))}">${icon('brush')}</button></div>`;
     if (f.type.startsWith('image/')) return `<img src="${u}" alt="">`;
     if (f.type.startsWith('video/')) return `<video src="${u}#t=0.1" muted></video>`;
     return `<div>${icon('file')}<br>${esc(f.name)}</div>`;
@@ -1424,6 +1443,11 @@ function attachPreview(files) {
     <input class="field" id="att-cap" placeholder="${esc(t('add_caption'))}">
     <button class="btn-primary" id="att-send">${t('send')}</button>`);
   if (!isTouch()) $('#att-cap').focus();
+  $('#modal-card .preview-grid').onclick = async (e) => {
+    const b = e.target.closest('[data-edit]'); if (!b) return;
+    const i = +b.dataset.edit; const f = await photoEditor(files[i]);
+    if (f) { files[i] = f; b.parentElement.querySelector('img').src = URL.createObjectURL(f); }
+  };
   $('#att-cap').onkeydown = (e) => { if (e.key === 'Enter') $('#att-send').click(); };
   $('#att-send').onclick = async () => {
     const cap = $('#att-cap').value.trim(); closeModal();
@@ -2051,6 +2075,340 @@ Speaker.init();
 }
 // qo'ng'iroq oynasidagi "Karnay" yozuvi tilga qarab
 setInterval(() => { const sp = $('#c-speaker span'); if (sp && sp.textContent !== t('speaker')) sp.textContent = t('speaker'); }, 3000);
+
+/* ======================= v6: reaksiyalar, qidiruv, qadash/arxiv, maxfiylik, akkauntni o'chirish, ovoz tezligi, rasmga chizish ======================= */
+try {
+  Object.assign(I18N.uz, { archive: 'Arxiv', to_archive: 'Arxivlash', unarchive: 'Arxivdan chiqarish', pin_chat: 'Tepaga qadash', unpin_chat: 'Qadashni olib tashlash',
+    search_chat: 'Chatdan qidirish', no_results: 'Hech narsa topilmadi', privacy: 'Oxirgi faollik vaqti', seen_all: 'Hammaga ko‘rinadi', seen_hidden: 'Yashirilgan',
+    privacy_on: 'Endi boshqalar sizni “yaqinda bo‘lgan” deb ko‘radi', privacy_off: 'Oxirgi faollik vaqtingiz yana ko‘rinadi',
+    del_account: 'Akkauntni o‘chirish', del_word: 'O‘CHIRISH', del_title: 'Akkauntni butunlay o‘chirish',
+    del_text: 'Profilingiz, ismingiz, rasmingiz, hikoyalaringiz, kontaktlaringiz va “Saqlangan xabarlar” butunlay o‘chiriladi. Guruh va kanallardan chiqasiz. Suhbatdoshlaringizda yozishmalar “O‘chirilgan akkaunt” nomi bilan qoladi. Buni qaytarib bo‘lmaydi.',
+    del_type: 'Tasdiqlash uchun {w} deb yozing', del_btn: 'Butunlay o‘chirish', deleted_account: 'O‘chirilgan akkaunt', peer_deleted: 'Bu akkaunt o‘chirilgan',
+    draw: 'Chizish', add_text: 'Matn', undo: 'Orqaga', done: 'Tayyor', text_ph: 'Matn yozing…', edit_photo: 'Tahrirlash', pin_limit: 'Ko‘pi bilan 5 ta chatni qadash mumkin' });
+  Object.assign(I18N.ru, { archive: 'Архив', to_archive: 'В архив', unarchive: 'Вернуть из архива', pin_chat: 'Закрепить', unpin_chat: 'Открепить',
+    search_chat: 'Поиск в чате', no_results: 'Ничего не найдено', privacy: 'Время последнего визита', seen_all: 'Видят все', seen_hidden: 'Скрыто',
+    privacy_on: 'Теперь другие видят «был(а) недавно»', privacy_off: 'Время последнего визита снова видно',
+    del_account: 'Удалить аккаунт', del_word: 'УДАЛИТЬ', del_title: 'Удалить аккаунт навсегда',
+    del_text: 'Профиль, имя, фото, истории, контакты и «Избранное» будут удалены навсегда. Вы выйдете из групп и каналов. У собеседников переписка останется от «Удалённого аккаунта». Это нельзя отменить.',
+    del_type: 'Для подтверждения напишите {w}', del_btn: 'Удалить навсегда', deleted_account: 'Удалённый аккаунт', peer_deleted: 'Этот аккаунт удалён',
+    draw: 'Рисовать', add_text: 'Текст', undo: 'Отменить', done: 'Готово', text_ph: 'Введите текст…', edit_photo: 'Изменить', pin_limit: 'Можно закрепить не более 5 чатов' });
+  Object.assign(I18N.en, { archive: 'Archive', to_archive: 'Archive', unarchive: 'Unarchive', pin_chat: 'Pin', unpin_chat: 'Unpin',
+    search_chat: 'Search in chat', no_results: 'Nothing found', privacy: 'Last seen', seen_all: 'Everybody', seen_hidden: 'Hidden',
+    privacy_on: 'Others now see “last seen recently”', privacy_off: 'Your last seen time is visible again',
+    del_account: 'Delete account', del_word: 'DELETE', del_title: 'Delete account permanently',
+    del_text: 'Your profile, name, photo, stories, contacts and Saved Messages will be deleted forever. You will leave all groups and channels. Your chats will remain for others as “Deleted Account”. This cannot be undone.',
+    del_type: 'Type {w} to confirm', del_btn: 'Delete forever', deleted_account: 'Deleted Account', peer_deleted: 'This account was deleted',
+    draw: 'Draw', add_text: 'Text', undo: 'Undo', done: 'Done', text_ph: 'Type text…', edit_photo: 'Edit', pin_limit: 'You can pin up to 5 chats' });
+} catch {}
+document.querySelector('symbol#i-mic')?.parentNode.insertAdjacentHTML('beforeend',
+  '<symbol id="i-archive" viewBox="0 0 24 24"><path fill="currentColor" d="M4 3h16a2 2 0 0 1 2 2v2a2 2 0 0 1-1 1.7V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8.7A2 2 0 0 1 2 7V5a2 2 0 0 1 2-2Zm1 6v10h14V9H5Zm-1-4v2h16V5H4Zm5 6h6a1 1 0 1 1 0 2H9a1 1 0 1 1 0-2Z"/></symbol>' +
+  '<symbol id="i-pin" viewBox="0 0 24 24"><path fill="currentColor" d="M15.6 2.6a1 1 0 0 1 1.4 0l4.4 4.4a1 1 0 0 1-.3 1.6l-2.8 1.3-3 3 .4 3.6a1 1 0 0 1-.3.8l-1.4 1.4a1 1 0 0 1-1.4 0L9.5 15.5l-5.8 5.8a1 1 0 0 1-1.4-1.4l5.8-5.8-3.2-3.2a1 1 0 0 1 0-1.4L6.3 8.1a1 1 0 0 1 .8-.3l3.6.4 3-3 1.3-2.8a1 1 0 0 1 .6-.5Z"/></symbol>' +
+  '<symbol id="i-brush" viewBox="0 0 24 24"><path fill="currentColor" d="M20.7 3.3a1 1 0 0 1 0 1.4l-9 9-2.4-2.4 9-9a1.7 1.7 0 0 1 2.4 1ZM7.5 13.2a3 3 0 0 1 3.3 3.3c-.2 2.3-2.1 4.5-6.8 4.5a.9.9 0 0 1-.7-1.4c.8-1.1.9-2 1-3 .2-1.7 1.4-3.1 3.2-3.4Z"/></symbol>' +
+  '<symbol id="i-undo" viewBox="0 0 24 24"><path fill="currentColor" d="M9.7 4.3a1 1 0 0 1 0 1.4L7.4 8H14a6 6 0 0 1 0 12h-3a1 1 0 1 1 0-2h3a4 4 0 0 0 0-8H7.4l2.3 2.3a1 1 0 0 1-1.4 1.4l-4-4a1 1 0 0 1 0-1.4l4-4a1 1 0 0 1 1.4 0Z"/></symbol>' +
+  '<symbol id="i-up" viewBox="0 0 24 24"><path fill="currentColor" d="M12 7.6 5.7 13.9a1 1 0 0 0 1.4 1.4L12 10.4l4.9 4.9a1 1 0 0 0 1.4-1.4L12 7.6Z"/></symbol>' +
+  '<symbol id="i-down" viewBox="0 0 24 24"><path fill="currentColor" d="M12 16.4 5.7 10.1a1 1 0 0 1 1.4-1.4l4.9 4.9 4.9-4.9a1 1 0 0 1 1.4 1.4L12 16.4Z"/></symbol>');
+
+document.head.insertAdjacentHTML('beforeend', `<style id="birga-v6">
+.msg-fail-wrap.gap { margin-top: 6px; }
+.msg-fail-wrap > .msg.gap { margin-top: 0; }
+.reacts { display: flex; flex-wrap: wrap; gap: 4px; margin: 3px 2px 1px; }
+.reacts .rx { display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 9px 0 7px; border-radius: 13px; background: var(--panel); box-shadow: 0 1px 2px rgba(0,0,0,.08); font-size: 15px; line-height: 1; border: 1px solid var(--line); }
+.reacts .rx b { font-size: 12.5px; font-weight: 700; color: var(--muted); }
+.reacts .rx.me { background: var(--blue, #1F6BFF); border-color: transparent; }
+.reacts .rx.me b { color: #fff; }
+.rx-bar { display: flex; gap: 2px; padding: 2px 2px 6px; margin-bottom: 4px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; max-width: min(92vw, 340px); }
+.ctx .rx-bar button { width: 38px; height: 38px; padding: 0; flex: none; justify-content: center; font-size: 22px; border-radius: 50%; transition: transform .1s; }
+.ctx .rx-bar button:active { transform: scale(1.25); }
+.ctx .rx-bar button.me { background: var(--hover); }
+.rx-pop { animation: rxPop .35s ease; }
+@keyframes rxPop { 0% { transform: scale(.6); } 60% { transform: scale(1.2); } 100% { transform: scale(1); } }
+.vbody { position: relative; }
+.vspeed { position: absolute; right: 0; bottom: -1px; font-size: 11px; font-weight: 800; padding: 1px 6px; border-radius: 8px; background: rgba(127,127,127,.18); color: inherit; line-height: 16px; }
+.msg.out .vspeed { background: rgba(255,255,255,.25); }
+.arch-row .arch-av { background: var(--panel-2, #E8EEF6); color: var(--muted); display: grid; place-items: center; }
+.arch-row .arch-av svg { width: 26px; height: 26px; }
+.arch-head { display: flex; align-items: center; gap: 12px; padding: 12px 16px; cursor: pointer; font-size: 16px; border-bottom: 1px solid var(--line); }
+.arch-head svg { width: 22px; height: 22px; }
+.arch-head small { margin-left: auto; color: var(--muted); }
+.ci-time .pin-ic { width: 14px; height: 14px; color: var(--muted); margin-right: 4px; vertical-align: -2px; }
+.chat-find { position: absolute; inset: 0; display: flex; align-items: center; gap: 4px; padding: 8px 10px; background: var(--panel); z-index: 3; }
+.chat-find input { flex: 1; min-width: 0; height: 40px; border-radius: 20px; padding: 0 14px; background: var(--panel-2, rgba(127,127,127,.1)); border: 0; font: inherit; color: inherit; outline: none; }
+.chat-find .cf-n { font-size: 13px; color: var(--muted); min-width: 44px; text-align: center; white-space: nowrap; }
+.chat-head { position: relative; }
+.msg.hit .bubble { box-shadow: 0 0 0 3px rgba(31,107,255,.45); }
+mark.hl { background: #FFE066; color: #000; border-radius: 3px; padding: 0 1px; }
+.pv-item { position: relative; padding: 0 !important; }
+.pv-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pv-edit { position: absolute; right: 6px; bottom: 6px; width: 32px; height: 32px; border-radius: 50%; background: rgba(0,0,0,.55); color: #fff; display: grid; place-items: center; }
+.pv-edit svg { width: 18px; height: 18px; }
+.ped { position: fixed; inset: 0; z-index: 95; background: #000; display: flex; flex-direction: column; touch-action: none; }
+.ped-top, .ped-bot { display: flex; align-items: center; gap: 8px; padding: 10px 12px; color: #fff; }
+.ped-top { padding-top: calc(10px + env(safe-area-inset-top)); }
+.ped-bot { padding-bottom: calc(12px + env(safe-area-inset-bottom)); flex-wrap: wrap; justify-content: center; }
+.ped-top button, .ped-bot button.tool { height: 40px; min-width: 40px; padding: 0 12px; border-radius: 20px; background: rgba(255,255,255,.14); color: #fff; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; }
+.ped-top button svg, .ped-bot button svg { width: 20px; height: 20px; }
+.ped-top .grow { flex: 1; }
+.ped-top .ped-done { background: var(--blue, #1F6BFF); }
+.ped button.on { background: #fff; color: #000; }
+.ped-stage { flex: 1; min-height: 0; display: grid; place-items: center; position: relative; overflow: hidden; }
+.ped-stage canvas { max-width: 100%; max-height: 100%; touch-action: none; }
+.ped-colors { display: flex; gap: 8px; }
+.ped-colors i { width: 26px; height: 26px; border-radius: 50%; border: 2px solid rgba(255,255,255,.7); cursor: pointer; }
+.ped-colors i.on { outline: 3px solid #fff; outline-offset: 2px; }
+.ped-text { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); width: min(86%, 420px); }
+.ped-text input { width: 100%; height: 48px; border-radius: 12px; border: 0; padding: 0 14px; font: 600 18px inherit; text-align: center; }
+</style>`);
+
+/* --- reaksiyalar --- */
+const REACTS = ['👍', '❤️', '😂', '😮', '😢', '🙏', '🔥', '👏', '🎉', '😡'];
+function myReaction(m) { for (const [e, ids] of Object.entries(m.reactions || {})) if (ids.includes(S.me.id)) return e; return null; }
+function reactsHTML(m) {
+  const ent = Object.entries(m.reactions || {}).filter(([, ids]) => ids.length).sort((a, b) => b[1].length - a[1].length);
+  if (!ent.length) return '';
+  return `<div class="reacts">${ent.map(([e, ids]) => `<button class="rx${ids.includes(S.me.id) ? ' me' : ''}" data-rx="${e}" data-mid="${m.id}" title="${esc(ids.map((id) => (id === S.me.id ? t('you') : S.users.get(id)?.name || '')).join(', '))}">${e}<b>${ids.length}</b></button>`).join('')}</div>`;
+}
+function findMsg(id, chatId) { const arr = chatId ? S.msgs.get(chatId) : [...S.msgs.values()].flat(); return arr?.find((x) => x.id === id); }
+function react(m, emoji) {
+  if (!m?.id || !S.socket) return;
+  // darhol ko'rsatamiz, server tasdiqlaydi
+  const r = {}; let toggledOff = false;
+  for (const [e, ids] of Object.entries(m.reactions || {})) { const rest = ids.filter((x) => x !== S.me.id); if (e === emoji && rest.length !== ids.length) toggledOff = true; if (rest.length) r[e] = rest; }
+  if (!toggledOff) r[emoji] = [...(r[emoji] || []), S.me.id];
+  m.reactions = r; S.lastReact = { id: m.id, e: emoji };
+  if (S.current === m.chat_id) renderMessages();
+  navigator.vibrate?.(10);
+  S.socket.emit('message:react', { id: m.id, emoji });
+}
+function onReactions({ id, chatId, reactions, by }) {
+  const m = findMsg(id, chatId); if (!m) return;
+  m.reactions = reactions;
+  if (by !== S.me.id) S.lastReact = { id, e: Object.keys(reactions).find((e) => reactions[e].includes(by)) };
+  if (S.current === chatId) renderMessages();
+}
+// yangi reaksiya kichik "sakrash" animatsiyasi
+new MutationObserver(() => {
+  const lr = S.lastReact; if (!lr) return; S.lastReact = null;
+  const b = document.querySelector(`.rx[data-mid="${lr.id}"][data-rx="${lr.e}"]`); if (b) b.classList.add('rx-pop');
+}).observe($('#messages'), { childList: true });
+$('#ctx').addEventListener('click', (e) => {
+  const r = e.target.closest('[data-r]'); if (!r) return;
+  e.stopImmediatePropagation(); $('#ctx').classList.add('hidden');
+  react(S.ctxMsg, r.dataset.r);
+}, true);
+$('#messages').addEventListener('click', (e) => {
+  const sp = e.target.closest('.vspeed');
+  if (sp) { e.stopImmediatePropagation(); setVoiceRate(); return; }
+  const rx = e.target.closest('[data-rx]'); if (!rx) return;
+  e.stopImmediatePropagation();
+  react(findMsg(+rx.dataset.mid, S.current), rx.dataset.rx);
+}, true);
+// ikki marta bosish — ❤️
+$('#messages').addEventListener('dblclick', (e) => {
+  if (e.target.closest('[data-view], .voice, .round-msg, a, button, .reacts')) return;
+  const el = e.target.closest('.msg'); const m = el && msgOf(el);
+  if (!m || !m.id || m.deleted || m.type === 'service' || m.type === 'call') return;
+  window.getSelection?.()?.removeAllRanges?.();
+  if (myReaction(m) !== '❤️') react(m, '❤️');
+});
+
+/* --- ovozli xabar tezligi: 1x → 1.5x → 2x --- */
+const RATES = [1, 1.5, 2];
+function voiceRate() { const r = Number(store.get('birga_vrate')); return RATES.includes(r) ? r : 1; }
+const fmtRate = (r) => (r === 1 ? '1x' : r + 'x');
+function setVoiceRate() {
+  const r = RATES[(RATES.indexOf(voiceRate()) + 1) % RATES.length];
+  store.set('birga_vrate', String(r));
+  if (player?.audio) { player.audio.defaultPlaybackRate = r; player.audio.playbackRate = r; }
+  $$('.vspeed').forEach((b) => (b.textContent = fmtRate(r)));
+}
+
+/* --- chatni qadash / arxivlash --- */
+async function chatFlag(chatId, kind, on) {
+  try {
+    const c = await api(`/api/chats/${chatId}/${kind}`, { body: { on } });
+    const old = S.chats.get(chatId); S.chats.set(chatId, { ...old, pinned: c.pinned, archived: c.archived });
+    if (kind === 'archive' && on && S.current === chatId && matchMedia('(max-width:760px)').matches) closeChat();
+    renderChatList();
+  } catch (e) { toast(e.message); }
+}
+
+/* --- chat ichida qidiruv --- */
+const Find = { res: [], i: -1, q: '', t: null };
+$('#btn-audio-call').insertAdjacentHTML('beforebegin', `<button class="icon-btn" id="btn-find" title="${esc(t('search_chat'))}">${icon('search')}</button>`);
+$('#chat-head').insertAdjacentHTML('beforeend', `<div class="chat-find hidden" id="chat-find">
+  <button class="icon-btn" id="cf-close">${icon('back')}</button>
+  <input id="cf-q" type="search" autocomplete="off" enterkeyhint="search">
+  <span class="cf-n" id="cf-n"></span>
+  <button class="icon-btn" id="cf-up">${icon('up')}</button><button class="icon-btn" id="cf-down">${icon('down')}</button></div>`);
+function openFind() { $('#cf-q').placeholder = t('search_chat'); $('#chat-find').classList.remove('hidden'); $('#cf-q').value = ''; $('#cf-n').textContent = ''; Object.assign(Find, { res: [], i: -1, q: '' }); setTimeout(() => $('#cf-q').focus(), 50); }
+function closeFind() { $('#chat-find').classList.add('hidden'); Object.assign(Find, { res: [], i: -1, q: '' }); S.hl = ''; $$('.msg.hit').forEach((x) => x.classList.remove('hit')); if (S.current) renderMessages(); }
+$('#btn-find').onclick = openFind;
+$('#cf-close').onclick = closeFind;
+$('#cf-q').addEventListener('input', () => { clearTimeout(Find.t); Find.t = setTimeout(runFind, 350); });
+$('#cf-q').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); if (Find.q !== $('#cf-q').value.trim()) runFind(); else stepFind(1); } if (e.key === 'Escape') closeFind(); });
+$('#cf-up').onclick = () => stepFind(1);   // eskiroq
+$('#cf-down').onclick = () => stepFind(-1); // yangiroq
+async function runFind() {
+  const q = $('#cf-q').value.trim(); Find.q = q; S.hl = q.length >= 2 ? q : '';
+  if (q.length < 2) { Find.res = []; $('#cf-n').textContent = ''; renderMessages(); return; }
+  const chatId = S.current;
+  const res = await api(`/api/chats/${chatId}/search?q=${encodeURIComponent(q)}`).catch(() => []);
+  if (Find.q !== q || S.current !== chatId) return;
+  Find.res = res; Find.i = res.length ? 0 : -1;
+  if (!res.length) { $('#cf-n').textContent = '0'; toast(t('no_results')); renderMessages(); return; }
+  gotoFind();
+}
+function stepFind(d) { if (!Find.res.length) return; Find.i = Math.max(0, Math.min(Find.res.length - 1, Find.i + d)); gotoFind(); }
+async function gotoFind() {
+  const r = Find.res[Find.i]; if (!r) return;
+  $('#cf-n').textContent = `${Find.i + 1}/${Find.res.length}`;
+  await jumpTo(r.id);
+}
+async function jumpTo(id) {
+  const chatId = S.current; let arr = S.msgs.get(chatId) || [];
+  if (!arr.some((m) => m.id === id)) {
+    const list = await api(`/api/chats/${chatId}/messages?around=${id}`).catch(() => null);
+    if (!list || S.current !== chatId) return;
+    const pending = [...S.outbox.values()].filter((m) => m.chat_id === chatId);
+    S.msgs.set(chatId, [...list, ...pending]); (S.noMore ||= {})[chatId] = false; Media.track(list);
+  }
+  S.stick = false; renderMessages();
+  const el = $(`.msg[data-id="${id}"]`); if (!el) return;
+  $$('.msg.hit').forEach((x) => x.classList.remove('hit'));
+  el.classList.add('hit'); el.scrollIntoView({ block: 'center' });
+  setTimeout(() => el.classList.remove('hit'), 2200);
+}
+// topilgan so'zni sariq bilan belgilash
+{
+  const baseLinkify = linkify;
+  linkify = function (txt) {
+    const h = baseLinkify(txt); const q = S.hl; if (!q) return h;
+    const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'), 'gi');
+    return h.split(/(<[^>]+>)/).map((part) => (part.startsWith('<') ? part : part.replace(rx, (x) => `<mark class="hl">${x}</mark>`))).join('');
+  };
+}
+{ const baseOpen = openChat; openChat = async function (id) { if (S.current !== id && !$('#chat-find').classList.contains('hidden')) closeFind(); return baseOpen(id); }; }
+
+/* --- o'chirilgan akkaunt --- */
+{
+  const baseSet = AliasMap.prototype.set;
+  AliasMap.prototype.set = function (id, u) { if (u && typeof u === 'object' && u.deleted) u = { ...u, name: t('deleted_account'), avatar: null, contactName: null }; return baseSet.call(this, id, u); };
+  const baseOpen = openChat;
+  openChat = async function (id) {
+    const r = await baseOpen(id);
+    const c = S.chats.get(id); const p = c?.type === 'private' && !c.self && (S.users.get(c.peer?.id) || c.peer);
+    if (p?.deleted && S.current === id) {
+      $('#composer').classList.add('hidden'); $('#btn-audio-call').classList.add('hidden'); $('#btn-video-call').classList.add('hidden');
+      $('#channel-bar').classList.remove('hidden'); $('#channel-bar').innerHTML = `<span class="muted-note">${esc(t('peer_deleted'))}</span>`;
+    }
+    return r;
+  };
+}
+
+{ const baseLS = lastSeen; lastSeen = function (u) { return u?.deleted ? '' : baseLS(u); }; }
+/* --- sozlamalar: maxfiylik va akkauntni o'chirish --- */
+{
+  const g = $('[data-set="storage"]')?.parentElement;
+  g?.insertAdjacentHTML('beforeend', `<button class="row-btn" id="set-privacy"><span class="ri c2"><svg><use href="#i-eye"/></svg></span><span><span data-t6="privacy"></span><small id="set-privacy-v"></small></span></button>`);
+  $('[data-set="logout"]')?.insertAdjacentHTML('afterend', `<button class="row-btn danger" id="set-delacc"><span class="ri c7"><svg><use href="#i-trash"/></svg></span><span data-t6="del_account"></span></button>`);
+  const paint = () => {
+    $$('[data-t6]').forEach((x) => (x.textContent = t(x.dataset.t6)));
+    const v = $('#set-privacy-v'); if (v && S.me) v.textContent = t(S.me.hide_seen ? 'seen_hidden' : 'seen_all');
+  };
+  const baseRS = renderSettings; renderSettings = function () { baseRS(); paint(); };
+  setTimeout(paint, 0);
+  $('#set-privacy').onclick = async () => {
+    try { const u = await api('/api/profile/privacy', { body: { hideSeen: !S.me.hide_seen } }); S.me = { ...S.me, ...u }; paint(); toast(t(u.hide_seen ? 'privacy_on' : 'privacy_off'), 2500); }
+    catch (e) { toast(e.message); }
+  };
+  $('#set-delacc').onclick = () => {
+    const w = t('del_word');
+    modal(`<h3>${t('del_title')} <button class="icon-btn" data-close>${icon('close')}</button></h3>
+      <p class="rn-hint" style="line-height:1.45">${esc(t('del_text'))}</p>
+      <p class="rn-hint"><b>${esc(t('del_type', { w }))}</b></p>
+      <input class="field" id="da-w" autocomplete="off" autocapitalize="characters" placeholder="${esc(w)}">
+      <p class="err" id="da-err"></p>
+      <button class="btn-primary" id="da-go" disabled style="background:var(--danger,#E5484D);box-shadow:none">${t('del_btn')}</button>`);
+    const inp = $('#da-w'), go = $('#da-go');
+    const norm = (x) => x.trim().toUpperCase().replace(/[ʻʼ‘’'`]/g, '');
+    inp.oninput = () => (go.disabled = norm(inp.value) !== norm(w));
+    go.onclick = async () => {
+      go.disabled = true;
+      try { await api('/api/me/delete', { body: { confirm: 'DELETE' } }); closeModal(); try { await idb('del', 'ob-index'); } catch {} logout(true); }
+      catch (e) { $('#da-err').textContent = e.message; go.disabled = false; }
+    };
+  };
+}
+
+/* --- rasmga chizish va matn yozish (yuborishdan oldin) --- */
+function photoEditor(file) {
+  return new Promise(async (resolve) => {
+    let bmp; try { bmp = await createImageBitmap(file); } catch { return resolve(null); }
+    const k = Math.min(1, 2048 / Math.max(bmp.width, bmp.height));
+    const W = Math.round(bmp.width * k), H = Math.round(bmp.height * k);
+    const COLORS = ['#FFFFFF', '#000000', '#E5484D', '#F59E0B', '#22C55E', '#1F6BFF', '#C04BD8'];
+    const ops = []; let color = '#E5484D', mode = 'draw', cur = null, drag = null;
+    const wrap = document.createElement('div'); wrap.className = 'ped';
+    wrap.innerHTML = `<div class="ped-top"><button data-p="cancel">${icon('close')}</button><span class="grow"></span>
+        <button data-p="undo">${icon('undo')}</button><button data-p="done" class="ped-done">${icon('check')}${esc(t('done'))}</button></div>
+      <div class="ped-stage"><canvas></canvas></div>
+      <div class="ped-bot"><button class="tool on" data-p="draw">${icon('brush')}${esc(t('draw'))}</button><button class="tool" data-p="text">Aa ${esc(t('add_text'))}</button>
+        <div class="ped-colors">${COLORS.map((c) => `<i data-c="${c}" style="background:${c}" class="${c === color ? 'on' : ''}"></i>`).join('')}</div></div>`;
+    document.body.appendChild(wrap);
+    const cv = wrap.querySelector('canvas'); cv.width = W; cv.height = H; const g = cv.getContext('2d');
+    const lw = Math.max(4, Math.round(Math.max(W, H) / 160)), fs = Math.max(28, Math.round(Math.max(W, H) / 16));
+    const draw = () => {
+      g.drawImage(bmp, 0, 0, W, H);
+      for (const o of ops) {
+        if (o.type === 'line') { g.strokeStyle = o.color; g.lineWidth = lw; g.lineCap = g.lineJoin = 'round'; g.beginPath(); o.pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); if (o.pts.length === 1) g.lineTo(o.pts[0][0] + 0.1, o.pts[0][1]); g.stroke(); }
+        else {
+          g.font = `800 ${fs}px system-ui, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+          const light = ['#FFFFFF', '#F59E0B', '#22C55E'].includes(o.color);
+          g.lineWidth = Math.max(3, fs / 9); g.strokeStyle = light ? 'rgba(0,0,0,.65)' : 'rgba(255,255,255,.85)'; g.strokeText(o.text, o.x, o.y);
+          g.fillStyle = o.color; g.fillText(o.text, o.x, o.y);
+        }
+      }
+    };
+    draw();
+    const pt = (e) => { const r = cv.getBoundingClientRect(); return [((e.clientX - r.left) / r.width) * W, ((e.clientY - r.top) / r.height) * H]; };
+    const hitText = ([x, y]) => { g.font = `800 ${fs}px system-ui, sans-serif`; for (let i = ops.length - 1; i >= 0; i--) { const o = ops[i]; if (o.type !== 'text') continue; const w = g.measureText(o.text).width / 2 + 20; if (Math.abs(x - o.x) < w && Math.abs(y - o.y) < fs * 0.8) return o; } return null; };
+    cv.addEventListener('pointerdown', (e) => {
+      e.preventDefault(); cv.setPointerCapture(e.pointerId); const p = pt(e);
+      const tx = hitText(p); if (tx) { drag = { o: tx, dx: tx.x - p[0], dy: tx.y - p[1] }; return; }
+      if (mode === 'draw') { cur = { type: 'line', color, pts: [p] }; ops.push(cur); draw(); }
+    });
+    cv.addEventListener('pointermove', (e) => {
+      if (drag) { const p = pt(e); drag.o.x = p[0] + drag.dx; drag.o.y = p[1] + drag.dy; draw(); return; }
+      if (cur) { cur.pts.push(pt(e)); draw(); }
+    });
+    const up = () => { cur = null; drag = null; };
+    cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+    const askText = () => {
+      const box = document.createElement('div'); box.className = 'ped-text'; box.innerHTML = `<input maxlength="80" placeholder="${esc(t('text_ph'))}">`;
+      wrap.querySelector('.ped-stage').appendChild(box); const inp = box.querySelector('input'); inp.focus();
+      let fired = false;
+      const fin = () => { if (fired) return; fired = true; const v = inp.value.trim(); box.remove(); if (v) { ops.push({ type: 'text', text: v, color, x: W / 2, y: H / 2 }); draw(); } setMode('draw'); };
+      inp.onkeydown = (e) => { if (e.key === 'Enter') fin(); if (e.key === 'Escape') { fired = true; box.remove(); setMode('draw'); } };
+      inp.onblur = fin;
+    };
+    const setMode = (m) => { mode = m; wrap.querySelectorAll('[data-p="draw"],[data-p="text"]').forEach((b) => b.classList.toggle('on', b.dataset.p === m)); };
+    const close = (v) => { wrap.remove(); bmp.close?.(); resolve(v); };
+    wrap.addEventListener('click', async (e) => {
+      const c = e.target.closest('[data-c]');
+      if (c) { color = c.dataset.c; wrap.querySelectorAll('[data-c]').forEach((x) => x.classList.toggle('on', x === c)); return; }
+      const a = e.target.closest('[data-p]')?.dataset.p; if (!a) return;
+      if (a === 'cancel') close(null);
+      if (a === 'undo') { ops.pop(); draw(); }
+      if (a === 'draw') setMode('draw');
+      if (a === 'text') { setMode('text'); askText(); }
+      if (a === 'done') {
+        if (!ops.length) return close(null);
+        const b = await new Promise((r) => cv.toBlob(r, 'image/jpeg', 0.9));
+        close(b ? new File([b], (file.name || 'photo').replace(/\.\w+$/, '') + '-edit.jpg', { type: 'image/jpeg' }) : null);
+      }
+    });
+  });
+}
 
 /* ======================= ILOVANI TELEFONGA O'RNATISH (PWA) ======================= */
 let installPrompt = null;

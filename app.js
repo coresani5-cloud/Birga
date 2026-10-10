@@ -444,7 +444,8 @@ let TAB = 'chats';
 function setTab(name) {
   TAB = name;
   $$('#bottom-nav [data-tab]').forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
-  ['chats', 'contacts', 'settings', 'profile'].forEach((n) => $('#pane-' + n).classList.toggle('hidden', n !== name));
+  ['chats', 'reels', 'contacts', 'settings', 'profile'].forEach((n) => $('#pane-' + n).classList.toggle('hidden', n !== name));
+  if (name === 'reels') Reels.open(); else Reels.pause?.();
   if (name === 'contacts') loadContacts();
   if (name === 'settings') renderSettings();
   if (name === 'profile') renderProfile($('#my-profile'), S.me, { self: true });
@@ -1098,7 +1099,7 @@ function msgInner(m, c, tail, gap) {
     default: {
       const big = isEmojiOnly(m.text);
       if (big && !reply) return `<div ${attrs}><div class="big-emoji n${big}">${esc(m.text)}<span class="meta stk">${fmtTime(m.created_at)}<span class="tk">${ticksFor(m, c)}</span></span></div></div>`;
-      return `<div ${attrs}><div class="bubble">${reply}<span class="txt">${linkify(m.text)}</span>${meta()}</div></div>`;
+      return `<div ${attrs}><div class="bubble">${reply}<span class="txt">${linkify(m.text)}</span>${igCard(m.text)}${meta()}</div></div>`;
     }
   }
 }
@@ -3060,6 +3061,197 @@ async function softRefresh() {
 }
 
 /* ======================= PASTGA TORTIB YANGILASH ======================= */
+/* ======================= INSTAGRAM REELS: Birga ichida ko'rish ======================= */
+try {
+  Object.assign(I18N.uz, { ig_watch: 'Birga ichida ko‘rish', ig_open: 'Instagram’da ochish', ig_reel: 'Instagram Reels', ig_post: 'Instagram post' });
+  Object.assign(I18N.ru, { ig_watch: 'Смотреть в Birga', ig_open: 'Открыть в Instagram', ig_reel: 'Instagram Reels', ig_post: 'Пост Instagram' });
+  Object.assign(I18N.en, { ig_watch: 'Watch in Birga', ig_open: 'Open in Instagram', ig_reel: 'Instagram Reels', ig_post: 'Instagram post' });
+} catch {}
+// instagram.com/reel/ID, /reels/ID, /p/ID, /tv/ID, /username/reel/ID, instagr.am/...
+const IG_RX = /https?:\/\/(?:www\.|m\.)?(?:instagram\.com|instagr\.am)\/(?:[\w.]+\/)?(reels?|p|tv)\/([\w-]{5,})/i;
+function igParse(url) {
+  const m = IG_RX.exec(url || ''); if (!m) return null;
+  const kind = m[1].toLowerCase().startsWith('reel') ? 'reel' : m[1].toLowerCase();
+  return { kind, code: m[2] };
+}
+function igCard(text) {
+  const ig = igParse(text); if (!ig) return '';
+  return `<button class="ig-card" data-ig-kind="${ig.kind}" data-ig-code="${esc(ig.code)}"><span class="ig-logo">${icon('play')}</span>`
+    + `<span class="ig-txt"><b>${t(ig.kind === 'reel' || ig.kind === 'tv' ? 'ig_reel' : 'ig_post')}</b><small>${t('ig_watch')}</small></span></button>`;
+}
+function openIg(kind, code) {
+  stopPlayer?.();
+  const path = `${kind}/${encodeURIComponent(code)}`;
+  Object.assign(Viewer, { m: null, src: '', kind: 'ig', name: '' });
+  $('#viewer-body').innerHTML = `<div class="ig-view"><iframe src="https://www.instagram.com/${path}/embed/" allow="autoplay; encrypted-media; picture-in-picture; clipboard-write" allowfullscreen loading="eager" referrerpolicy="strict-origin-when-cross-origin"></iframe>`
+    + `<a class="ig-ext" href="https://www.instagram.com/${path}/" target="_blank" rel="noopener">${t('ig_open')}</a></div>`;
+  $('#viewer').classList.add('ig');
+  $('#viewer').classList.remove('hidden');
+}
+new MutationObserver(() => { const v = $('#viewer'); if (v.classList.contains('hidden') && v.classList.contains('ig')) v.classList.remove('ig'); })
+  .observe($('#viewer'), { attributes: true, attributeFilter: ['class'] });
+// karta yoki chatdagi Instagram havolasi bosilganda — tashqi brauzerga emas, Birga ichida ochamiz
+document.addEventListener('click', (e) => {
+  if (e.target.closest('.ig-ext')) return;
+  const card = e.target.closest('.ig-card');
+  if (card) { e.preventDefault(); e.stopPropagation(); openIg(card.dataset.igKind, card.dataset.igCode); return; }
+  const a = e.target.closest('a[href]'); if (!a || !a.closest('#messages, .info-row')) return;
+  const ig = igParse(a.href); if (!ig) return;
+  e.preventDefault(); e.stopPropagation(); openIg(ig.kind, ig.code);
+}, true);
+document.head.insertAdjacentHTML('beforeend', `<style id="birga-ig">
+.ig-card { display: flex; align-items: center; gap: 10px; width: 100%; min-width: 220px; margin: 6px 0 2px; padding: 8px 10px; border: 0; border-radius: 12px; cursor: pointer; text-align: left; font: inherit; color: inherit; background: rgba(127,127,127,.12); }
+.ig-card:hover { background: rgba(127,127,127,.2); }
+.ig-logo { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 11px; color: #fff; background: radial-gradient(circle at 30% 107%, #fdf497 0%, #fd5949 45%, #d6249f 60%, #285AEB 90%); }
+.ig-logo svg { width: 20px; height: 20px; }
+.ig-txt { display: flex; flex-direction: column; min-width: 0; }
+.ig-txt b { font-size: 14px; }
+.ig-txt small { font-size: 12.5px; opacity: .7; }
+.viewer.ig #viewer-dl { display: none; }
+.ig-view { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.ig-view iframe { width: min(400px, 94vw); height: min(720px, calc(100dvh - 110px)); border: 0; border-radius: 12px; background: #fff; }
+.ig-ext { color: #fff; font-size: 14px; font-weight: 600; opacity: .85; text-decoration: none; }
+.ig-ext:hover { opacity: 1; text-decoration: underline; }
+</style>`);
+
+/* ======================= REELS BO'LIMI (pastki menyu) ======================= */
+// Lentada faqat foydalanuvchilar O'ZLARI joylagan Reels bor: yuklangan video yoki o'z Instagram havolasi.
+try {
+  Object.assign(I18N.uz, { tab_reels: 'Reels', reels_empty: 'Hali hech kim Reels joylamagan. Birinchi bo‘ling!', reels_add: 'Reels joylash', reels_video: 'Video yuklash', reels_video_hint: 'Telefoningizdagi qisqa video',
+    reels_ig: 'Instagram havolasi', reels_ig_hint: 'O‘zingizning Instagram Reels havolangiz', reels_bad: 'Bu Instagram Reels havolasi emas', reels_posted: 'Reels joylandi', reels_more: 'Yana yuklash',
+    reels_del_confirm: 'Bu Reels o‘chirilsinmi?', reels_public: 'Reels Birga’dagi hamma foydalanuvchiga ko‘rinadi.' });
+  Object.assign(I18N.ru, { tab_reels: 'Reels', reels_empty: 'Пока никто не опубликовал Reels. Будьте первым!', reels_add: 'Опубликовать Reels', reels_video: 'Загрузить видео', reels_video_hint: 'Короткое видео с телефона',
+    reels_ig: 'Ссылка Instagram', reels_ig_hint: 'Ссылка на ваш Instagram Reels', reels_bad: 'Это не ссылка на Instagram Reels', reels_posted: 'Reels опубликован', reels_more: 'Загрузить ещё',
+    reels_del_confirm: 'Удалить этот Reels?', reels_public: 'Reels видят все пользователи Birga.' });
+  Object.assign(I18N.en, { tab_reels: 'Reels', reels_empty: 'Nobody has posted Reels yet. Be the first!', reels_add: 'Post Reels', reels_video: 'Upload video', reels_video_hint: 'A short video from your phone',
+    reels_ig: 'Instagram link', reels_ig_hint: 'Your own Instagram Reels link', reels_bad: 'This is not an Instagram Reels link', reels_posted: 'Reels posted', reels_more: 'Load more',
+    reels_del_confirm: 'Delete this Reels?', reels_public: 'Reels are visible to everyone on Birga.' });
+  $$('[data-i18n="tab_reels"]').forEach((el) => { el.textContent = t('tab_reels'); });
+} catch {}
+const Reels = {
+  items: [], next: null, busy: false, loaded: false, io: null, muted: true,
+  async open() { if (!this.loaded) { this.loaded = true; await this.load(true); } else this.observe(); },
+  pause() { this.io?.disconnect(); $$('#reels-feed .reel-slot.live').forEach((s) => this.unmount(s)); },
+  async load(reset) {
+    if (this.busy) return; this.busy = true;
+    try {
+      const r = await api('/api/reels' + (!reset && this.next ? '?before=' + this.next : ''));
+      this.items = reset ? r.items : this.items.concat(r.items); this.next = r.next; this.render();
+    } catch (e) { toast(e.message); } finally { this.busy = false; }
+  },
+  render() {
+    const feed = $('#reels-feed');
+    if (!this.items.length) { feed.innerHTML = `<div class="reels-empty">${icon('reels')}<p>${esc(t('reels_empty'))}</p><button class="btn-primary" id="reels-empty-add">${esc(t('reels_add'))}</button></div>`; return; }
+    feed.innerHTML = this.items.map((it, i) => `<div class="reel-slot" data-i="${i}"><div class="reel-ph">${icon('reels')}</div>
+      <div class="reel-meta"><button class="reel-user" data-uid="${it.user.id}">${avatar(it.user, 'sm')}<b>${esc(it.user.name || '')}</b></button>
+        ${it.mine ? `<button class="icon-btn light reel-del" title="${esc(t('delete'))}">${icon('trash')}</button>` : ''}</div>
+      ${it.caption ? `<div class="reel-cap">${linkify(it.caption)}</div>` : ''}</div>`).join('')
+      + (this.next ? `<div class="reel-more"><button class="btn-ghost" id="reels-more">${esc(t('reels_more'))}</button></div>` : '');
+    this.observe();
+  },
+  observe() {
+    this.io?.disconnect();
+    const feed = $('#reels-feed');
+    // faqat ekrandagi Reels yuklanadi/o'ynaydi — qolganlari bo'shatiladi
+    this.io = new IntersectionObserver((es) => es.forEach((e) => (e.intersectionRatio >= 0.6 ? this.mount(e.target) : this.unmount(e.target))), { root: feed, threshold: [0, 0.6] });
+    $$('#reels-feed .reel-slot').forEach((s) => this.io.observe(s));
+  },
+  mount(slot) {
+    if (slot.classList.contains('live') || TAB !== 'reels') return;
+    const it = this.items[+slot.dataset.i]; if (!it) return;
+    slot.classList.add('live');
+    slot.querySelector('.reel-ph').outerHTML = it.kind === 'ig'
+      ? `<iframe class="reel-frame" src="https://www.instagram.com/${it.igKind}/${encodeURIComponent(it.igCode)}/embed/" allow="autoplay; encrypted-media; picture-in-picture; clipboard-write" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`
+      : `<video class="reel-frame reel-video" src="${esc(it.file)}" playsinline loop autoplay ${this.muted ? 'muted' : ''}></video>`;
+  },
+  unmount(slot) {
+    if (!slot.classList.contains('live')) return;
+    slot.classList.remove('live');
+    const f = slot.querySelector('.reel-frame'); if (f?.pause) f.pause();
+    f?.replaceWith(Object.assign(document.createElement('div'), { className: 'reel-ph', innerHTML: icon('reels') }));
+  },
+  add() {
+    modal(`<h3>${esc(t('reels_add'))} <button class="icon-btn" data-close>${icon('close')}</button></h3>
+      <p class="muted tiny">${esc(t('reels_public'))}</p>
+      <div class="reels-pick"><button id="reels-pick-video">${icon('video')}<span><b>${esc(t('reels_video'))}</b><small>${esc(t('reels_video_hint'))}</small></span></button>
+      <button id="reels-pick-ig">${icon('link')}<span><b>${esc(t('reels_ig'))}</b><small>${esc(t('reels_ig_hint'))}</small></span></button></div>`);
+    $('#reels-pick-video').onclick = () => { const inp = Object.assign(document.createElement('input'), { type: 'file', accept: 'video/*' }); inp.onchange = () => inp.files[0] && this.addVideo(inp.files[0]); inp.click(); };
+    $('#reels-pick-ig').onclick = () => this.addIg();
+  },
+  addVideo(file) {
+    const max = S.config.maxUploadMb || 50;
+    if (!file.type.startsWith('video')) return toast(t('reels_video_hint'));
+    if (file.size > max * 1048576) return toast(t('too_big', { n: max }), 3500);
+    const url = URL.createObjectURL(file);
+    modal(`<h3>${esc(t('reels_video'))} <button class="icon-btn" data-close>${icon('close')}</button></h3>
+      <video class="story-prev" src="${url}" controls playsinline></video>
+      <input class="field" id="rv-cap" placeholder="${esc(t('story_caption'))}" maxlength="300">
+      <div class="progress hidden" id="rv-prog"><b></b></div>
+      <button class="btn-primary" id="rv-go">${t('publish')}</button>`);
+    $('#rv-go').onclick = async () => {
+      const btn = $('#rv-go'); btn.disabled = true; btn.textContent = t('uploading'); $('#rv-prog').classList.remove('hidden');
+      try {
+        const dur = await videoDuration(file);
+        const up = await uploadFile(file, (p) => ($('#rv-prog b').style.width = Math.round(p * 100) + '%'), 'video');
+        await api('/api/reels', { body: { file: up.url, mime: up.mime || file.type, duration: up.duration || dur, caption: $('#rv-cap').value } });
+        this.posted();
+      } catch (e) { toast(e.message); btn.disabled = false; btn.textContent = t('publish'); }
+    };
+  },
+  addIg() {
+    modal(`<h3>${esc(t('reels_ig'))} <button class="icon-btn" data-close>${icon('close')}</button></h3>
+      <input class="field" id="ri-url" type="url" placeholder="https://www.instagram.com/reel/…" autocomplete="off">
+      <input class="field" id="ri-cap" placeholder="${esc(t('story_caption'))}" maxlength="300">
+      <button class="btn-primary" id="ri-go">${t('publish')}</button>`);
+    $('#ri-url').focus();
+    $('#ri-go').onclick = async () => {
+      const ig = $('#ri-url').value.trim(); if (!igParse(ig)) return toast(t('reels_bad'));
+      try { await api('/api/reels', { body: { ig, caption: $('#ri-cap').value, lang: S.me?.lang } }); this.posted(); } catch (e) { toast(e.message); }
+    };
+  },
+  async posted() { closeModal(); toast(t('reels_posted')); this.loaded = true; await this.load(true); $('#reels-feed').scrollTo({ top: 0 }); },
+  async del(i) {
+    const it = this.items[i]; if (!it || !confirm(t('reels_del_confirm'))) return;
+    try { await api('/api/reels/' + it.id, { method: 'DELETE' }); this.items.splice(i, 1); this.render(); } catch (e) { toast(e.message); }
+  },
+};
+$('#reels-add').onclick = () => Reels.add();
+$('#reels-feed').addEventListener('click', (e) => {
+  if (e.target.closest('#reels-empty-add')) return Reels.add();
+  if (e.target.closest('#reels-more')) return Reels.load(false);
+  const slot = e.target.closest('.reel-slot'); if (!slot) return;
+  if (e.target.closest('.reel-del')) return Reels.del(+slot.dataset.i);
+  const u = e.target.closest('.reel-user'); if (u) return openProfile(+u.dataset.uid);
+  // videoni bosish: ovozni yoqish/o'chirish (Instagram kabi)
+  const v = e.target.closest('.reel-video');
+  if (v) { Reels.muted = !Reels.muted; $$('#reels-feed .reel-video').forEach((x) => { x.muted = Reels.muted; }); if (v.paused) v.play().catch(() => {}); }
+});
+document.head.insertAdjacentHTML('beforeend', `<style id="birga-reels">
+.reels-feed { flex: 1; overflow-y: auto; scroll-snap-type: y mandatory; overscroll-behavior: contain; background: #000; }
+.reel-slot { position: relative; height: 100%; scroll-snap-align: start; scroll-snap-stop: always; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8px 0; box-sizing: border-box; }
+.reel-frame { flex: 1; min-height: 0; width: min(420px, 100%); border: 0; border-radius: 12px; }
+iframe.reel-frame { background: #fff; }
+video.reel-frame { object-fit: contain; background: #000; cursor: pointer; }
+.reel-ph { flex: 1; width: min(420px, 100%); display: grid; place-items: center; color: #555; }
+.reel-ph svg { width: 48px; height: 48px; }
+.reel-meta { display: flex; justify-content: space-between; align-items: center; gap: 10px; width: min(420px, 100%); padding: 8px 10px 0; box-sizing: border-box; color: #eee; }
+.reel-user { display: flex; align-items: center; gap: 8px; min-width: 0; color: inherit; font: inherit; font-size: 14px; }
+.reel-user b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reel-cap { width: min(420px, 100%); padding: 4px 10px 0; box-sizing: border-box; color: #ddd; font-size: 13.5px; line-height: 1.4; max-height: 3.2em; overflow: hidden; }
+.reel-cap a { color: #8FB4FF; }
+.reel-more { height: 100%; display: grid; place-items: center; scroll-snap-align: start; }
+.reel-more .btn-ghost { width: auto; padding: 0 24px; }
+.reels-empty { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px; text-align: center; color: #ccc; }
+.reels-empty svg { width: 56px; height: 56px; opacity: .6; }
+.reels-empty p { max-width: 320px; margin: 0; line-height: 1.45; }
+.reels-empty .btn-primary { width: auto; padding: 0 24px; }
+.reels-pick { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.reels-pick button { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 14px; background: var(--active); color: inherit; font: inherit; text-align: left; }
+.reels-pick button > svg { width: 26px; height: 26px; color: var(--blue); flex: none; }
+.reels-pick span { display: flex; flex-direction: column; }
+.reels-pick small { color: var(--muted); font-size: 12.5px; }
+</style>`);
+
 function pullToRefresh(pane, onRefresh) {
   const scroller = pane.querySelector('.scroll');
   const ind = document.createElement('div'); ind.className = 'ptr'; ind.innerHTML = `<div class="ptr-spin">${icon('refresh')}</div>`;

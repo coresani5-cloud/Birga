@@ -665,6 +665,8 @@ app.post('/api/me/delete', auth, rateLimit('delacc', 5, 3600e3), wrap(async (req
   const stories = await db.all('SELECT id, file FROM stories WHERE user_id=?', [uid]);
   for (const st of stories) { await db.run('DELETE FROM story_views WHERE story_id=?', [st.id]); storage.remove(st.file, UPLOAD_DIR); }
   await db.run('DELETE FROM stories WHERE user_id=?', [uid]);
+  for (const r of await db.all('SELECT file FROM reels WHERE user_id=? AND file IS NOT NULL', [uid])) storage.remove(r.file, UPLOAD_DIR);
+  await db.run('DELETE FROM reels WHERE user_id=?', [uid]);
   await db.run('DELETE FROM story_views WHERE user_id=?', [uid]);
   await db.run('DELETE FROM contacts WHERE owner_id=? OR user_id=?', [uid, uid]);
   await db.run('DELETE FROM push_subs WHERE user_id=?', [uid]);
@@ -814,6 +816,39 @@ app.delete('/api/stories/:id', auth, wrap(async (req, res) => {
   await db.run('DELETE FROM story_views WHERE story_id=?', [s.id]);
   await db.run('DELETE FROM stories WHERE id=?', [s.id]);
   storage.remove(s.file, UPLOAD_DIR);
+  res.json({ ok: true });
+}));
+
+// ===== Reels: foydalanuvchilar O'ZLARI joylagan qisqa videolar (yoki o'z Instagram havolasi) =====
+// Lentaga faqat shu yerda ataylab joylangan narsa tushadi — chat xabarlaridan hech narsa olinmaydi.
+const IG_RX = /^https?:\/\/(?:www\.|m\.)?(?:instagram\.com|instagr\.am)\/(?:[\w.]+\/)?(reels?|p|tv)\/([\w-]{5,})/i;
+const reelOut = async (r, me) => ({ id: r.id, kind: r.kind, file: r.file, mime: r.mime, igKind: r.ig_kind, igCode: r.ig_code, caption: r.caption, duration: r.duration,
+  created_at: r.created_at, user: publicUser(await getUser(r.user_id), r.user_id === me), mine: r.user_id === me });
+app.get('/api/reels', auth, wrap(async (req, res) => {
+  const before = Number(req.query.before) || 1e15;
+  const rows = await db.all('SELECT r.* FROM reels r JOIN users u ON u.id=r.user_id WHERE r.id<? AND u.name IS NOT NULL ORDER BY r.id DESC LIMIT 20', [before]);
+  res.json({ items: await Promise.all(rows.map((r) => reelOut(r, req.user.id))), next: rows.length === 20 ? rows[rows.length - 1].id : null });
+}));
+app.post('/api/reels', auth, rateLimit('reelpost', 30, 3600e3), wrap(async (req, res) => {
+  const caption = String(req.body.caption || '').slice(0, 300);
+  let row;
+  if (req.body.ig) {
+    const m = IG_RX.exec(String(req.body.ig).trim());
+    if (!m) return res.status(400).json({ error: tr(req.body.lang, 'Instagram Reels havolasi noto‘g‘ri', 'Неверная ссылка Instagram', 'Invalid Instagram link') });
+    row = ['ig', null, null, m[1].toLowerCase().startsWith('reel') ? 'reel' : m[1].toLowerCase(), m[2], null];
+  } else {
+    const { file, mime } = req.body;
+    if (!storage.isOurs(file) || !/^video\//.test(String(mime))) return res.status(400).json({ error: 'bad file' });
+    row = ['video', file, mime, null, null, Number(req.body.duration) || null];
+  }
+  const id = await db.insert('INSERT INTO reels(user_id,kind,file,mime,ig_kind,ig_code,duration,caption,created_at) VALUES(?,?,?,?,?,?,?,?,?)', [req.user.id, ...row, caption, now()]);
+  res.json(await reelOut(await db.get('SELECT * FROM reels WHERE id=?', [id]), req.user.id));
+}));
+app.delete('/api/reels/:id', auth, wrap(async (req, res) => {
+  const r = await db.get('SELECT * FROM reels WHERE id=?', [Number(req.params.id)]);
+  if (!r || r.user_id !== req.user.id) return res.status(403).json({ error: 'forbidden' });
+  await db.run('DELETE FROM reels WHERE id=?', [r.id]);
+  if (r.file) storage.remove(r.file, UPLOAD_DIR);
   res.json({ ok: true });
 }));
 

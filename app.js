@@ -1098,7 +1098,7 @@ function msgInner(m, c, tail, gap) {
     default: {
       const big = isEmojiOnly(m.text);
       if (big && !reply) return `<div ${attrs}><div class="big-emoji n${big}">${esc(m.text)}<span class="meta stk">${fmtTime(m.created_at)}<span class="tk">${ticksFor(m, c)}</span></span></div></div>`;
-      return `<div ${attrs}><div class="bubble">${reply}<span class="txt">${linkify(m.text)}</span>${meta()}</div></div>`;
+      return `<div ${attrs}><div class="bubble">${reply}<span class="txt">${linkify(m.text)}</span>${igCard(m.text)}${meta()}</div></div>`;
     }
   }
 }
@@ -3060,6 +3060,59 @@ async function softRefresh() {
 }
 
 /* ======================= PASTGA TORTIB YANGILASH ======================= */
+/* ======================= INSTAGRAM REELS: Birga ichida ko'rish ======================= */
+try {
+  Object.assign(I18N.uz, { ig_watch: 'Birga ichida ko‘rish', ig_open: 'Instagram’da ochish', ig_reel: 'Instagram Reels', ig_post: 'Instagram post' });
+  Object.assign(I18N.ru, { ig_watch: 'Смотреть в Birga', ig_open: 'Открыть в Instagram', ig_reel: 'Instagram Reels', ig_post: 'Пост Instagram' });
+  Object.assign(I18N.en, { ig_watch: 'Watch in Birga', ig_open: 'Open in Instagram', ig_reel: 'Instagram Reels', ig_post: 'Instagram post' });
+} catch {}
+// instagram.com/reel/ID, /reels/ID, /p/ID, /tv/ID, /username/reel/ID, instagr.am/...
+const IG_RX = /https?:\/\/(?:www\.|m\.)?(?:instagram\.com|instagr\.am)\/(?:[\w.]+\/)?(reels?|p|tv)\/([\w-]{5,})/i;
+function igParse(url) {
+  const m = IG_RX.exec(url || ''); if (!m) return null;
+  const kind = m[1].toLowerCase().startsWith('reel') ? 'reel' : m[1].toLowerCase();
+  return { kind, code: m[2] };
+}
+function igCard(text) {
+  const ig = igParse(text); if (!ig) return '';
+  return `<button class="ig-card" data-ig-kind="${ig.kind}" data-ig-code="${esc(ig.code)}"><span class="ig-logo">${icon('play')}</span>`
+    + `<span class="ig-txt"><b>${t(ig.kind === 'reel' || ig.kind === 'tv' ? 'ig_reel' : 'ig_post')}</b><small>${t('ig_watch')}</small></span></button>`;
+}
+function openIg(kind, code) {
+  stopPlayer?.();
+  const path = `${kind}/${encodeURIComponent(code)}`;
+  Object.assign(Viewer, { m: null, src: '', kind: 'ig', name: '' });
+  $('#viewer-body').innerHTML = `<div class="ig-view"><iframe src="https://www.instagram.com/${path}/embed/" allow="autoplay; encrypted-media; picture-in-picture; clipboard-write" allowfullscreen loading="eager" referrerpolicy="strict-origin-when-cross-origin"></iframe>`
+    + `<a class="ig-ext" href="https://www.instagram.com/${path}/" target="_blank" rel="noopener">${t('ig_open')}</a></div>`;
+  $('#viewer').classList.add('ig');
+  $('#viewer').classList.remove('hidden');
+}
+new MutationObserver(() => { const v = $('#viewer'); if (v.classList.contains('hidden') && v.classList.contains('ig')) v.classList.remove('ig'); })
+  .observe($('#viewer'), { attributes: true, attributeFilter: ['class'] });
+// karta yoki chatdagi Instagram havolasi bosilganda — tashqi brauzerga emas, Birga ichida ochamiz
+document.addEventListener('click', (e) => {
+  if (e.target.closest('.ig-ext')) return;
+  const card = e.target.closest('.ig-card');
+  if (card) { e.preventDefault(); e.stopPropagation(); openIg(card.dataset.igKind, card.dataset.igCode); return; }
+  const a = e.target.closest('a[href]'); if (!a || !a.closest('#messages, .info-row')) return;
+  const ig = igParse(a.href); if (!ig) return;
+  e.preventDefault(); e.stopPropagation(); openIg(ig.kind, ig.code);
+}, true);
+document.head.insertAdjacentHTML('beforeend', `<style id="birga-ig">
+.ig-card { display: flex; align-items: center; gap: 10px; width: 100%; min-width: 220px; margin: 6px 0 2px; padding: 8px 10px; border: 0; border-radius: 12px; cursor: pointer; text-align: left; font: inherit; color: inherit; background: rgba(127,127,127,.12); }
+.ig-card:hover { background: rgba(127,127,127,.2); }
+.ig-logo { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 11px; color: #fff; background: radial-gradient(circle at 30% 107%, #fdf497 0%, #fd5949 45%, #d6249f 60%, #285AEB 90%); }
+.ig-logo svg { width: 20px; height: 20px; }
+.ig-txt { display: flex; flex-direction: column; min-width: 0; }
+.ig-txt b { font-size: 14px; }
+.ig-txt small { font-size: 12.5px; opacity: .7; }
+.viewer.ig #viewer-dl { display: none; }
+.ig-view { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.ig-view iframe { width: min(400px, 94vw); height: min(720px, calc(100dvh - 110px)); border: 0; border-radius: 12px; background: #fff; }
+.ig-ext { color: #fff; font-size: 14px; font-weight: 600; opacity: .85; text-decoration: none; }
+.ig-ext:hover { opacity: 1; text-decoration: underline; }
+</style>`);
+
 function pullToRefresh(pane, onRefresh) {
   const scroller = pane.querySelector('.scroll');
   const ind = document.createElement('div'); ind.className = 'ptr'; ind.innerHTML = `<div class="ptr-spin">${icon('refresh')}</div>`;

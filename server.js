@@ -177,6 +177,21 @@ app.get('/api/config', (req, res) => res.json({ v: APP_VERSION, pushKey: push?.p
 // Server va bazani "uyg'oq" ushlab turish uchun (cron-job.org shu manzilni chaqiradi)
 // ===== /holat — oddiy odam uchun bitta sahifada tekshiruv (✅ / ⚠️ / ❌) =====
 const STARTED = Date.now();
+// ===== Android ilova (APK) =====
+// Digital Asset Links: Birga ilovasi (uz.birga.app) shu sayt bilan bog'langan — ilova to'liq ekranli ochiladi (manzil qatorisiz)
+const APK_SHA256 = (process.env.APK_SHA256 || '30:2B:1B:47:84:FF:7A:3D:1F:DC:C6:E2:36:44:7B:1B:36:50:1E:E0:65:92:55:0B:8E:33:6C:4D:E9:47:FC:FE').split(',').map((x) => x.trim()).filter(Boolean);
+app.get('/.well-known/assetlinks.json', (req, res) => {
+  res.set('Cache-Control', 'public, max-age=3600').json([{ relation: ['delegate_permission/common.handle_all_urls'],
+    target: { namespace: 'android_app', package_name: 'uz.birga.app', sha256_cert_fingerprints: APK_SHA256 } }]);
+});
+// APK fayli (repo ildizida yoki public/ ichida bo'lsa)
+app.get('/birga.apk', (req, res) => {
+  const f = [path.join(__dirname, 'birga.apk'), path.join(__dirname, 'public', 'birga.apk')].find((x) => fs.existsSync(x));
+  if (!f) return res.redirect('https://raw.githubusercontent.com/coresani5-cloud/Birga/main/birga.apk');
+  res.set({ 'Content-Type': 'application/vnd.android.package-archive', 'Content-Disposition': 'attachment; filename="Birga.apk"', 'Cache-Control': 'no-cache' });
+  res.sendFile(f);
+});
+
 app.get('/holat', wrap(async (req, res) => {
   const rows = [];
   const add = (ok, name, text, fix = '') => rows.push({ ok, name, text, fix });
@@ -452,7 +467,8 @@ app.get('/api/users/:id', auth, wrap(async (req, res) => {
   const u = await getUser(req.params.id);
   if (!u) return res.status(404).json({ error: 'not found' });
   const chat = await privateChatId(req.user.id, u.id, false);
-  res.json({ ...publicUser(u, u.id === req.user.id), chatId: chat || null });
+  const ct = u.id === req.user.id ? null : await db.get('SELECT name FROM contacts WHERE owner_id=? AND user_id=?', [req.user.id, u.id]);
+  res.json({ ...publicUser(u, u.id === req.user.id), chatId: chat || null, contactName: ct?.name || null });
 }));
 
 // Kontaktlar = telefon kontaktlaridan topilganlar + shaxsiy yozishgan odamlar
@@ -464,6 +480,15 @@ app.get('/api/contacts', auth, wrap(async (req, res) => {
   for (const u of peers) map.set(u.id, publicUser(u));
   for (const u of saved) map.set(u.id, { ...publicUser(u), contactName: u.contact_name });
   res.json([...map.values()]);
+}));
+// Boshqa odamning ismini faqat o'zim uchun o'zgartirish (bo'sh ism — asl ismga qaytish)
+app.post('/api/contacts/:id/name', auth, rateLimit('cname', 120, 3600e3), wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  const u = id && id !== req.user.id ? await getUser(id) : null;
+  if (!u) return res.status(404).json({ error: 'not found' });
+  const name = String(req.body?.name || '').replace(/\s+/g, ' ').trim().slice(0, 64) || null;
+  await db.run('INSERT INTO contacts(owner_id,user_id,name,created) VALUES(?,?,?,?) ON CONFLICT(owner_id,user_id) DO UPDATE SET name=excluded.name', [req.user.id, id, name, now()]);
+  res.json({ ok: true, id, contactName: name });
 }));
 // Telefon kontaktlaridan Birga'dagilarni topish (raqamlar saqlanmaydi, faqat topilgan foydalanuvchi bog'lanadi)
 app.post('/api/contacts/match', auth, rateLimit('cmatch', 20, 3600e3), wrap(async (req, res) => {
@@ -480,8 +505,9 @@ app.post('/api/contacts/match', auth, rateLimit('cmatch', 20, 3600e3), wrap(asyn
     const rows = await db.all(`SELECT * FROM users WHERE name IS NOT NULL AND id<>? AND phone IN (${chunk.map(() => '?').join(',')})`, [req.user.id, ...chunk]);
     for (const u of rows) {
       const name = byPhone.get(u.phone) || null;
-      await db.run('INSERT INTO contacts(owner_id,user_id,name,created) VALUES(?,?,?,?) ON CONFLICT(owner_id,user_id) DO UPDATE SET name=excluded.name', [req.user.id, u.id, name, now()]);
-      found.push({ ...publicUser(u), contactName: name });
+      await db.run('INSERT INTO contacts(owner_id,user_id,name,created) VALUES(?,?,?,?) ON CONFLICT(owner_id,user_id) DO UPDATE SET name=COALESCE(contacts.name, excluded.name)', [req.user.id, u.id, name, now()]);
+      const row = await db.get('SELECT name FROM contacts WHERE owner_id=? AND user_id=?', [req.user.id, u.id]);
+      found.push({ ...publicUser(u), contactName: row?.name || name });
     }
   }
   res.json({ found, checked: phones.length });
@@ -922,9 +948,13 @@ function cleanMeta(meta) {
   if (meta.fwd && typeof meta.fwd === 'object') o.fwd = { name: String(meta.fwd.name || '').slice(0, 80), uid: Number(meta.fwd.uid) || undefined };
   if (typeof meta.e === 'string' && meta.e.length <= 16) o.e = meta.e;
   if (typeof meta.cp === 'string' && /^[0-9a-f-]{2,60}$/.test(meta.cp)) o.cp = meta.cp;
+  for (const k of ['w', 'h']) { const v = Math.round(Number(meta[k])); if (v > 0 && v <= 20000) o[k] = v; }
   if (typeof meta.gif === 'string' && /^https:\/\/media\d*\.tenor\.com\/[\w./-]+$/.test(meta.gif)) { o.gif = meta.gif; o.w = Number(meta.w) || undefined; o.h = Number(meta.h) || undefined; }
   return Object.keys(o).length ? JSON.stringify(o) : null;
 }
+
+const sentCids = new Map();
+setInterval(() => { const t = now(); for (const [k, v] of sentCids) if (t - v.at > 30 * 60e3) sentCids.delete(k); }, 300e3).unref();
 
 io.use(async (socket, next) => {
   try { socket.uid = (await userFromToken(socket.handshake.auth?.token)).id; next(); }
@@ -986,8 +1016,12 @@ io.on('connection', async (socket) => {
     if (!NO_FILE.has(p.type) && !file) return ack?.({ error: 'no file' });
     if (p.type === 'sticker' && !(p.meta?.e)) return ack?.({ error: 'bad sticker' });
     if (p.type === 'gif' && !cleanMeta({ gif: p.meta?.gif })) return ack?.({ error: 'bad gif' });
-    const msg = await saveMessage(chatId, uid, { ...p, text, file }, p.meta);
-    ack?.({ ok: true, message: msg });
+    // takroriy yuborish (javob yo'qolib, mijoz qayta urinsa) — bitta xabar bo'lib qoladi
+    const cid = typeof p.cid === 'string' && p.cid.length <= 40 ? `${uid}:${p.cid}` : null;
+    if (cid && sentCids.has(cid)) { try { return ack?.({ ok: true, message: await sentCids.get(cid).p }); } catch { sentCids.delete(cid); } }
+    const job = saveMessage(chatId, uid, { ...p, text, file }, p.meta);
+    if (cid) sentCids.set(cid, { p: job, at: now() });
+    try { ack?.({ ok: true, message: await job }); } catch (e) { if (cid) sentCids.delete(cid); throw e; }
   });
 
   // Xabarni boshqa chat(lar)ga uzatish
@@ -1095,6 +1129,12 @@ setInterval(async () => {
     scheduleSweep(1000);
   } catch (e) { console.error('cleanup:', e.message); }
 }, 600e3).unref();
+
+// multer xatolari (juda katta fayl) — tushunarli JSON javob
+app.use((err, req, res, next) => {
+  if (err?.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: `Fayl juda katta (eng ko'pi ${Number(process.env.MAX_UPLOAD_MB) || storage.maxMb} MB)` });
+  console.error(err); res.status(err?.status || 500).json({ error: 'server' });
+});
 
 (async () => {
   await db.init();

@@ -1,5 +1,6 @@
 /* Birga — klient ilovasi (v2) */
 'use strict';
+try { Object.assign(I18N.uz, { install_app: 'Ilovani yuklab olish' }); Object.assign(I18N.ru, { install_app: 'Скачать приложение' }); Object.assign(I18N.en, { install_app: 'Download the app' }); } catch {}
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -13,10 +14,25 @@ const PN = window.libphonenumber;
 const Rec = { active: false }; // ovoz/video yozish holati
 const isTouch = () => matchMedia('(pointer:coarse)').matches;
 
+// Boshqa odamga o'zim qo'ygan ism (faqat menga ko'rinadi). S.users'ga yozilganda avtomatik qo'llanadi.
+const ALIAS = new Map();
+class AliasMap extends Map {
+  set(id, u) {
+    if (u && typeof u === 'object') {
+      u = { ...u };
+      if ('contactName' in u) { if (u.contactName) ALIAS.set(id, u.contactName); else ALIAS.delete(id); }
+      const al = ALIAS.get(id);
+      if (al) { if (u.name !== al) u.realName = u.name; else u.realName ||= al; u.name = al; }
+      else if (u.realName) { u.name = u.realName; delete u.realName; }
+    }
+    return super.set(id, u);
+  }
+}
+
 const S = {
   token: store.get('birga_token'),
   me: null,
-  chats: new Map(), msgs: new Map(), users: new Map(),
+  chats: new Map(), msgs: new Map(), users: new AliasMap(),
   current: null, replyTo: null, typing: new Map(),
   config: {}, socket: null,
 };
@@ -47,8 +63,14 @@ function uploadFile(file, onProgress, kind = '') {
     const x = new XMLHttpRequest();
     x.open('POST', '/api/upload?kind=' + kind); x.setRequestHeader('Authorization', 'Bearer ' + S.token);
     x.upload.onprogress = (e) => e.lengthComputable && onProgress?.(e.loaded / e.total);
-    x.onload = () => (x.status < 300 ? res(JSON.parse(x.responseText)) : rej(new Error(t('upload_fail'))));
+    x.timeout = 180e3 + (file.size || 0) / 30; // server videoni qayta ishlashi ham hisobga olingan // ~30 KB/s dan sekin bo'lsa — qayta urinish
+    x.onload = () => {
+      if (x.status < 300) { try { return res(JSON.parse(x.responseText)); } catch {} }
+      let msg = t('upload_fail'); try { msg = JSON.parse(x.responseText).error || msg; } catch {}
+      const e = new Error(msg); e.status = x.status; e.fatal = x.status === 413 || x.status === 415 || x.status === 401; rej(e);
+    };
     x.onerror = () => rej(new Error(t('net_err')));
+    x.ontimeout = () => rej(new Error(t('net_err')));
     x.send(fd);
   });
 }
@@ -317,7 +339,10 @@ async function connectSocket() {
   const s = io({ auth: { token: S.token }, transports: ['websocket', 'polling'] });
   S.socket = s;
   s.on('app:version', ({ v }) => Updater.seen(v));
-  s.on('connect', () => { $('#conn-bar').classList.add('hidden'); if (S.current) loadMessages(S.current); loadChats().catch(() => {}); });
+  s.on('connect', () => {
+    $('#conn-bar').classList.add('hidden'); if (S.current) loadMessages(S.current); loadChats().catch(() => {});
+    setTimeout(() => { Outbox.restore().catch(() => {}); retryT = 0; retryFailed(); loadAliases(); }, 600);
+  });
   s.on('disconnect', () => $('#conn-bar').classList.remove('hidden'));
   s.on('connect_error', (e) => { if (e.message === 'unauthorized') logout(true); $('#conn-bar').classList.remove('hidden'); });
 
@@ -696,7 +721,7 @@ async function loadProfileTab(u) {
   if (!items.length) { box.innerHTML = empty; return; }
   if (tab === 'media') {
     box.innerHTML = `<div class="pp-grid sq">${items.map((m) => `<div class="cell${m.type === 'round' ? ' round' : ''}" data-src="${esc(mediaSrc(m))}" data-kind="${m.type === 'image' ? 'image' : 'video'}">${m.type === 'image' ? `<img src="${esc(m.file)}" loading="lazy" alt="">` : `<video src="${esc(mediaSrc(m))}#t=0.1" muted playsinline preload="metadata"></video><span>${icon(m.type === 'round' ? 'round' : 'play')}${fmtDur(m.duration)}</span>`}</div>`).join('')}</div>`;
-    box.onclick = (e) => { const c = e.target.closest('[data-src]'); if (!c) return; $('#viewer-body').innerHTML = c.dataset.kind === 'image' ? `<img src="${c.dataset.src}" alt="">` : `<video src="${c.dataset.src}" controls autoplay playsinline></video>`; $('#viewer').classList.remove('hidden'); };
+    box.onclick = (e) => { const c = e.target.closest('[data-src]'); if (!c) return; openViewer(c.dataset.kind, c.dataset.src); };
   } else if (tab === 'voice') {
     box.innerHTML = `<div class="pp-list">${items.map((m) => `<div class="item" data-audio="${esc(mediaSrc(m))}"><button class="vplay">${icon('play')}</button><div><b>${esc(m.sender_id === S.me.id ? t('you') : u.name)}</b><small>${fmtDur(m.duration)} · ${fmtDay(m.created_at)} ${fmtTime(m.created_at)}</small></div></div>`).join('')}</div>`;
     let cur = null;
@@ -919,11 +944,12 @@ $('#btn-audio-call').onclick = () => Call.start(currentPeer(), false);
 $('#btn-video-call').onclick = () => Call.start(currentPeer(), true);
 
 async function loadMessages(id) {
+  const had = (S.msgs.get(id) || []).some((m) => m.id);
   const list = await api(`/api/chats/${id}/messages`).catch(() => null);
   if (!list || S.current !== id) return;
-  const pending = (S.msgs.get(id) || []).filter((m) => m.pending);
-  S.msgs.set(id, [...list, ...pending]);
-  renderMessages(true); markRead(); Media.track(list);
+  const pending = [...S.outbox.values()].filter((m) => m.chat_id === id && !list.some((x) => x.id && x.id === m.id));
+  S.msgs.set(id, [...list, ...pending.sort((a, b) => a.created_at - b.created_at)]);
+  renderMessages(!had); markRead(); Media.track(list);
 }
 
 $('#messages').addEventListener('scroll', async (e) => {
@@ -961,6 +987,7 @@ function renderMessages(scrollBottom) {
   const c = S.chats.get(S.current);
   if (roundPlaying && roundPlaying.isConnected) { S.needRender = true; return; } // video xabar tugagach yangilanadi
   S.needRender = false;
+  const prevTop = el.scrollTop, wasBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 90;
   let html = '', prevDay = '', prev = null;
   arr.forEach((m, i) => {
     const day = fmtDay(m.created_at);
@@ -975,10 +1002,11 @@ function renderMessages(scrollBottom) {
     const v = [...el.querySelectorAll('.voice')].find((x) => x.dataset.src === player.src);
     if (v) { player.el = v; v.querySelector('.vplay').innerHTML = icon(player.audio.paused ? 'play' : 'pause'); player.audio.ontimeupdate?.(); }
   }
-  if (scrollBottom) el.scrollTop = el.scrollHeight;
+  if (scrollBottom || wasBottom) { el.scrollTop = el.scrollHeight; S.stick = true; } else el.scrollTop = prevTop;
 }
 function ticksFor(m, c) {
   if (m.sender_id !== S.me.id || c?.self) return '';
+  if (m.failed) return `<span class="fail-ic">!</span>`;
   if (m.pending) return `<svg style="width:14px;height:14px"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="2" fill="none"/></svg>`;
   return c && c.peerReadId >= m.id ? `<span class="read">${icon('check2')}</span>` : icon('check');
 }
@@ -988,7 +1016,8 @@ function updateTicks(el) {
 }
 function msgHTML(m, c, tail, gap) {
   if (m.type === 'service') return `<div class="svc" data-id="${m.id}">${esc(serviceText(m))}</div>`;
-  const inner = msgInner(m, c, tail, gap);
+  let inner = msgInner(m, c, tail, gap);
+  if (m.failed && m.tempId) inner = `<div class="msg-fail-wrap${m.sender_id === S.me.id ? ' out' : ''}">${inner}<div class="retry-row"><button data-retry="${m.tempId}">${icon('refresh')}${esc(t('retry_send'))}</button><button data-discard="${m.tempId}">${icon('trash')}</button></div></div>`;
   const grp = c?.type === 'group' && m.sender_id !== S.me.id;
   if (!grp) return inner;
   const u = S.users.get(m.sender_id) || { id: m.sender_id, name: '?' };
@@ -997,9 +1026,9 @@ function msgHTML(m, c, tail, gap) {
 const NAME_COLORS = ['#E5484D', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6', '#EC4899', '#14B8A6', '#6366F1'];
 function msgInner(m, c, tail, gap) {
   const out = m.sender_id === S.me.id;
-  const cls = `msg ${out ? 'out' : 'in'}${tail ? ' tail' : ''}${gap ? ' gap' : ''}`;
+  const cls = `msg ${out ? 'out' : 'in'}${tail ? ' tail' : ''}${gap ? ' gap' : ''}${m.failed ? ' failed' : ''}`;
   const meta = (over) => `<span class="meta${over ? ' over' : ''}">${m.edited ? `<span class="ed">${t('edited')}</span>` : ''}${fmtTime(m.created_at)}<span class="tk">${ticksFor(m, c)}</span></span>`;
-  const attrs = `class="${cls}" data-id="${m.id || ''}"`;
+  const attrs = `class="${cls}" data-id="${m.id || ''}"${m.tempId && !m.id ? ` data-tmp="${m.tempId}"` : ''}`;
   if (m.deleted) return `<div ${attrs}><div class="bubble"><span class="deleted">${t('deleted')}</span>${meta()}</div></div>`;
   let reply = '';
   // guruhda yuboruvchi ismi va uzatilgan xabar belgisi
@@ -1009,15 +1038,15 @@ function msgInner(m, c, tail, gap) {
     const r = (S.msgs.get(m.chat_id) || []).find((x) => x.id === m.reply_to);
     if (r) reply += `<div class="reply-q" data-goto="${r.id}">${replyThumb(r)}<div><b>${esc(r.sender_id === S.me.id ? t('you') : S.users.get(r.sender_id)?.name || '')}</b><span>${stripTags(preview(r)) || '…'}</span></div></div>`;
   }
-  const prog = m.pending && m.progress != null ? `<div class="upload-ov"${m.type === 'round' ? ' style="border-radius:50%"' : ''}>${m.progress >= 1 ? t('processing') : Math.round(m.progress * 100) + '%'}</div>` : '';
+  const prog = m.pending && !m.failed && m.progress != null ? `<div class="upload-ov"${m.type === 'round' ? ' style="border-radius:50%"' : ''}>${m.progress >= 1 ? t('processing') : Math.round(m.progress * 100) + '%'}</div>` : '';
   const src = esc(m.localUrl || mediaSrc(m));
   if (m.gone && !m.localUrl && !Media.has(m)) return `<div ${attrs}><div class="bubble">${reply}<div class="gone-box">${icon(m.type === 'voice' ? 'mic' : m.type === 'file' ? 'file' : 'image')}<span>${esc(t('media_gone'))}</span></div>${meta()}</div></div>`;
   switch (m.type) {
     case 'image':
-      return `<div ${attrs}><div class="bubble media">${reply}<img src="${src}" data-view="image" loading="lazy" alt="">${prog}
+      return `<div ${attrs}><div class="bubble media">${reply}<img src="${src}" data-view="image" alt=""${ratioAttr(m, src)}>${prog}
         ${m.text ? `<div class="cap txt">${linkify(m.text)}${meta()}</div>` : meta(true)}</div></div>`;
     case 'video':
-      return `<div ${attrs}><div class="bubble media">${reply}<video src="${src}#t=0.1" preload="metadata" playsinline muted data-view="video"></video>${prog}
+      return `<div ${attrs}><div class="bubble media">${reply}<video src="${src}#t=0.1" preload="metadata" playsinline muted data-view="video"${ratioAttr(m, src)}></video>${prog}
         <span class="meta over" style="left:10px;right:auto">${icon('play')}${m.duration ? fmtDur(m.duration) : t('t_video')}</span>
         ${m.text ? `<div class="cap txt">${linkify(m.text)}${meta()}</div>` : meta(true)}</div></div>`;
     case 'voice': {
@@ -1135,10 +1164,16 @@ const roundObserver = new IntersectionObserver((ents) => ents.forEach((en) => {
   if (en.isIntersecting) v.play().catch(() => {}); else v.pause();
 }), { threshold: 0.6 });
 new MutationObserver(() => $$('.round-msg video').forEach((v) => roundObserver.observe(v))).observe($('#messages'), { childList: true });
-$('#messages').addEventListener('load', (e) => {
-  const el = $('#messages');
-  if (e.target.tagName === 'IMG' && el.scrollHeight - el.scrollTop - el.clientHeight < e.target.clientHeight + 200) el.scrollTop = el.scrollHeight;
-}, true);
+// Rasm/video yuklanganda: haqiqiy o'lchamni eslab qolamiz va pastda turgan bo'lsak pastda qolamiz
+function onMediaSize(e) {
+  const x = e.target; if (!x.dataset?.view) return;
+  const w = x.naturalWidth || x.videoWidth, h = x.naturalHeight || x.videoHeight;
+  if (w && h) { Dims.put((x.currentSrc || x.src).split('#')[0], w, h); x.style.aspectRatio = `${w} / ${h}`; }
+  const el = $('#messages'); if (S.stick) el.scrollTop = el.scrollHeight;
+}
+$('#messages').addEventListener('load', onMediaSize, true);
+$('#messages').addEventListener('loadedmetadata', onMediaSize, true);
+$('#messages').addEventListener('scroll', () => { const el = $('#messages'); S.stick = el.scrollHeight - el.scrollTop - el.clientHeight < 90; }, { passive: true });
 
 /* ---------- kontekst menyu ---------- */
 function openCtx(x, y, m) {
@@ -1210,9 +1245,114 @@ textEl.addEventListener('input', () => {
 });
 textEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !isTouch()) { e.preventDefault(); sendText(); } });
 
-function emitSend(payload) {
-  return new Promise((res, rej) => S.socket.timeout(20000).emit('message:send', payload, (err, r) => (err || r?.error ? rej(err || new Error(r.error)) : res(r.message))));
+/* ---------- Yuborish: qayta urinish + chiquvchi navbat (ilova yopilsa ham yo'qolmaydi) ---------- */
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const newTempId = () => 't' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
+function waitConnected(ms = 25000) {
+  return new Promise((res, rej) => {
+    if (S.socket?.connected) return res();
+    if (!S.socket) return rej(new Error(t('net_err')));
+    const on = () => { clearTimeout(tm); res(); };
+    const tm = setTimeout(() => { S.socket.off('connect', on); rej(new Error(t('net_err'))); }, ms);
+    S.socket.once('connect', on);
+  });
 }
+async function emitSend(payload) {
+  await waitConnected();
+  return new Promise((res, rej) => S.socket.timeout(20000).emit('message:send', payload, (err, r) => {
+    if (err) return rej(err);
+    if (r?.error) { const e = new Error(r.error === 'forbidden' ? t('not_sent') : r.error); e.fatal = true; return rej(e); }
+    res(r.message);
+  }));
+}
+// Chiquvchi navbat IndexedDB'da: ovozli/video xabar yozib, ilovani darhol yopsa ham keyin yuboriladi
+const Outbox = {
+  q: Promise.resolve(),
+  run(fn) { this.q = this.q.then(fn).catch(() => {}); return this.q; },
+  save(m) {
+    return this.run(async () => {
+      const rec = { tempId: m.tempId, cid: m.cid, chat_id: m.chat_id, type: m.type, text: m.text, duration: m.duration, meta: m.meta, size: m.size,
+        reply_to: m.reply_to, created_at: m.created_at, blob: m.up ? null : m.blob || null, up: m.up || null, name: m.blob?.name || '', mime: m.blob?.type || '' };
+      await idb('put', 'ob:' + m.tempId, rec);
+      const l = (await idb('get', 'ob-index').catch(() => null)) || [];
+      if (!l.includes(m.tempId)) { l.push(m.tempId); await idb('put', 'ob-index', l); }
+    });
+  },
+  del(id) {
+    return this.run(async () => {
+      await idb('del', 'ob:' + id);
+      const l = (await idb('get', 'ob-index').catch(() => null)) || [];
+      await idb('put', 'ob-index', l.filter((x) => x !== id));
+    });
+  },
+  restored: false,
+  async restore() {
+    if (this.restored || !S.me) return; this.restored = true;
+    const l = (await idb('get', 'ob-index').catch(() => null)) || [];
+    for (const id of l) {
+      if (S.outbox.has(id)) continue;
+      const r = await idb('get', 'ob:' + id).catch(() => null);
+      if (!r || Date.now() - r.created_at > 7 * 864e5 || (!r.blob && !r.up && r.type !== 'text')) { this.del(id); continue; }
+      const temp = { ...r, pending: true, progress: r.up ? 1 : 0, sender_id: S.me.id };
+      if (r.blob) { temp.blob = r.blob instanceof File ? r.blob : new File([r.blob], r.name || 'file', { type: r.mime || r.blob.type }); temp.localUrl = URL.createObjectURL(temp.blob); }
+      delete temp.name; delete temp.mime;
+      pushPending(temp); deliver(temp);
+    }
+  },
+};
+S.outbox = new Map();
+const upKind = (type) => (['voice', 'round', 'video'].includes(type) ? type : '');
+function paintProgress(m) {
+  if (S.current !== m.chat_id) return;
+  const el = document.querySelector(`.msg[data-tmp="${m.tempId}"]`); if (!el) return;
+  const txt = m.progress >= 1 ? t('processing') : Math.round((m.progress || 0) * 100) + '%';
+  const ov = el.querySelector('.upload-ov'); if (ov) ov.textContent = txt;
+  const vd = el.querySelector('.vdur'); if (vd && m.type === 'voice') vd.textContent = m.progress >= 1 ? t('processing') : txt;
+  const fs = el.querySelector('.filebox span'); if (fs) fs.textContent = txt;
+}
+const repaint = (m) => { if (S.current === m.chat_id) renderMessages(); };
+async function deliver(temp) {
+  if (temp.sending || !S.outbox.has(temp.tempId)) return;
+  temp.sending = true;
+  if (temp.failed) { temp.failed = false; repaint(temp); }
+  const chatId = temp.chat_id;
+  try {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        if (temp.type !== 'text' && !temp.up) {
+          temp.up = await uploadFile(temp.blob, (p) => { temp.progress = p; paintProgress(temp); }, upKind(temp.type));
+          temp.progress = 1; paintProgress(temp);
+          Media.putLocal(temp.blob, temp.up.url, temp.up.alt, temp.type); // yuborganning o'zida ham qurilmada saqlanadi
+          Outbox.save(temp); // qayta urinishda fayl qayta yuklanmaydi
+        }
+        const up = temp.up;
+        const payload = temp.type === 'text'
+          ? { chatId, type: 'text', text: temp.text, replyTo: temp.reply_to, cid: temp.cid }
+          : { chatId, type: temp.type, file: up.url, mime: up.mime, size: up.size, text: temp.text, duration: up.duration || temp.duration,
+              meta: up.alt ? { ...(temp.meta || {}), alt: up.alt } : temp.meta, replyTo: temp.reply_to, cid: temp.cid };
+        const m = await emitSend(payload);
+        temp.sending = false; S.outbox.delete(temp.tempId); Outbox.del(temp.tempId);
+        resolvePending(temp, m); return;
+      } catch (e) {
+        if (e.fatal || attempt >= 2) throw e;
+        if (e.expired) temp.up = null; // server faylni topmadi — qayta yuklaymiz
+        await sleep([1500, 4000][attempt]);
+      }
+    }
+  } catch (e) {
+    temp.sending = false;
+    if (e.fatal) { toast(e.message || t('not_sent'), 3000); S.outbox.delete(temp.tempId); Outbox.del(temp.tempId); dropPending(temp); return; }
+    temp.failed = true; repaint(temp);
+  }
+}
+let retryT = 0;
+function retryFailed() {
+  if (Date.now() - retryT < 2000) return; retryT = Date.now();
+  for (const m of S.outbox.values()) if (m.failed && !m.sending) deliver(m);
+}
+window.addEventListener('online', () => setTimeout(retryFailed, 800));
+document.addEventListener('visibilitychange', () => { if (!document.hidden && S.socket?.connected) retryFailed(); });
+
 async function sendText() {
   const txt = textEl.value.trim(); if (!txt || !S.current) return;
   if (S.editing) { // xabarni tahrirlash
@@ -1221,36 +1361,36 @@ async function sendText() {
   }
   textEl.value = ''; textEl.style.height = 'auto'; updateAction();
   const replyTo = S.replyTo?.id; $('#reply-cancel').click();
-  const temp = { tempId: 't' + Date.now(), pending: true, chat_id: S.current, sender_id: S.me.id, type: 'text', text: txt, reply_to: replyTo, created_at: Date.now() };
-  pushPending(temp);
-  try { resolvePending(temp, await emitSend({ chatId: S.current, type: 'text', text: txt, replyTo })); }
-  catch { toast(t('not_sent')); dropPending(temp); textEl.value = txt; updateAction(); }
+  const id = newTempId();
+  const temp = { tempId: id, cid: id, pending: true, chat_id: S.current, sender_id: S.me.id, type: 'text', text: txt, reply_to: replyTo, created_at: Date.now() };
+  pushPending(temp); Outbox.save(temp); deliver(temp);
 }
-function pushPending(m) { const arr = S.msgs.get(m.chat_id) || []; arr.push(m); S.msgs.set(m.chat_id, arr); if (S.current === m.chat_id) renderMessages(true); }
+function pushPending(m) {
+  S.outbox.set(m.tempId, m);
+  const arr = S.msgs.get(m.chat_id); if (!arr) return;
+  if (!arr.includes(m)) arr.push(m);
+  if (S.current === m.chat_id) renderMessages(true);
+}
 function resolvePending(temp, real) {
+  S.outbox.delete(temp.tempId);
   const arr = S.msgs.get(temp.chat_id); if (!arr) return;
   const i = arr.indexOf(temp);
-  if (arr.some((x) => x.id === real.id)) { if (i >= 0) arr.splice(i, 1); } else if (i >= 0) arr[i] = real; else arr.push(real);
-  if (S.current === temp.chat_id) renderMessages(true);
+  const ex = arr.find((x) => x.id === real.id);
+  if (real.file && temp.localUrl) (ex || real).localUrl = temp.localUrl; // qurilmadagi nusxa — qayta yuklanmaydi, o'lcham sakramaydi
+  if (ex) { if (i >= 0) arr.splice(i, 1); } else if (i >= 0) arr[i] = real; else arr.push(real);
+  if (S.current === temp.chat_id) renderMessages();
 }
-function dropPending(temp) { const arr = S.msgs.get(temp.chat_id); const i = arr?.indexOf(temp); if (i >= 0) arr.splice(i, 1); if (S.current === temp.chat_id) renderMessages(); }
+function dropPending(temp) { S.outbox.delete(temp.tempId); const arr = S.msgs.get(temp.chat_id); const i = arr?.indexOf(temp); if (i >= 0) arr.splice(i, 1); if (S.current === temp.chat_id) renderMessages(); }
 
 async function sendMedia(blob, type, extra = {}) {
-  const chatId = S.current;
-  const localUrl = URL.createObjectURL(blob);
-  const temp = { tempId: 't' + Date.now() + Math.random(), pending: true, progress: 0, chat_id: chatId, sender_id: S.me.id, type, localUrl,
+  const chatId = extra.chatId || S.current; if (!chatId || !blob) return;
+  const id = newTempId();
+  const temp = { tempId: id, cid: id, pending: true, progress: 0, chat_id: chatId, sender_id: S.me.id, type, blob, localUrl: URL.createObjectURL(blob),
     text: extra.text || '', duration: extra.duration, meta: extra.meta, size: blob.size, reply_to: extra.replyTo, created_at: Date.now() };
   pushPending(temp);
-  S.socket.emit('typing', { chatId, kind: type === 'voice' ? 'voice' : type === 'round' ? 'round' : 'file' });
-  try {
-    let lastR = 0;
-    const up = await uploadFile(blob, (p) => { temp.progress = p; if (Date.now() - lastR > 250 || p >= 1) { lastR = Date.now(); if (S.current === chatId) renderMessages(); } },
-      ['voice', 'round', 'video'].includes(type) ? type : '');
-    const meta = up.alt ? { ...(extra.meta || {}), alt: up.alt } : extra.meta;
-    Media.putLocal(blob, up.url, up.alt, type); // yuborganning o'zida ham qurilmada saqlanadi
-    const m = await emitSend({ chatId, type, file: up.url, mime: up.mime, size: up.size, text: extra.text, duration: up.duration || extra.duration, meta, replyTo: extra.replyTo });
-    resolvePending(temp, m);
-  } catch (e) { toast(e.message || t('upload_fail')); dropPending(temp); }
+  S.socket?.emit('typing', { chatId, kind: type === 'voice' ? 'voice' : type === 'round' ? 'round' : 'file' });
+  Outbox.save(temp);
+  deliver(temp);
 }
 
 /* ---------- fayl biriktirish ---------- */
@@ -1260,9 +1400,18 @@ $('#chat').addEventListener('dragover', (e) => e.preventDefault());
 $('#chat').addEventListener('drop', (e) => { e.preventDefault(); if (S.current && e.dataTransfer.files.length) attachPreview([...e.dataTransfer.files]); });
 textEl.addEventListener('paste', (e) => { const f = [...(e.clipboardData?.files || [])]; if (f.length) { e.preventDefault(); attachPreview(f); } });
 
-function videoDuration(file) {
-  return new Promise((res) => { const v = document.createElement('video'); v.preload = 'metadata'; v.onloadedmetadata = () => res(v.duration); v.onerror = () => res(0); v.src = URL.createObjectURL(file); });
+function videoInfo(file) {
+  return new Promise((res) => {
+    const v = document.createElement('video'); v.preload = 'metadata'; v.muted = true;
+    const done = (o) => { clearTimeout(tm); URL.revokeObjectURL(v.src); res(o); };
+    const tm = setTimeout(() => done({ duration: 0 }), 8000);
+    v.onloadedmetadata = () => done({ duration: isFinite(v.duration) ? v.duration : 0, w: v.videoWidth, h: v.videoHeight });
+    v.onerror = () => done({ duration: 0 });
+    v.src = URL.createObjectURL(file);
+  });
 }
+const videoDuration = async (file) => (await videoInfo(file)).duration;
+async function imageDims(file) { try { const b = await createImageBitmap(file); const o = { w: b.width, h: b.height }; b.close?.(); return o; } catch { return {}; } }
 function attachPreview(files) {
   const items = files.map((f) => {
     const u = URL.createObjectURL(f);
@@ -1278,12 +1427,12 @@ function attachPreview(files) {
   $('#att-cap').onkeydown = (e) => { if (e.key === 'Enter') $('#att-send').click(); };
   $('#att-send').onclick = async () => {
     const cap = $('#att-cap').value.trim(); closeModal();
-    const replyTo = S.replyTo?.id; $('#reply-cancel').click();
+    const replyTo = S.replyTo?.id; $('#reply-cancel').click(); const chatId = S.current;
     for (const [i, f] of files.entries()) {
       const text = i === files.length - 1 ? cap : '';
-      if (f.type.startsWith('image/') && f.type !== 'image/svg+xml') sendMedia(await compressImage(f), 'image', { text, replyTo });
-      else if (f.type.startsWith('video/')) sendMedia(f, 'video', { text, duration: await videoDuration(f), replyTo });
-      else sendMedia(f, 'file', { text, meta: { name: f.name }, replyTo });
+      if (f.type.startsWith('image/') && f.type !== 'image/svg+xml') { const img = await compressImage(f); const d = await imageDims(img); sendMedia(img, 'image', { chatId, text, replyTo, meta: d.w ? d : undefined }); }
+      else if (f.type.startsWith('video/')) { const vi = await videoInfo(f); sendMedia(f, 'video', { chatId, text, duration: vi.duration, replyTo, meta: vi.w ? { w: vi.w, h: vi.h } : undefined }); }
+      else sendMedia(f, 'file', { chatId, text, meta: { name: f.name }, replyTo });
     }
   };
 }
@@ -1333,7 +1482,7 @@ function bindRec(btn, kind) {
     if (Rec.active && Rec.hold) return stopRecording(true);
     if (!Rec.active && Date.now() - pressT < 260) startRecording(kind, { tap: true });
   });
-  btn.addEventListener('pointercancel', () => { clearTimeout(holdTimer); if (Rec.active && Rec.hold && !Rec.locked) stopRecording(false); });
+  btn.addEventListener('pointercancel', () => { clearTimeout(holdTimer); if (Rec.active && !Rec.mr) { Rec.hold = false; Rec.pendingLock = true; return; } if (Rec.active && Rec.hold && !Rec.locked) stopRecording(false); });
   btn.addEventListener('contextmenu', (e) => e.preventDefault());
 }
 bindRec(actionBtn, 'voice');
@@ -1371,7 +1520,7 @@ async function startRecording(kind, opts = {}) {
   if (Rec.active || Call.active) return;
   if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) { toast(t('need_https'), 3500); return; }
   $('#round-actions').classList.add('hidden');
-  Object.assign(Rec, { active: true, kind, hold: !!opts.hold, locked: false, justLocked: false, facing: 'user', chunks: [], levels: [], t0: Date.now(), mr: null, stream: null, comp: null });
+  Object.assign(Rec, { active: true, kind, hold: !!opts.hold, locked: false, justLocked: false, pendingLock: false, facing: 'user', chunks: [], levels: [], t0: Date.now(), mr: null, stream: null, comp: null });
   try {
     Rec.stream = await navigator.mediaDevices.getUserMedia(kind === 'voice'
       ? { audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }
@@ -1404,7 +1553,7 @@ async function startRecording(kind, opts = {}) {
   $('#rec-hint').classList.remove('hidden'); $('#rec-cancel').classList.add('hidden'); $('#rec-hint').style.transform = '';
   if (kind === 'round') $('#round-rec').classList.remove('hidden');
   $('#btn-round').classList.add('hidden');
-  if (opts.tap) { lockRecording(); Rec.justLocked = false; } // bir marta bosilgan — qo'l bo'sh rejim
+  if (opts.tap || Rec.pendingLock) { lockRecording(); Rec.justLocked = false; } // bir marta bosilgan — qo'l bo'sh rejim
   S.socket.emit('typing', { chatId: S.current, kind });
   const MAX = 60;
   Rec.tick = setInterval(() => {
@@ -1440,8 +1589,13 @@ $('#round-flip').onclick = async () => {
 };
 function stopRecording(send) {
   if (!Rec.active) return;
+  if (!Rec.mr) { // mikrofon/kamera hali ochilmoqda (masalan ruxsat oynasi chiqdi) — yozuvni tashlab yubormaymiz
+    clearTimeout(holdTimer);
+    if (send) { Rec.hold = false; Rec.pendingLock = true; } else Rec.active = false;
+    return;
+  }
   clearInterval(Rec.tick); clearInterval(Rec.levelT); clearTimeout(holdTimer);
-  const dur = (Date.now() - Rec.t0) / 1000; const kind = Rec.kind; const replyTo = S.replyTo?.id;
+  const dur = (Date.now() - Rec.t0) / 1000; const kind = Rec.kind; const replyTo = S.replyTo?.id; const chatId = S.current;
   Rec.active = false; Rec.locked = false;
   actionBtn.classList.remove('recording', 'locked'); updateAction();
   $('#composer-row').classList.remove('hidden'); $('#rec-row').classList.add('hidden'); $('#rec-lock').classList.add('hidden'); $('#round-rec').classList.add('hidden');
@@ -1454,7 +1608,7 @@ function stopRecording(send) {
     const ext = type.includes('mp4') ? (kind === 'voice' ? 'm4a' : 'mp4') : type.includes('ogg') ? 'ogg' : 'webm';
     const file = new File(Rec.chunks, `${kind}-${Date.now()}.${ext}`, { type });
     if (replyTo) $('#reply-cancel').click();
-    sendMedia(file, kind, { duration: dur, replyTo, meta: kind === 'voice' ? { waveform: waveform(Rec.levels, 40) } : undefined });
+    sendMedia(file, kind, { chatId, duration: dur, replyTo, meta: kind === 'voice' ? { waveform: waveform(Rec.levels, 40) } : undefined });
   };
   if (Rec.mr && Rec.mr.state !== 'inactive') { Rec.mr.onstop = finish; Rec.mr.stop(); } else finish();
 }
@@ -1506,6 +1660,7 @@ const Call = {
     pc.ontrack = (e) => {
       const st = e.streams[0] || new MediaStream([e.track]);
       const ra = $('#remote-audio'); if (ra.srcObject !== st) { ra.srcObject = st; ra.play().catch(() => {}); }
+      if (e.track.kind === 'audio') Speaker.attach();
       if (e.track.kind === 'video') {
         const rv = $('#remote-video'); rv.muted = true; rv.srcObject = st; rv.play().catch(() => {});
         this.remoteVideo = true; this.layout();
@@ -1677,22 +1832,275 @@ $('#c-cam').onclick = () => Call.toggleCam();
 $('#c-flip').onclick = () => Call.flip();
 window.addEventListener('pagehide', () => { if (Call.active) Call.end(); });
 
+/* ======================= QO'SHIMCHALAR: yuklab olish, ism o'zgartirish, karnay ======================= */
+try {
+  Object.assign(I18N.uz, { retry_send: 'Qayta yuborish', rename_contact: 'Ismini o‘zgartirish', rename_hint: 'Bu ism faqat sizga ko‘rinadi', real_name: 'Asl ismi',
+    reset_name: 'Asl ismga qaytarish', dl_photo: 'Rasmni yuklab olish', download: 'Yuklab olish', speaker: 'Karnay', not_sent_kept: 'Yuborilmadi — internet tiklanganda qayta yuboriladi' });
+  Object.assign(I18N.ru, { retry_send: 'Отправить снова', rename_contact: 'Изменить имя', rename_hint: 'Это имя видите только вы', real_name: 'Настоящее имя',
+    reset_name: 'Вернуть настоящее имя', dl_photo: 'Скачать фото', download: 'Скачать', speaker: 'Динамик', not_sent_kept: 'Не отправлено — отправим, когда появится интернет' });
+  Object.assign(I18N.en, { retry_send: 'Retry', rename_contact: 'Rename contact', rename_hint: 'Only you will see this name', real_name: 'Real name',
+    reset_name: 'Restore real name', dl_photo: 'Download photo', download: 'Download', speaker: 'Speaker', not_sent_kept: 'Not sent — will retry when online' });
+} catch {}
+
+document.head.insertAdjacentHTML('beforeend', `<style id="birga-ext">
+.msg-fail-wrap { display: flex; flex-direction: column; align-items: flex-start; max-width: min(78%, 520px); }
+.msg-fail-wrap.out { align-self: flex-end; align-items: flex-end; }
+.msg-fail-wrap > .msg { max-width: 100%; }
+.msg.failed .bubble, .msg.failed .round-msg { opacity: .75; }
+.retry-row { display: flex; gap: 6px; margin: 4px 2px 2px; }
+.retry-row button { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; padding: 5px 11px; border-radius: 14px; background: rgba(229,72,77,.12); color: var(--danger, #E5484D); }
+.retry-row button svg { width: 15px; height: 15px; }
+.fail-ic { display: inline-grid; place-items: center; width: 15px; height: 15px; border-radius: 50%; background: var(--danger, #E5484D); color: #fff; font-size: 11px; font-weight: 800; line-height: 1; }
+.bubble.media img, .bubble.media video { height: auto; }
+.viewer #viewer-dl { position: absolute; top: 14px; right: 66px; }
+.pp-card .act { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; font: inherit; color: var(--blue, #1F6BFF); font-weight: 600; background: none; }
+.pp-card .act svg { width: 20px; height: 20px; flex: none; }
+.pp-cover.has-photo { cursor: zoom-in; }
+.rn-hint { color: var(--muted); font-size: 13.5px; margin: 0 0 10px; }
+.rn-reset { margin-top: 8px; width: 100%; height: 46px; border-radius: 14px; font-weight: 600; color: var(--muted); background: var(--panel-2, rgba(127,127,127,.12)); }
+.cbtn.on svg { background: #fff; color: var(--blue, #1F6BFF); }
+#call-controls { gap: 14px; flex-wrap: nowrap; padding-left: 10px; padding-right: 10px; }
+#call-controls .cbtn { min-width: 0; flex: 0 1 62px; }
+#call-controls .cbtn span { white-space: nowrap; }
+@media (max-width: 380px) { #call-controls { gap: 8px; } #call-controls .cbtn svg { width: 54px; height: 54px; padding: 15px; } }
+</style>`);
+// karnay belgisi
+document.querySelector('symbol#i-mic')?.parentNode.insertAdjacentHTML('beforeend',
+  '<symbol id="i-speaker" viewBox="0 0 24 24"><path fill="currentColor" d="M11.3 4.3a1 1 0 0 1 1.7.7v14a1 1 0 0 1-1.7.7L7.6 16H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h2.6l3.7-3.7Zm4.8 3.3a1 1 0 0 1 1.4 0 6.2 6.2 0 0 1 0 8.8 1 1 0 1 1-1.4-1.4 4.2 4.2 0 0 0 0-6 1 1 0 0 1 0-1.4Zm2.8-2.8a1 1 0 0 1 1.4 0 10.2 10.2 0 0 1 0 14.4 1 1 0 0 1-1.4-1.4 8.2 8.2 0 0 0 0-11.6 1 1 0 0 1 0-1.4Z"/></symbol>');
+
+/* --- o'lchamlar keshi: rasm/video joyi oldindan ajratiladi, chat sakramaydi --- */
+const Dims = {
+  m: (() => { try { return new Map(JSON.parse(localStorage.getItem('birga_dims') || '[]')); } catch { return new Map(); } })(),
+  t: null,
+  key: (src) => { try { return new URL(src, location.href).pathname.split('/').pop(); } catch { return src; } },
+  get(src) { return this.m.get(this.key(src)); },
+  put(src, w, h) {
+    if (!src || src.startsWith('blob:')) return;
+    const k = this.key(src); const r = Math.round((w / h) * 1000) / 1000; if (this.m.get(k) === r) return;
+    this.m.set(k, r); clearTimeout(this.t);
+    this.t = setTimeout(() => { const a = [...this.m].slice(-600); store.set('birga_dims', JSON.stringify(a)); }, 1500);
+  },
+};
+function ratioAttr(m, src) {
+  let r = m.meta?.w && m.meta?.h ? m.meta.w / m.meta.h : Dims.get(src) || Dims.get(m.file || '');
+  if (!r) r = m.type === 'video' ? 16 / 9 : 4 / 3; // taxminiy — yuklangach aniq o'lchamga o'tadi
+  r = Math.max(0.5, Math.min(2.4, r));
+  return ` style="aspect-ratio:${Math.round(r * 1000) / 1000}"`;
+}
+
+/* --- yuborilmagan xabar: qayta yuborish / o'chirish --- */
+$('#messages').addEventListener('click', (e) => {
+  const r = e.target.closest('[data-retry]'), d = e.target.closest('[data-discard]');
+  if (!r && !d) return;
+  e.stopImmediatePropagation();
+  const m = S.outbox.get((r || d).dataset.retry || (r || d).dataset.discard); if (!m) return;
+  if (r) { deliver(m); return; }
+  S.outbox.delete(m.tempId); Outbox.del(m.tempId); dropPending(m);
+}, true);
+
+/* --- ko'rish oynasi + yuklab olish --- */
+async function saveUrl(url, name) {
+  try {
+    const r = await fetch(url, { credentials: 'same-origin' }); if (!r.ok) throw 0;
+    const blob = await r.blob();
+    const ext = (blob.type.split('/')[1] || 'bin').split(';')[0].replace('jpeg', 'jpg').replace('quicktime', 'mov');
+    const file = new File([blob], /\.\w{2,4}$/.test(name) ? name : `${name}.${ext}`, { type: blob.type });
+    if (isTouch() && navigator.canShare?.({ files: [file] })) { try { await navigator.share({ files: [file] }); return; } catch (e) { if (e.name === 'AbortError') return; } }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = file.name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  } catch { window.open(url, '_blank'); }
+}
+const Viewer = { m: null, src: '', kind: '', name: '' };
+function openViewer(kind, src, m = null, name = '') {
+  stopPlayer?.();
+  Object.assign(Viewer, { m, src, kind, name });
+  $('#viewer-body').innerHTML = kind === 'image' ? `<img src="${esc(src)}" alt="">` : `<video src="${esc(src)}" controls autoplay playsinline></video>`;
+  $('#viewer').classList.remove('hidden');
+}
+$('#viewer-close').insertAdjacentHTML('afterend', `<button class="icon-btn light" id="viewer-dl" title="${esc(t('download'))}">${icon('download')}</button>`);
+$('#viewer-dl').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const src = Viewer.src || $('#viewer-body img, #viewer-body video')?.src || ''; if (!src) return;
+  if (Viewer.m?.file) Media.saveAs(Viewer.m); else saveUrl(src.split('#')[0], Viewer.name || 'Birga_' + Date.now());
+});
+// chatdagi rasm/video — ochilganda qaysi xabarligini eslab qolamiz (qurilmadagi nusxadan saqlanadi)
+$('#messages').addEventListener('click', (e) => {
+  const media = e.target.closest('[data-view]'); if (!media) return;
+  const el = media.closest('.msg'); const m = el && msgOf(el);
+  const src = (media.currentSrc || media.src).split('#')[0];
+  Object.assign(Viewer, { m: m?.id ? m : null, src, kind: media.dataset.view, name: '' });
+}, true);
+new MutationObserver(() => { if ($('#viewer').classList.contains('hidden')) Object.assign(Viewer, { m: null, src: '', name: '' }); })
+  .observe($('#viewer'), { attributes: true, attributeFilter: ['class'] });
+
+/* --- profil: ismni o'zgartirish, rasmni ko'rish/yuklab olish --- */
+function renameContact(u) {
+  const cur = S.users.get(u.id) || u;
+  const real = cur.realName || u.realName || u.name || '';
+  modal(`<h3>${t('rename_contact')} <button class="icon-btn" data-close>${icon('close')}</button></h3>
+    <p class="rn-hint">${esc(t('rename_hint'))} · ${esc(t('real_name'))}: <b>${esc(real)}</b></p>
+    <input class="field" id="rn-name" maxlength="64" value="${esc(ALIAS.get(u.id) || '')}" placeholder="${esc(real)}">
+    <p class="err" id="rn-err"></p>
+    <button class="btn-primary" id="rn-save">${t('save')}</button>
+    ${ALIAS.has(u.id) ? `<button class="rn-reset" id="rn-reset">${t('reset_name')}</button>` : ''}`);
+  const inp = $('#rn-name'); if (!isTouch()) inp.focus();
+  const save = async (name) => {
+    try {
+      const r = await api(`/api/contacts/${u.id}/name`, { body: { name } });
+      S.users.set(u.id, { ...(S.users.get(u.id) || u), name: real, contactName: r.contactName });
+      closeModal(); toast(t('saved_ok'));
+      renderChatList(); if (S.current) { renderHeader?.(); renderMessages(); }
+      if (PP.user?.id === u.id && PP.el) renderProfile(PP.el, PP.user, PP.opts);
+    } catch (e) { $('#rn-err').textContent = e.message; }
+  };
+  inp.onkeydown = (e) => { if (e.key === 'Enter') save(inp.value.trim()); };
+  $('#rn-save').onclick = () => save(inp.value.trim());
+  $('#rn-reset')?.addEventListener('click', () => save(''));
+}
+const renderProfileBase = renderProfile;
+renderProfile = async function (el, user, opts = {}) {
+  await renderProfileBase(el, user, opts);
+  const u = PP.user; if (!u || PP.el !== el) return;
+  const self = !!opts.self;
+  if (!self) {
+    if ('contactName' in u) S.users.set(u.id, { ...S.users.get(u.id), ...u });
+    const al = ALIAS.get(u.id);
+    if (al) el.querySelector('.pp-name').textContent = al;
+  }
+  const card = el.querySelector('.pp-card'); if (!card) return;
+  let extra = '';
+  if (!self && ALIAS.has(u.id)) extra += `<div class="info-row"><small>${t('real_name')}</small>${esc(u.realName || u.name)}</div>`;
+  if (!self) extra += `<button class="info-row act" data-x="rename">${icon('pen')}${t('rename_contact')}</button>`;
+  if (u.avatar) extra += `<button class="info-row act" data-x="dlphoto">${icon('download')}${t('dl_photo')}</button>`;
+  card.insertAdjacentHTML(self ? 'beforeend' : 'afterbegin', extra);
+  const fname = 'Birga_' + String(ALIAS.get(u.id) || u.name || 'photo').replace(/[^\p{L}\p{N}_-]+/gu, '_');
+  card.addEventListener('click', (e) => {
+    const x = e.target.closest('[data-x]')?.dataset.x;
+    if (x === 'rename') renameContact(u);
+    if (x === 'dlphoto') saveUrl(u.avatar, fname);
+  });
+  const cover = el.querySelector('.pp-cover');
+  if (u.avatar && cover) {
+    cover.classList.add('has-photo');
+    cover.addEventListener('click', (e) => { if (e.target.closest('button, input, .pp-actions')) return; openViewer('image', u.avatar, null, fname); });
+  }
+};
+// kontaktlarga qo'yilgan ismlarni oldindan yuklash
+let aliasesLoaded = false;
+async function loadAliases() {
+  if (aliasesLoaded) return; aliasesLoaded = true;
+  const list = await api('/api/contacts').catch(() => null);
+  if (!list) { aliasesLoaded = false; return; }
+  let any = false;
+  list.forEach((u) => { if (u.contactName) any = true; S.users.set(u.id, { ...S.users.get(u.id), ...u }); });
+  if (any) { renderChatList(); if (S.current) renderHeader?.(); }
+}
+
+/* --- qo'ng'iroq: karnay (ovozni kuchaytirish + baland dinamik) --- */
+const Speaker = {
+  on: false, fresh: true, nodes: null,
+  init() {
+    if ($('#c-speaker')) return;
+    $('#c-end').insertAdjacentHTML('beforebegin', `<button class="cbtn" id="c-speaker">${icon('speaker')}<span>${t('speaker')}</span></button>`);
+    $('#c-speaker').onclick = () => { ctx(); this.set(!this.on); };
+  },
+  paint() { const b = $('#c-speaker'); if (b) b.classList.toggle('on', this.on); },
+  teardown() {
+    if (!this.nodes) return;
+    try { this.nodes.src.disconnect(); this.nodes.gain.disconnect(); this.nodes.comp.disconnect(); } catch {}
+    this.nodes = null;
+  },
+  async route(on) { // mavjud bo'lsa — telefonning baland dinamigini tanlash
+    try {
+      const ra = $('#remote-audio');
+      if (!ra.setSinkId || !navigator.mediaDevices?.enumerateDevices) return;
+      const outs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'audiooutput');
+      const pick = on ? outs.find((d) => /speaker|динамик|громкоговор|karnay/i.test(d.label)) : outs.find((d) => d.deviceId === 'default');
+      if (pick) { await ra.setSinkId(pick.deviceId).catch(() => {}); await audioCtx?.setSinkId?.(pick.deviceId).catch(() => {}); }
+    } catch {}
+  },
+  async set(on) {
+    this.on = on; this.paint();
+    const ra = $('#remote-audio'); const st = ra.srcObject;
+    this.teardown(); ra.volume = 1;
+    if (!on || !st || !st.getAudioTracks().length) { ra.muted = false; this.route(false); return; }
+    try {
+      const a = ctx(); if (a.state !== 'running') await a.resume().catch(() => {});
+      if (a.state !== 'running') throw new Error('suspended');
+      const src = a.createMediaStreamSource(st);
+      const gain = a.createGain(); gain.gain.value = 3.2;
+      const comp = a.createDynamicsCompressor(); // baland ovozda xirillamasligi uchun
+      comp.threshold.value = -20; comp.knee.value = 14; comp.ratio.value = 8; comp.attack.value = 0.003; comp.release.value = 0.2;
+      src.connect(gain); gain.connect(comp); comp.connect(a.destination);
+      this.nodes = { src, gain, comp };
+      ra.muted = true; // ovoz WebAudio orqali (kuchaytirilgan) chiqadi; element oqimni "tirik" ushlab turadi
+      ra.play().catch(() => {});
+    } catch { this.teardown(); ra.muted = false; }
+    this.route(true);
+  },
+  attach() { // yangi trek kelganda
+    if (this.fresh) { this.fresh = false; this.on = !!Call.video; }
+    this.set(this.on);
+  },
+  reset() { this.teardown(); this.on = false; this.fresh = true; this.paint(); const ra = $('#remote-audio'); if (ra) ra.muted = false; },
+};
+Speaker.init();
+{
+  const baseReset = Call.reset.bind(Call), baseCleanup = Call.cleanup.bind(Call);
+  Call.reset = function () { baseReset(); Speaker.reset(); };
+  Call.cleanup = function () { Speaker.reset(); baseCleanup(); };
+}
+// qo'ng'iroq oynasidagi "Karnay" yozuvi tilga qarab
+setInterval(() => { const sp = $('#c-speaker span'); if (sp && sp.textContent !== t('speaker')) sp.textContent = t('speaker'); }, 3000);
+
 /* ======================= ILOVANI TELEFONGA O'RNATISH (PWA) ======================= */
 let installPrompt = null;
-const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+// Android ilovasi (APK) — GitHub'dan to'g'ridan-to'g'ri yuklab olinadi
+const APK_URL = 'https://raw.githubusercontent.com/coresani5-cloud/Birga/main/birga.apk';
+const APK_T = {
+  uz: { title: 'Birga ilovasini yuklab olish', btn: 'Ilovani yuklab olish (APK)', size: 'Android · 1.0 · 60 KB',
+    steps: ['<b>“Ilovani yuklab olish”</b> ni bosing — <b>Birga.apk</b> yuklanadi', 'Yuklangan faylni oching', 'Telefon so‘rasa: <b>Sozlamalar → “Shu manbadan ruxsat berish”</b> ni yoqing', '<b>O‘rnatish</b> ni bosing — Birga ilovalar ro‘yxatida paydo bo‘ladi'],
+    alt: 'Yoki brauzer orqali o‘rnatish', iosOnly: 'iPhone uchun APK yo‘q — quyidagi usul bilan o‘rnating:' },
+  ru: { title: 'Скачать приложение Birga', btn: 'Скачать приложение (APK)', size: 'Android · 1.0 · 60 КБ',
+    steps: ['Нажмите <b>«Скачать приложение»</b> — загрузится <b>Birga.apk</b>', 'Откройте скачанный файл', 'Если телефон спросит: <b>Настройки → «Разрешить из этого источника»</b>', 'Нажмите <b>Установить</b> — Birga появится в списке приложений'],
+    alt: 'Или установить через браузер', iosOnly: 'Для iPhone APK нет — установите так:' },
+  en: { title: 'Download the Birga app', btn: 'Download app (APK)', size: 'Android · 1.0 · 60 KB',
+    steps: ['Tap <b>“Download app”</b> — <b>Birga.apk</b> will download', 'Open the downloaded file', 'If asked: <b>Settings → “Allow from this source”</b>', 'Tap <b>Install</b> — Birga appears in your app list'],
+    alt: 'Or install via the browser', iosOnly: 'There is no APK for iPhone — install like this:' },
+};
+const isAndroid = () => /android/i.test(navigator.userAgent);
+// Birga ilovasi (APK) ichida ochilganmi?
+try { if (document.referrer.startsWith('android-app://uz.birga.app')) store.set('birga_in_app', '1'); } catch {}
+const inApp = () => store.get('birga_in_app') === '1';
+const isStandalone = () => inApp() || matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 function refreshInstall() { $$('[data-install]').forEach((b) => b.classList.toggle('hidden', isStandalone())); }
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installPrompt = e; refreshInstall(); });
 window.addEventListener('appinstalled', () => { installPrompt = null; toast(t('installed_ok')); refreshInstall(); });
+async function pwaInstall() {
+  if (installPrompt) { closeModal(); installPrompt.prompt(); await installPrompt.userChoice.catch(() => {}); installPrompt = null; return true; }
+  return false;
+}
 async function installApp() {
-  if (installPrompt) { installPrompt.prompt(); await installPrompt.userChoice.catch(() => {}); installPrompt = null; return; }
-  const ios = isIOS();
-  const steps = t(ios ? 'ios_steps' : 'and_steps');
-  const notSafari = ios && /crios|fxios|edgios|opios/i.test(navigator.userAgent);
-  modal(`<h3>${t('install_title')} <button class="icon-btn" data-close>${icon('close')}</button></h3>
-    <div class="install-hero"><img src="/icons/icon-192.png" alt=""><div><b>Birga</b><br><small class="muted">${esc(location.host)}</small></div></div>
-    ${notSafari ? `<p class="muted">${t('ios_safari_only')}</p>` : `<ol class="install-steps">${steps.map((x) => `<li><span>${x}</span></li>`).join('')}</ol>`}
-    <button class="btn-primary" data-close>${t('got_it')}</button>`);
+  const L = APK_T[LANG] || APK_T.en;
+  const hero = `<div class="install-hero"><img src="/icons/icon-192.png" alt=""><div><b>Birga</b><br><small class="muted">${isAndroid() || !isIOS() ? L.size : esc(location.host)}</small></div></div>`;
+  if (isIOS()) {
+    const notSafari = /crios|fxios|edgios|opios/i.test(navigator.userAgent);
+    modal(`<h3>${t('install_title')} <button class="icon-btn" data-close>${icon('close')}</button></h3>${hero}
+      <p class="muted small">${L.iosOnly}</p>
+      ${notSafari ? `<p class="muted">${t('ios_safari_only')}</p>` : `<ol class="install-steps">${t('ios_steps').map((x) => `<li><span>${x}</span></li>`).join('')}</ol>`}
+      <button class="btn-primary" data-close>${t('got_it')}</button>`);
+    return;
+  }
+  modal(`<h3>${L.title} <button class="icon-btn" data-close>${icon('close')}</button></h3>${hero}
+    <a class="btn-primary" href="${APK_URL}" download="Birga.apk" id="apk-dl" style="display:flex;align-items:center;justify-content:center;gap:10px;text-decoration:none">${icon('download')}<span>${L.btn}</span></a>
+    <ol class="install-steps">${L.steps.map((x) => `<li><span>${x}</span></li>`).join('')}</ol>
+    <button class="btn-ghost" id="pwa-alt">${icon('globe')}<span>${L.alt}</span></button>`);
+  $('#apk-dl').onclick = () => toast(L.steps[1].replace(/<[^>]+>/g, ''), 5000);
+  $('#pwa-alt').onclick = async () => {
+    if (await pwaInstall()) return;
+    modal(`<h3>${t('install_title')} <button class="icon-btn" data-close>${icon('close')}</button></h3>${hero}
+      <ol class="install-steps">${t('and_steps').map((x) => `<li><span>${x}</span></li>`).join('')}</ol><button class="btn-primary" data-close>${t('got_it')}</button>`);
+  };
 }
 $$('[data-install]').forEach((b) => (b.onclick = installApp));
 refreshInstall();

@@ -33,7 +33,7 @@ function publicUser(u, self = false) {
   if (u.deleted) return { id: u.id, name: null, deleted: true, username: null, bio: '', avatar: null, last_seen: null, online: false };
   const hide = !!u.hide_seen && !self; // "oxirgi faollik" yashirilgan — boshqalarga "yaqinda" ko'rinadi
   const o = { id: u.id, name: u.name, username: u.username, bio: u.bio, avatar: u.avatar, last_seen: hide ? null : u.last_seen, online: hide ? false : online.has(u.id), country: u.country };
-  if (self) { o.phone = String(u.phone || '').startsWith('mail:') ? null : u.phone; o.email = u.email || null; o.lang = u.lang; o.hide_seen = !!u.hide_seen; }
+  if (self) { o.phone = String(u.phone || '').startsWith('mail:') ? null : u.phone; o.email = u.email || null; o.lang = u.lang; o.hide_seen = !!u.hide_seen; o.has2fa = !!u.pass_hash; o.pass_hint = u.pass_hint || ''; }
   return o;
 }
 
@@ -156,6 +156,31 @@ function cookieToken(req) { const m = String(req.headers.cookie || '').match(/(?
 function setSession(req, res, token) {
   res.cookie(COOKIE, token, { httpOnly: true, sameSite: 'lax', secure: req.secure, maxAge: 365 * 24 * 3600e3, path: '/' });
 }
+// ===== Xavfsizlik kodi (ikki bosqichli himoya) =====
+// Email/SMS kodidan keyin foydalanuvchi o'zi qo'ygan kod so'raladi. Kod scrypt bilan tuzlangan holda saqlanadi.
+const PASS_MIN = 4, PASS_MAX = 64;
+function hashPass(pw) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  return 'scrypt$' + salt + '$' + crypto.scryptSync(String(pw), salt, 32).toString('hex');
+}
+function checkPass(pw, stored) {
+  const [, salt, h] = String(stored || '').split('$'); if (!salt || !h) return false;
+  return crypto.timingSafeEqual(Buffer.from(h, 'hex'), crypto.scryptSync(String(pw), salt, 32));
+}
+// bir akkauntga noto'g'ri kod: 5 urinishdan keyin 15 daqiqa kutish (IP almashtirib taxmin qilib bo'lmasin)
+const passFails = new Map();
+function passLocked(uid) { const f = passFails.get(uid); return f && f.n >= 5 && Date.now() - f.at < 15 * 60e3 ? Math.ceil((15 * 60e3 - (Date.now() - f.at)) / 60e3) : 0; }
+function passFail(uid) { const f = passFails.get(uid); const n = f && Date.now() - f.at < 15 * 60e3 ? f.n + 1 : 1; passFails.set(uid, { n, at: Date.now() }); }
+// login muvaffaqiyatli: kod qo'yilgan bo'lsa token o'rniga 10 daqiqalik "chipta" beriladi
+function finishLogin(req, res, user, isNew) {
+  if (user.pass_hash) {
+    const ticket = jwt.sign({ t2: user.id }, JWT_SECRET, { expiresIn: '10m' });
+    return res.json({ need2fa: true, ticket, hint: user.pass_hint || '' });
+  }
+  const token = tokenFor(user); setSession(req, res, token);
+  res.json({ token, user: publicUser(user, true), isNew });
+}
+
 const auth = wrap(async (req, res, next) => {
   const bearer = (req.headers.authorization || '').replace('Bearer ', '').trim();
   try { req.user = await userFromToken(bearer); }
@@ -363,8 +388,7 @@ app.post('/api/auth/email/verify', rateLimit('verify', 30, 3600e3), wrap(async (
     const id = await db.insert('INSERT INTO users(phone,country,lang,email,created_at,last_seen) VALUES(?,?,?,?,?,?)', ['mail:' + email, null, LANGS.includes(lang) ? lang : 'en', email, now(), now()]);
     user = await getUser(id);
   }
-  const token = tokenFor(user); setSession(req, res, token);
-  res.json({ token, user: publicUser(user, true), isNew: !user.name });
+  finishLogin(req, res, user, !user.name);
 }));
 // Kirgan foydalanuvchi emailini bog'lashi/almashtirishi (eski raqam bilan kirganlar uchun)
 app.post('/api/me/email/send', auth, rateLimit('email', 12, 3600e3), wrap(async (req, res) => {
@@ -407,8 +431,46 @@ app.post('/api/auth/verify', rateLimit('verify', 30, 3600e3), wrap(async (req, r
     user = await getUser(id);
   } else if (row.email && !user.email) await db.run('UPDATE users SET email=? WHERE id=?', [row.email, user.id]);
   else if (!row.email && user.email) await db.run('UPDATE users SET email=NULL WHERE id=?', [user.id]); // SMS bilan kirgan haqiqiy egasi
+  finishLogin(req, res, user, !user.name);
+}));
+
+// 2-bosqich: xavfsizlik kodini tekshirish
+app.post('/api/auth/2fa', rateLimit('2fa', 30, 3600e3), wrap(async (req, res) => {
+  const lang = req.body.lang;
+  let uid;
+  try { uid = jwt.verify(String(req.body.ticket || ''), JWT_SECRET).t2; } catch {}
+  const user = uid && await getUser(uid);
+  if (!user || user.deleted) return res.status(400).json({ error: tr(lang, 'Vaqt tugadi. Qaytadan kiring', 'Время истекло. Войдите заново', 'Session expired. Please sign in again'), expired: true });
+  if (!user.pass_hash) return finishLogin(req, res, user, !user.name);
+  const wait = passLocked(user.id);
+  if (wait) return res.status(429).json({ error: tr(lang, `Urinishlar ko‘p. ${wait} daqiqadan keyin qayta urining`, `Слишком много попыток. Повторите через ${wait} мин`, `Too many attempts. Try again in ${wait} min`) });
+  if (!checkPass(req.body.password, user.pass_hash)) {
+    passFail(user.id);
+    return res.status(400).json({ error: tr(lang, 'Xavfsizlik kodi noto‘g‘ri', 'Неверный код безопасности', 'Wrong security code') });
+  }
+  passFails.delete(user.id);
   const token = tokenFor(user); setSession(req, res, token);
   res.json({ token, user: publicUser(user, true), isNew: !user.name });
+}));
+// Xavfsizlik kodini qo'yish / almashtirish / o'chirish (eskisi bo'lsa — eskisini kiritish shart)
+app.post('/api/me/2fa', auth, rateLimit('2faset', 20, 3600e3), wrap(async (req, res) => {
+  const lang = req.body.lang; const u = req.user;
+  if (u.pass_hash) {
+    const wait = passLocked(u.id);
+    if (wait) return res.status(429).json({ error: tr(lang, `Urinishlar ko‘p. ${wait} daqiqadan keyin qayta urining`, `Слишком много попыток. Повторите через ${wait} мин`, `Too many attempts. Try again in ${wait} min`) });
+    if (!checkPass(req.body.current, u.pass_hash)) { passFail(u.id); return res.status(400).json({ error: tr(lang, 'Joriy kod noto‘g‘ri', 'Текущий код неверный', 'Current code is wrong') }); }
+    passFails.delete(u.id);
+  }
+  if (req.body.off) {
+    await db.run('UPDATE users SET pass_hash=NULL, pass_hint=NULL WHERE id=?', [u.id]);
+  } else {
+    const pw = String(req.body.password || '');
+    if (pw.length < PASS_MIN || pw.length > PASS_MAX) return res.status(400).json({ error: tr(lang, `Kod ${PASS_MIN}–${PASS_MAX} belgidan iborat bo‘lsin`, `Код должен быть от ${PASS_MIN} до ${PASS_MAX} символов`, `The code must be ${PASS_MIN}–${PASS_MAX} characters`) });
+    const hint = String(req.body.hint || '').trim().slice(0, 64);
+    if (hint && hint.toLowerCase() === pw.toLowerCase()) return res.status(400).json({ error: tr(lang, 'Eslatma kodning o‘zi bo‘lmasin', 'Подсказка не должна совпадать с кодом', 'The hint must not be the code itself') });
+    await db.run('UPDATE users SET pass_hash=?, pass_hint=? WHERE id=?', [hashPass(pw), hint || null, u.id]);
+  }
+  res.json(publicUser(await getUser(u.id), true));
 }));
 
 // har safar ochilganda token yangilanadi — faol foydalanuvchi hech qachon chiqib ketmaydi

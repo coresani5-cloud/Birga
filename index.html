@@ -111,6 +111,19 @@
       <button type="button" class="link-btn" data-back="email" data-i18n="change_email"></button>
     </form>
 
+    <!-- 2b-qadam: xavfsizlik kodi (foydalanuvchi o'zi qo'ygan bo'lsa) -->
+    <form id="step-2fa" class="step hidden" novalidate>
+      <button type="button" class="icon-btn back-step" data-back="email"><svg><use href="#i-back"/></svg></button>
+      <div class="sms-anim"><svg><use href="#i-lock"/></svg></div>
+      <h2 data-t7="tf_title"></h2>
+      <p class="muted" data-t7="tf_enter"></p>
+      <input class="field" id="tf-pass" type="password" autocomplete="current-password" maxlength="64">
+      <p class="tiny muted hidden" id="tf-hint"></p>
+      <p class="err" id="tf-err"></p>
+      <button class="btn-primary" id="tf-go" data-t7="tf_continue"></button>
+      <p class="tiny muted" data-t7="tf_forgot"></p>
+    </form>
+
     <!-- 3-qadam: ro'yxatdan o'tish -->
     <form id="step-profile" class="step hidden" novalidate>
       <h2 data-i18n="your_profile"></h2>

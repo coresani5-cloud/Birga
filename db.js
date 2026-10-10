@@ -72,6 +72,7 @@ const COLUMNS = [
   ['chat_members', 'role', "TEXT DEFAULT 'member'"], ['chat_members', 'joined_at', 'BIGINT'],
   ['chats', 'title', 'TEXT'], ['chats', 'about', "TEXT DEFAULT ''"], ['chats', 'avatar', 'TEXT'], ['chats', 'username', 'TEXT'],
   ['chats', 'invite', 'TEXT'], ['chats', 'owner_id', 'BIGINT'], ['users', 'email', 'TEXT'], ['codes', 'email', 'TEXT'], ['messages', 'gone', 'INTEGER DEFAULT 0'],
+  ['users', 'pass_hash', 'TEXT'], ['users', 'pass_hint', 'TEXT'],
 ];
 
 async function columns(table) {

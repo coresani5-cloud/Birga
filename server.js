@@ -28,12 +28,15 @@ const STORY_TTL = 24 * 3600e3;
 let push = null;
 
 // Telefon raqami faqat egasiga ko'rinadi (maxfiylik)
+// Birga egasi/adminlari: ADMIN_EMAILS (vergul bilan), standart — loyiha egasi
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || 'coresani5@gmail.com').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean);
+const isAdminUser = (u) => !!u?.email && ADMIN_EMAILS.includes(String(u.email).toLowerCase());
 function publicUser(u, self = false) {
   if (!u) return null;
   if (u.deleted) return { id: u.id, name: null, deleted: true, username: null, bio: '', avatar: null, last_seen: null, online: false };
   const hide = !!u.hide_seen && !self; // "oxirgi faollik" yashirilgan — boshqalarga "yaqinda" ko'rinadi
   const o = { id: u.id, name: u.name, username: u.username, bio: u.bio, avatar: u.avatar, last_seen: hide ? null : u.last_seen, online: hide ? false : online.has(u.id), country: u.country, birthday: u.birthday || null };
-  if (self) { o.phone = String(u.phone || '').startsWith('mail:') ? null : u.phone; o.email = u.email || null; o.lang = u.lang; o.hide_seen = !!u.hide_seen; o.has2fa = !!u.pass_hash; o.pass_hint = u.pass_hint || ''; }
+  if (self) { o.phone = String(u.phone || '').startsWith('mail:') ? null : u.phone; o.email = u.email || null; o.lang = u.lang; o.hide_seen = !!u.hide_seen; o.has2fa = !!u.pass_hash; o.pass_hint = u.pass_hint || ''; o.isAdmin = isAdminUser(u); }
   return o;
 }
 
@@ -112,7 +115,7 @@ else {
   const FLAT = {
     '/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/i18n.js': 'i18n.js', '/styles.css': 'styles.css',
     '/sw.js': 'sw.js', '/manifest.webmanifest': 'manifest.webmanifest', '/icons/icon-192.png': 'icon-192.png',
-    '/icons/icon-512.png': 'icon-512.png', '/icons/mark.png': 'mark.png', '/icons/logo-full.jpg': 'logo-full.jpg', '/icons/badge-96.png': 'badge-96.png',
+    '/icons/icon-512.png': 'icon-512.png', '/icons/mark.png': 'mark.png', '/icons/logo-full.jpg': 'logo-full.jpg', '/icons/badge-96.png': 'badge-96.png', '/games.js': 'games.js',
   };
   app.get(Object.keys(FLAT), (req, res) => {
     if (req.path.endsWith('.webmanifest')) res.type('application/manifest+json');
@@ -148,6 +151,7 @@ async function userFromToken(t) {
   const u = await getUser(uid);
   // baza yangilangan bo'lsa eski token boshqa odamga tegib qolmasligi uchun telefon ham tekshiriladi
   if (!u || hash(u.phone).slice(0, 12) !== pv) throw new Error('bad token');
+  if (u.banned) throw new Error('banned');
   return u;
 }
 // Doimiy sessiya: token localStorage'dan tashqari HttpOnly cookie'da ham saqlanadi (Safari 7 kunlik tozalashidan himoya)
@@ -173,6 +177,7 @@ function passLocked(uid) { const f = passFails.get(uid); return f && f.n >= 5 &&
 function passFail(uid) { const f = passFails.get(uid); const n = f && Date.now() - f.at < 15 * 60e3 ? f.n + 1 : 1; passFails.set(uid, { n, at: Date.now() }); }
 // login muvaffaqiyatli: kod qo'yilgan bo'lsa token o'rniga 10 daqiqalik "chipta" beriladi
 function finishLogin(req, res, user, isNew) {
+  if (user.banned) return res.status(403).json({ error: tr(req.body?.lang, 'Bu akkaunt qoidalarni buzgani uchun bloklangan', 'Этот аккаунт заблокирован за нарушение правил', 'This account has been banned for violating the rules') });
   if (user.pass_hash) {
     const ticket = jwt.sign({ t2: user.id }, JWT_SECRET, { expiresIn: '10m' });
     return res.json({ need2fa: true, ticket, hint: user.pass_hint || '' });
@@ -708,6 +713,124 @@ app.post('/api/chats/:id/archive', auth, wrap(async (req, res) => {
   res.json(await chatSummary(chatId, req.user.id));
 }));
 
+// ===== Bloklash va shikoyat =====
+app.get('/api/blocks', auth, wrap(async (req, res) => {
+  const rows = await db.all('SELECT u.* FROM blocks b JOIN users u ON u.id=b.user_id WHERE b.owner_id=? ORDER BY b.at DESC', [req.user.id]);
+  res.json(rows.map((u) => publicUser(u)));
+}));
+app.post('/api/blocks/:id', auth, rateLimit('block', 200, 3600e3), wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!id || id === req.user.id || !(await getUser(id))) return res.status(404).json({ error: 'not found' });
+  if (req.body?.on === false) await db.run('DELETE FROM blocks WHERE owner_id=? AND user_id=?', [req.user.id, id]);
+  else await db.run('INSERT INTO blocks(owner_id,user_id,at) VALUES(?,?,?) ON CONFLICT(owner_id,user_id) DO NOTHING', [req.user.id, id, now()]);
+  res.json({ ok: true, blocked: req.body?.on !== false });
+}));
+const REPORT_REASONS = new Set(['spam', 'abuse', 'fraud', 'adult', 'violence', 'other']);
+app.post('/api/reports', auth, rateLimit('report', 30, 3600e3), wrap(async (req, res) => {
+  const reason = REPORT_REASONS.has(req.body?.reason) ? req.body.reason : 'other';
+  let userId = Number(req.body?.userId) || null; const messageId = Number(req.body?.messageId) || null; let chatId = null, snapshot = null;
+  if (messageId) {
+    const m = await db.get('SELECT * FROM messages WHERE id=?', [messageId]);
+    if (!m || !(await isMember(m.chat_id, req.user.id))) return res.status(404).json({ error: 'not found' });
+    userId = m.sender_id; chatId = m.chat_id;
+    snapshot = JSON.stringify({ type: m.type, text: String(m.text || '').slice(0, 1000), file: m.file || null, at: m.created_at });
+  }
+  if (!userId || userId === req.user.id || !(await getUser(userId))) return res.status(400).json({ error: 'bad target' });
+  await db.run('INSERT INTO reports(reporter_id,user_id,message_id,chat_id,reason,details,snapshot,status,created_at) VALUES(?,?,?,?,?,?,?,?,?)',
+    [req.user.id, userId, messageId, chatId, reason, String(req.body?.details || '').slice(0, 500), snapshot, 'open', now()]);
+  if (req.body?.block) await db.run('INSERT INTO blocks(owner_id,user_id,at) VALUES(?,?,?) ON CONFLICT(owner_id,user_id) DO NOTHING', [req.user.id, userId, now()]);
+  res.json({ ok: true });
+}));
+
+// ===== Admin panel (faqat ADMIN_EMAILS) =====
+const adminOnly = (req, res, next) => (isAdminUser(req.user) ? next() : res.status(403).json({ error: 'forbidden' }));
+app.get('/api/admin/stats', auth, adminOnly, wrap(async (req, res) => {
+  const t = now(), day = 864e5;
+  const one = async (sql, p = []) => Number((await db.get(sql, p))?.c) || 0;
+  const reg = 'name IS NOT NULL AND COALESCE(deleted,0)=0';
+  const out = {
+    users: await one(`SELECT COUNT(*) AS c FROM users WHERE ${reg}`),
+    banned: await one(`SELECT COUNT(*) AS c FROM users WHERE COALESCE(banned,0)=1`),
+    newToday: await one(`SELECT COUNT(*) AS c FROM users WHERE ${reg} AND created_at>?`, [t - day]),
+    new7: await one(`SELECT COUNT(*) AS c FROM users WHERE ${reg} AND created_at>?`, [t - 7 * day]),
+    active24: await one(`SELECT COUNT(*) AS c FROM users WHERE ${reg} AND last_seen>?`, [t - day]),
+    online: online.size,
+    msgsToday: await one('SELECT COUNT(*) AS c FROM messages WHERE created_at>?', [t - day]),
+    msgsTotal: await one('SELECT COUNT(*) AS c FROM messages'),
+    groups: await one("SELECT COUNT(*) AS c FROM chats WHERE type='group'"),
+    channels: await one("SELECT COUNT(*) AS c FROM chats WHERE type='channel'"),
+    reportsOpen: await one("SELECT COUNT(*) AS c FROM reports WHERE status='open'"),
+  };
+  const rows = await db.all(`SELECT created_at FROM users WHERE ${reg} AND created_at>?`, [t - 30 * day]);
+  const days = Array.from({ length: 30 }, (_, i) => { const d = new Date(t - (29 - i) * day); return { d: d.toISOString().slice(0, 10), n: 0 }; });
+  for (const r of rows) { const k = new Date(Number(r.created_at)).toISOString().slice(0, 10); const x = days.find((y) => y.d === k); if (x) x.n++; }
+  out.signups = days;
+  res.json(out);
+}));
+app.get('/api/admin/users', auth, adminOnly, wrap(async (req, res) => {
+  const q = String(req.query.q || '').trim().toLowerCase().slice(0, 64);
+  const like = '%' + q.replace(/[%_]/g, '') + '%';
+  const rows = await db.all(`SELECT * FROM users WHERE name IS NOT NULL AND COALESCE(deleted,0)=0 ${q ? 'AND (LOWER(search) LIKE ? OR LOWER(COALESCE(email,\'\')) LIKE ?)' : ''} ORDER BY id DESC LIMIT 200`, q ? [like, like] : []);
+  const reports = await db.all("SELECT user_id, COUNT(*) AS c FROM reports GROUP BY user_id");
+  const rc = new Map(reports.map((r) => [Number(r.user_id), Number(r.c)]));
+  res.json(rows.map((u) => ({ ...publicUser(u), email: u.email, created_at: u.created_at, last_seen: u.last_seen, banned: !!u.banned, reports: rc.get(u.id) || 0, admin: isAdminUser(u) })));
+}));
+app.post('/api/admin/users/:id/ban', auth, adminOnly, wrap(async (req, res) => {
+  const u = await getUser(req.params.id); if (!u) return res.status(404).json({ error: 'not found' });
+  if (isAdminUser(u)) return res.status(400).json({ error: 'admin' });
+  const on = req.body?.on !== false;
+  await db.run('UPDATE users SET banned=? WHERE id=?', [on ? 1 : 0, u.id]);
+  if (on) io.in('u' + u.id).disconnectSockets(true);
+  broadcastUserCount();
+  res.json({ ok: true, banned: on });
+}));
+app.get('/api/admin/reports', auth, adminOnly, wrap(async (req, res) => {
+  const st = req.query.status === 'all' ? null : 'open';
+  const rows = await db.all(`SELECT * FROM reports ${st ? "WHERE status='open'" : ''} ORDER BY id DESC LIMIT 200`);
+  const users = new Map();
+  for (const r of rows) for (const id of [r.reporter_id, r.user_id]) if (!users.has(id)) { const u = await getUser(id); users.set(id, u ? { id: u.id, name: u.name, username: u.username, avatar: u.avatar, banned: !!u.banned, email: u.email } : { id }); }
+  res.json(rows.map((r) => ({ ...r, snapshot: r.snapshot ? JSON.parse(r.snapshot) : null, reporter: users.get(r.reporter_id), user: users.get(r.user_id) })));
+}));
+app.post('/api/admin/reports/:id', auth, adminOnly, wrap(async (req, res) => {
+  const r = await db.get('SELECT * FROM reports WHERE id=?', [Number(req.params.id)]); if (!r) return res.status(404).json({ error: 'not found' });
+  const a = req.body?.action;
+  if (a === 'delete_msg' && r.message_id) {
+    const m = await db.get('SELECT * FROM messages WHERE id=?', [r.message_id]);
+    if (m && !m.deleted) {
+      await db.run("UPDATE messages SET deleted=1, text='', file=NULL, meta=NULL WHERE id=?", [m.id]);
+      if (m.file) storage.remove(m.file, UPLOAD_DIR);
+      (await membersOf(m.chat_id)).forEach((u) => io.to('u' + u).emit('message:deleted', { id: m.id, chatId: m.chat_id }));
+    }
+  }
+  if (a === 'ban') { const u = await getUser(r.user_id); if (u && !isAdminUser(u)) { await db.run('UPDATE users SET banned=1 WHERE id=?', [u.id]); io.in('u' + u.id).disconnectSockets(true); broadcastUserCount(); } }
+  await db.run("UPDATE reports SET status=?, resolved_at=? WHERE id=?", [a === 'reopen' ? 'open' : 'done', now(), r.id]);
+  res.json({ ok: true });
+}));
+
+// ===== O'yinlar: eng yaxshi natijalar va reyting =====
+const GAMES = new Set(['snake', 'penalty', 'aim', '2048', 'flappy', 'blocks', 'memory', 'xo', 'breakout', 'mines']);
+app.post('/api/games/score', auth, rateLimit('gscore', 600, 3600e3), wrap(async (req, res) => {
+  const g = String(req.body?.game || ''); const sc = Math.floor(Number(req.body?.score));
+  if (!GAMES.has(g) || !isFinite(sc) || sc < 0 || sc > 1e7) return res.status(400).json({ error: 'bad score' });
+  const cur = await db.get('SELECT best FROM game_scores WHERE user_id=? AND game=?', [req.user.id, g]);
+  if (!cur) await db.run('INSERT INTO game_scores(user_id,game,best,plays,updated) VALUES(?,?,?,1,?)', [req.user.id, g, sc, now()]);
+  else await db.run('UPDATE game_scores SET best=CASE WHEN best<? THEN ? ELSE best END, plays=plays+1, updated=? WHERE user_id=? AND game=?', [sc, sc, now(), req.user.id, g]);
+  const best = Math.max(sc, Number(cur?.best) || 0);
+  const rank = Number((await db.get('SELECT COUNT(*) AS c FROM game_scores WHERE game=? AND best>?', [g, best])).c) + 1;
+  res.json({ best, rank, record: !cur || sc > Number(cur.best) });
+}));
+app.get('/api/games/top', auth, wrap(async (req, res) => {
+  const g = String(req.query.game || ''); if (!GAMES.has(g)) return res.status(400).json({ error: 'bad game' });
+  const rows = await db.all('SELECT s.best, u.* FROM game_scores s JOIN users u ON u.id=s.user_id WHERE s.game=? AND u.name IS NOT NULL AND COALESCE(u.deleted,0)=0 AND COALESCE(u.banned,0)=0 ORDER BY s.best DESC, s.updated ASC LIMIT 20', [g]);
+  const me = await db.get('SELECT best FROM game_scores WHERE user_id=? AND game=?', [req.user.id, g]);
+  const rank = me ? Number((await db.get('SELECT COUNT(*) AS c FROM game_scores WHERE game=? AND best>?', [g, me.best])).c) + 1 : null;
+  res.json({ top: rows.map((r) => ({ user: publicUser(r), best: Number(r.best) })), me: me ? { best: Number(me.best), rank } : null });
+}));
+app.get('/api/games/mine', auth, wrap(async (req, res) => {
+  const rows = await db.all('SELECT game, best FROM game_scores WHERE user_id=?', [req.user.id]);
+  res.json(Object.fromEntries(rows.map((r) => [r.game, Number(r.best)])));
+}));
+
 // Tug'ilgan kun: "YYYY-MM-DD" (yil yashirilsa "0000-MM-DD"); bo'sh — olib tashlash
 app.post('/api/profile/birthday', auth, wrap(async (req, res) => {
   let v = String(req.body?.date || '').trim();
@@ -1186,7 +1309,7 @@ function cleanMeta(meta) {
 // Birga'dagi jami foydalanuvchilar soni (ro'yxatdan to'liq o'tganlar) — hammaga jonli ko'rsatiladi
 let userCount = null;
 async function countUsers(fresh) {
-  if (fresh || userCount == null) userCount = Number((await db.get('SELECT COUNT(*) AS c FROM users WHERE name IS NOT NULL AND COALESCE(deleted,0)=0')).c) || 0;
+  if (fresh || userCount == null) userCount = Number((await db.get('SELECT COUNT(*) AS c FROM users WHERE name IS NOT NULL AND COALESCE(deleted,0)=0 AND COALESCE(banned,0)=0')).c) || 0;
   return userCount;
 }
 async function broadcastUserCount() { try { io.emit('stats:users', { n: await countUsers(true) }); } catch (e) { console.error('count:', e.message); } }
@@ -1203,6 +1326,12 @@ io.use(async (socket, next) => {
 const MSG_TYPES = new Set(['text', 'image', 'video', 'voice', 'round', 'file', 'sticker', 'gif', 'location']);
 const NO_FILE = new Set(['text', 'sticker', 'gif', 'location']);
 // Xabar yuborish huquqi: kanalda faqat admin, guruh/shaxsiyda a'zolar
+// Bloklash: blocker -> blocked
+const isBlocked = async (blocker, blocked) => !!(await db.get('SELECT 1 AS x FROM blocks WHERE owner_id=? AND user_id=?', [blocker, blocked]));
+async function privatePeer(chatId, uid) {
+  const c = await getChat(chatId); if (c?.type !== 'private') return null;
+  return (await db.get('SELECT user_id FROM chat_members WHERE chat_id=? AND user_id<>?', [chatId, uid]))?.user_id || null;
+}
 async function canPost(chatId, uid) {
   const chat = await getChat(chatId); const role = await roleOf(chatId, uid);
   if (!chat || !role) return false;
@@ -1258,6 +1387,9 @@ io.on('connection', async (socket) => {
     if (p.type === 'sticker' && !(p.meta?.e)) return ack?.({ error: 'bad sticker' });
     if (p.type === 'gif' && !cleanMeta({ gif: p.meta?.gif })) return ack?.({ error: 'bad gif' });
     if (p.type === 'location' && !cleanMeta({ loc: p.meta?.loc })) return ack?.({ error: 'bad location' });
+    const peerId = await privatePeer(chatId, uid);
+    if (peerId && (await isBlocked(peerId, uid))) return ack?.({ error: 'blocked' });
+    if (peerId && (await isBlocked(uid, peerId))) return ack?.({ error: 'you_blocked' });
     // takroriy yuborish (javob yo'qolib, mijoz qayta urinsa) — bitta xabar bo'lib qoladi
     const cid = typeof p.cid === 'string' && p.cid.length <= 40 ? `${uid}:${p.cid}` : null;
     if (cid && sentCids.has(cid)) { try { return ack?.({ ok: true, message: await sentCids.get(cid).p }); } catch { sentCids.delete(cid); } }
@@ -1341,7 +1473,8 @@ io.on('connection', async (socket) => {
   // ===== WebRTC signal almashinuvi =====
   on(socket, 'call:offer', async (p) => {
     const to = Number(p?.to); const callee = await getUser(to);
-    if (!callee || to === uid) return;
+    if (!callee || to === uid || callee.deleted || callee.banned) return;
+    if (await isBlocked(to, uid) || await isBlocked(uid, to)) { socket.emit('call:busy', { from: to, callId: p.callId }); return; }
     const offer = { ...p, from: uid, fromUser: publicUser(await getUser(uid)) };
     pendingCalls.set(to, { offer, ice: [], expires: now() + 45_000, callId: p.callId, from: uid });
     io.to('u' + to).emit('call:offer', offer);
@@ -1368,7 +1501,11 @@ io.on('connection', async (socket) => {
     const id = await db.insert('INSERT INTO messages(chat_id,sender_id,type,text,duration,meta,created_at) VALUES(?,?,?,?,?,?,?)',
       [cid, uid, 'call', '', Number(duration) || 0, JSON.stringify({ video: !!video, status: String(status || '') }), now()]);
     const msg = fmtMsg(await db.get('SELECT * FROM messages WHERE id=?', [id]));
-    for (const m of await membersOf(cid)) io.to('u' + m).emit('message:new', { message: msg, chat: await chatSummary(cid, m) });
+    // bloklagan odamga bloklangan odamning qo'ng'iroq yozuvi ko'rsatilmaydi
+    const peer = await privatePeer(cid, uid);
+    const hideFor = peer && (await isBlocked(peer, uid)) ? peer : null;
+    if (hideFor) await db.run('INSERT INTO hidden_messages(user_id,message_id,at) VALUES(?,?,?) ON CONFLICT(user_id,message_id) DO NOTHING', [hideFor, id, now()]);
+    for (const m of await membersOf(cid)) if (m !== hideFor) io.to('u' + m).emit('message:new', { message: msg, chat: await chatSummary(cid, m) });
   });
 
   socket.on('disconnect', async () => {
@@ -1478,7 +1615,12 @@ async function extraSchema() {
   await db.run('CREATE TABLE IF NOT EXISTS reactions(message_id BIGINT, user_id BIGINT, emoji TEXT, at BIGINT, PRIMARY KEY(message_id, user_id))');
   await db.run('CREATE INDEX IF NOT EXISTS idx_react_msg ON reactions(message_id)');
   await db.run('CREATE TABLE IF NOT EXISTS hidden_messages(user_id BIGINT, message_id BIGINT, at BIGINT, PRIMARY KEY(user_id, message_id))');
-  const cols = [['users', 'birthday', 'TEXT'], ['chat_members', 'pinned', 'BIGINT DEFAULT 0'], ['chat_members', 'archived', 'INTEGER DEFAULT 0'], ['users', 'hide_seen', 'INTEGER DEFAULT 0'], ['users', 'deleted', 'INTEGER DEFAULT 0']];
+  await db.run('CREATE TABLE IF NOT EXISTS blocks(owner_id BIGINT, user_id BIGINT, at BIGINT, PRIMARY KEY(owner_id, user_id))');
+  await db.run(`CREATE TABLE IF NOT EXISTS reports(id ${db.kind === 'postgres' ? 'BIGSERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'}, reporter_id BIGINT, user_id BIGINT, message_id BIGINT, chat_id BIGINT,
+    reason TEXT, details TEXT, snapshot TEXT, status TEXT DEFAULT 'open', created_at BIGINT, resolved_at BIGINT)`);
+  await db.run('CREATE TABLE IF NOT EXISTS game_scores(user_id BIGINT, game TEXT, best BIGINT, plays BIGINT DEFAULT 0, updated BIGINT, PRIMARY KEY(user_id, game))');
+  await db.run('CREATE INDEX IF NOT EXISTS idx_scores_game ON game_scores(game, best)');
+  const cols = [['users', 'banned', 'INTEGER DEFAULT 0'], ['users', 'birthday', 'TEXT'], ['chat_members', 'pinned', 'BIGINT DEFAULT 0'], ['chat_members', 'archived', 'INTEGER DEFAULT 0'], ['users', 'hide_seen', 'INTEGER DEFAULT 0'], ['users', 'deleted', 'INTEGER DEFAULT 0']];
   for (const [t, c, type] of cols) {
     try { await db.get(`SELECT ${c} FROM ${t} LIMIT 1`); } catch { await db.run(`ALTER TABLE ${t} ADD COLUMN ${c} ${type}`); }
   }

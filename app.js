@@ -365,7 +365,7 @@ async function connectSocket() {
     $('#conn-bar').classList.add('hidden'); if (S.current) loadMessages(S.current); loadChats().catch(() => {});
     setTimeout(() => { Outbox.restore().catch(() => {}); retryT = 0; retryFailed(); loadAliases(); }, 600);
   });
-  s.on('disconnect', () => $('#conn-bar').classList.remove('hidden'));
+  s.on('disconnect', (reason) => { $('#conn-bar').classList.remove('hidden'); if (reason === 'io server disconnect') setTimeout(() => s.connect(), 800); }); // server uzgan (masalan akkaunt bloklangan) — qayta tekshiradi
   s.on('connect_error', (e) => { if (e.message === 'unauthorized') logout(true); $('#conn-bar').classList.remove('hidden'); });
 
   s.on('message:new', ({ message, chat }) => {
@@ -3355,6 +3355,329 @@ UserCount.load();
 {
   const baseCS = connectSocket;
   connectSocket = async function () { await baseCS(); S.socket?.on('stats:users', ({ n }) => UserCount.set(n)); };
+}
+
+/* ======================= v12: bloklash/shikoyat, admin panel, O'yinlar bo'limi, yangi pastki menyu ======================= */
+try {
+  Object.assign(I18N.uz, { block: 'Bloklash', unblock: 'Blokdan chiqarish', report: 'Shikoyat qilish', blocked_list: 'Bloklanganlar', no_blocked: 'Hech kim bloklanmagan',
+    block_q: '{n} bloklansinmi? U sizga yoza va qo‘ng‘iroq qila olmaydi.', blocked_ok: 'Bloklandi', unblocked_ok: 'Blokdan chiqarildi', you_blocked_bar: 'Siz bu foydalanuvchini bloklagansiz',
+    cant_send_blocked: 'Xabar yuborib bo‘lmaydi: foydalanuvchi sizni bloklagan', you_blocked_msg: 'Avval blokdan chiqaring',
+    report_title: 'Shikoyat', report_why: 'Sababini tanlang', r_spam: 'Spam / reklama', r_abuse: 'Haqorat yoki tahdid', r_fraud: 'Firibgarlik', r_adult: 'Nomaqbul (18+) kontent', r_violence: 'Zo‘ravonlik', r_other: 'Boshqa',
+    report_details: 'Izoh (ixtiyoriy)', report_block: 'Shu bilan birga bloklash', report_send: 'Yuborish', report_ok: 'Shikoyat yuborildi. Rahmat!',
+    games: 'O‘yinlar', games_sub: 'Do‘stlaringiz bilan rekord uchun bellashing', admin: 'Admin panel', a_stats: 'Statistika', a_users: 'Foydalanuvchilar', a_reports: 'Shikoyatlar',
+    a_total: 'Jami foydalanuvchi', a_today: 'Bugun yangi', a_week: '7 kunda yangi', a_active: '24 soatda faol', a_online: 'Hozir onlayn', a_msgs: 'Bugungi xabarlar', a_msgs_all: 'Jami xabarlar',
+    a_groups: 'Guruhlar', a_channels: 'Kanallar', a_banned: 'Bloklangan akkauntlar', a_signups: 'Ro‘yxatdan o‘tish (30 kun)', a_ban: 'Bloklash', a_unban: 'Blokdan chiqarish', a_ban_q: '{n} akkaunti butunlay bloklansinmi? U Birga’ga kira olmaydi.',
+    a_no_reports: 'Ochiq shikoyat yo‘q', a_dismiss: 'Rad etish', a_del_msg: 'Xabarni o‘chirish', a_ban_user: 'Akkauntni bloklash', a_reporter: 'Shikoyatchi', a_joined: 'Qo‘shilgan', a_seen: 'Oxirgi', a_search: 'Ism, @username yoki email' });
+  Object.assign(I18N.ru, { block: 'Заблокировать', unblock: 'Разблокировать', report: 'Пожаловаться', blocked_list: 'Заблокированные', no_blocked: 'Никто не заблокирован',
+    block_q: 'Заблокировать {n}? Он не сможет писать и звонить вам.', blocked_ok: 'Заблокирован', unblocked_ok: 'Разблокирован', you_blocked_bar: 'Вы заблокировали этого пользователя',
+    cant_send_blocked: 'Нельзя отправить: пользователь вас заблокировал', you_blocked_msg: 'Сначала разблокируйте',
+    report_title: 'Жалоба', report_why: 'Выберите причину', r_spam: 'Спам / реклама', r_abuse: 'Оскорбления или угрозы', r_fraud: 'Мошенничество', r_adult: 'Неприемлемый (18+) контент', r_violence: 'Насилие', r_other: 'Другое',
+    report_details: 'Комментарий (необязательно)', report_block: 'Также заблокировать', report_send: 'Отправить', report_ok: 'Жалоба отправлена. Спасибо!',
+    games: 'Игры', games_sub: 'Соревнуйтесь с друзьями за рекорд', admin: 'Админ-панель', a_stats: 'Статистика', a_users: 'Пользователи', a_reports: 'Жалобы',
+    a_total: 'Всего пользователей', a_today: 'Новых сегодня', a_week: 'Новых за 7 дней', a_active: 'Активны за 24 ч', a_online: 'Сейчас онлайн', a_msgs: 'Сообщений сегодня', a_msgs_all: 'Всего сообщений',
+    a_groups: 'Группы', a_channels: 'Каналы', a_banned: 'Заблокированные аккаунты', a_signups: 'Регистрации (30 дней)', a_ban: 'Заблокировать', a_unban: 'Разблокировать', a_ban_q: 'Заблокировать аккаунт {n}? Он не сможет войти в Birga.',
+    a_no_reports: 'Открытых жалоб нет', a_dismiss: 'Отклонить', a_del_msg: 'Удалить сообщение', a_ban_user: 'Заблокировать аккаунт', a_reporter: 'Пожаловался', a_joined: 'Регистрация', a_seen: 'Был(а)', a_search: 'Имя, @username или email' });
+  Object.assign(I18N.en, { block: 'Block', unblock: 'Unblock', report: 'Report', blocked_list: 'Blocked users', no_blocked: 'No blocked users',
+    block_q: 'Block {n}? They won’t be able to message or call you.', blocked_ok: 'Blocked', unblocked_ok: 'Unblocked', you_blocked_bar: 'You blocked this user',
+    cant_send_blocked: 'Can’t send: this user has blocked you', you_blocked_msg: 'Unblock first',
+    report_title: 'Report', report_why: 'Choose a reason', r_spam: 'Spam / ads', r_abuse: 'Abuse or threats', r_fraud: 'Fraud', r_adult: 'Inappropriate (18+) content', r_violence: 'Violence', r_other: 'Other',
+    report_details: 'Comment (optional)', report_block: 'Also block this user', report_send: 'Send', report_ok: 'Report sent. Thank you!',
+    games: 'Games', games_sub: 'Compete with friends for the high score', admin: 'Admin panel', a_stats: 'Statistics', a_users: 'Users', a_reports: 'Reports',
+    a_total: 'Total users', a_today: 'New today', a_week: 'New in 7 days', a_active: 'Active in 24h', a_online: 'Online now', a_msgs: 'Messages today', a_msgs_all: 'Total messages',
+    a_groups: 'Groups', a_channels: 'Channels', a_banned: 'Banned accounts', a_signups: 'Sign-ups (30 days)', a_ban: 'Ban', a_unban: 'Unban', a_ban_q: 'Ban {n}’s account? They won’t be able to sign in.',
+    a_no_reports: 'No open reports', a_dismiss: 'Dismiss', a_del_msg: 'Delete message', a_ban_user: 'Ban account', a_reporter: 'Reporter', a_joined: 'Joined', a_seen: 'Seen', a_search: 'Name, @username or email' });
+} catch {}
+document.querySelector('symbol#i-mic')?.parentNode.insertAdjacentHTML('beforeend',
+  '<symbol id="i-game" viewBox="0 0 24 24"><path fill="currentColor" d="M7.5 6h9a5.5 5.5 0 0 1 5.4 6.6l-1 5a3 3 0 0 1-5.2 1.5L14 17h-4l-1.7 2.1a3 3 0 0 1-5.2-1.5l-1-5A5.5 5.5 0 0 1 7.5 6ZM8 9a1 1 0 0 0-1 1v1H6a1 1 0 1 0 0 2h1v1a1 1 0 1 0 2 0v-1h1a1 1 0 1 0 0-2H9v-1a1 1 0 0 0-1-1Zm8.5 0a1.25 1.25 0 1 0 0 2.5 1.25 1.25 0 0 0 0-2.5Zm-2 3a1.25 1.25 0 1 0 0 2.5 1.25 1.25 0 0 0 0-2.5Z"/></symbol>' +
+  '<symbol id="i-shield" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2.2a1 1 0 0 1 .4.1l7 3a1 1 0 0 1 .6.9V11c0 4.9-3.4 9.3-7.8 10.8a1 1 0 0 1-.6 0C7.4 20.3 4 15.9 4 11V6.2a1 1 0 0 1 .6-.9l7-3a1 1 0 0 1 .4-.1Zm3.7 6.6a1 1 0 0 0-1.4 0L11 12.1l-1.3-1.3a1 1 0 0 0-1.4 1.4l2 2a1 1 0 0 0 1.4 0l4-4a1 1 0 0 0 0-1.4Z"/></symbol>' +
+  '<symbol id="i-block" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20Zm5.3 4.3L6.3 17.3A8 8 0 0 0 17.3 6.3ZM12 4a8 8 0 0 0-6.3 12.9L16.9 5.7A8 8 0 0 0 12 4Z"/></symbol>' +
+  '<symbol id="i-flag" viewBox="0 0 24 24"><path fill="currentColor" d="M5 2a1 1 0 0 1 1 1v.4c1.7-.8 3.7-.9 5.6-.1 1.6.6 3.3.6 4.9 0l1.1-.4A1 1 0 0 1 19 3.8v9a1 1 0 0 1-.6.9l-1.2.5c-2 .8-4.2.8-6.2 0-1.6-.6-3.4-.5-5 .3V21a1 1 0 1 1-2 0V3a1 1 0 0 1 1-1Z"/></symbol>');
+
+document.head.insertAdjacentHTML('beforeend', `<style id="birga-v12">
+/* --- yangi pastki menyu: tugmalar ko'p bo'lsa ham kichraymaydi, yonga suriladi --- */
+.bottom-nav { display: flex; justify-content: flex-start; gap: 2px; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x proximity; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  padding: 6px 6px calc(6px + env(safe-area-inset-bottom)); position: relative; mask-image: linear-gradient(90deg, transparent 0, #000 10px, #000 calc(100% - 18px), transparent 100%); -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 10px, #000 calc(100% - 18px), transparent 100%); }
+.bottom-nav::-webkit-scrollbar { display: none; }
+.bottom-nav button { flex: 1 0 70px; min-width: 70px; max-width: 110px; scroll-snap-align: center; gap: 3px; padding: 7px 4px 6px; border-radius: 16px; font-size: 11.5px; letter-spacing: -.1px; transition: background .15s, color .15s, transform .1s; }
+.bottom-nav button > span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.bottom-nav button:active { transform: scale(.94); }
+.bottom-nav .nb { height: 28px; width: 46px; border-radius: 14px; transition: background .15s; }
+.bottom-nav .nb svg { width: 25px; height: 25px; }
+.bottom-nav button.on { background: none; }
+.bottom-nav button.on .nb { background: var(--active, rgba(31,107,255,.12)); }
+.bottom-nav button.on span:last-child { font-weight: 800; }
+/* --- o'yinlar --- */
+#pane-games .scroll { padding: 4px 14px 90px; }
+.gm-sub { color: var(--muted); font-size: 14px; margin: -2px 0 12px; }
+.gm-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.gm-tile { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 14px; min-height: 118px; border-radius: 20px; color: #fff; text-align: left; overflow: hidden;
+  background: linear-gradient(140deg, var(--g1), var(--g2)); box-shadow: 0 8px 20px rgba(15,23,42,.14); transition: transform .12s; }
+.gm-tile:active { transform: scale(.96); }
+.gm-tile .gm-e { font-size: 40px; line-height: 1; margin-bottom: auto; filter: drop-shadow(0 3px 4px rgba(0,0,0,.25)); }
+.gm-tile b { font-size: 16px; font-weight: 800; }
+.gm-tile small { font-size: 12.5px; opacity: .9; font-weight: 700; }
+.gm-tile::after { content: ''; position: absolute; right: -24px; top: -24px; width: 90px; height: 90px; border-radius: 50%; background: rgba(255,255,255,.14); }
+.gm-page { position: fixed; inset: 0; z-index: 36; display: flex; flex-direction: column; background: linear-gradient(160deg, var(--g1, #1F6BFF), var(--g2, #8A2BE2)); color: #fff; }
+.gm-head { display: flex; align-items: center; gap: 10px; padding: calc(8px + env(safe-area-inset-top)) 10px 6px; }
+.gm-title { flex: 1; font-weight: 800; font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gm-stats { display: flex; align-items: center; gap: 8px; }
+.gm-stats #gm-info { font-weight: 700; font-size: 13.5px; opacity: .95; }
+.gm-sc { display: flex; flex-direction: column; align-items: center; min-width: 50px; padding: 3px 8px; border-radius: 12px; background: rgba(0,0,0,.2); }
+.gm-sc small { font-size: 10.5px; opacity: .85; } .gm-sc b { font-size: 17px; line-height: 1.1; }
+.gm-extra { display: flex; justify-content: center; } .gm-extra:empty { display: none; }
+.gm-extra button { margin: 2px 0 4px; padding: 7px 16px; border-radius: 18px; background: rgba(0,0,0,.25); color: #fff; font-weight: 700; }
+.gm-stage { flex: 1; min-height: 0; display: grid; place-items: center; padding-bottom: env(safe-area-inset-bottom); }
+.gm-cv { border-radius: 16px; box-shadow: 0 12px 34px rgba(0,0,0,.35); touch-action: none; user-select: none; -webkit-user-select: none; }
+.gm-over { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(2,6,23,.55); backdrop-filter: blur(3px); padding: 20px; }
+.gm-card { width: min(340px, 100%); background: var(--panel, #fff); color: var(--text, #111); border-radius: 24px; padding: 22px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,.35); animation: pop .2s; }
+.gm-card h3 { margin: 0; font-size: 18px; color: var(--muted); }
+.gm-big { font-size: 64px; font-weight: 900; line-height: 1.1; background: linear-gradient(135deg, var(--g1), var(--g2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.gm-rec { margin: 4px 0; font-weight: 800; } .gm-rank { margin: 0 0 14px; color: var(--muted); font-size: 14px; min-height: 18px; }
+.gm-row { display: flex; gap: 8px; margin-top: 8px; }
+.gm-row button { flex: 1; height: 44px; border-radius: 14px; font-weight: 700; background: var(--panel-2, rgba(127,127,127,.12)); display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.gm-row button svg { width: 17px; height: 17px; }
+.gm-top { max-height: 60vh; overflow: auto; }
+.gm-tr { display: flex; align-items: center; gap: 10px; padding: 8px 6px; border-radius: 12px; }
+.gm-tr.me { background: var(--active, rgba(31,107,255,.1)); }
+.gm-tr b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gm-pos { width: 28px; text-align: center; font-weight: 800; } .gm-pts { font-weight: 800; color: var(--blue, #1F6BFF); }
+/* --- bloklash / shikoyat --- */
+.rep-list { display: flex; flex-direction: column; gap: 6px; margin: 6px 0 10px; }
+.rep-list label { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--panel-2, rgba(127,127,127,.08)); cursor: pointer; font-weight: 600; }
+.rep-list input { accent-color: var(--danger, #E5484D); width: 18px; height: 18px; }
+.rep-chk { display: flex; align-items: center; gap: 10px; margin: 8px 2px 12px; font-size: 14px; }
+.blk-bar { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; }
+.pp-card .act.danger { color: var(--danger, #E5484D); }
+.bl-row { display: flex; align-items: center; gap: 10px; padding: 8px 2px; }
+.bl-row b { flex: 1; }
+.bl-row button { padding: 7px 12px; border-radius: 12px; font-weight: 700; background: var(--panel-2, rgba(127,127,127,.12)); }
+/* --- admin panel --- */
+.adm-page { position: fixed; inset: 0; z-index: 37; background: var(--bg, #F3F6FA); display: flex; flex-direction: column; color: var(--text); }
+.adm-head { display: flex; align-items: center; gap: 10px; padding: calc(8px + env(safe-area-inset-top)) 12px 8px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.adm-head h2 { margin: 0; font-size: 19px; flex: 1; display: flex; align-items: center; gap: 8px; } .adm-head h2 svg { width: 22px; height: 22px; color: var(--blue); }
+.adm-tabs { display: flex; gap: 6px; padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--line); overflow-x: auto; }
+.adm-tabs button { padding: 8px 14px; border-radius: 18px; font-weight: 700; background: var(--panel-2, rgba(127,127,127,.1)); white-space: nowrap; }
+.adm-tabs button.on { background: var(--blue, #1F6BFF); color: #fff; }
+.adm-tabs .cnt { display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 4px; border-radius: 9px; background: var(--danger, #E5484D); color: #fff; font-size: 11px; }
+.adm-body { flex: 1; overflow: auto; padding: 12px 12px 40px; max-width: 900px; width: 100%; margin: 0 auto; }
+.adm-kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.adm-kpi { background: var(--panel); border-radius: 16px; padding: 12px 14px; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+.adm-kpi small { color: var(--muted); font-size: 12.5px; display: block; } .adm-kpi b { font-size: 26px; font-weight: 900; }
+.adm-chart { background: var(--panel); border-radius: 16px; padding: 14px; margin-top: 12px; }
+.adm-chart h4 { margin: 0 0 10px; font-size: 14px; color: var(--muted); }
+.adm-bars { display: flex; align-items: flex-end; gap: 3px; height: 120px; }
+.adm-bars i { flex: 1; background: linear-gradient(180deg, #1F6BFF, #00A8D6); border-radius: 4px 4px 1px 1px; min-height: 2px; position: relative; }
+.adm-bars i[data-n]:hover::after { content: attr(data-n); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); font-size: 11px; background: #0F172A; color: #fff; padding: 2px 5px; border-radius: 5px; white-space: nowrap; }
+.adm-axis { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: 4px; }
+.adm-search { width: 100%; height: 44px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel); padding: 0 14px; font: inherit; color: inherit; margin-bottom: 10px; }
+.adm-u, .adm-r { display: flex; gap: 10px; align-items: center; background: var(--panel); border-radius: 14px; padding: 10px 12px; margin-bottom: 8px; }
+.adm-u .inf, .adm-r .inf { flex: 1; min-width: 0; }
+.adm-u b, .adm-r b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adm-u small, .adm-r small { display: block; color: var(--muted); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; }
+.adm-u .tag-ban { color: #fff; background: var(--danger, #E5484D); border-radius: 8px; padding: 1px 6px; font-size: 11px; margin-left: 6px; }
+.adm-u .tag-rep { color: #B45309; font-weight: 700; }
+.adm-btn { padding: 8px 12px; border-radius: 12px; font-weight: 700; font-size: 13px; background: var(--panel-2, rgba(127,127,127,.12)); white-space: nowrap; }
+.adm-btn.danger { background: var(--danger, #E5484D); color: #fff; }
+.adm-r { flex-direction: column; align-items: stretch; }
+.adm-r .snap { background: var(--panel-2, rgba(127,127,127,.08)); border-radius: 10px; padding: 8px 10px; font-size: 14px; white-space: pre-wrap; word-break: break-word; }
+.adm-r .acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.adm-r .why { display: inline-block; padding: 2px 8px; border-radius: 8px; background: rgba(229,72,77,.12); color: var(--danger, #E5484D); font-weight: 700; font-size: 12.5px; }
+</style>`);
+
+/* --- yuborishda bloklash xabarlari --- */
+{
+  const map = { blocked: 'cant_send_blocked', you_blocked: 'you_blocked_msg' };
+  const baseEmit = emitSend;
+  emitSend = async function (payload) {
+    try { return await baseEmit(payload); }
+    catch (e) { if (map[e.message]) { e.message = t(map[e.message]); e.fatal = true; } throw e; }
+  };
+}
+
+/* --- bloklash --- */
+const Blocks = {
+  set: new Set(),
+  async load() { try { const l = await api('/api/blocks'); this.set = new Set(l.map((u) => u.id)); l.forEach((u) => S.users.set(u.id, { ...S.users.get(u.id), ...u })); } catch {} },
+  has: (id) => Blocks.set.has(id),
+  async toggle(u, on, silent) {
+    if (on && !silent && !confirm(t('block_q').replace('{n}', u.name || ''))) return false;
+    try { await api('/api/blocks/' + u.id, { body: { on } }); } catch (e) { toast(e.message); return false; }
+    if (on) this.set.add(u.id); else this.set.delete(u.id);
+    toast(t(on ? 'blocked_ok' : 'unblocked_ok'));
+    const c = S.current && S.chats.get(S.current); if (c?.peer?.id === u.id) openChat(S.current);
+    return true;
+  },
+};
+function reportDialog(target) {
+  const reasons = ['spam', 'abuse', 'fraud', 'adult', 'violence', 'other'];
+  modal(`<h3>${t('report_title')} <button class="icon-btn" data-close>${icon('close')}</button></h3>
+    <p class="rn-hint">${t('report_why')}</p>
+    <div class="rep-list">${reasons.map((r, i) => `<label><input type="radio" name="rep" value="${r}" ${i === 0 ? 'checked' : ''}>${t('r_' + r)}</label>`).join('')}</div>
+    <input class="field" id="rep-d" maxlength="500" placeholder="${esc(t('report_details'))}">
+    <label class="rep-chk"><input type="checkbox" id="rep-b" checked> ${t('report_block')}</label>
+    <button class="btn-primary" id="rep-go" style="background:var(--danger,#E5484D);box-shadow:none">${t('report_send')}</button>`);
+  $('#rep-go').onclick = async () => {
+    const reason = $('#modal-card input[name="rep"]:checked')?.value || 'other'; const block = $('#rep-b').checked;
+    try { await api('/api/reports', { body: { ...target, reason, details: $('#rep-d').value, block } }); closeModal(); toast(t('report_ok'), 2500);
+      if (block) { const uid = target.userId || findMsg(target.messageId, S.current)?.sender_id; if (uid) { Blocks.set.add(uid); const c = S.current && S.chats.get(S.current); if (c?.peer?.id === uid) openChat(S.current); } } }
+    catch (e) { toast(e.message); }
+  };
+}
+// xabar menyusida "Shikoyat qilish"
+$('#ctx').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-a="report"]'); if (!b) return;
+  e.stopImmediatePropagation(); $('#ctx').classList.add('hidden'); if (S.ctxMsg?.id) reportDialog({ messageId: S.ctxMsg.id });
+}, true);
+{
+  const baseCtx = openCtx;
+  openCtx = function (x, y, m) {
+    baseCtx(x, y, m);
+    if (m.sender_id !== S.me.id && m.id && m.type !== 'call' && m.type !== 'service') {
+      const del = $('#ctx [data-a="del"]');
+      (del || $('#ctx')).insertAdjacentHTML(del ? 'beforebegin' : 'beforeend', `<button data-a="report" class="danger">${icon('flag')}${t('report')}</button>`);
+      const el = $('#ctx'); const r = el.getBoundingClientRect(); el.style.top = Math.max(8, Math.min(r.top, innerHeight - el.offsetHeight - 8)) + 'px';
+    }
+  };
+}
+// profil: bloklash va shikoyat
+{
+  const baseRP = renderProfile;
+  renderProfile = async function (el, user, opts = {}) {
+    await baseRP(el, user, opts);
+    const u = PP.user; if (opts.self || !u || PP.el !== el || u.deleted) return;
+    const card = el.querySelector('.pp-card'); if (!card) return;
+    const b = Blocks.has(u.id);
+    card.insertAdjacentHTML('beforeend', `<button class="info-row act danger" data-x12="block">${icon('block')}${t(b ? 'unblock' : 'block')}</button><button class="info-row act danger" data-x12="report">${icon('flag')}${t('report')}</button>`);
+    card.querySelector('[data-x12="block"]').onclick = async () => { if (await Blocks.toggle(u, !Blocks.has(u.id))) renderProfile(el, user, opts); };
+    card.querySelector('[data-x12="report"]').onclick = () => reportDialog({ userId: u.id });
+  };
+}
+// bloklangan odam bilan chat: yozish o'rniga "blokdan chiqarish"
+{
+  const baseOpen = openChat;
+  openChat = async function (id) {
+    const r = await baseOpen(id);
+    const c = S.chats.get(id); const pid = c?.type === 'private' && !c.self ? c.peer?.id : null;
+    if (pid && S.current === id && Blocks.has(pid)) {
+      $('#composer').classList.add('hidden'); $('#btn-audio-call').classList.add('hidden'); $('#btn-video-call').classList.add('hidden');
+      const bar = $('#channel-bar'); bar.classList.remove('hidden');
+      bar.innerHTML = `<div class="blk-bar"><span class="muted-note">${esc(t('you_blocked_bar'))}</span><button class="link-btn" id="blk-un">${t('unblock')}</button></div>`;
+      $('#blk-un').onclick = () => Blocks.toggle(S.users.get(pid) || c.peer, false);
+    } else if (pid && S.current === id && !(S.users.get(pid) || c.peer)?.deleted && $('#channel-bar .blk-bar')) {
+      $('#channel-bar').classList.add('hidden'); $('#composer').classList.remove('hidden'); $('#btn-audio-call').classList.remove('hidden'); $('#btn-video-call').classList.remove('hidden');
+    }
+    return r;
+  };
+}
+// sozlamalar: bloklanganlar ro'yxati va admin panel
+function blockedModal() {
+  const draw = async () => {
+    await Blocks.load();
+    const list = [...Blocks.set].map((id) => S.users.get(id)).filter(Boolean);
+    modal(`<h3>${t('blocked_list')} <button class="icon-btn" data-close>${icon('close')}</button></h3>
+      ${list.length ? list.map((u) => `<div class="bl-row">${avatar({ ...u, online: false }, 'sm')}<b>${esc(u.name || '')}</b><button data-ub="${u.id}">${t('unblock')}</button></div>`).join('') : `<p class="empty-note">${esc(t('no_blocked'))}</p>`}`);
+    $('#modal-card').onclick = async (e) => { const b = e.target.closest('[data-ub]'); if (!b) return; if (await Blocks.toggle(S.users.get(+b.dataset.ub) || { id: +b.dataset.ub }, false)) draw(); };
+  };
+  draw();
+}
+{
+  $('#set-privacy')?.insertAdjacentHTML('afterend', `<button class="row-btn" id="set-blocked"><span class="ri c7"><svg><use href="#i-block"/></svg></span><span data-t12="blocked_list"></span></button>`);
+  $('[data-set="email"]')?.parentElement?.insertAdjacentHTML('beforebegin', `<div class="group hidden" id="adm-group"><button class="row-btn" id="set-admin"><span class="ri c1"><svg><use href="#i-shield"/></svg></span><span><span data-t12="admin"></span><small id="adm-badge"></small></span></button></div>`);
+  $('#set-blocked').onclick = blockedModal;
+  $('#set-admin').onclick = () => Admin.open();
+  const paint = () => { $$('[data-t12]').forEach((x) => (x.textContent = t(x.dataset.t12))); $('#adm-group')?.classList.toggle('hidden', !S.me?.isAdmin); };
+  const baseRS = renderSettings; renderSettings = function () { baseRS(); paint(); if (S.me?.isAdmin) api('/api/admin/stats').then((s) => { const b = $('#adm-badge'); if (b) b.textContent = `${s.users} · ${s.reportsOpen ? '⚠️ ' + s.reportsOpen : '✓'}`; }).catch(() => {}); };
+  setTimeout(paint, 0);
+}
+
+/* --- admin panel --- */
+const Admin = {
+  tab: 'stats',
+  open() {
+    if (!$('#adm-page')) {
+      document.body.insertAdjacentHTML('beforeend', `<div class="adm-page hidden" id="adm-page"><div class="adm-head"><button class="icon-btn" id="adm-back">${icon('back')}</button><h2>${icon('shield')}<span>${t('admin')}</span></h2><button class="icon-btn" id="adm-ref">${icon('refresh')}</button></div>
+        <div class="adm-tabs" id="adm-tabs"></div><div class="adm-body" id="adm-body"></div></div>`);
+      $('#adm-back').onclick = () => $('#adm-page').classList.add('hidden');
+      $('#adm-ref').onclick = () => this.render();
+      $('#adm-tabs').onclick = (e) => { const b = e.target.closest('[data-at]'); if (b) { this.tab = b.dataset.at; this.render(); } };
+      trackEl($('#adm-page'), 'admin', () => $('#adm-page').classList.add('hidden'));
+    }
+    $('#adm-page').classList.remove('hidden'); this.render();
+  },
+  async render() {
+    const tabs = [['stats', t('a_stats')], ['users', t('a_users')], ['reports', t('a_reports')]];
+    let stats = null; try { stats = await api('/api/admin/stats'); } catch (e) { $('#adm-body').innerHTML = `<p class="empty-note">${esc(e.message)}</p>`; return; }
+    $('#adm-tabs').innerHTML = tabs.map(([k, n]) => `<button data-at="${k}" class="${this.tab === k ? 'on' : ''}">${n}${k === 'reports' && stats.reportsOpen ? `<span class="cnt">${stats.reportsOpen}</span>` : ''}</button>`).join('');
+    const body = $('#adm-body');
+    if (this.tab === 'stats') {
+      const k = (n, v) => `<div class="adm-kpi"><small>${t(n)}</small><b>${v}</b></div>`;
+      const max = Math.max(1, ...stats.signups.map((d) => d.n));
+      body.innerHTML = `<div class="adm-kpis">${k('a_total', stats.users)}${k('a_today', stats.newToday)}${k('a_week', stats.new7)}${k('a_active', stats.active24)}${k('a_online', stats.online)}${k('a_msgs', stats.msgsToday)}${k('a_msgs_all', stats.msgsTotal)}${k('a_groups', stats.groups)}${k('a_channels', stats.channels)}${k('a_banned', stats.banned)}</div>
+        <div class="adm-chart"><h4>${t('a_signups')}</h4><div class="adm-bars">${stats.signups.map((d) => `<i style="height:${Math.round((d.n / max) * 100)}%" data-n="${d.d.slice(5)}: ${d.n}"></i>`).join('')}</div>
+        <div class="adm-axis"><span>${stats.signups[0].d.slice(5)}</span><span>${stats.signups[29].d.slice(5)}</span></div></div>`;
+    }
+    if (this.tab === 'users') {
+      body.innerHTML = `<input class="adm-search" id="adm-q" placeholder="${esc(t('a_search'))}" value="${esc(this.q || '')}"><div id="adm-ul"></div>`;
+      const load = async () => {
+        const list = await api('/api/admin/users?q=' + encodeURIComponent(this.q || '')).catch(() => []);
+        $('#adm-ul').innerHTML = list.map((u) => `<div class="adm-u">${avatar({ ...u, online: false }, 'sm')}<div class="inf"><b>${esc(u.name || '')}${u.banned ? `<span class="tag-ban">BAN</span>` : ''}${u.admin ? ' 🛡' : ''}</b>
+          <small>${u.username ? '@' + esc(u.username) + ' · ' : ''}${esc(u.email || '')}</small><small>${t('a_joined')}: ${fmtDay(u.created_at)} · ${t('a_seen')}: ${u.last_seen ? fmtDay(u.last_seen) + ' ' + fmtTime(u.last_seen) : '—'}${u.reports ? ` · <span class="tag-rep">⚠️ ${u.reports}</span>` : ''}</small></div>
+          ${u.admin ? '' : `<button class="adm-btn${u.banned ? '' : ' danger'}" data-ban="${u.id}" data-on="${u.banned ? 0 : 1}" data-n="${esc(u.name || '')}">${t(u.banned ? 'a_unban' : 'a_ban')}</button>`}</div>`).join('') || `<p class="empty-note">—</p>`;
+      };
+      let qt; $('#adm-q').oninput = (e) => { this.q = e.target.value; clearTimeout(qt); qt = setTimeout(load, 300); };
+      body.onclick = async (e) => {
+        const b = e.target.closest('[data-ban]'); if (!b) return; const on = b.dataset.on === '1';
+        if (on && !confirm(t('a_ban_q').replace('{n}', b.dataset.n))) return;
+        try { await api(`/api/admin/users/${b.dataset.ban}/ban`, { body: { on } }); load(); } catch (er) { toast(er.message); }
+      };
+      load();
+    } else body.onclick = null;
+    if (this.tab === 'reports') {
+      const list = await api('/api/admin/reports').catch(() => []);
+      const snap = (s) => (s ? (s.text ? esc(s.text) : '') + (s.file ? `${s.text ? '\n' : ''}📎 ${esc(s.type)}` : '') : '');
+      body.innerHTML = list.length ? list.map((r) => `<div class="adm-r"><div style="display:flex;gap:10px;align-items:center">${avatar({ ...(r.user || {}), online: false }, 'sm')}<div class="inf"><b>${esc(r.user?.name || '?')}${r.user?.banned ? ' <span class="tag-ban">BAN</span>' : ''}</b>
+          <small><span class="why">${t('r_' + r.reason)}</span> · ${fmtDay(r.created_at)} ${fmtTime(r.created_at)} · ${t('a_reporter')}: ${esc(r.reporter?.name || '?')}</small></div></div>
+          ${r.snapshot ? `<div class="snap">${snap(r.snapshot)}</div>` : ''}${r.details ? `<small>💬 ${esc(r.details)}</small>` : ''}
+          <div class="acts"><button class="adm-btn" data-ra="dismiss" data-id="${r.id}">${t('a_dismiss')}</button>${r.message_id ? `<button class="adm-btn" data-ra="delete_msg" data-id="${r.id}">${t('a_del_msg')}</button>` : ''}<button class="adm-btn danger" data-ra="ban" data-id="${r.id}">${t('a_ban_user')}</button></div></div>`).join('')
+        : `<p class="empty-note">✓ ${esc(t('a_no_reports'))}</p>`;
+      body.onclick = async (e) => {
+        const b = e.target.closest('[data-ra]'); if (!b) return;
+        if (b.dataset.ra === 'ban' && !confirm(t('a_ban_q').replace('{n}', ''))) return;
+        try { await api('/api/admin/reports/' + b.dataset.id, { body: { action: b.dataset.ra } }); this.render(); } catch (er) { toast(er.message); }
+      };
+    }
+  },
+};
+
+/* --- O'yinlar bo'limi --- */
+{
+  $('.sidebar #pane-settings')?.insertAdjacentHTML('beforebegin', `<section class="pane hidden" id="pane-games"><header class="pane-head"><h2 data-t12="games"></h2></header>
+    <div class="scroll"><p class="gm-sub" data-t12="games_sub"></p><div class="gm-grid" id="games-grid"></div></div></section>`);
+  $('#bottom-nav [data-tab="chats"]')?.insertAdjacentHTML('afterend', `<button data-tab="games"><span class="nb">${icon('game')}</span><span data-t12="games"></span></button>`);
+  $$('[data-t12]').forEach((x) => (x.textContent = t(x.dataset.t12)));
+  let gamesLib = null;
+  const loadGames = () => (window.BirgaGames ? Promise.resolve() : (gamesLib ||= loadScript('/games.js').catch((e) => { gamesLib = null; throw e; })));
+  const showGames = () => {
+    $$('.sidebar .pane').forEach((p) => p.classList.toggle('hidden', p.id !== 'pane-games'));
+    $$('#bottom-nav [data-tab]').forEach((b) => b.classList.toggle('on', b.dataset.tab === 'games'));
+    TAB = 'games'; try { Reels.pause?.(); } catch {}
+    $$('[data-t12]').forEach((x) => (x.textContent = t(x.dataset.t12)));
+    loadGames().then(() => BirgaGames.renderLobby()).catch(() => toast(t('net_err')));
+  };
+  const inner = setTab, innerRaw = setTab.raw;
+  setTab = function (name) {
+    if (name === 'games') { if (TAB !== 'games') pushOverlay('tab:' + TAB); showGames(); return; }
+    $('#pane-games')?.classList.add('hidden');
+    return inner(name);
+  };
+  setTab.raw = (name) => { if (name === 'games') return showGames(); $('#pane-games')?.classList.add('hidden'); return innerRaw ? innerRaw(name) : inner(name); };
+  // tanlangan bo'lim pastki menyuda doim ko'rinib tursin
+  new MutationObserver(() => { const on = $('#bottom-nav button.on'); on?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' }); })
+    .observe($('#bottom-nav'), { subtree: true, attributes: true, attributeFilter: ['class'] });
+}
+{
+  const baseLA = loadAliases;
+  loadAliases = async function () { await baseLA(); Blocks.load(); };
 }
 
 /* ======================= ILOVANI TELEFONGA O'RNATISH (PWA) ======================= */

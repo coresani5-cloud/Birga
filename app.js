@@ -1,6 +1,6 @@
 /* Birga — klient ilovasi (v2) */
 'use strict';
-try { Object.assign(I18N.uz, { install_app: 'Ilovani yuklab olish' }); Object.assign(I18N.ru, { install_app: 'Скачать приложение' }); Object.assign(I18N.en, { install_app: 'Download the app' }); } catch {}
+try { Object.assign(I18N.uz, { install_app: 'Ilovani o‘rnatish', call_failed: 'Qo‘ng‘iroqni boshlab bo‘lmadi. Qayta urinib ko‘ring' }); Object.assign(I18N.ru, { install_app: 'Установить приложение', call_failed: 'Не удалось начать звонок. Попробуйте ещё раз' }); Object.assign(I18N.en, { install_app: 'Install the app', call_failed: 'Could not start the call. Please try again' }); } catch {}
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -363,7 +363,8 @@ async function connectSocket() {
   s.on('app:version', ({ v }) => Updater.seen(v));
   s.on('connect', () => {
     $('#conn-bar').classList.add('hidden'); if (S.current) loadMessages(S.current); loadChats().catch(() => {});
-    setTimeout(() => { Outbox.restore().catch(() => {}); retryT = 0; retryFailed(); loadAliases(); }, 600);
+    if (Call.active) setTimeout(() => Call.iceRestart(), 500);
+    setTimeout(() => { Outbox.restore().catch(() => {}); retryT = 0; retryFailed(); loadAliases(); installBanner(); }, 600);
   });
   s.on('disconnect', (reason) => { $('#conn-bar').classList.remove('hidden'); if (reason === 'io server disconnect') setTimeout(() => s.connect(), 800); }); // server uzgan (masalan akkaunt bloklangan) — qayta tekshiradi
   s.on('connect_error', (e) => { if (e.message === 'unauthorized') logout(true); $('#conn-bar').classList.remove('hidden'); });
@@ -1684,8 +1685,9 @@ const Call = {
     this.s = s;
     s.on('call:offer', (p) => this.onOffer(p));
     s.on('call:answer', async (p) => {
-      if (p.callId !== this.id || !this.pc) return;
-      await this.pc.setRemoteDescription(p.sdp).catch(() => {}); this.flushIce(); this.connected();
+      if (p.callId !== this.id || !this.pc || this.pc.signalingState !== 'have-local-offer') return;
+      try { await this.pc.setRemoteDescription(p.sdp); } catch (e) { console.warn('answer', e); return; }
+      this.flushIce(); this.connected();
     });
     s.on('call:ice', async (p) => {
       if (p.callId !== this.id) return;
@@ -1694,7 +1696,7 @@ const Call = {
     s.on('call:renego', (p) => { if (p.callId === this.id) this.onRenego(p.sdp); });
     s.on('call:ringing', (p) => { if (p.callId === this.id && !this.startedAt) $('#call-status').textContent = t('ringing'); });
     s.on('call:status', (p) => { if (p.callId === this.id && !this.startedAt && p.status === 'offline') $('#call-status').textContent = t('reaching'); });
-    s.on('call:busy', (p) => { if (p.callId === this.id) { $('#call-status').textContent = t('busy'); this.finish('busy', 1500); } });
+    s.on('call:busy', (p) => { if (p.callId === this.id && this.outgoing && !this.startedAt) { $('#call-status').textContent = t('busy'); this.s.emit('call:end', { to: this.peer.id, callId: this.id }); this.finish('busy', 1500); } });
     s.on('call:reject', (p) => { if (p.callId === this.id) { $('#call-status').textContent = t('rejected'); this.finish('rejected', 1200); } });
     s.on('call:end', (p) => { if (p.callId === this.id) this.finish(this.startedAt ? 'answered' : 'missed'); });
     s.on('call:handled', (p) => { if (p.callId === this.id && !this.outgoing && !this.startedAt) this.cleanup(); });
@@ -1710,7 +1712,7 @@ const Call = {
     try { return (await api('/api/ice')).iceServers; } catch { return [{ urls: 'stun:stun.l.google.com:19302' }]; }
   },
   async createPC() {
-    const pc = new RTCPeerConnection({ iceServers: await this.iceServers(), iceCandidatePoolSize: 4 });
+    const pc = new RTCPeerConnection({ iceServers: await this.iceServers(), iceCandidatePoolSize: 4, bundlePolicy: 'max-bundle' });
     this.pc = pc; this.negReady = false; this.makingOffer = false;
     this.hasRelay = false;
     pc.onicecandidate = (e) => { if (!e.candidate) return; if (/ typ relay /.test(e.candidate.candidate)) this.hasRelay = true; this.s.emit('call:ice', { to: this.peer.id, callId: this.id, candidate: e.candidate }); };
@@ -1732,12 +1734,12 @@ const Call = {
     };
     pc.onconnectionstatechange = () => {
       const st = pc.connectionState;
-      if (st === 'connected') { clearTimeout(this.failT); this.tickStatus(); }
+      if (st === 'connected') { clearTimeout(this.failT); this.failT = null; clearTimeout(this.restartT); this.restarts = 0; this.wasConnected = true; this.tickStatus(); }
       if (st === 'disconnected' || st === 'failed') {
         $('#call-status').textContent = t('reconnecting');
-        if (st === 'failed') pc.restartIce?.(); // ikkala tomon ham qayta ulanishga urinadi
-        clearTimeout(this.failT);
-        this.failT = setTimeout(() => { if (pc.connectionState !== 'connected' && this.active) { $('#call-status').textContent = t('conn_lost'); toast(t(this.hasRelay ? 'conn_lost' : 'call_need_turn'), 5000); this.end(); } }, 20000);
+        // tarmoq almashsa (Wi-Fi ↔ mobil) yoki bir zum uzilsa — ICE qayta ishga tushiriladi
+        clearTimeout(this.restartT); this.restartT = setTimeout(() => this.iceRestart(), st === 'failed' ? 0 : 2500);
+        if (!this.failT) this.failT = setTimeout(() => { this.failT = null; if (pc.connectionState !== 'connected' && this.active) { $('#call-status').textContent = t('conn_lost'); toast(t(this.hasRelay ? 'conn_lost' : 'call_need_turn'), 5000); this.end(); } }, 45000);
       }
     };
     this.local.getTracks().forEach((tr) => pc.addTrack(tr, this.local));
@@ -1755,6 +1757,13 @@ const Call = {
       } else await pc.setRemoteDescription(desc);
       this.flushIce();
     } catch (e) { console.warn('renego', e); }
+  },
+  iceRestart() {
+    const pc = this.pc; if (!pc || !this.active || !this.negReady || pc.connectionState === 'connected') return;
+    this.restarts = (this.restarts || 0) + 1;
+    try { pc.restartIce(); } catch {}
+    clearTimeout(this.restartT);
+    if (this.restarts < 6) this.restartT = setTimeout(() => this.iceRestart(), 7000);
   },
   flushIce() { if (!this.pc?.remoteDescription) return; (this.iceQ || []).forEach((c) => this.pc.addIceCandidate(c).catch(() => {})); this.iceQ = []; },
   show(peer, status) {
@@ -1779,13 +1788,20 @@ const Call = {
     this.id = crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random();
     this.chatId = this.chatIdFor(peer.id);
     this.show(peer, t('calling')); this.controls(false);
-    try { this.local = await this.getMedia(video); }
-    catch { toast(t(video ? 'allow_cam' : 'allow_mic'), 3000); this.cleanup(); return; }
-    if (!this.active) return this.cleanup();
-    this.layout(); this.wake();
-    const pc = await this.createPC();
-    await pc.setLocalDescription(await pc.createOffer());
-    this.s.emit('call:offer', { to: peer.id, callId: this.id, sdp: pc.localDescription, video, chatId: this.chatId });
+    const id = this.id; const alive = () => this.active && this.id === id;
+    let stream;
+    try { stream = await this.getMedia(video); }
+    catch { toast(t(video ? 'allow_cam' : 'allow_mic'), 3000); if (alive()) this.cleanup(); return; }
+    if (!alive()) { stream.getTracks().forEach((x) => x.stop()); return; } // kutish paytida bekor qilindi
+    this.local = stream;
+    try {
+      this.layout(); this.wake();
+      const pc = await this.createPC();
+      if (!alive()) { try { pc.close(); } catch {} return; }
+      await pc.setLocalDescription(await pc.createOffer());
+      if (!alive()) return;
+      this.s.emit('call:offer', { to: peer.id, callId: this.id, sdp: pc.localDescription, video, chatId: this.chatId });
+    } catch (e) { console.warn('call start', e); toast(t('call_failed'), 3000); return this.cleanup(); }
     this.tone('ringback');
     this.timeout = setTimeout(() => { if (!this.startedAt && this.active) { $('#call-status').textContent = t('no_answer'); this.s.emit('call:end', { to: peer.id, callId: this.id }); this.finish('missed', 1200); } }, 45000);
   },
@@ -1801,15 +1817,26 @@ const Call = {
     this.timeout = setTimeout(() => { if (!this.startedAt && this.active) this.cleanup(); }, 45000);
   },
   async accept() {
+    if (!this.active || this.accepting) return;
+    this.accepting = true; clearTimeout(this.timeout);
     this.tone(null); this.controls(false); $('#call-status').textContent = t('connecting_call');
-    try { this.local = await this.getMedia(this.video); }
-    catch { try { this.local = await this.getMedia(false); this.video = false; } catch { toast(t('allow_mic'), 3000); return this.reject(); } }
-    this.layout(); this.wake();
-    const pc = await this.createPC();
-    await pc.setRemoteDescription(this.offer); this.flushIce();
-    await pc.setLocalDescription(await pc.createAnswer());
-    this.s.emit('call:answer', { to: this.peer.id, callId: this.id, sdp: pc.localDescription });
-    this.connected();
+    const id = this.id; const alive = () => this.active && this.id === id;
+    let stream;
+    try { stream = await this.getMedia(this.video); }
+    catch { try { stream = await this.getMedia(false); this.video = false; } catch { this.accepting = false; toast(t('allow_mic'), 3000); return alive() && this.reject(); } }
+    if (!alive()) { stream.getTracks().forEach((x) => x.stop()); this.accepting = false; return; } // qo'ng'iroq qiluvchi kutish paytida qo'ydi
+    this.local = stream;
+    try {
+      this.layout(); this.wake();
+      const pc = await this.createPC();
+      if (!alive()) { try { pc.close(); } catch {} return; }
+      await pc.setRemoteDescription(this.offer); this.flushIce();
+      await pc.setLocalDescription(await pc.createAnswer());
+      if (!alive()) return;
+      this.s.emit('call:answer', { to: this.peer.id, callId: this.id, sdp: pc.localDescription });
+      this.connected();
+    } catch (e) { console.warn('call accept', e); toast(t('call_failed'), 3000); this.end(); }
+    finally { this.accepting = false; }
   },
   reject() { this.s.emit('call:reject', { to: this.peer.id, callId: this.id }); this.finish('rejected'); },
   connected() {
@@ -1818,10 +1845,16 @@ const Call = {
     this.startedAt = Date.now(); $('#call').classList.remove('ringing');
     this.layout(); this.tickStatus();
     this.timer = setInterval(() => this.tickStatus(), 1000);
-    const ready = () => { if (this.pc?.signalingState === 'stable') this.negReady = true; else setTimeout(ready, 300); };
+    const ready = () => { if (!this.active) return; if (this.pc?.signalingState === 'stable') this.negReady = true; else setTimeout(ready, 300); };
     setTimeout(ready, 300);
+    // ulanish 40 soniyada o'rnatilmasa — qo'ng'iroq osilib qolmasin
+    clearTimeout(this.connT);
+    this.connT = setTimeout(() => { if (this.active && !this.wasConnected && this.pc?.connectionState !== 'connected') { toast(t(this.hasRelay ? 'conn_lost' : 'call_need_turn'), 5000); this.end(); } }, 40000);
   },
-  tickStatus() { const st = this.pc?.connectionState; if (this.startedAt && st !== 'disconnected' && st !== 'failed') $('#call-status').textContent = fmtDur((Date.now() - this.startedAt) / 1000); },
+  tickStatus() {
+    const st = this.pc?.connectionState; if (!this.startedAt || st === 'disconnected' || st === 'failed') return;
+    $('#call-status').textContent = st === 'connected' || this.wasConnected ? fmtDur((Date.now() - this.startedAt) / 1000) : t('connecting_call');
+  },
   end() { if (!this.active) return; this.s.emit('call:end', { to: this.peer.id, callId: this.id }); this.finish(this.startedAt ? 'answered' : 'cancelled'); },
   finish(status, delay = 0) {
     if (!this.active) return;
@@ -1833,14 +1866,14 @@ const Call = {
     setTimeout(() => this.cleanup(), delay || 800);
   },
   cleanup() {
-    this.active = false; this.tone(null); clearTimeout(this.timeout); clearTimeout(this.failT); clearInterval(this.timer);
+    this.active = false; this.accepting = false; clearTimeout(this.connT); this.tone(null); clearTimeout(this.timeout); clearTimeout(this.failT); this.failT = null; clearTimeout(this.restartT); clearInterval(this.timer);
     this.local?.getTracks().forEach((x) => x.stop()); try { this.pc?.close(); } catch {}
     this.pc = null; this.local = null;
     $('#call').classList.add('hidden');
     ['#remote-video', '#remote-audio', '#local-video'].forEach((s) => ($(s).srcObject = null));
     this.wakeLock?.release?.().catch(() => {}); this.wakeLock = null;
   },
-  reset() { this.startedAt = null; this.remoteVideo = false; this.iceQ = []; this.muted = false; this.facing = 'user'; $('#c-mute').classList.remove('off'); $('#c-mute').innerHTML = `${icon('mic')}<span>${t('mic')}</span>`; },
+  reset() { this.startedAt = null; this.wasConnected = false; this.restarts = 0; clearTimeout(this.restartT); this.failT = null; this.remoteVideo = false; this.iceQ = []; this.muted = false; this.facing = 'user'; $('#c-mute').classList.remove('off'); $('#c-mute').innerHTML = `${icon('mic')}<span>${t('mic')}</span>`; },
   controls(incoming) { $('#call-incoming').classList.toggle('hidden', !incoming); $('#call-controls').classList.toggle('hidden', incoming); },
   async wake() { try { this.wakeLock = await navigator.wakeLock?.request('screen'); } catch {} },
   toggleMute() {
@@ -1882,6 +1915,9 @@ const Call = {
   },
 };
 $('#c-end').onclick = () => Call.end();
+// internet qaytsa yoki signal serveriga qayta ulansa — faol qo'ng'iroqni tiklash
+window.addEventListener('online', () => { if (Call.active) setTimeout(() => Call.iceRestart(), 800); });
+navigator.connection?.addEventListener?.('change', () => { if (Call.active && Call.pc?.connectionState !== 'connected') Call.iceRestart(); });
 $('#c-accept').onclick = () => Call.accept();
 $('#c-reject').onclick = () => Call.reject();
 $('#c-mute').onclick = () => Call.toggleMute();
@@ -3220,9 +3256,10 @@ document.addEventListener('pointerdown', () => Ring.unlock(), { once: true, capt
 {
   const baseTone = Call.tone.bind(Call);
   Call.tone = function (kind) {
-    baseTone(null); Ring.stop();
+    baseTone(null); Ring.stop(); Ring.cur = kind || null;
     if (!kind) return;
-    Ring.play(kind === 'ring' ? 'in' : 'out').catch(() => baseTone(kind)); // ruxsat bo'lmasa — eski signal
+    Ring.cur = kind;
+    Ring.play(kind === 'ring' ? 'in' : 'out').catch((e) => { if (e?.name !== 'AbortError' && Ring.cur === kind && Call.active && !Call.startedAt) baseTone(kind); }); // ruxsat bo'lmasa — eski signal
   };
 }
 
@@ -3708,28 +3745,82 @@ async function pwaInstall() {
   if (installPrompt) { closeModal(); installPrompt.prompt(); await installPrompt.userChoice.catch(() => {}); installPrompt = null; return true; }
   return false;
 }
+// Ilovani o'rnatish: APK fayl emas — brauzerning o'zi bitta bosishda haqiqiy ilova sifatida o'rnatadi (Android Chrome: WebAPK)
+const INST = {
+  uz: { title: 'Birga ilovasini o‘rnatish', btn: 'O‘rnatish', sub: 'Fayl yuklab olinmaydi · bir necha soniyada o‘rnatiladi · ilovalar ro‘yxatida paydo bo‘ladi',
+    done: 'Birga allaqachon o‘rnatilgan — uni bosh ekrandan oching', open_chrome: 'Chrome’da ochish', chrome_hint: 'Eng oson yo‘l — Chrome brauzerida ochib, “O‘rnatish”ni bosish.',
+    samsung: ['Pastdagi menyu (<b>≡</b>) ni oching', '<b>“Sahifani qo‘shish” → “Bosh ekran”</b> ni tanlang', '<b>Qo‘shish</b> ni bosing'],
+    desktop: ['Manzil satrining o‘ng tomonidagi <b>⊕ O‘rnatish</b> belgisini bosing', '<b>O‘rnatish</b> ni tasdiqlang'],
+    other: 'Boshqa usul: Android ilova fayli (APK)', banner: 'Birga’ni telefoningizga ilova qilib o‘rnating', banner_btn: 'O‘rnatish' },
+  ru: { title: 'Установить Birga', btn: 'Установить', sub: 'Без скачивания файлов · за пару секунд · появится в списке приложений',
+    done: 'Birga уже установлен — откройте его с главного экрана', open_chrome: 'Открыть в Chrome', chrome_hint: 'Проще всего — открыть в Chrome и нажать «Установить».',
+    samsung: ['Откройте меню (<b>≡</b>) внизу', 'Выберите <b>«Добавить страницу» → «Главный экран»</b>', 'Нажмите <b>Добавить</b>'],
+    desktop: ['Нажмите значок <b>⊕ Установить</b> справа в адресной строке', 'Подтвердите <b>Установить</b>'],
+    other: 'Другой способ: файл приложения Android (APK)', banner: 'Установите Birga как приложение', banner_btn: 'Установить' },
+  en: { title: 'Install Birga', btn: 'Install', sub: 'No file download · installs in seconds · appears in your app list',
+    done: 'Birga is already installed — open it from your home screen', open_chrome: 'Open in Chrome', chrome_hint: 'Easiest: open in Chrome and tap “Install”.',
+    samsung: ['Open the menu (<b>≡</b>) at the bottom', 'Choose <b>“Add page to” → “Home screen”</b>', 'Tap <b>Add</b>'],
+    desktop: ['Click the <b>⊕ Install</b> icon at the right of the address bar', 'Confirm <b>Install</b>'],
+    other: 'Other way: Android app file (APK)', banner: 'Install Birga as an app', banner_btn: 'Install' },
+};
 async function installApp() {
-  const L = APK_T[LANG] || APK_T.en;
-  const hero = `<div class="install-hero"><img src="/icons/icon-192.png" alt=""><div><b>Birga</b><br><small class="muted">${isAndroid() || !isIOS() ? L.size : esc(location.host)}</small></div></div>`;
+  const I = INST[LANG] || INST.en, L = APK_T[LANG] || APK_T.en;
+  const ua = navigator.userAgent;
+  const hero = `<div class="install-hero"><img src="/icons/icon-192.png" alt=""><div><b>Birga</b><br><small class="muted">${esc(I.sub)}</small></div></div>`;
+  const apkLink = isAndroid() ? `<button class="link-btn inst-apk" id="inst-apk">${esc(I.other)}</button>` : '';
+  const bindApk = () => $('#inst-apk')?.addEventListener('click', () => {
+    modal(`<h3>${L.title} <button class="icon-btn" data-close>${icon('close')}</button></h3>
+      <a class="btn-primary" href="${APK_URL}" download="Birga.apk" style="display:flex;align-items:center;justify-content:center;gap:10px;text-decoration:none">${icon('download')}<span>${L.btn}</span></a>
+      <ol class="install-steps">${L.steps.map((x) => `<li><span>${x}</span></li>`).join('')}</ol>`);
+  });
+  if (isStandalone()) { toast(I.done, 3000); return; }
+  if (installPrompt) { // Chrome: bitta bosish
+    modal(`<h3>${I.title} <button class="icon-btn" data-close>${icon('close')}</button></h3>${hero}
+      <button class="btn-primary inst-go" id="inst-go">${icon('download')}<span>${I.btn}</span></button>${apkLink}`);
+    $('#inst-go').onclick = () => pwaInstall();
+    bindApk(); return;
+  }
   if (isIOS()) {
-    const notSafari = /crios|fxios|edgios|opios/i.test(navigator.userAgent);
-    modal(`<h3>${t('install_title')} <button class="icon-btn" data-close>${icon('close')}</button></h3>${hero}
-      <p class="muted small">${L.iosOnly}</p>
+    const notSafari = /crios|fxios|edgios|opios/i.test(ua);
+    modal(`<h3>${I.title} <button class="icon-btn" data-close>${icon('close')}</button></h3>${hero}
       ${notSafari ? `<p class="muted">${t('ios_safari_only')}</p>` : `<ol class="install-steps">${t('ios_steps').map((x) => `<li><span>${x}</span></li>`).join('')}</ol>`}
       <button class="btn-primary" data-close>${t('got_it')}</button>`);
     return;
   }
-  modal(`<h3>${L.title} <button class="icon-btn" data-close>${icon('close')}</button></h3>${hero}
-    <a class="btn-primary" href="${APK_URL}" download="Birga.apk" id="apk-dl" style="display:flex;align-items:center;justify-content:center;gap:10px;text-decoration:none">${icon('download')}<span>${L.btn}</span></a>
-    <ol class="install-steps">${L.steps.map((x) => `<li><span>${x}</span></li>`).join('')}</ol>
-    <button class="btn-ghost" id="pwa-alt">${icon('globe')}<span>${L.alt}</span></button>`);
-  $('#apk-dl').onclick = () => toast(L.steps[1].replace(/<[^>]+>/g, ''), 5000);
-  $('#pwa-alt').onclick = async () => {
-    if (await pwaInstall()) return;
-    modal(`<h3>${t('install_title')} <button class="icon-btn" data-close>${icon('close')}</button></h3>${hero}
-      <ol class="install-steps">${t('and_steps').map((x) => `<li><span>${x}</span></li>`).join('')}</ol><button class="btn-primary" data-close>${t('got_it')}</button>`);
-  };
+  if (isAndroid()) {
+    const samsung = /SamsungBrowser/i.test(ua), chrome = /Chrome\//.test(ua) && !/EdgA|SamsungBrowser|YaBrowser|OPR|Firefox|MiuiBrowser|UCBrowser/i.test(ua);
+    const steps = samsung ? I.samsung : t('and_steps');
+    modal(`<h3>${I.title} <button class="icon-btn" data-close>${icon('close')}</button></h3>${hero}
+      ${chrome || samsung ? '' : `<p class="muted">${esc(I.chrome_hint)}</p><a class="btn-primary" style="display:flex;align-items:center;justify-content:center;gap:10px;text-decoration:none;margin-bottom:12px" href="intent://${location.host}${location.pathname}#Intent;scheme=https;package=com.android.chrome;end">${icon('globe')}<span>${esc(I.open_chrome)}</span></a>`}
+      <ol class="install-steps">${steps.map((x) => `<li><span>${x}</span></li>`).join('')}</ol>${apkLink}`);
+    bindApk(); return;
+  }
+  modal(`<h3>${I.title} <button class="icon-btn" data-close>${icon('close')}</button></h3>${hero}
+    <ol class="install-steps">${I.desktop.map((x) => `<li><span>${x}</span></li>`).join('')}</ol><button class="btn-primary" data-close>${t('got_it')}</button>`);
 }
+// Telefon brauzerida ochilgan bo'lsa — chatlar tepasida "O'rnatish" taklifi (7 kunga yopsa bo'ladi)
+function installBanner() {
+  const I = INST[LANG] || INST.en;
+  let bar = $('#inst-bar');
+  const hideUntil = Number(store.get('birga_inst_hide')) || 0;
+  const show = !isStandalone() && (isAndroid() || isIOS()) && Date.now() > hideUntil && S.me;
+  if (!show) { bar?.remove(); return; }
+  if (!bar) { $('#chat-list')?.insertAdjacentHTML('beforebegin', `<div class="inst-bar" id="inst-bar"></div>`); bar = $('#inst-bar'); if (!bar) return; }
+  bar.innerHTML = `<img src="/icons/icon-192.png" alt=""><span>${esc(I.banner)}</span><button class="ib-go">${esc(I.banner_btn)}</button><button class="ib-x" aria-label="close">${icon('close')}</button>`;
+  bar.querySelector('.ib-go').onclick = () => installApp();
+  bar.querySelector('.ib-x').onclick = () => { store.set('birga_inst_hide', String(Date.now() + 7 * 864e5)); bar.remove(); };
+}
+window.addEventListener('beforeinstallprompt', () => setTimeout(installBanner, 0));
+window.addEventListener('appinstalled', () => $('#inst-bar')?.remove());
+document.head.insertAdjacentHTML('beforeend', `<style>
+.inst-go { display: flex; align-items: center; justify-content: center; gap: 10px; height: 54px; font-size: 17px; }
+.inst-apk { display: block; width: 100%; margin-top: 14px; text-align: center; font-size: 13.5px; color: var(--muted); }
+.inst-bar { display: flex; align-items: center; gap: 10px; margin: 8px 12px 4px; padding: 10px 10px 10px 12px; border-radius: 16px; background: linear-gradient(135deg, rgba(0,168,214,.12), rgba(138,43,226,.12)); }
+.inst-bar img { width: 36px; height: 36px; border-radius: 10px; }
+.inst-bar span { flex: 1; font-size: 13.5px; font-weight: 600; line-height: 1.3; }
+.inst-bar .ib-go { height: 34px; padding: 0 14px; border-radius: 17px; background: var(--grad); color: #fff; font-weight: 800; font-size: 13px; flex: none; }
+.inst-bar .ib-x { width: 28px; height: 28px; display: grid; place-items: center; color: var(--muted); flex: none; } .inst-bar .ib-x svg { width: 16px; height: 16px; }
+</style>`);
 $$('[data-install]').forEach((b) => (b.onclick = installApp));
 refreshInstall();
 

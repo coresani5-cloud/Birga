@@ -67,6 +67,14 @@ function iceServersFor(uid) {
     list.push({ urls, username: user, credential });
   }
   if (process.env.TURN_URL) list.push({ urls: process.env.TURN_URL.split(',').map((s) => s.trim()), username: process.env.TURN_USER, credential: process.env.TURN_PASS });
+  // O'z TURN serveri yo'q bo'lsa — bepul ochiq "Open Relay" (metered.ca, oyiga ~20 GB): turli operatorlar/NAT orqasida ham ulanish uchun.
+  // 80/443 portlari — ko'p mobil tarmoqlar va ofis Wi-Fi'lari faqat shularni ochiq qoldiradi. O'chirish: PUBLIC_TURN=0
+  if (!process.env.TURN_SECRET && !process.env.TURN_URL && process.env.PUBLIC_TURN !== '0') {
+    const h = process.env.PUBLIC_TURN_HOST || 'staticauth.openrelay.metered.ca';
+    const user = `${Math.floor(now() / 1000) + 12 * 3600}:birga${uid}`;
+    const credential = crypto.createHmac('sha1', process.env.PUBLIC_TURN_SECRET || 'openrelayprojectsecret').update(user).digest('base64');
+    list.push({ urls: [`turn:${h}:80`, `turn:${h}:80?transport=tcp`, `turn:${h}:443`, `turn:${h}:443?transport=tcp`, `turns:${h}:443?transport=tcp`], username: user, credential });
+  }
   return list;
 }
 // Cloudflare TURN (oyiga 1000 GB bepul): CF_TURN_KEY_ID + CF_TURN_API_TOKEN
@@ -132,7 +140,11 @@ app.get('/api/version', (req, res) => { res.set('Cache-Control', 'no-store'); re
 const PN_DIR = path.join(__dirname, 'node_modules', 'libphonenumber-js');
 app.get('/vendor/phone.js', (req, res) => res.sendFile(path.join(PN_DIR, 'bundle', 'libphonenumber-mobile.js'), { maxAge: '7d' }));
 app.get('/vendor/phone-examples.json', (req, res) => res.sendFile(path.join(PN_DIR, 'examples.mobile.json'), { maxAge: '7d' }));
-app.use('/uploads', express.static(UPLOAD_DIR, { maxAge: '30d', immutable: true }));
+// Yuklangan fayllar hech qachon sayt nomidan skript sifatida ishlamasin (HTML/SVG orqali XSS'dan himoya)
+app.use('/uploads', express.static(UPLOAD_DIR, { maxAge: '30d', immutable: true, setHeaders: (res, p) => {
+  res.set({ 'Content-Security-Policy': "sandbox; default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'", 'X-Content-Type-Options': 'nosniff' });
+  if (!/\.(jpe?g|png|gif|webp|avif|heic|mp4|webm|mov|m4a|mp3|ogg|oga|opus|wav|aac)$/i.test(p)) res.set('Content-Disposition', 'attachment');
+} }));
 
 // IP bo'yicha cheklov
 const hits = new Map();
@@ -144,6 +156,8 @@ function rateLimit(key, max, windowMs) {
     arr.push(t); hits.set(k, arr); next();
   };
 }
+
+function rateOk(k, max, windowMs) { const t = now(); const arr = (hits.get(k) || []).filter((x) => t - x < windowMs); if (arr.length >= max) return false; arr.push(t); hits.set(k, arr); return true; }
 
 const tokenFor = (u) => jwt.sign({ uid: u.id, pv: hash(u.phone).slice(0, 12) }, JWT_SECRET, { expiresIn: '365d' });
 async function userFromToken(t) {
@@ -236,7 +250,8 @@ app.get('/holat', wrap(async (req, res) => {
   } else add(process.env.RENDER ? 0 : 2, 'Fayl ombori', 'Server diski', process.env.RENDER ? 'SUPABASE_URL va SUPABASE_SERVICE_KEY qo‘shing' : '');
   add(mailer ? 1 : 0, 'Email kodi', mailer ? (process.env.BREVO_API_KEY ? 'Brevo orqali yuboriladi' : 'SMTP orqali yuboriladi') : 'TEST rejimi — kod ekranda chiqadi, istalgan odam istalgan email bilan kira oladi!', mailer ? '' : 'BREVO_API_KEY va MAIL_FROM qo‘shing');
   const turn = process.env.CF_TURN_KEY_ID || process.env.TURN_SECRET || process.env.TURN_URL;
-  add(turn ? 1 : 2, 'Qo‘ng‘iroqlar (TURN)', turn ? 'Ulangan — turli tarmoqlar orasida ham ulanadi' : 'Ulanmagan — ko‘p hollarda ishlaydi, lekin ba’zi mobil tarmoqlarda qo‘ng‘iroq ulanmasligi mumkin', turn ? '' : 'Cloudflare TURN (bepul): CF_TURN_KEY_ID va CF_TURN_API_TOKEN');
+  const pub = !turn && process.env.PUBLIC_TURN !== '0';
+  add(turn ? 1 : pub ? 1 : 2, 'Qo‘ng‘iroqlar (TURN)', turn ? 'Ulangan — turli tarmoqlar orasida ham ulanadi' : pub ? 'Bepul Open Relay (oyiga ~20 GB) — turli tarmoqlar orasida ham ulanadi' : 'Ulanmagan — ba’zi mobil tarmoqlarda qo‘ng‘iroq ulanmasligi mumkin', turn ? '' : 'Ko‘proq hajm: Cloudflare TURN (oyiga 1000 GB bepul): CF_TURN_KEY_ID va CF_TURN_API_TOKEN');
   add(media.available ? 1 : 2, 'Ovoz/video qayta ishlash (ffmpeg)', media.available ? 'Bor' : 'Yo‘q — ba’zi ovozli xabarlar iPhone’da ochilmasligi mumkin');
   add(push ? 1 : 2, 'Bildirishnomalar (push)', push ? 'Tayyor' : 'O‘chiq');
   add(MEDIA_DELETE ? 1 : 2, 'Media saqlash', MEDIA_DELETE ? 'Qurilmalarda; yetkazilgach serverdan o‘chadi' : 'Hammasi serverda saqlanadi (MEDIA_KEEP=1)');
@@ -267,6 +282,7 @@ const SMS_PER_COUNTRY_HOUR = Number(process.env.SMS_PER_COUNTRY_HOUR) || 300;
 const BLOCKED = new Set(String(process.env.SMS_BLOCKED_COUNTRIES || '').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean));
 
 app.post('/api/auth/send-code', rateLimit('code', 8, 3600e3), wrap(async (req, res) => {
+  if (!sms.anyReal && process.env.ALLOW_DEV_SMS !== '1') return res.status(503).json({ error: tr(req.body?.lang, 'Raqam orqali kirish o‘chirilgan — email orqali kiring', 'Вход по номеру отключён — войдите через email', 'Phone sign-in is disabled — use email') });
   const lang = req.body.lang;
   const p = parsePhone(req.body.phone);
   if (!p) return res.status(400).json({ error: tr(lang, 'Telefon raqam noto‘g‘ri. Davlat va raqamni tekshiring', 'Неверный номер. Проверьте страну и номер', 'Invalid phone number. Check the country and number') });
@@ -311,6 +327,8 @@ if (process.env.BREVO_API_KEY) {
     auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } });
 }
 app.post('/api/auth/send-email', rateLimit('email', 8, 3600e3), wrap(async (req, res) => {
+  // eski "raqam + email" usuli: begona email orqali raqamli akkauntni egallab olish mumkin edi — yopildi
+  return res.status(410).json({ error: tr(req.body?.lang, 'Bu usul o‘chirilgan — email orqali kiring', 'Этот способ отключён — войдите через email', 'This method is disabled — use email sign-in') });
   const lang = req.body.lang;
   if (!mailer) return res.status(503).json({ error: tr(lang, 'Email orqali kirish hozircha yoqilmagan', 'Вход через email пока не включён', 'Email sign-in is not enabled yet') });
   const p = parsePhone(req.body.phone);
@@ -361,7 +379,8 @@ async function issueEmailCode(req, res, key, email) {
     [key, hash(key + code), now() + 10 * 60_000, 0, now(), email]);
   await db.run('INSERT INTO sms_log(phone,ip,country,at) VALUES(?,?,?,?)', [key, req.ip, 'EMAIL', now()]);
   const out = { ok: true, email, timeout: 60 };
-  if (!mailer) out.devCode = code; // email xizmati ulanmagan — TEST rejimi
+  // email xizmati ulanmagan — TEST rejimi. Admin akkauntlari uchun kod hech qachon ekranda ko'rsatilmaydi.
+  if (!mailer && !ADMIN_EMAILS.includes(email) && process.env.DEV_CODES !== '0') out.devCode = code;
   res.json(out);
 }
 async function checkEmailCode(req, res, key) {
@@ -508,7 +527,7 @@ app.post('/api/profile/lang', auth, wrap(async (req, res) => {
 }));
 
 app.post('/api/profile/avatar/delete', auth, wrap(async (req, res) => {
-  if (req.user.avatar) storage.remove(req.user.avatar, UPLOAD_DIR);
+  if (req.user.avatar) safeRemove(req.user.avatar);
   await db.run('UPDATE users SET avatar=NULL WHERE id=?', [req.user.id]);
   const u = await getUser(req.user.id);
   broadcastUser(u);
@@ -517,7 +536,7 @@ app.post('/api/profile/avatar/delete', auth, wrap(async (req, res) => {
 app.post('/api/profile/avatar', auth, upload.single('file'), wrap(async (req, res) => {
   if (!req.file || !/^image\//.test(req.file.mimetype)) return res.status(400).json({ error: 'image required' });
   const url = await storage.save(req.file.path, req.file.mimetype);
-  if (req.user.avatar) storage.remove(req.user.avatar, UPLOAD_DIR);
+  if (req.user.avatar) safeRemove(req.user.avatar);
   await db.run('UPDATE users SET avatar=? WHERE id=?', [url, req.user.id]);
   const u = await getUser(req.user.id);
   broadcastUser(u);
@@ -798,7 +817,7 @@ app.post('/api/admin/reports/:id', auth, adminOnly, wrap(async (req, res) => {
     const m = await db.get('SELECT * FROM messages WHERE id=?', [r.message_id]);
     if (m && !m.deleted) {
       await db.run("UPDATE messages SET deleted=1, text='', file=NULL, meta=NULL WHERE id=?", [m.id]);
-      if (m.file) storage.remove(m.file, UPLOAD_DIR);
+      if (m.file) safeRemove(m.file);
       (await membersOf(m.chat_id)).forEach((u) => io.to('u' + u).emit('message:deleted', { id: m.id, chatId: m.chat_id }));
     }
   }
@@ -813,8 +832,8 @@ app.post('/api/games/score', auth, rateLimit('gscore', 600, 3600e3), wrap(async 
   const g = String(req.body?.game || ''); const sc = Math.floor(Number(req.body?.score));
   if (!GAMES.has(g) || !isFinite(sc) || sc < 0 || sc > 1e7) return res.status(400).json({ error: 'bad score' });
   const cur = await db.get('SELECT best FROM game_scores WHERE user_id=? AND game=?', [req.user.id, g]);
-  if (!cur) await db.run('INSERT INTO game_scores(user_id,game,best,plays,updated) VALUES(?,?,?,1,?)', [req.user.id, g, sc, now()]);
-  else await db.run('UPDATE game_scores SET best=CASE WHEN best<? THEN ? ELSE best END, plays=plays+1, updated=? WHERE user_id=? AND game=?', [sc, sc, now(), req.user.id, g]);
+  await db.run(`INSERT INTO game_scores(user_id,game,best,plays,updated) VALUES(?,?,?,1,?) ON CONFLICT(user_id,game) DO UPDATE SET
+    best=CASE WHEN game_scores.best<excluded.best THEN excluded.best ELSE game_scores.best END, plays=game_scores.plays+1, updated=excluded.updated`, [req.user.id, g, sc, now()]);
   const best = Math.max(sc, Number(cur?.best) || 0);
   const rank = Number((await db.get('SELECT COUNT(*) AS c FROM game_scores WHERE game=? AND best>?', [g, best])).c) + 1;
   res.json({ best, rank, record: !cur || sc > Number(cur.best) });
@@ -880,16 +899,16 @@ app.post('/api/me/delete', auth, rateLimit('delacc', 5, 3600e3), wrap(async (req
   const self = await privateChatId(uid, uid, false);
   if (self) { await db.run('DELETE FROM messages WHERE chat_id=?', [self]); await db.run('DELETE FROM chat_members WHERE chat_id=?', [self]); await db.run('DELETE FROM chats WHERE id=?', [self]); }
   const stories = await db.all('SELECT id, file FROM stories WHERE user_id=?', [uid]);
-  for (const st of stories) { await db.run('DELETE FROM story_views WHERE story_id=?', [st.id]); storage.remove(st.file, UPLOAD_DIR); }
+  for (const st of stories) { await db.run('DELETE FROM story_views WHERE story_id=?', [st.id]); safeRemove(st.file); }
   await db.run('DELETE FROM stories WHERE user_id=?', [uid]);
-  for (const r of await db.all('SELECT file FROM reels WHERE user_id=? AND file IS NOT NULL', [uid])) storage.remove(r.file, UPLOAD_DIR);
+  for (const r of await db.all('SELECT file FROM reels WHERE user_id=? AND file IS NOT NULL', [uid])) safeRemove(r.file);
   await db.run('DELETE FROM reels WHERE user_id=?', [uid]);
   await db.run('DELETE FROM story_views WHERE user_id=?', [uid]);
   await db.run('DELETE FROM contacts WHERE owner_id=? OR user_id=?', [uid, uid]);
   await db.run('DELETE FROM push_subs WHERE user_id=?', [uid]);
   await db.run('DELETE FROM reactions WHERE user_id=?', [uid]);
   if (req.user.email) await db.run('DELETE FROM codes WHERE phone=?', ['mail:' + req.user.email]).catch(() => {});
-  if (req.user.avatar) storage.remove(req.user.avatar, UPLOAD_DIR);
+  if (req.user.avatar) safeRemove(req.user.avatar);
   // profil anonimlashtiriladi (shaxsiy chatlardagi yozishmalar suhbatdoshda "O'chirilgan akkaunt" nomi bilan qoladi)
   await db.run("UPDATE users SET phone=?, email=NULL, name=NULL, username=NULL, bio='', avatar=NULL, search='', deleted=1, last_seen=? WHERE id=?", ['deleted:' + uid + ':' + t, t, uid]);
   const u = await getUser(uid);
@@ -978,6 +997,7 @@ app.post('/api/upload', auth, upload.single('file'), wrap(async (req, res) => {
   }
   const url = await storage.save(file, mime);
   const alt = altPath ? await storage.save(altPath, req.file.mimetype) : null;
+  for (const u of [url, alt]) if (u) await db.run('INSERT INTO uploads(url,user_id,at) VALUES(?,?,?) ON CONFLICT(url) DO NOTHING', [u, req.user.id, now()]).catch(() => {});
   res.json({ url, alt, mime, size, duration, name: req.file.originalname });
 }));
 
@@ -1004,7 +1024,7 @@ app.get('/api/stories', auth, wrap(async (req, res) => {
 
 app.post('/api/stories', auth, wrap(async (req, res) => {
   const { file, mime } = req.body;
-  if (!storage.isOurs(file) || !/^(image|video)\//.test(String(mime))) return res.status(400).json({ error: 'bad file' });
+  if (!storage.isOurs(file) || !/^(image|video)\//.test(String(mime)) || !(await fileAllowed(file, req.user.id))) return res.status(400).json({ error: 'bad file' });
   const id = await db.insert('INSERT INTO stories(user_id,file,mime,caption,duration,pinned,created_at,expires_at) VALUES(?,?,?,?,?,?,?,?)',
     [req.user.id, file, mime, String(req.body.caption || '').slice(0, 300), Number(req.body.duration) || null, req.body.pinned === false ? 0 : 1, now(), now() + STORY_TTL]);
   (await peersOf(req.user.id)).concat(req.user.id).forEach((p) => io.to('u' + p).emit('story:new', { userId: req.user.id }));
@@ -1033,7 +1053,7 @@ app.delete('/api/stories/:id', auth, wrap(async (req, res) => {
   if (!s || s.user_id !== req.user.id) return res.status(403).json({ error: 'forbidden' });
   await db.run('DELETE FROM story_views WHERE story_id=?', [s.id]);
   await db.run('DELETE FROM stories WHERE id=?', [s.id]);
-  storage.remove(s.file, UPLOAD_DIR);
+  safeRemove(s.file);
   res.json({ ok: true });
 }));
 
@@ -1056,7 +1076,7 @@ app.post('/api/reels', auth, rateLimit('reelpost', 30, 3600e3), wrap(async (req,
     row = ['ig', null, null, m[1].toLowerCase().startsWith('reel') ? 'reel' : m[1].toLowerCase(), m[2], null];
   } else {
     const { file, mime } = req.body;
-    if (!storage.isOurs(file) || !/^video\//.test(String(mime))) return res.status(400).json({ error: 'bad file' });
+    if (!storage.isOurs(file) || !/^video\//.test(String(mime)) || !(await fileAllowed(file, req.user.id))) return res.status(400).json({ error: 'bad file' });
     row = ['video', file, mime, null, null, Number(req.body.duration) || null];
   }
   const id = await db.insert('INSERT INTO reels(user_id,kind,file,mime,ig_kind,ig_code,duration,caption,created_at) VALUES(?,?,?,?,?,?,?,?,?)', [req.user.id, ...row, caption, now()]);
@@ -1066,7 +1086,7 @@ app.delete('/api/reels/:id', auth, wrap(async (req, res) => {
   const r = await db.get('SELECT * FROM reels WHERE id=?', [Number(req.params.id)]);
   if (!r || r.user_id !== req.user.id) return res.status(403).json({ error: 'forbidden' });
   await db.run('DELETE FROM reels WHERE id=?', [r.id]);
-  if (r.file) storage.remove(r.file, UPLOAD_DIR);
+  if (r.file) safeRemove(r.file);
   res.json({ ok: true });
 }));
 
@@ -1134,7 +1154,7 @@ app.post('/api/chats/:id/avatar', auth, upload.single('file'), wrap(async (req, 
   if (!chat || chat.type === 'private' || !isAdmin(await roleOf(chat.id, req.user.id))) return res.status(403).json({ error: 'forbidden' });
   if (!req.file || !/^image\//.test(req.file.mimetype)) return res.status(400).json({ error: 'image required' });
   const url = await storage.save(req.file.path, req.file.mimetype);
-  if (chat.avatar) storage.remove(chat.avatar, UPLOAD_DIR);
+  if (chat.avatar) safeRemove(chat.avatar);
   await db.run('UPDATE chats SET avatar=? WHERE id=?', [url, chat.id]);
   for (const m of await membersOf(chat.id)) io.to('u' + m).emit('chat:update', await chatSummary(chat.id, m));
   res.json(await chatSummary(chat.id, req.user.id));
@@ -1189,8 +1209,8 @@ app.post('/api/chats/:id/delete', auth, wrap(async (req, res) => {
   await db.run('DELETE FROM messages WHERE chat_id=?', [chat.id]);
   await db.run('DELETE FROM chat_members WHERE chat_id=?', [chat.id]);
   await db.run('DELETE FROM chats WHERE id=?', [chat.id]);
-  files.forEach((f) => storage.remove(f.file, UPLOAD_DIR));
-  if (chat.avatar) storage.remove(chat.avatar, UPLOAD_DIR);
+  files.forEach((f) => safeRemove(f.file));
+  if (chat.avatar) safeRemove(chat.avatar);
   members.forEach((m) => io.to('u' + m).emit('chat:removed', { chatId: chat.id }));
   res.json({ ok: true });
 }));
@@ -1270,10 +1290,12 @@ const server = http.createServer(app);
 const io = new Server(server, { maxHttpBufferSize: 1e6, pingInterval: 20000, pingTimeout: 25000 });
 
 async function broadcastUser(raw) {
-  const u = publicUser(raw);
-  const peers = await peersOf(raw.id);
-  peers.forEach((p) => io.to('u' + p).emit('user:update', u));
-  io.to('u' + raw.id).emit('user:update', publicUser(raw, true));
+  try {
+    const u = publicUser(raw);
+    const peers = await peersOf(raw.id);
+    peers.forEach((p) => io.to('u' + p).emit('user:update', u));
+    io.to('u' + raw.id).emit('user:update', publicUser(raw, true));
+  } catch (e) { console.error('broadcastUser:', e.message); }
 }
 
 const PREVIEW = {
@@ -1326,6 +1348,23 @@ io.use(async (socket, next) => {
 const MSG_TYPES = new Set(['text', 'image', 'video', 'voice', 'round', 'file', 'sticker', 'gif', 'location']);
 const NO_FILE = new Set(['text', 'sticker', 'gif', 'location']);
 // Xabar yuborish huquqi: kanalda faqat admin, guruh/shaxsiyda a'zolar
+// Fayllar: kim yuklagani yoziladi; faylni boshqa joyda ishlatilayotgan bo'lsa o'chirilmaydi (uzatilgan nusxalar, hikoyalar...)
+async function fileAllowed(url, uid) {
+  const row = await db.get('SELECT user_id FROM uploads WHERE url=?', [url]).catch(() => null);
+  return !row || Number(row.user_id) === Number(uid); // eski (yozuvsiz) fayllar — ruxsat
+}
+async function fileInUse(url) {
+  if (!url) return false;
+  const q = async (sql) => !!(await db.get(sql, [url]).catch(() => null));
+  return (await q('SELECT 1 AS x FROM messages WHERE file=? AND deleted=0 AND gone=0 LIMIT 1')) || (await q('SELECT 1 AS x FROM stories WHERE file=? LIMIT 1'))
+    || (await q('SELECT 1 AS x FROM reels WHERE file=? LIMIT 1')) || (await q('SELECT 1 AS x FROM users WHERE avatar=? LIMIT 1')) || (await q('SELECT 1 AS x FROM chats WHERE avatar=? LIMIT 1'));
+}
+// biroz kechiktirib tekshiriladi — chaqirgan joy bazani (o'chirish/yangilash) yangilab ulgursin
+function safeRemove(url) {
+  if (!url) return;
+  setTimeout(async () => { try { if (!(await fileInUse(url))) { await storage.remove(url, UPLOAD_DIR); await db.run('DELETE FROM uploads WHERE url=?', [url]).catch(() => {}); } } catch (e) { console.error('remove:', e.message); } }, 3000).unref?.();
+}
+
 // Bloklash: blocker -> blocked
 const isBlocked = async (blocker, blocked) => !!(await db.get('SELECT 1 AS x FROM blocks WHERE owner_id=? AND user_id=?', [blocker, blocked]));
 async function privatePeer(chatId, uid) {
@@ -1365,7 +1404,7 @@ io.on('connection', async (socket) => {
   socket.emit('app:version', { v: APP_VERSION });
   countUsers().then((n) => socket.emit('stats:users', { n })).catch(() => {});
   online.set(uid, (online.get(uid) || 0) + 1);
-  await db.run('UPDATE users SET last_seen=? WHERE id=?', [now(), uid]).catch(() => {});
+  db.run('UPDATE users SET last_seen=? WHERE id=?', [now(), uid]).catch(() => {}); // kutilmaydi: hodisalar darhol qabul qilinishi kerak
   getUser(uid).then((u) => u && broadcastUser(u)).catch(() => {});
 
   const pc = pendingCalls.get(uid);
@@ -1382,7 +1421,7 @@ io.on('connection', async (socket) => {
     if (!MSG_TYPES.has(p?.type) || !(await canPost(chatId, uid))) return ack?.({ error: 'forbidden' });
     const text = String(p.text || '').slice(0, 4096);
     if (p.type === 'text' && !text.trim()) return ack?.({ error: 'empty' });
-    const file = storage.isOurs(p.file) ? p.file : null;
+    const file = storage.isOurs(p.file) && (await fileAllowed(p.file, uid)) ? p.file : null; // faqat o'zi yuklagan fayl
     if (!NO_FILE.has(p.type) && !file) return ack?.({ error: 'no file' });
     if (p.type === 'sticker' && !(p.meta?.e)) return ack?.({ error: 'bad sticker' });
     if (p.type === 'gif' && !cleanMeta({ gif: p.meta?.gif })) return ack?.({ error: 'bad gif' });
@@ -1410,6 +1449,7 @@ io.on('connection', async (socket) => {
       const fwd = src.meta?.fwd || (srcChat.type === 'channel' ? { name: srcChat.title } : { name: (await getUser(m.sender_id))?.name, uid: m.sender_id });
       for (const cid of targets) {
         if (!(await canPost(cid, uid))) continue;
+        const peerId = await privatePeer(cid, uid); if (peerId && ((await isBlocked(peerId, uid)) || (await isBlocked(uid, peerId)))) continue;
         await saveMessage(cid, uid, { type: m.type, text: m.text, file: m.file, mime: m.mime, size: m.size, duration: m.duration }, { ...(src.meta || {}), fwd });
         sent++;
       }
@@ -1432,7 +1472,8 @@ io.on('connection', async (socket) => {
   on(socket, 'message:edit', async ({ id, text } = {}) => {
     const m = await db.get('SELECT * FROM messages WHERE id=?', [Number(id) || 0]);
     const t = String(text || '').slice(0, 4096);
-    if (!m || m.sender_id !== uid || m.deleted || m.type === 'call' || (m.type === 'text' && !t.trim())) return;
+    if (!m || m.sender_id !== uid || m.deleted || m.type === 'call' || m.type === 'service' || (m.type === 'text' && !t.trim())) return;
+    if (!(await canPost(m.chat_id, uid))) return;
     await db.run('UPDATE messages SET text=?, edited=1 WHERE id=?', [t, m.id]);
     const msg = fmtMsg(await db.get('SELECT * FROM messages WHERE id=?', [m.id]));
     (await membersOf(m.chat_id)).forEach((u) => io.to('u' + u).emit('message:edited', { message: msg }));
@@ -1452,8 +1493,8 @@ io.on('connection', async (socket) => {
     await db.run("UPDATE messages SET deleted=1, text='', file=NULL, meta=NULL WHERE id=?", [m.id]);
     await db.run('DELETE FROM reactions WHERE message_id=?', [m.id]).catch(() => {});
     ack?.({ ok: true });
-    if (m.file) storage.remove(m.file, UPLOAD_DIR);
-    try { const alt = JSON.parse(m.meta || '{}').alt; if (alt) storage.remove(alt, UPLOAD_DIR); } catch {}
+    if (m.file) safeRemove(m.file);
+    try { const alt = JSON.parse(m.meta || '{}').alt; if (alt) safeRemove(alt); } catch {}
     (await membersOf(m.chat_id)).forEach((u) => io.to('u' + u).emit('message:deleted', { id: m.id, chatId: m.chat_id }));
   });
 
@@ -1491,13 +1532,14 @@ io.on('connection', async (socket) => {
   ['call:answer', 'call:reject', 'call:end', 'call:busy'].forEach((ev) => socket.on(ev, (p) => {
     clearPending(p);
     if (p?.to) io.to('u' + p.to).emit(ev, { ...p, from: uid });
-    if (ev === 'call:answer' || ev === 'call:reject') socket.to('u' + uid).emit('call:handled', { callId: p?.callId });
+    if (ev === 'call:answer' || ev === 'call:reject' || ev === 'call:busy') socket.to('u' + uid).emit('call:handled', { callId: p?.callId });
   }));
   ['call:ringing', 'call:media', 'call:renego'].forEach((ev) => socket.on(ev, (p) => { if (p?.to) io.to('u' + p.to).emit(ev, { ...p, from: uid }); }));
 
   on(socket, 'call:log', async ({ chatId, peerId, video, duration, status } = {}) => {
+    if (!rateOk('calllog:' + uid, 30, 3600e3)) return;
     let cid = Number(chatId);
-    if (!cid || !(await isMember(cid, uid))) { if (!(await getUser(peerId))) return; cid = await privateChatId(uid, Number(peerId)); }
+    if (!cid || !(await isMember(cid, uid)) || !(await privatePeer(cid, uid))) { const pu = await getUser(peerId); if (!pu || pu.id === uid) return; cid = await privateChatId(uid, pu.id); }
     const id = await db.insert('INSERT INTO messages(chat_id,sender_id,type,text,duration,meta,created_at) VALUES(?,?,?,?,?,?,?)',
       [cid, uid, 'call', '', Number(duration) || 0, JSON.stringify({ video: !!video, status: String(status || '') }), now()]);
     const msg = fmtMsg(await db.get('SELECT * FROM messages WHERE id=?', [id]));
@@ -1524,7 +1566,7 @@ setInterval(async () => {
     await db.run('DELETE FROM sms_log WHERE at<?', [t - 7 * 24 * 3600e3]);
     await db.run('DELETE FROM codes WHERE expires<?', [t - 3600e3]);
     const old = await db.all('SELECT id, file FROM stories WHERE pinned=0 AND expires_at<?', [t]);
-    for (const s of old) { await db.run('DELETE FROM story_views WHERE story_id=?', [s.id]); await db.run('DELETE FROM stories WHERE id=?', [s.id]); storage.remove(s.file, UPLOAD_DIR); }
+    for (const s of old) { await db.run('DELETE FROM story_views WHERE story_id=?', [s.id]); await db.run('DELETE FROM stories WHERE id=?', [s.id]); safeRemove(s.file); }
     await db.run('DELETE FROM media_acks WHERE message_id IN (SELECT id FROM messages WHERE gone=1)');
     scheduleSweep(1000);
   } catch (e) { console.error('cleanup:', e.message); }
@@ -1616,6 +1658,7 @@ async function extraSchema() {
   await db.run('CREATE INDEX IF NOT EXISTS idx_react_msg ON reactions(message_id)');
   await db.run('CREATE TABLE IF NOT EXISTS hidden_messages(user_id BIGINT, message_id BIGINT, at BIGINT, PRIMARY KEY(user_id, message_id))');
   await db.run('CREATE TABLE IF NOT EXISTS blocks(owner_id BIGINT, user_id BIGINT, at BIGINT, PRIMARY KEY(owner_id, user_id))');
+  await db.run('CREATE TABLE IF NOT EXISTS uploads(url TEXT PRIMARY KEY, user_id BIGINT, at BIGINT)');
   await db.run(`CREATE TABLE IF NOT EXISTS reports(id ${db.kind === 'postgres' ? 'BIGSERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'}, reporter_id BIGINT, user_id BIGINT, message_id BIGINT, chat_id BIGINT,
     reason TEXT, details TEXT, snapshot TEXT, status TEXT DEFAULT 'open', created_at BIGINT, resolved_at BIGINT)`);
   await db.run('CREATE TABLE IF NOT EXISTS game_scores(user_id BIGINT, game TEXT, best BIGINT, plays BIGINT DEFAULT 0, updated BIGINT, PRIMARY KEY(user_id, game))');
@@ -1632,6 +1675,9 @@ app.use((err, req, res, next) => {
   console.error(err); res.status(err?.status || 500).json({ error: 'server' });
 });
 
+process.on('unhandledRejection', (e) => console.error('unhandledRejection:', e?.message || e));
+process.on('uncaughtException', (e) => { console.error('uncaughtException:', e?.stack || e); process.exit(1); }); // holati noma'lum — Render qayta ishga tushiradi
+
 (async () => {
   await db.init();
   await extraSchema();
@@ -1640,7 +1686,7 @@ app.use((err, req, res, next) => {
   push = await createPush(db);
   server.listen(PORT, () => {
     console.log(`\n🟣 Birga ishga tushdi: http://localhost:${PORT}`);
-    console.log(`   Baza: ${db.kind} · Fayllar: ${storage.remote ? 'Supabase Storage' : 'disk'} · SMS: ${sms.anyReal ? 'yoqilgan' : 'TEST rejimi (kod ekranda)'} · ffmpeg: ${media.available ? 'bor' : 'YO‘Q'} · TURN: ${process.env.TURN_SECRET || process.env.TURN_URL || process.env.CF_TURN_KEY_ID ? 'bor' : 'YO‘Q'}`);
+    console.log(`   Baza: ${db.kind} · Fayllar: ${storage.remote ? 'Supabase Storage' : 'disk'} · SMS: ${sms.anyReal ? 'yoqilgan' : 'TEST rejimi (kod ekranda)'} · ffmpeg: ${media.available ? 'bor' : 'YO‘Q'} · TURN: ${process.env.TURN_SECRET || process.env.TURN_URL || process.env.CF_TURN_KEY_ID ? 'bor' : process.env.PUBLIC_TURN !== '0' ? 'Open Relay (bepul)' : 'YO‘Q'}`);
     if (db.kind === 'sqlite' && process.env.RENDER) console.warn('   ⚠️  DIQQAT: Render’da DATABASE_URL yo‘q — server qayta ishga tushganda barcha profillar O‘CHADI! Supabase ulang.');
     if (!mailer) console.warn('   ⚠️  Email xizmati ulanmagan (BREVO_API_KEY) — kod ekranda ko‘rinadi (TEST rejimi).');
   });

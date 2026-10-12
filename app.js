@@ -780,14 +780,27 @@ async function loadProfileTab(u) {
 }
 
 /* ---------- orqaga tugmasi (Android) bilan oynalarni yopish ---------- */
+// Har bir ochilgan oyna tarixga bitta qadam qo'shadi: "orqaga" faqat oxirgi oynani yopadi (ilovadan chiqib ketmaydi).
 const overlays = [];
-function pushOverlay(name) { overlays.push(name); history.pushState({ ov: name }, ''); }
-function popOverlay(name) { const i = overlays.lastIndexOf(name); if (i >= 0) { overlays.splice(i, 1); if (history.state?.ov === name) history.back(); } }
+const OV_CLOSE = {}; // nom -> yopish funksiyasi (orqaga bosilganda)
+let pendingBack = 0; const pushQ = [];
+function pushOverlay(name) { overlays.push(name); if (pendingBack) pushQ.push(name); else history.pushState({ ov: name }, ''); }
+function popOverlay(name) {
+  const i = overlays.lastIndexOf(name); if (i < 0) return;
+  overlays.splice(i, 1);
+  const q = pushQ.lastIndexOf(name); if (q >= 0) { pushQ.splice(q, 1); return; }
+  if (history.state?.ov) { pendingBack++; history.back(); }
+}
 window.addEventListener('popstate', () => {
+  if (pendingBack) { pendingBack--; if (!pendingBack) while (pushQ.length) history.pushState({ ov: pushQ.shift() }, ''); return; }
   const top = overlays.pop();
+  if (!top) return;
   if (top === 'profile') { $('#profile-page').classList.add('hidden'); PP.user = null; return; }
   if (top === 'story') { Stories.close(true); return; }
-  closeChat();
+  if (top === 'map') { MapView.close(true); return; }
+  if (top === 'chat') { closeChatRaw(); return; }
+  if (top.startsWith('tab:')) { setTab.raw?.(top.slice(4)); return; }
+  OV_CLOSE[top]?.();
 });
 
 /* ======================= HIKOYALAR ======================= */
@@ -954,15 +967,16 @@ async function openChat(id) {
   if (readOnly) renderChannelBar(c);
   closePanel();
   if (c && c.type === 'group') api(`/api/chats/${id}/info`).then((info) => { info.memberList.forEach((u) => S.users.set(u.id, { ...S.users.get(u.id), ...u })); if (S.current === id) renderMessages(); }).catch(() => {});
-  if (first && matchMedia('(max-width:760px)').matches && !$('#app').classList.contains('show-chat')) history.pushState({ chat: id }, '');
+  if (matchMedia('(max-width:760px)').matches && !$('#app').classList.contains('show-chat') && !overlays.includes('chat')) pushOverlay('chat');
   $('#app').classList.add('show-chat');
   renderHeader(); renderChatList();
   if (first) $('#messages').innerHTML = '';
   await loadMessages(id);
   if (!isTouch()) $('#text').focus();
 }
-function closeChat() { $('#app').classList.remove('show-chat'); }
-$('#btn-back').onclick = () => (history.state?.chat ? history.back() : closeChat());
+function closeChatRaw() { $('#app').classList.remove('show-chat'); }
+function closeChat() { closeChatRaw(); popOverlay('chat'); }
+$('#btn-back').onclick = () => closeChat();
 
 function renderHeader() {
   const c = S.chats.get(S.current); if (!c) return;
@@ -1116,6 +1130,7 @@ function msgInner(m, c, tail, gap) {
       const cp = m.meta?.cp || emojiCp(m.meta?.e || '');
       return `<div ${attrs}><div class="sticker-wrap">${reply ? `<div class="bubble mini">${reply}</div>` : ''}${stickerImg(m.meta?.e, cp, 'sticker')}<span class="meta stk">${fmtTime(m.created_at)}<span class="tk">${ticksFor(m, c)}</span></span></div></div>`;
     }
+    case 'location': return locMsgHTML(m, attrs, reply, meta());
     case 'gif':
       return `<div ${attrs}><div class="bubble media">${reply}<video class="gif" src="${esc(m.meta?.gif || '')}" autoplay loop muted playsinline></video>${meta(true)}</div></div>`;
     default: {
@@ -2068,27 +2083,29 @@ const Speaker = {
   async set(on) {
     this.on = on; this.paint();
     const ra = $('#remote-audio'); const st = ra.srcObject;
-    this.teardown(); ra.volume = 1;
+    this.teardown();
+    // Karnay o'chiq — sokinroq (quloqqa tutib gaplashish kabi); yoqiq — eng baland
+    ra.volume = on ? 1 : 0.4;
     if (!on || !st || !st.getAudioTracks().length) { ra.muted = false; this.route(false); return; }
     try {
       const a = ctx(); if (a.state !== 'running') await a.resume().catch(() => {});
       if (a.state !== 'running') throw new Error('suspended');
       const src = a.createMediaStreamSource(st);
-      const gain = a.createGain(); gain.gain.value = 3.2;
+      const gain = a.createGain(); gain.gain.value = 4.5;
       const comp = a.createDynamicsCompressor(); // baland ovozda xirillamasligi uchun
-      comp.threshold.value = -20; comp.knee.value = 14; comp.ratio.value = 8; comp.attack.value = 0.003; comp.release.value = 0.2;
+      comp.threshold.value = -16; comp.knee.value = 10; comp.ratio.value = 6; comp.attack.value = 0.003; comp.release.value = 0.2;
       src.connect(gain); gain.connect(comp); comp.connect(a.destination);
       this.nodes = { src, gain, comp };
       ra.muted = true; // ovoz WebAudio orqali (kuchaytirilgan) chiqadi; element oqimni "tirik" ushlab turadi
       ra.play().catch(() => {});
-    } catch { this.teardown(); ra.muted = false; }
+    } catch { this.teardown(); ra.muted = false; ra.volume = 1; }
     this.route(true);
   },
   attach() { // yangi trek kelganda
     if (this.fresh) { this.fresh = false; this.on = !!Call.video; }
     this.set(this.on);
   },
-  reset() { this.teardown(); this.on = false; this.fresh = true; this.paint(); const ra = $('#remote-audio'); if (ra) ra.muted = false; },
+  reset() { this.teardown(); this.on = false; this.fresh = true; this.paint(); const ra = $('#remote-audio'); if (ra) { ra.muted = false; ra.volume = 1; } },
 };
 Speaker.init();
 {
@@ -2432,6 +2449,672 @@ function photoEditor(file) {
     });
   });
 }
+
+/* ======================= v7: BIRGA XARITA (OpenStreetMap + MapLibre, 3D, qidiruv, yo'nalish, navigatsiya) ======================= */
+try {
+  Object.assign(I18N.uz, { map: 'Xarita', map_search: 'Manzil yoki joy qidirish', my_location: 'Mening joylashuvim', dropped_pin: 'Belgilangan joy', route: 'Yo‘nalish',
+    send_chat: 'Chatga yuborish', copy_coords: 'Koordinata', share: 'Ulashish', m_car: 'Mashina', m_foot: 'Piyoda', m_bike: 'Velosiped', start_nav: 'Boshlash', steps: 'Qadamlar',
+    end_nav: 'Tugatish', from_where: 'Qayerdan', to_where: 'Qayerga', choose_point: 'Joyni qidiring yoki xaritani bosib turing', no_route: 'Yo‘nalish topilmadi', map_fail: 'Xarita xizmatiga ulanib bo‘lmadi',
+    loc_denied: 'Joylashuvga ruxsat bering (brauzer/telefon sozlamalarida)', arrived: 'Manzilga yetib keldingiz!', rerouting: 'Yo‘nalish qayta hisoblanmoqda…', fastest: 'Eng tez', location: 'Joylashuv',
+    open_map: 'Xaritada ochish', loc_sent: 'Joylashuv yuborildi', layer_map: 'Sxema', layer_sat: 'Sputnik', min: 'daq', hour: 'soat', km: 'km', m: 'm', choose_chat: 'Qaysi chatga?', eta: 'Yetib borish' });
+  Object.assign(I18N.ru, { map: 'Карта', map_search: 'Поиск адреса или места', my_location: 'Моё местоположение', dropped_pin: 'Отмеченное место', route: 'Маршрут',
+    send_chat: 'Отправить в чат', copy_coords: 'Координаты', share: 'Поделиться', m_car: 'Авто', m_foot: 'Пешком', m_bike: 'Велосипед', start_nav: 'Поехали', steps: 'Шаги',
+    end_nav: 'Завершить', from_where: 'Откуда', to_where: 'Куда', choose_point: 'Найдите место или зажмите точку на карте', no_route: 'Маршрут не найден', map_fail: 'Не удалось подключиться к картам',
+    loc_denied: 'Разрешите доступ к геопозиции в настройках', arrived: 'Вы прибыли!', rerouting: 'Перестраиваем маршрут…', fastest: 'Быстрее всего', location: 'Геопозиция',
+    open_map: 'Открыть на карте', loc_sent: 'Геопозиция отправлена', layer_map: 'Схема', layer_sat: 'Спутник', min: 'мин', hour: 'ч', km: 'км', m: 'м', choose_chat: 'В какой чат?', eta: 'Прибытие' });
+  Object.assign(I18N.en, { map: 'Map', map_search: 'Search address or place', my_location: 'My location', dropped_pin: 'Dropped pin', route: 'Directions',
+    send_chat: 'Send to chat', copy_coords: 'Coordinates', share: 'Share', m_car: 'Car', m_foot: 'Walk', m_bike: 'Bike', start_nav: 'Start', steps: 'Steps',
+    end_nav: 'End', from_where: 'From', to_where: 'To', choose_point: 'Search a place or long-press the map', no_route: 'No route found', map_fail: 'Could not reach map services',
+    loc_denied: 'Allow location access in settings', arrived: 'You have arrived!', rerouting: 'Rerouting…', fastest: 'Fastest', location: 'Location',
+    open_map: 'Open in map', loc_sent: 'Location sent', layer_map: 'Map', layer_sat: 'Satellite', min: 'min', hour: 'h', km: 'km', m: 'm', choose_chat: 'Send to which chat?', eta: 'Arrival' });
+} catch {}
+document.querySelector('symbol#i-mic')?.parentNode.insertAdjacentHTML('beforeend',
+  '<symbol id="i-map" viewBox="0 0 24 24"><path fill="currentColor" d="M9 3.2a1 1 0 0 1 .7 0L15 5.4l5.6-2.2A1 1 0 0 1 22 4v14a1 1 0 0 1-.6.9l-6 2.4a1 1 0 0 1-.7 0L9.4 19l-5.8 2.3A1 1 0 0 1 2 20.4V6.4a1 1 0 0 1 .6-.9l6-2.3h.4ZM10 5.5v11.9l4 1.6V7.1l-4-1.6Zm-2 0L4 7.1v11.8l4-1.6V5.5Zm8 1.6v11.8l4-1.6V5.5l-4 1.6Z"/></symbol>' +
+  '<symbol id="i-locate" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a1 1 0 0 1 1 1v1.1A8 8 0 0 1 19.9 11H21a1 1 0 1 1 0 2h-1.1A8 8 0 0 1 13 19.9V21a1 1 0 1 1-2 0v-1.1A8 8 0 0 1 4.1 13H3a1 1 0 1 1 0-2h1.1A8 8 0 0 1 11 4.1V3a1 1 0 0 1 1-1Zm0 4a6 6 0 1 0 0 12 6 6 0 0 0 0-12Zm0 3a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z"/></symbol>' +
+  '<symbol id="i-route" viewBox="0 0 24 24"><path fill="currentColor" d="M6 3a3 3 0 0 1 1 5.8V14a3 3 0 0 0 3 3h3.2A3 3 0 1 1 13 19h-3a5 5 0 0 1-5-5V8.8A3 3 0 0 1 6 3Zm11 0a1 1 0 0 1 .7.3l3 3a1 1 0 0 1 0 1.4l-3 3a1 1 0 0 1-1.4-1.4L17.6 8H14a1 1 0 0 0-1 1v3a1 1 0 1 1-2 0V9a3 3 0 0 1 3-3h3.6l-1.3-1.3A1 1 0 0 1 17 3Z"/></symbol>' +
+  '<symbol id="i-pinpt" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a7 7 0 0 1 7 7c0 4.8-5.3 11.2-6.3 12.4a1 1 0 0 1-1.4 0C10.3 20.2 5 13.8 5 9a7 7 0 0 1 7-7Zm0 4.3a2.7 2.7 0 1 0 0 5.4 2.7 2.7 0 0 0 0-5.4Z"/></symbol>' +
+  '<symbol id="i-layers" viewBox="0 0 24 24"><path fill="currentColor" d="M11.6 2.1a1 1 0 0 1 .8 0l9 4.5a1 1 0 0 1 0 1.8l-9 4.5a1 1 0 0 1-.8 0l-9-4.5a1 1 0 0 1 0-1.8l9-4.5Zm-8 9.5 8.4 4.2 8.4-4.2 1 .5a1 1 0 0 1 0 1.8l-9 4.5a1 1 0 0 1-.8 0l-9-4.5a1 1 0 0 1 0-1.8l1-.5Zm0 4 8.4 4.2 8.4-4.2 1 .5a1 1 0 0 1 0 1.8l-9 4.5a1 1 0 0 1-.8 0l-9-4.5a1 1 0 0 1 0-1.8l1-.5Z"/></symbol>' +
+  '<symbol id="i-swap" viewBox="0 0 24 24"><path fill="currentColor" d="M7.3 3.3a1 1 0 0 1 1.4 0l3 3a1 1 0 0 1-1.4 1.4L9 6.4V17a1 1 0 1 1-2 0V6.4L5.7 7.7a1 1 0 0 1-1.4-1.4l3-3ZM16 6a1 1 0 0 1 1 1v10.6l1.3-1.3a1 1 0 0 1 1.4 1.4l-3 3a1 1 0 0 1-1.4 0l-3-3a1 1 0 0 1 1.4-1.4l1.3 1.3V7a1 1 0 0 1 1-1Z"/></symbol>' +
+  '<symbol id="i-car" viewBox="0 0 24 24"><path fill="currentColor" d="M7.4 4h9.2a2 2 0 0 1 1.9 1.4L20 10h.5a1.5 1.5 0 0 1 1.5 1.5V17a1 1 0 0 1-1 1h-1v1a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1H7v1a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-1H3a1 1 0 0 1-1-1v-5.5A1.5 1.5 0 0 1 3.5 10H4l1.5-4.6A2 2 0 0 1 7.4 4Zm0 2-1.3 4h11.8l-1.3-4H7.4ZM6.5 12.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Zm11 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Z"/></symbol>' +
+  '<symbol id="i-walk" viewBox="0 0 24 24"><path fill="currentColor" d="M13.5 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm-2.8 5.2a2 2 0 0 1 1.6-.2l2.3.7a2 2 0 0 1 1.2 1l1.2 2.6 1.6.8a1 1 0 0 1-.9 1.8l-1.9-1a1 1 0 0 1-.4-.4l-.6-1.2-.9 3.6 2.4 2.4a1 1 0 0 1 .3.6l.7 4a1 1 0 0 1-2 .3l-.6-3.7-2-2-1.2 4.6a1 1 0 0 1-1.6.4L6.7 18a1 1 0 1 1 1.3-1.6l1.5.9 2-8.3-1.2.6-1 2.3a1 1 0 0 1-1.8-.8l1.1-2.6a1 1 0 0 1 .5-.5l1.6-.8Z"/></symbol>' +
+  '<symbol id="i-bike" viewBox="0 0 24 24"><path fill="currentColor" d="M15 3a2 2 0 1 1 0 4 2 2 0 0 1 0-4ZM5.5 12a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Zm13 0a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Zm-13 2a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Zm13 0a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5ZM10.3 7.3a1 1 0 0 1 1.3-.1l2.6 2L16 10.8a1 1 0 0 1-1.2 1.6l-1.6-1.1-1.8 1.5 1.3 1.4a1 1 0 0 1 .3.7V18a1 1 0 1 1-2 0v-2.6l-2-2.1a1 1 0 0 1 0-1.4l1.3-4.6Z"/></symbol>');
+
+document.head.insertAdjacentHTML('beforeend', `<style id="birga-v7">
+.map-page { position: fixed; inset: 0; z-index: 35; background: #e9eef3; }
+#map-canvas { position: absolute; inset: 0; }
+.map-page .mp-top { position: absolute; top: 0; left: 0; right: 0; display: flex; gap: 8px; padding: calc(10px + env(safe-area-inset-top)) 12px 8px; z-index: 3; }
+.mp-btn { width: 46px; height: 46px; border-radius: 50%; background: var(--panel, #fff); color: var(--text, #111); box-shadow: 0 2px 10px rgba(0,0,0,.18); display: grid; place-items: center; flex: none; }
+.mp-btn svg { width: 22px; height: 22px; }
+.mp-btn.on { background: var(--blue, #1F6BFF); color: #fff; }
+.mp-search { flex: 1; min-width: 0; display: flex; align-items: center; height: 46px; border-radius: 23px; background: var(--panel, #fff); box-shadow: 0 2px 10px rgba(0,0,0,.18); padding: 0 6px 0 16px; }
+.mp-search input { flex: 1; min-width: 0; border: 0; background: none; font: inherit; font-size: 15.5px; color: var(--text, #111); outline: none; }
+.mp-search button { width: 34px; height: 34px; display: grid; place-items: center; color: var(--muted); }
+.mp-search button svg { width: 18px; height: 18px; }
+.mp-results { position: absolute; top: calc(64px + env(safe-area-inset-top)); left: 12px; right: 12px; max-height: 55vh; overflow: auto; background: var(--panel, #fff); border-radius: 18px; box-shadow: 0 8px 30px rgba(0,0,0,.2); z-index: 4; }
+.mp-results button { display: flex; gap: 12px; align-items: center; width: 100%; text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line); }
+.mp-results button:last-child { border-bottom: 0; }
+.mp-results .ri { width: 36px; height: 36px; border-radius: 50%; background: var(--panel-2, #eef2f7); display: grid; place-items: center; color: var(--blue, #1F6BFF); flex: none; }
+.mp-results .ri svg { width: 18px; height: 18px; }
+.mp-results b { display: block; font-weight: 650; }
+.mp-results small { display: block; color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mp-results .rd { margin-left: auto; font-size: 12px; color: var(--muted); white-space: nowrap; padding-left: 8px; }
+.mp-results .mp-empty { padding: 16px; color: var(--muted); text-align: center; }
+.mp-side { position: absolute; right: 12px; top: calc(70px + env(safe-area-inset-top)); display: flex; flex-direction: column; gap: 10px; z-index: 2; }
+.mp-side .mp-btn { width: 44px; height: 44px; font-weight: 800; font-size: 13px; }
+.mp-locbtn { position: absolute; right: 12px; z-index: 2; bottom: calc(24px + env(safe-area-inset-bottom)); transition: bottom .2s; }
+.mp-sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; background: var(--panel, #fff); border-radius: 22px 22px 0 0; box-shadow: 0 -6px 30px rgba(0,0,0,.18); padding: 8px 16px calc(14px + env(safe-area-inset-bottom)); max-height: 62vh; overflow: auto; color: var(--text, #111); }
+.mp-sheet::before { content: ''; display: block; width: 40px; height: 4px; border-radius: 2px; background: var(--line, #ddd); margin: 0 auto 10px; }
+@media (min-width: 761px) { .mp-sheet { left: 12px; right: auto; width: 400px; bottom: 12px; border-radius: 20px; max-height: calc(100vh - 110px); } .mp-results { right: auto; width: 400px; } .map-page .mp-top { right: auto; width: 424px; } }
+.mp-place h3 { margin: 2px 0 4px; font-size: 19px; }
+.mp-place p { margin: 0 0 4px; color: var(--muted); font-size: 14px; line-height: 1.4; }
+.mp-place .coords { font-size: 12.5px; color: var(--muted); }
+.mp-acts { display: flex; gap: 8px; margin-top: 12px; overflow-x: auto; scrollbar-width: none; }
+.mp-acts button { flex: none; display: inline-flex; align-items: center; gap: 7px; height: 42px; padding: 0 16px; border-radius: 21px; font-weight: 700; background: var(--panel-2, #eef2f7); color: var(--blue, #1F6BFF); }
+.mp-acts button.pri { background: var(--blue, #1F6BFF); color: #fff; }
+.mp-acts button svg { width: 18px; height: 18px; }
+.rp-pts { display: grid; grid-template-columns: 1fr auto; gap: 6px 8px; align-items: center; }
+.rp-pts .pt { display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 12px; border-radius: 12px; background: var(--panel-2, #eef2f7); text-align: left; min-width: 0; font-weight: 600; }
+.rp-pts .pt span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.rp-pts .pt i { width: 10px; height: 10px; border-radius: 50%; flex: none; background: #1F6BFF; box-shadow: 0 0 0 3px rgba(31,107,255,.25); }
+.rp-pts .pt.to i { background: #E5484D; box-shadow: 0 0 0 3px rgba(229,72,77,.25); }
+.rp-pts .pt.empty span { color: var(--muted); font-weight: 500; }
+.rp-pts .pt.sel { outline: 2px solid var(--blue, #1F6BFF); }
+.rp-pts .sw { grid-row: 1 / span 2; grid-column: 2; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--panel-2, #eef2f7); }
+.rp-pts .sw svg { width: 20px; height: 20px; }
+.rp-modes { display: flex; gap: 6px; margin: 12px 0 8px; }
+.rp-modes button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; height: 40px; border-radius: 20px; font-weight: 700; font-size: 13.5px; background: var(--panel-2, #eef2f7); color: var(--muted); }
+.rp-modes button svg { width: 19px; height: 19px; }
+.rp-modes button.on { background: var(--blue, #1F6BFF); color: #fff; }
+.rp-alts { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+.rp-alts button { flex: none; text-align: left; padding: 10px 14px; border-radius: 14px; border: 2px solid var(--line, #ddd); min-width: 120px; }
+.rp-alts button.on { border-color: var(--blue, #1F6BFF); }
+.rp-alts b { display: block; font-size: 18px; }
+.rp-alts small { color: var(--muted); font-size: 12.5px; }
+.rp-alts .fast { color: #16A34A; font-weight: 700; font-size: 11.5px; display: block; }
+.rp-steps { margin-top: 10px; border-top: 1px solid var(--line); }
+.rp-steps div { display: flex; gap: 12px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.rp-steps svg { width: 22px; height: 22px; flex: none; color: var(--blue, #1F6BFF); }
+.rp-steps small { margin-left: auto; color: var(--muted); white-space: nowrap; padding-left: 8px; }
+.mp-msg { color: var(--muted); padding: 10px 0 2px; font-size: 14px; }
+.nav-top { position: absolute; top: 0; left: 0; right: 0; z-index: 4; padding: calc(10px + env(safe-area-inset-top)) 12px 0; }
+.nav-card { display: flex; align-items: center; gap: 14px; background: #0F7B4F; color: #fff; border-radius: 18px; padding: 14px 16px; box-shadow: 0 6px 24px rgba(0,0,0,.25); }
+.nav-card svg { width: 40px; height: 40px; flex: none; }
+.nav-card b { display: block; font-size: 26px; line-height: 1.1; }
+.nav-card span { font-size: 16px; opacity: .95; }
+.nav-bot { display: flex; align-items: center; gap: 12px; }
+.nav-bot .nb-info { flex: 1; }
+.nav-bot .nb-info b { font-size: 20px; color: #0F7B4F; display: block; }
+.nav-bot .nb-info small { color: var(--muted); font-size: 14px; }
+.nav-bot button { height: 46px; padding: 0 20px; border-radius: 23px; background: var(--danger, #E5484D); color: #fff; font-weight: 800; }
+.me-dot { width: 20px; height: 20px; border-radius: 50%; background: #1F6BFF; border: 3px solid #fff; box-shadow: 0 0 0 6px rgba(31,107,255,.22), 0 2px 6px rgba(0,0,0,.3); }
+.me-dot.nav { width: 0; height: 0; border-radius: 0; background: none; box-shadow: none; border: 14px solid transparent; border-bottom: 34px solid #1F6BFF; border-top: 0; filter: drop-shadow(0 2px 3px rgba(0,0,0,.35)); transform-origin: 50% 70%; }
+.pin-mk { width: 34px; height: 44px; color: #E5484D; filter: drop-shadow(0 3px 4px rgba(0,0,0,.3)); }
+.pin-mk.from { color: #1F6BFF; }
+.pin-mk svg { width: 100%; height: 100%; }
+.maplibregl-ctrl-bottom-right { bottom: calc(80px + env(safe-area-inset-bottom)); }
+.maplibregl-ctrl-attrib { font-size: 10px; }
+.locbox { display: flex; gap: 12px; align-items: center; padding: 4px 2px; cursor: pointer; min-width: 220px; max-width: 290px; }
+.locbox .lic { width: 52px; height: 52px; border-radius: 14px; flex: none; display: grid; place-items: center; color: #fff; background: linear-gradient(135deg, #22C3D6, #1F6BFF); }
+.msg.out .locbox .lic { background: rgba(255,255,255,.25); }
+.locbox .lic svg { width: 28px; height: 28px; }
+.locbox b { display: block; font-size: 14.5px; }
+.locbox small { display: block; font-size: 12.5px; opacity: .8; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.locbox u { font-size: 12.5px; font-weight: 700; text-decoration: none; opacity: .95; }
+.chat-pick { max-height: 55vh; overflow: auto; margin-top: 6px; }
+.chat-pick button { display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px 4px; border-radius: 12px; text-align: left; }
+.chat-pick button:hover { background: var(--hover); }
+</style>`);
+
+/* --- yordamchilar --- */
+const fmtDist = (m) => (m < 950 ? `${Math.max(10, Math.round(m / 10) * 10)} ${t('m')}` : `${(m / 1000).toFixed(m < 9950 ? 1 : 0)} ${t('km')}`);
+const fmtTimeLen = (s) => { const mm = Math.max(1, Math.round(s / 60)); return mm < 60 ? `${mm} ${t('min')}` : `${Math.floor(mm / 60)} ${t('hour')} ${mm % 60 ? (mm % 60) + ' ' + t('min') : ''}`.trim(); };
+function haversine(a, b) { const R = 6371e3, r = Math.PI / 180; const dl = (b[1] - a[1]) * r, dn = (b[0] - a[0]) * r; const x = Math.sin(dl / 2) ** 2 + Math.cos(a[1] * r) * Math.cos(b[1] * r) * Math.sin(dn / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(x)); }
+function bearing(a, b) { const r = Math.PI / 180; const y = Math.sin((b[0] - a[0]) * r) * Math.cos(b[1] * r); const x = Math.cos(a[1] * r) * Math.sin(b[1] * r) - Math.sin(a[1] * r) * Math.cos(b[1] * r) * Math.cos((b[0] - a[0]) * r); return (Math.atan2(y, x) / r + 360) % 360; }
+function distToLine(p, line) { // metr: nuqtadan chiziqqacha (taxminiy, kichik masofalarda yetarli)
+  let best = Infinity; const k = Math.cos(p[1] * Math.PI / 180) * 111320, kl = 110540;
+  for (let i = 0; i < line.length - 1; i++) {
+    const ax = (line[i][0] - p[0]) * k, ay = (line[i][1] - p[1]) * kl, bx = (line[i + 1][0] - p[0]) * k, by = (line[i + 1][1] - p[1]) * kl;
+    const dx = bx - ax, dy = by - ay; const tt = Math.max(0, Math.min(1, -(ax * dx + ay * dy) / (dx * dx + dy * dy || 1)));
+    best = Math.min(best, Math.hypot(ax + tt * dx, ay + tt * dy));
+  }
+  return best;
+}
+const ROT = { left: -90, right: 90, 'slight left': -45, 'slight right': 45, 'sharp left': -135, 'sharp right': 135, uturn: 180, straight: 0 };
+const stepIcon = (st) => `<svg style="transform:rotate(${st.type === 'arrive' ? 0 : ROT[st.mod] || 0}deg)"><use href="#i-${st.type === 'arrive' ? 'pinpt' : st.type === 'roundabout' || st.type === 'rotary' || st.type === 'exit roundabout' ? 'refresh' : 'up'}"/></svg>`;
+const STEP_T = {
+  uz: { left: 'Chapga buriling', right: 'O‘ngga buriling', 'slight left': 'Biroz chapga buriling', 'slight right': 'Biroz o‘ngga buriling', 'sharp left': 'Keskin chapga buriling', 'sharp right': 'Keskin o‘ngga buriling', uturn: 'Orqaga qayriling', straight: 'To‘g‘ri yuring',
+    depart: 'Yo‘lga chiqing', arrive: 'Manzilga yetib keldingiz', round: (n) => `Aylanmada ${n || 1}-chiqishdan chiqing`, along: 'bo‘ylab', onto: '—' },
+  ru: { left: 'Поверните налево', right: 'Поверните направо', 'slight left': 'Держитесь левее', 'slight right': 'Держитесь правее', 'sharp left': 'Резко налево', 'sharp right': 'Резко направо', uturn: 'Развернитесь', straight: 'Двигайтесь прямо',
+    depart: 'Начните движение', arrive: 'Вы прибыли', round: (n) => `На круге — ${n || 1}-й съезд`, along: 'по', onto: 'на' },
+  en: { left: 'Turn left', right: 'Turn right', 'slight left': 'Bear left', 'slight right': 'Bear right', 'sharp left': 'Sharp left', 'sharp right': 'Sharp right', uturn: 'Make a U-turn', straight: 'Continue straight',
+    depart: 'Head out', arrive: 'You have arrived', round: (n) => `At the roundabout take exit ${n || 1}`, along: 'on', onto: 'onto' },
+};
+function stepText(st) {
+  const L = STEP_T[LANG] || STEP_T.uz; const nm = st.name || st.ref;
+  if (st.type === 'arrive') return L.arrive;
+  if (st.type === 'depart') return nm ? (LANG === 'uz' ? `${nm} ${L.along} yo‘lga chiqing` : `${L.depart} ${L.along} ${nm}`) : L.depart;
+  if (st.type === 'roundabout' || st.type === 'rotary') return L.round(st.exit) + (nm ? ` ${L.onto} ${nm}` : '');
+  const base = L[st.mod] || L.straight;
+  return nm ? `${base} ${L.onto} ${nm}` : base;
+}
+
+/* --- xarita moduli --- */
+const MapView = {
+  map: null, loading: null, me: null, meAcc: 0, meHead: null, meMk: null, watch: null, placeMk: null, fromMk: null,
+  place: null, from: 'me', to: null, mode: 'car', routes: [], sel: 0, pick: null, nav: null, sat: false, d3: true, sheet: null,
+  lib() {
+    if (window.maplibregl) return Promise.resolve();
+    if (this.loading) return this.loading;
+    const css = (h) => { const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = h; document.head.appendChild(l); };
+    this.loading = (async () => {
+      css('/vendor/maplibre/maplibre-gl.css');
+      try { await loadScript('/vendor/maplibre/maplibre-gl.js'); }
+      catch { css('https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css'); await loadScript('https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js'); }
+    })().catch((e) => { this.loading = null; throw e; });
+    return this.loading;
+  },
+  build() {
+    if ($('#map-page')) return;
+    document.body.insertAdjacentHTML('beforeend', `<div class="map-page hidden" id="map-page">
+      <div id="map-canvas"></div>
+      <div class="mp-top"><button class="mp-btn" id="mp-back">${icon('back')}</button>
+        <div class="mp-search"><input id="mp-q" type="search" autocomplete="off" enterkeyhint="search"><button id="mp-clear" class="hidden">${icon('close')}</button></div></div>
+      <div class="mp-results hidden" id="mp-results"></div>
+      <div class="mp-side"><button class="mp-btn" id="mp-layer" title="">${icon('layers')}</button><button class="mp-btn on" id="mp-3d">3D</button></div>
+      <button class="mp-btn mp-locbtn" id="mp-loc">${icon('locate')}</button>
+      <div class="nav-top hidden" id="nav-top"></div>
+      <div class="mp-sheet hidden" id="mp-sheet"></div>
+    </div>`);
+    $('#mp-back').onclick = () => (this.nav ? this.endNav() : this.close());
+    const q = $('#mp-q');
+    q.addEventListener('input', () => { $('#mp-clear').classList.toggle('hidden', !q.value); clearTimeout(this.qt); this.qt = setTimeout(() => this.search(q.value), 320); });
+    q.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); clearTimeout(this.qt); this.search(q.value, true); } if (e.key === 'Escape') this.hideResults(); });
+    q.addEventListener('focus', () => { if (q.value.trim().length >= 2 && this.lastRes) this.renderResults(this.lastRes); });
+    $('#mp-clear').onclick = () => { q.value = ''; $('#mp-clear').classList.add('hidden'); this.hideResults(); q.focus(); };
+    $('#mp-results').onclick = (e) => { const b = e.target.closest('[data-i]'); if (!b) return; const p = b.dataset.i === 'me' ? 'me' : this.lastRes[+b.dataset.i]; this.hideResults(); q.blur(); this.choose(p); };
+    $('#mp-loc').onclick = () => this.locate(true);
+    $('#mp-3d').onclick = () => this.set3d(!this.d3);
+    $('#mp-layer').onclick = () => this.setSat(!this.sat);
+    $('#mp-sheet').onclick = (e) => this.sheetClick(e);
+  },
+  paintTexts() { $('#mp-q').placeholder = this.pick ? t(this.pick === 'from' ? 'from_where' : 'to_where') + '…' : t('map_search'); $('#mp-layer').title = t(this.sat ? 'layer_map' : 'layer_sat'); },
+  async open(opts = {}) {
+    this.build();
+    $('#map-page').classList.remove('hidden'); pushOverlay('map'); this.paintTexts();
+    try { await this.lib(); } catch { toast(t('map_fail'), 3000); return; }
+    if (!this.map) this.init(opts);
+    else { this.map.resize(); this.applyOpts(opts); }
+  },
+  close(fromPop) {
+    if (this.nav) this.endNav();
+    $('#map-page')?.classList.add('hidden'); this.hideResults();
+    if (!fromPop) popOverlay('map');
+    if (this.watch != null && !this.nav) { navigator.geolocation.clearWatch(this.watch); this.watch = null; }
+  },
+  init(opts) {
+    const saved = (() => { try { return JSON.parse(store.get('birga_mapview') || 'null'); } catch { return null; } })();
+    const map = new maplibregl.Map({
+      container: 'map-canvas', style: 'https://tiles.openfreemap.org/styles/liberty',
+      center: saved?.c || [71.6726, 40.9983], zoom: saved?.z ?? 12, pitch: 45, maxPitch: 75, attributionControl: { compact: true }, dragRotate: true,
+    });
+    this.map = map;
+    map.addControl(new maplibregl.NavigationControl({ visualizePitch: true, showZoom: !isTouch() }), 'bottom-right');
+    map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-left');
+    map.on('moveend', () => { const c = map.getCenter(); store.set('birga_mapview', JSON.stringify({ c: [c.lng, c.lat], z: map.getZoom() })); });
+    map.on('load', () => {
+      this.localize(); this.set3d(true, true); this.addRouteLayers();
+      this.applyOpts(opts);
+      if (!opts.place && !saved) this.locate(true, true); else this.locate(false, true);
+    });
+    map.on('error', (e) => { if (!this.styleErr && /style|tiles/i.test(String(e?.error?.message || ''))) { this.styleErr = true; toast(t('map_fail'), 3000); } });
+    map.on('click', (e) => this.onClick(e));
+    map.on('contextmenu', (e) => this.dropPin(e.lngLat));
+    // telefonda: bosib turish = joy belgilash
+    let lp = null, start = null;
+    const cv = map.getCanvasContainer();
+    cv.addEventListener('touchstart', (e) => { if (e.touches.length !== 1) return clearTimeout(lp); const tch = e.touches[0]; start = [tch.clientX, tch.clientY];
+      lp = setTimeout(() => { const r = cv.getBoundingClientRect(); navigator.vibrate?.(20); this.dropPin(map.unproject([start[0] - r.left, start[1] - r.top])); }, 550); }, { passive: true });
+    cv.addEventListener('touchmove', (e) => { const tch = e.touches[0]; if (!start || Math.hypot(tch.clientX - start[0], tch.clientY - start[1]) > 10) clearTimeout(lp); }, { passive: true });
+    ['touchend', 'touchcancel'].forEach((ev) => cv.addEventListener(ev, () => clearTimeout(lp), { passive: true }));
+  },
+  applyOpts(opts) {
+    if (opts.place) this.showPlace(opts.place, true);
+    if (opts.routeTo) { this.to = opts.routeTo; this.from = 'me'; this.openRoute(); }
+  },
+  localize() { // joy nomlari tanlangan tilda (bo'lmasa — mahalliy nom)
+    const lang = LANG === 'uz' ? 'uz' : LANG;
+    for (const l of this.map.getStyle().layers) {
+      if (l.type !== 'symbol') continue;
+      const tf = this.map.getLayoutProperty(l.id, 'text-field'); if (!tf || !JSON.stringify(tf).includes('name')) continue;
+      try { this.map.setLayoutProperty(l.id, 'text-field', ['coalesce', ['get', 'name:' + lang], ['get', 'name:latin'], ['get', 'name']]); } catch {}
+    }
+  },
+  firstSymbol() { return this.map.getStyle().layers.find((l) => l.type === 'symbol')?.id; },
+  set3d(on, quiet) {
+    this.d3 = on; $('#mp-3d').classList.toggle('on', on);
+    const map = this.map; if (!map?.isStyleLoaded()) return;
+    let ext = map.getStyle().layers.filter((l) => l.type === 'fill-extrusion').map((l) => l.id);
+    if (!ext.length && map.getSource('openmaptiles')) {
+      try {
+        map.addLayer({ id: 'birga-3d', type: 'fill-extrusion', source: 'openmaptiles', 'source-layer': 'building', minzoom: 14,
+          paint: { 'fill-extrusion-color': '#d6d3cf', 'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 8], 'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0], 'fill-extrusion-opacity': 0.85 } }, this.firstSymbol());
+        ext = ['birga-3d'];
+      } catch {}
+    }
+    ext.forEach((id) => map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none'));
+    if (!quiet && !this.nav) map.easeTo({ pitch: on ? 55 : 0, bearing: on ? map.getBearing() : 0, duration: 700 });
+  },
+  setSat(on) {
+    this.sat = on; $('#mp-layer').classList.toggle('on', on); this.paintTexts();
+    const map = this.map; if (!map) return;
+    if (!map.getSource('sat')) {
+      map.addSource('sat', { type: 'raster', tileSize: 256, maxzoom: 19, attribution: 'Imagery © Esri, Maxar, Earthstar Geographics',
+        tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'] });
+      map.addLayer({ id: 'sat', type: 'raster', source: 'sat', layout: { visibility: 'none' } }, map.getStyle().layers.find((l) => l.type !== 'background')?.id);
+    }
+    map.setLayoutProperty('sat', 'visibility', on ? 'visible' : 'none');
+  },
+  addRouteLayers() {
+    const map = this.map; const empty = { type: 'FeatureCollection', features: [] };
+    map.addSource('route', { type: 'geojson', data: empty });
+    const before = this.firstSymbol();
+    map.addLayer({ id: 'route-alt', type: 'line', source: 'route', filter: ['!=', ['get', 'sel'], true], layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#8FA3B8', 'line-width': 6, 'line-opacity': 0.85 } }, before);
+    map.addLayer({ id: 'route-case', type: 'line', source: 'route', filter: ['==', ['get', 'sel'], true], layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#0B4FC8', 'line-width': 10 } }, before);
+    map.addLayer({ id: 'route-line', type: 'line', source: 'route', filter: ['==', ['get', 'sel'], true], layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': ['case', ['==', ['get', 'mode'], 'foot'], '#22A06B', '#1F6BFF'], 'line-width': 7, 'line-dasharray': ['case', ['==', ['get', 'mode'], 'foot'], ['literal', [0.1, 1.6]], ['literal', [1, 0]]] } }, before);
+    map.on('click', 'route-alt', (e) => { const i = e.features?.[0]?.properties?.i; if (i != null && !this.nav) { this.sel = +i; this.drawRoutes(); this.renderRoute(); } });
+  },
+  /* --- joylashuv --- */
+  locate(fly, silent) {
+    if (!navigator.geolocation) { if (!silent) toast(t('loc_denied'), 3000); return Promise.resolve(null); }
+    return new Promise((res) => {
+      navigator.geolocation.getCurrentPosition((p) => { this.onPos(p); if (fly) this.map?.flyTo({ center: this.me, zoom: Math.max(this.map.getZoom(), 15.5), duration: 900 }); this.ensureWatch(); res(this.me); },
+        () => { if (!silent) toast(t('loc_denied'), 3500); res(null); }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 15000 });
+    });
+  },
+  ensureWatch() { if (this.watch == null && navigator.geolocation) this.watch = navigator.geolocation.watchPosition((p) => this.onPos(p), () => {}, { enableHighAccuracy: true, maximumAge: 2000 }); },
+  onPos(p) {
+    const prev = this.me; this.me = [p.coords.longitude, p.coords.latitude]; this.meAcc = p.coords.accuracy || 0;
+    if (p.coords.heading != null && !isNaN(p.coords.heading) && (p.coords.speed || 0) > 0.8) this.meHead = p.coords.heading;
+    else if (prev && haversine(prev, this.me) > 4) this.meHead = bearing(prev, this.me);
+    if (!this.map) return;
+    if (!this.meMk) { const el = document.createElement('div'); el.className = 'me-dot'; el.onclick = (e) => { e.stopPropagation(); this.showPlace({ name: t('my_location'), lat: this.me[1], lng: this.me[0], me: true }); }; this.meMk = new maplibregl.Marker({ element: el, rotationAlignment: 'map', pitchAlignment: 'map' }).setLngLat(this.me).addTo(this.map); }
+    this.meMk.setLngLat(this.me);
+    if (this.nav) this.navTick();
+  },
+  /* --- qidiruv --- */
+  async search(q, enter) {
+    q = q.trim(); if (q.length < 2) { this.hideResults(); return; }
+    const c = this.me || (this.map ? [this.map.getCenter().lng, this.map.getCenter().lat] : null);
+    const tag = (this.qid = (this.qid || 0) + 1);
+    let res = [];
+    try { res = await api(`/api/map/search?q=${encodeURIComponent(q)}${c ? `&lat=${c[1]}&lon=${c[0]}` : ''}`); } catch { if (tag === this.qid) { toast(t('map_fail')); } return; }
+    if (tag !== this.qid) return;
+    this.lastRes = res; this.renderResults(res);
+    if (enter && res.length === 1) { this.hideResults(); this.choose(res[0]); }
+  },
+  renderResults(res) {
+    const el = $('#mp-results');
+    const meRow = this.pick === 'from' ? `<button data-i="me"><span class="ri">${icon('locate')}</span><span><b>${esc(t('my_location'))}</b></span></button>` : '';
+    el.innerHTML = meRow + (res.length ? res.map((p, i) => `<button data-i="${i}"><span class="ri">${icon('pinpt')}</span><span style="min-width:0"><b>${esc(p.name || p.addr)}</b><small>${esc(p.addr || '')}</small></span>${this.me ? `<span class="rd">${fmtDist(haversine(this.me, [p.lng, p.lat]))}</span>` : ''}</button>`).join('') : `<div class="mp-empty">${esc(t('no_results'))}</div>`);
+    el.classList.remove('hidden');
+  },
+  hideResults() { $('#mp-results')?.classList.add('hidden'); },
+  choose(p) {
+    if (this.pick) { const k = this.pick; this.pick = null; this[k] = p; $('#mp-q').value = ''; $('#mp-clear').classList.add('hidden'); this.paintTexts(); this.openRoute(); return; }
+    if (p === 'me') return this.locate(true);
+    this.showPlace(p, true);
+  },
+  /* --- joy kartochkasi --- */
+  async onClick(e) {
+    this.hideResults(); $('#mp-q').blur();
+    if (this.nav) return;
+    const f = this.map.queryRenderedFeatures(e.point).find((x) => x.layer.type === 'symbol' && x.properties?.name && !/road|highway|street|transportation_name/i.test(x.layer.id));
+    if (f) {
+      const p = { name: f.properties['name:' + LANG] || f.properties['name:latin'] || f.properties.name, lat: e.lngLat.lat, lng: e.lngLat.lng, kind: f.properties.class || '' };
+      if (f.geometry?.type === 'Point') [p.lng, p.lat] = f.geometry.coordinates;
+      if (this.pick) return this.choose(p);
+      this.showPlace(p); this.fillAddr(p);
+    } else if (this.pick) this.dropPin(e.lngLat);
+  },
+  async dropPin(ll) {
+    if (this.nav) return;
+    const p = { name: t('dropped_pin'), lat: ll.lat, lng: ll.lng, pin: true };
+    if (this.pick) { await this.fillAddr(p, true); return this.choose(p); }
+    this.showPlace(p); this.fillAddr(p);
+  },
+  async fillAddr(p, wait) {
+    const job = api(`/api/map/reverse?lat=${p.lat}&lon=${p.lng}&lang=${LANG}`).then((r) => {
+      if (r.addr) p.addr = r.addr; if (p.pin && r.name) p.name = r.name;
+      if (this.place === p && this.sheet === 'place') this.renderPlace();
+    }).catch(() => {});
+    if (wait) await job;
+  },
+  setMarker(kind, p) {
+    const key = kind === 'from' ? 'fromMk' : 'placeMk';
+    if (!p) { this[key]?.remove(); this[key] = null; return; }
+    if (!this[key]) { const el = document.createElement('div'); el.className = 'pin-mk' + (kind === 'from' ? ' from' : ''); el.innerHTML = icon('pinpt'); this[key] = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([p.lng, p.lat]).addTo(this.map); }
+    this[key].setLngLat([p.lng, p.lat]);
+  },
+  showPlace(p, fly) {
+    this.place = p; this.clearRoute();
+    if (!p.me) this.setMarker('to', p); else this.setMarker('to', null);
+    if (fly && this.map) this.map.flyTo({ center: [p.lng, p.lat], zoom: Math.max(this.map.getZoom(), 16), duration: 900, offset: [0, -80] });
+    this.renderPlace();
+  },
+  renderPlace() {
+    const p = this.place; this.sheet = 'place';
+    const d = this.me && !p.me ? ` · ${fmtDist(haversine(this.me, [p.lng, p.lat]))}` : '';
+    this.showSheet(`<div class="mp-place"><h3>${esc(p.name || t('dropped_pin'))}</h3>${p.addr ? `<p>${esc(p.addr)}</p>` : ''}<div class="coords">${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}${d}</div>
+      <div class="mp-acts">${p.me ? '' : `<button class="pri" data-a="route">${icon('route')}${t('route')}</button>`}<button data-a="send">${icon('send')}${t('send_chat')}</button>
+      <button data-a="share">${icon('share')}${t('share')}</button><button data-a="copy">${icon('copy')}${t('copy_coords')}</button></div></div>`);
+  },
+  showSheet(html) { const s = $('#mp-sheet'); s.innerHTML = html; s.classList.remove('hidden'); requestAnimationFrame(() => { $('#mp-loc').style.bottom = `calc(${s.offsetHeight + 14}px)`; }); },
+  hideSheet() { $('#mp-sheet').classList.add('hidden'); $('#mp-loc').style.bottom = ''; this.sheet = null; },
+  async sheetClick(e) {
+    const a = e.target.closest('[data-a]')?.dataset.a; if (!a) return;
+    const p = this.place;
+    if (a === 'route') { this.to = p; this.from = 'me'; this.openRoute(); }
+    if (a === 'send') sendLocation(p);
+    if (a === 'copy') { navigator.clipboard?.writeText(`${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}`).then(() => toast(t('copied'))).catch(() => {}); }
+    if (a === 'share') {
+      const url = `https://www.openstreetmap.org/?mlat=${p.lat.toFixed(6)}&mlon=${p.lng.toFixed(6)}#map=17/${p.lat.toFixed(6)}/${p.lng.toFixed(6)}`;
+      const text = [p.name, p.addr].filter(Boolean).join('\n');
+      if (navigator.share) navigator.share({ title: p.name || 'Birga', text, url }).catch(() => {}); else navigator.clipboard?.writeText(text + '\n' + url).then(() => toast(t('copied')));
+    }
+    if (a === 'close') { this.clearRoute(); this.hideSheet(); this.setMarker('to', null); this.setMarker('from', null); }
+    if (a === 'pfrom' || a === 'pto') { this.pick = a === 'pfrom' ? 'from' : 'to'; this.paintTexts(); this.renderRoute(); $('#mp-q').focus(); toast(t('choose_point'), 2500); }
+    if (a === 'swap') { [this.from, this.to] = [this.to || 'me', this.from === 'me' ? 'me' : this.from]; if (this.to === 'me') this.to = null; this.openRoute(); }
+    if (a.startsWith('mode:')) { this.mode = a.slice(5); this.openRoute(); }
+    if (a.startsWith('alt:')) { this.sel = +a.slice(4); this.drawRoutes(); this.renderRoute(); }
+    if (a === 'steps') { this.showSteps = !this.showSteps; this.renderRoute(); }
+    if (a === 'go') this.startNav();
+    if (a === 'endnav') this.endNav();
+  },
+  /* --- yo'nalish --- */
+  ptName(p) { return p === 'me' ? t('my_location') : p ? p.name || p.addr || `${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}` : ''; },
+  async ptCoords(p) { if (p === 'me') return this.me || (await this.locate(false)); return p ? [p.lng, p.lat] : null; },
+  async openRoute() {
+    this.sheet = 'route'; this.routes = []; this.sel = 0; this.err = '';
+    this.renderRoute(true);
+    const a = await this.ptCoords(this.from), b = await this.ptCoords(this.to);
+    this.setMarker('from', this.from !== 'me' ? this.from : null); this.setMarker('to', this.to || null);
+    if (!a || !b) { this.loadingRoute = false; this.renderRoute(); return; }
+    this.loadingRoute = true; this.renderRoute();
+    const tag = (this.rid = (this.rid || 0) + 1);
+    try {
+      const r = await api(`/api/map/route?mode=${this.mode}&pts=${a.join(',')};${b.join(',')}`);
+      if (tag !== this.rid) return;
+      this.routes = r.routes || [];
+    } catch { if (tag !== this.rid) return; this.routes = []; this.err = t('no_route'); }
+    this.loadingRoute = false; this.drawRoutes(true); this.renderRoute();
+  },
+  drawRoutes(fit) {
+    const src = this.map?.getSource('route'); if (!src) return;
+    src.setData({ type: 'FeatureCollection', features: this.routes.map((r, i) => ({ type: 'Feature', properties: { i, sel: i === this.sel, mode: this.mode }, geometry: r.geometry })).sort((x) => (x.properties.sel ? 1 : -1)) });
+    const r = this.routes[this.sel];
+    if (fit && r) {
+      const b = new maplibregl.LngLatBounds(); r.geometry.coordinates.forEach((c) => b.extend(c));
+      const sh = $('#mp-sheet').offsetHeight || 0; const desk = innerWidth > 760;
+      this.map.fitBounds(b, { padding: { top: 90, bottom: desk ? 40 : sh + 30, left: desk ? 440 : 40, right: 60 }, duration: 900, pitch: 0, bearing: 0 });
+    }
+  },
+  clearRoute() { this.routes = []; this.map?.getSource('route')?.setData({ type: 'FeatureCollection', features: [] }); this.setMarker('from', null); },
+  renderRoute() {
+    const fr = this.from, to = this.to, sel = this.routes[this.sel];
+    const pt = (k, p) => `<button class="pt ${k}${p ? '' : ' empty'}${this.pick === k ? ' sel' : ''}" data-a="p${k}"><i></i><span>${esc(p ? this.ptName(p) : t(k === 'from' ? 'from_where' : 'to_where'))}</span></button>`;
+    const modes = [['car', 'car', 'm_car'], ['foot', 'walk', 'm_foot'], ['bike', 'bike', 'm_bike']].map(([k, ic, lb]) => `<button data-a="mode:${k}" class="${this.mode === k ? 'on' : ''}">${icon(ic)}${t(lb)}</button>`).join('');
+    const minT = Math.min(...this.routes.map((r) => r.duration));
+    const alts = this.routes.length ? `<div class="rp-alts">${this.routes.map((r, i) => `<button data-a="alt:${i}" class="${i === this.sel ? 'on' : ''}">${this.routes.length > 1 && r.duration === minT ? `<span class="fast">${t('fastest')}</span>` : ''}<b>${fmtTimeLen(r.duration)}</b><small>${fmtDist(r.distance)}</small></button>`).join('')}</div>` : '';
+    const msg = this.loadingRoute ? `<div class="mp-msg">…</div>` : this.err ? `<div class="mp-msg">${esc(this.err)}</div>` : !to || !fr ? `<div class="mp-msg">${esc(t('choose_point'))}</div>` : '';
+    const steps = sel && this.showSteps ? `<div class="rp-steps">${sel.steps.map((s) => `<div>${stepIcon(s)}<span>${esc(stepText(s))}</span><small>${s.d > 0 ? fmtDist(s.d) : ''}</small></div>`).join('')}</div>` : '';
+    this.showSheet(`<div class="rp-pts">${pt('from', fr)}<button class="sw" data-a="swap">${icon('swap')}</button>${pt('to', to)}</div>
+      <div class="rp-modes">${modes}</div>${msg}${alts}
+      <div class="mp-acts">${sel ? `<button class="pri" data-a="go">${icon('route')}${t('start_nav')}</button><button data-a="steps">${t('steps')}</button>` : ''}<button data-a="close">${icon('close')}</button></div>${steps}`);
+  },
+  /* --- navigatsiya (yo'lda kuzatib borish) --- */
+  async startNav() {
+    const r = this.routes[this.sel]; if (!r) return;
+    if (this.from !== 'me') { this.from = 'me'; await this.openRoute(); if (!this.routes.length) return; }
+    if (!this.me) { await this.locate(false); if (!this.me) return; }
+    this.nav = { r: this.routes[this.sel], step: 1, off: 0, t0: Date.now() };
+    this.ensureWatch();
+    try { this.wake = await navigator.wakeLock?.request('screen'); } catch {}
+    this.meMk?.getElement().classList.add('nav');
+    $('#mp-q').closest('.mp-top').classList.add('hidden'); $('.mp-side').classList.add('hidden');
+    this.routes = [this.nav.r]; this.sel = 0; this.drawRoutes();
+    this.navTick(true);
+  },
+  endNav() {
+    this.nav = null; this.wake?.release?.().catch(() => {}); this.wake = null;
+    this.meMk?.getElement().classList.remove('nav'); if (this.meMk) this.meMk.setRotation(0);
+    $('#nav-top').classList.add('hidden'); $('#mp-q').closest('.mp-top').classList.remove('hidden'); $('.mp-side').classList.remove('hidden');
+    this.map?.easeTo({ pitch: this.d3 ? 45 : 0, bearing: 0, duration: 600 });
+    if (this.to) this.openRoute(); else this.hideSheet();
+  },
+  async navTick(first) {
+    const n = this.nav; if (!n || !this.me) return;
+    const line = n.r.geometry.coordinates, steps = n.r.steps;
+    // manzilga yetdikmi
+    const dest = line[line.length - 1];
+    if (haversine(this.me, dest) < 30) { toast(t('arrived'), 4000); navigator.vibrate?.([200, 100, 200]); this.to = null; this.endNav(); this.clearRoute(); return; }
+    // yo'ldan chiqib ketdikmi — qayta hisoblash
+    const off = distToLine(this.me, line);
+    n.off = off > 55 ? n.off + 1 : 0;
+    if (n.off >= 3 && !n.rerouting) {
+      n.rerouting = true; toast(t('rerouting'), 2000);
+      try { const r = await api(`/api/map/route?mode=${this.mode}&pts=${this.me.join(',')};${dest.join(',')}`); if (this.nav === n && r.routes?.[0]) { n.r = r.routes[0]; n.step = 1; n.off = 0; this.routes = [n.r]; this.drawRoutes(); } } catch {}
+      n.rerouting = false;
+    }
+    // keyingi manevr
+    while (n.step < steps.length - 1 && haversine(this.me, steps[n.step].loc) < 22) n.step++;
+    const next = steps[n.step] || steps[steps.length - 1];
+    const dNext = haversine(this.me, next.loc);
+    let remain = dNext; for (let i = n.step; i < steps.length; i++) remain += steps[i].d;
+    const remainT = n.r.duration * Math.min(1, remain / Math.max(1, n.r.distance));
+    const eta = new Date(Date.now() + remainT * 1000);
+    $('#nav-top').innerHTML = `<div class="nav-card">${stepIcon(next)}<div><b>${fmtDist(dNext)}</b><span>${esc(stepText(next))}</span></div></div>`;
+    $('#nav-top').classList.remove('hidden');
+    this.sheet = 'nav';
+    this.showSheet(`<div class="nav-bot"><div class="nb-info"><b>${fmtTimeLen(remainT)}</b><small>${fmtDist(remain)} · ${t('eta')} ${fmtTime(eta.getTime())}</small></div><button data-a="endnav">${t('end_nav')}</button></div>`);
+    const head = this.meHead ?? bearing(this.me, line[Math.min(line.length - 1, 1)]);
+    this.meMk?.setRotation(0);
+    this.map.easeTo({ center: this.me, zoom: this.mode === 'foot' ? 18 : 17, pitch: 58, bearing: head, duration: first ? 1200 : 900, offset: [0, Math.round(innerHeight * 0.18)] });
+  },
+};
+
+/* --- pastki menyuga "Xarita" --- */
+$('#bottom-nav [data-tab="settings"]')?.insertAdjacentHTML('beforebegin', `<button data-tab="map"><span class="nb">${icon('map')}</span><span data-t7="map"></span></button>`);
+{
+  const paint7 = () => $$('[data-t7]').forEach((x) => (x.textContent = t(x.dataset.t7)));
+  paint7(); setInterval(paint7, 4000);
+  const baseTab = setTab;
+  setTab = function (name) { if (name === 'map') { MapView.open(); return; } return baseTab(name); };
+}
+
+/* --- joylashuvni chatga yuborish --- */
+function sendLocation(p, chatId) {
+  const loc = { lat: p.lat, lng: p.lng, name: p.me ? '' : p.name || '', addr: p.addr || '' };
+  const go = async (cid) => {
+    closeModal();
+    try { await emitSend({ chatId: cid, type: 'location', meta: { loc } }); toast(t('loc_sent')); } catch (e) { toast(e.message || t('not_sent')); }
+  };
+  if (chatId) return go(chatId);
+  const list = [...S.chats.values()].filter((c) => !(c.type === 'channel' && !['owner', 'admin'].includes(c.role)) && (c.last || c.self))
+    .sort((a, b) => (b.last?.created_at || 0) - (a.last?.created_at || 0)).slice(0, 60);
+  modal(`<h3>${t('choose_chat')} <button class="icon-btn" data-close>${icon('close')}</button></h3>
+    <div class="chat-pick">${list.map((c) => `<button data-cid="${c.id}">${chatAvatar(c, 'sm')}<b>${esc(chatTitle(c))}</b></button>`).join('')}</div>`);
+  $('#modal-card .chat-pick').onclick = (e) => { const b = e.target.closest('[data-cid]'); if (b) go(+b.dataset.cid); };
+}
+function locMsgHTML(m, attrs, reply, metaHtml) {
+  const l = m.meta?.loc || {};
+  return `<div ${attrs}><div class="bubble">${reply}<div class="locbox" data-loc="${l.lat},${l.lng}"><div class="lic">${icon('pinpt')}</div>
+    <div style="min-width:0"><b>${esc(l.name || t('location'))}</b>${l.addr ? `<small>${esc(l.addr)}</small>` : ''}<u>${esc(t('open_map'))} ›</u></div></div>${metaHtml}</div></div>`;
+}
+$('#messages').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-loc]'); if (!b) return;
+  e.stopImmediatePropagation();
+  const m = msgOf(b.closest('.msg')); const l = m?.meta?.loc; if (!l) return;
+  MapView.open({ place: { name: l.name || t('location'), addr: l.addr, lat: l.lat, lng: l.lng } });
+}, true);
+{
+  const basePrev = preview;
+  preview = function (m) { if (m && !m.deleted && m.type === 'location') return `<span class="tag">📍 ${esc(t('location'))}</span>` + (m.meta?.loc?.name ? ' ' + esc(m.meta.loc.name) : ''); return basePrev(m); };
+}
+
+/* ======================= v8: "orqaga" — faqat bitta oldingi oynaga; profil rasmini qo'shish/tahrirlash/o'chirish ======================= */
+try {
+  Object.assign(I18N.uz, { av_title: 'Profil rasmi', av_new: 'Yangi rasm qo‘yish', av_edit: 'Rasmni tahrirlash', av_del: 'Rasmni o‘chirish', av_view: 'Rasmni ko‘rish',
+    av_del_q: 'Profil rasmi o‘chirilsinmi?', av_saved: 'Profil rasmi yangilandi', av_deleted: 'Profil rasmi o‘chirildi', rotate: 'Burish', crop_hint: 'Suring va kattalashtiring' });
+  Object.assign(I18N.ru, { av_title: 'Фото профиля', av_new: 'Новое фото', av_edit: 'Редактировать фото', av_del: 'Удалить фото', av_view: 'Посмотреть фото',
+    av_del_q: 'Удалить фото профиля?', av_saved: 'Фото профиля обновлено', av_deleted: 'Фото профиля удалено', rotate: 'Повернуть', crop_hint: 'Двигайте и масштабируйте' });
+  Object.assign(I18N.en, { av_title: 'Profile photo', av_new: 'Set new photo', av_edit: 'Edit photo', av_del: 'Delete photo', av_view: 'View photo',
+    av_del_q: 'Delete your profile photo?', av_saved: 'Profile photo updated', av_deleted: 'Profile photo deleted', rotate: 'Rotate', crop_hint: 'Drag and zoom' });
+} catch {}
+
+/* --- orqaga tugmasi: oynalarni kuzatish --- */
+function popOverlays(pred) { // bir nechta qadamni bitta harakatda olib tashlash
+  let n = 0;
+  for (let i = overlays.length - 1; i >= 0; i--) if (pred(overlays[i])) { const q = pushQ.lastIndexOf(overlays[i]); if (q >= 0) pushQ.splice(q, 1); else n++; overlays.splice(i, 1); }
+  if (n) { pendingBack++; history.go(-n); }
+}
+function trackEl(el, name, close) {
+  if (!el) return; OV_CLOSE[name] = close;
+  const sync = () => { const open = !el.classList.contains('hidden'); const has = overlays.includes(name); if (open && !has) pushOverlay(name); else if (!open && has) popOverlay(name); };
+  new MutationObserver(sync).observe(el, { attributes: true, attributeFilter: ['class'] });
+}
+trackEl($('#modal'), 'modal', () => closeModal());
+trackEl($('#viewer'), 'viewer', () => $('#viewer-close').click());
+trackEl($('#emoji-panel'), 'emoji', () => closePanel());
+trackEl($('#chat-find'), 'find', () => closeFind());
+OV_CLOSE.ped = () => document.querySelector('.ped [data-p="cancel"], .crop [data-c="cancel"]')?.click();
+new MutationObserver((recs) => {
+  for (const r of recs) {
+    for (const n of r.addedNodes) if (n.classList?.contains('ped') || n.classList?.contains('crop')) pushOverlay('ped');
+    for (const n of r.removedNodes) if (n.classList?.contains('ped') || n.classList?.contains('crop')) popOverlay('ped');
+  }
+}).observe(document.body, { childList: true });
+// arxiv ko'rinishi
+OV_CLOSE.arch = () => { S.archView = false; renderChatList(); };
+{
+  const baseRCL = renderChatList;
+  renderChatList = function () { baseRCL(); const has = overlays.includes('arch'); if (S.archView && !has) pushOverlay('arch'); else if (!S.archView && has) popOverlay('arch'); };
+}
+// pastki menyu bo'limlari: orqaga — oldingi bo'limga
+{
+  const inner = setTab;
+  setTab = function (name) {
+    if (name === 'map' || name === TAB) return inner(name);
+    if (name === 'chats') popOverlays((x) => x.startsWith('tab:'));
+    else pushOverlay('tab:' + TAB);
+    return inner(name);
+  };
+  setTab.raw = (name) => inner(name);
+}
+
+/* --- profil rasmi: kesish (kvadrat), burish, kattalashtirish --- */
+function cropImage(src) {
+  return new Promise(async (resolve) => {
+    let bmp;
+    try { const blob = src instanceof Blob ? src : await (await fetch(src)).blob(); bmp = await createImageBitmap(blob); } catch { toast(t('upload_fail')); return resolve(null); }
+    const wrap = document.createElement('div'); wrap.className = 'ped crop';
+    wrap.innerHTML = `<div class="ped-top"><button data-c="cancel">${icon('close')}</button><span class="grow" style="text-align:center;opacity:.8;font-size:14px">${esc(t('crop_hint'))}</span>
+        <button data-c="done" class="ped-done">${icon('check')}${esc(t('done'))}</button></div>
+      <div class="ped-stage"><canvas></canvas></div>
+      <div class="ped-bot"><button class="tool" data-c="rot">${icon('refresh')}${esc(t('rotate'))}</button><input type="range" min="1" max="4" step="0.01" value="1" class="crop-zoom"><button class="tool" data-c="draw">${icon('brush')}${esc(t('draw'))}</button></div>`;
+    document.body.appendChild(wrap);
+    const stage = wrap.querySelector('.ped-stage'), cv = wrap.querySelector('canvas'), g = cv.getContext('2d'), zoomEl = wrap.querySelector('.crop-zoom');
+    let rot = 0, zoom = 1, ox = 0, oy = 0, S0 = 0;
+    const size = () => { const r = stage.getBoundingClientRect(); const s = Math.floor(Math.min(r.width, r.height) - 16); const d = devicePixelRatio || 1; cv.width = cv.height = s * d; cv.style.width = cv.style.height = s + 'px'; S0 = s; };
+    const dims = () => (rot % 180 ? [bmp.height, bmp.width] : [bmp.width, bmp.height]);
+    const base = () => { const [w, h] = dims(); return Math.max(S0 / w, S0 / h); }; // kvadratni to'liq qoplash
+    const clamp = () => { const [w, h] = dims(); const k = base() * zoom; const mx = Math.max(0, (w * k - S0) / 2), my = Math.max(0, (h * k - S0) / 2); ox = Math.max(-mx, Math.min(mx, ox)); oy = Math.max(-my, Math.min(my, oy)); };
+    const paint = (ctx, s, mask) => {
+      const k = (base() * zoom * s) / S0;
+      ctx.save(); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, s, s);
+      ctx.translate(s / 2 + (ox * s) / S0, s / 2 + (oy * s) / S0); ctx.rotate((rot * Math.PI) / 180); ctx.scale(k, k);
+      ctx.drawImage(bmp, -bmp.width / 2, -bmp.height / 2); ctx.restore();
+      if (mask) { ctx.save(); ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.beginPath(); ctx.rect(0, 0, s, s); ctx.arc(s / 2, s / 2, s / 2 - 1, 0, Math.PI * 2, true); ctx.fill('evenodd'); ctx.strokeStyle = 'rgba(255,255,255,.8)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(s / 2, s / 2, s / 2 - 1, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); }
+    };
+    const draw = () => { clamp(); paint(g, cv.width, true); };
+    size(); draw(); addEventListener('resize', () => { size(); draw(); });
+    const pts = new Map(); let pinch = null;
+    cv.style.touchAction = 'none';
+    cv.addEventListener('pointerdown', (e) => { cv.setPointerCapture(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]); if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), z: zoom }; } });
+    cv.addEventListener('pointermove', (e) => {
+      if (!pts.has(e.pointerId)) return; const prev = pts.get(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]);
+      if (pts.size === 2 && pinch) { const [a, b] = [...pts.values()]; zoom = Math.max(1, Math.min(4, (pinch.z * Math.hypot(a[0] - b[0], a[1] - b[1])) / pinch.d)); zoomEl.value = zoom; }
+      else if (pts.size === 1) { ox += e.clientX - prev[0]; oy += e.clientY - prev[1]; }
+      draw();
+    });
+    const up = (e) => { pts.delete(e.pointerId); if (pts.size < 2) pinch = null; };
+    cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+    cv.addEventListener('wheel', (e) => { e.preventDefault(); zoom = Math.max(1, Math.min(4, zoom * (e.deltaY < 0 ? 1.08 : 0.93))); zoomEl.value = zoom; draw(); }, { passive: false });
+    zoomEl.oninput = () => { zoom = +zoomEl.value; draw(); };
+    const result = async () => { const out = document.createElement('canvas'); out.width = out.height = 800; paint(out.getContext('2d'), 800, false); return new Promise((r) => out.toBlob((b) => r(b ? new File([b], 'avatar.jpg', { type: 'image/jpeg' }) : null), 'image/jpeg', 0.9)); };
+    const close = (v) => { wrap.remove(); bmp.close?.(); resolve(v); };
+    wrap.addEventListener('click', async (e) => {
+      const a = e.target.closest('[data-c]')?.dataset.c; if (!a) return;
+      if (a === 'cancel') close(null);
+      if (a === 'rot') { rot = (rot + 90) % 360; ox = oy = 0; draw(); }
+      if (a === 'done') close(await result());
+      if (a === 'draw') { const f = await result(); wrap.style.visibility = 'hidden'; const ed = await photoEditor(f); wrap.style.visibility = ''; close(ed || f); }
+    });
+  });
+}
+async function uploadAvatar(file) {
+  if (!file) return;
+  const fd = new FormData(); fd.append('file', file, 'avatar.jpg');
+  try { S.me = await api('/api/profile/avatar', { body: fd }); renderNavMe(); toast(t('av_saved')); refreshMyProfile(); } catch (e) { toast(e.message); }
+}
+function refreshMyProfile() { if (PP.el && PP.opts?.self) renderProfile(PP.el, S.me, PP.opts); if (TAB === 'settings') renderSettings(); }
+function pickAvatarFile() {
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
+  inp.onchange = async () => { const f = inp.files[0]; if (f) uploadAvatar(await cropImage(f)); };
+  inp.click();
+}
+function avatarMenu() {
+  const has = !!S.me.avatar;
+  modal(`<h3>${t('av_title')} <button class="icon-btn" data-close>${icon('close')}</button></h3>
+    <div class="av-menu">
+      ${has ? `<button data-av="view">${icon('eye')}${t('av_view')}</button>` : ''}
+      <button data-av="new">${icon('camera')}${t('av_new')}</button>
+      ${has ? `<button data-av="edit">${icon('pen')}${t('av_edit')}</button><button data-av="del" class="danger">${icon('trash')}${t('av_del')}</button>` : ''}
+    </div>`);
+  $('#modal-card .av-menu').onclick = async (e) => {
+    const a = e.target.closest('[data-av]')?.dataset.av; if (!a) return;
+    closeModal();
+    if (a === 'view') openViewer('image', S.me.avatar, null, 'Birga_' + (S.me.name || 'photo'));
+    if (a === 'new') pickAvatarFile();
+    if (a === 'edit') uploadAvatar(await cropImage(S.me.avatar));
+    if (a === 'del' && confirm(t('av_del_q'))) {
+      try { S.me = await api('/api/profile/avatar/delete', { body: {} }); renderNavMe(); toast(t('av_deleted')); refreshMyProfile(); } catch (er) { toast(er.message); }
+    }
+  };
+}
+{
+  const basePA = profileAction;
+  profileAction = function (a, u) { if (a === 'photo') return avatarMenu(); return basePA(a, u); };
+  // o'z profilida rasmni bosish ham shu menyuni ochadi
+  const baseRP = renderProfile;
+  renderProfile = async function (el, user, opts = {}) {
+    await baseRP(el, user, opts);
+    if (!opts.self || PP.el !== el) return;
+    const cover = el.querySelector('.pp-cover'); if (!cover) return;
+    cover.classList.add('has-photo');
+    cover.addEventListener('click', (e) => { if (e.target.closest('button, input, .pp-actions')) return; e.stopImmediatePropagation(); avatarMenu(); }, true);
+    el.querySelector('.pp-card [data-x="dlphoto"]')?.remove();
+  };
+}
+document.head.insertAdjacentHTML('beforeend', `<style id="birga-v8">
+.av-menu { display: flex; flex-direction: column; gap: 4px; }
+.av-menu button { display: flex; align-items: center; gap: 14px; padding: 12px 10px; border-radius: 12px; font-weight: 600; text-align: left; }
+.av-menu button:hover { background: var(--hover); }
+.av-menu button svg { width: 22px; height: 22px; color: var(--muted); }
+.av-menu button.danger, .av-menu button.danger svg { color: var(--danger, #E5484D); }
+.crop .ped-stage { padding: 8px; }
+.crop .ped-bot { gap: 14px; }
+.crop-zoom { width: min(46vw, 260px); accent-color: #fff; }
+</style>`);
 
 /* ======================= ILOVANI TELEFONGA O'RNATISH (PWA) ======================= */
 let installPrompt = null;

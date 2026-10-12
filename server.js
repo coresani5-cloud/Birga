@@ -90,7 +90,7 @@ const app = express();
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
 app.use((req, res, next) => {
-  res.set({ 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin', 'X-Frame-Options': 'SAMEORIGIN', 'Permissions-Policy': 'camera=(self), microphone=(self), geolocation=()' });
+  res.set({ 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin', 'X-Frame-Options': 'SAMEORIGIN', 'Permissions-Policy': 'camera=(self), microphone=(self), geolocation=(self)' });
   next();
 });
 // Birga'ning o'z javoblari belgisi: service worker hosting'ning "uyg'onish" sahifasini keshlab qo'ymasligi uchun
@@ -501,6 +501,13 @@ app.post('/api/profile/lang', auth, wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
+app.post('/api/profile/avatar/delete', auth, wrap(async (req, res) => {
+  if (req.user.avatar) storage.remove(req.user.avatar, UPLOAD_DIR);
+  await db.run('UPDATE users SET avatar=NULL WHERE id=?', [req.user.id]);
+  const u = await getUser(req.user.id);
+  broadcastUser(u);
+  res.json(publicUser(u, true));
+}));
 app.post('/api/profile/avatar', auth, upload.single('file'), wrap(async (req, res) => {
   if (!req.file || !/^image\//.test(req.file.mimetype)) return res.status(400).json({ error: 'image required' });
   const url = await storage.save(req.file.path, req.file.mimetype);
@@ -1123,7 +1130,7 @@ async function broadcastUser(raw) {
 const PREVIEW = {
   image: ['🖼 Rasm', '🖼 Фото', '🖼 Photo'], video: ['🎬 Video', '🎬 Видео', '🎬 Video'], voice: ['🎤 Ovozli xabar', '🎤 Голосовое сообщение', '🎤 Voice message'],
   round: ['⏺ Video xabar', '⏺ Видеосообщение', '⏺ Video message'], file: ['📎 Fayl', '📎 Файл', '📎 File'],
-  sticker: ['Stiker', 'Стикер', 'Sticker'], gif: ['GIF', 'GIF', 'GIF'],
+  sticker: ['Stiker', 'Стикер', 'Sticker'], gif: ['GIF', 'GIF', 'GIF'], location: ['📍 Joylashuv', '📍 Геопозиция', '📍 Location'],
 };
 function previewFor(m, lang) {
   const i = Math.max(0, LANGS.indexOf(lang));
@@ -1140,6 +1147,11 @@ function cleanMeta(meta) {
   if (meta.fwd && typeof meta.fwd === 'object') o.fwd = { name: String(meta.fwd.name || '').slice(0, 80), uid: Number(meta.fwd.uid) || undefined };
   if (typeof meta.e === 'string' && meta.e.length <= 16) o.e = meta.e;
   if (typeof meta.cp === 'string' && /^[0-9a-f-]{2,60}$/.test(meta.cp)) o.cp = meta.cp;
+  if (meta.loc && typeof meta.loc === 'object') {
+    const lat = Number(meta.loc.lat), lng = Number(meta.loc.lng);
+    if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && isFinite(lat) && isFinite(lng))
+      o.loc = { lat: Math.round(lat * 1e6) / 1e6, lng: Math.round(lng * 1e6) / 1e6, name: String(meta.loc.name || '').slice(0, 120), addr: String(meta.loc.addr || '').slice(0, 240) };
+  }
   for (const k of ['w', 'h']) { const v = Math.round(Number(meta[k])); if (v > 0 && v <= 20000) o[k] = v; }
   if (typeof meta.gif === 'string' && /^https:\/\/media\d*\.tenor\.com\/[\w./-]+$/.test(meta.gif)) { o.gif = meta.gif; o.w = Number(meta.w) || undefined; o.h = Number(meta.h) || undefined; }
   return Object.keys(o).length ? JSON.stringify(o) : null;
@@ -1153,8 +1165,8 @@ io.use(async (socket, next) => {
   catch { next(new Error('unauthorized')); }
 });
 
-const MSG_TYPES = new Set(['text', 'image', 'video', 'voice', 'round', 'file', 'sticker', 'gif']);
-const NO_FILE = new Set(['text', 'sticker', 'gif']);
+const MSG_TYPES = new Set(['text', 'image', 'video', 'voice', 'round', 'file', 'sticker', 'gif', 'location']);
+const NO_FILE = new Set(['text', 'sticker', 'gif', 'location']);
 // Xabar yuborish huquqi: kanalda faqat admin, guruh/shaxsiyda a'zolar
 async function canPost(chatId, uid) {
   const chat = await getChat(chatId); const role = await roleOf(chatId, uid);
@@ -1209,6 +1221,7 @@ io.on('connection', async (socket) => {
     if (!NO_FILE.has(p.type) && !file) return ack?.({ error: 'no file' });
     if (p.type === 'sticker' && !(p.meta?.e)) return ack?.({ error: 'bad sticker' });
     if (p.type === 'gif' && !cleanMeta({ gif: p.meta?.gif })) return ack?.({ error: 'bad gif' });
+    if (p.type === 'location' && !cleanMeta({ loc: p.meta?.loc })) return ack?.({ error: 'bad location' });
     // takroriy yuborish (javob yo'qolib, mijoz qayta urinsa) — bitta xabar bo'lib qoladi
     const cid = typeof p.cid === 'string' && p.cid.length <= 40 ? `${uid}:${p.cid}` : null;
     if (cid && sentCids.has(cid)) { try { return ack?.({ ok: true, message: await sentCids.get(cid).p }); } catch { sentCids.delete(cid); } }
@@ -1334,6 +1347,86 @@ setInterval(async () => {
     scheduleSweep(1000);
   } catch (e) { console.error('cleanup:', e.message); }
 }, 600e3).unref();
+
+// ===== Xarita (OpenStreetMap): qidiruv, manzil, yo'nalish — server orqali, keshlab =====
+// Bepul ochiq xizmatlar: Photon (qidiruv), Nominatim (manzil), OSRM/FOSSGIS (yo'nalish). Kalit kerak emas.
+const MAPS = {
+  photon: (process.env.MAP_PHOTON || 'https://photon.komoot.io').replace(/\/$/, ''),
+  nominatim: (process.env.MAP_NOMINATIM || 'https://nominatim.openstreetmap.org').replace(/\/$/, ''),
+  osrm: (process.env.MAP_OSRM || 'https://routing.openstreetmap.de').replace(/\/$/, ''),
+  ua: 'Birga/1.0 (https://birga.onrender.com)',
+};
+const mapCache = new Map();
+async function mapFetch(url, ttl = 24 * 3600e3) {
+  const hit = mapCache.get(url); if (hit && hit.exp > now()) return hit.data;
+  const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 12000);
+  try {
+    const r = await fetch(url, { headers: { 'User-Agent': MAPS.ua, Accept: 'application/json' }, signal: ctl.signal });
+    if (!r.ok) throw new Error('map ' + r.status);
+    const data = await r.json();
+    if (mapCache.size > 3000) mapCache.delete(mapCache.keys().next().value);
+    mapCache.set(url, { data, exp: now() + ttl });
+    return data;
+  } finally { clearTimeout(tm); }
+}
+let nomQ = Promise.resolve(); // Nominatim qoidasi: soniyasiga 1 ta so'rov
+const nominatim = (url) => { const p = nomQ.then(() => mapFetch(url)); nomQ = p.catch(() => {}).then(() => new Promise((r) => setTimeout(r, 1100))); return p; };
+const mapLang = (l) => (['uz', 'ru', 'en'].includes(l) ? l : 'uz');
+const num = (v, lim) => { const n = Number(v); return isFinite(n) && Math.abs(n) <= lim ? n : null; };
+function placeFromPhoton(f) {
+  const p = f.properties || {}; const [lng, lat] = f.geometry?.coordinates || [];
+  const street = [p.street, p.housenumber].filter(Boolean).join(' ');
+  const addr = [street, p.district, p.city || p.town || p.village, p.state, p.country].filter(Boolean).filter((x, i, a) => a.indexOf(x) === i).join(', ');
+  return { name: p.name || street || p.city || '', addr, lat, lng, kind: p.osm_value || p.type || '', extent: p.extent || null };
+}
+function placeFromNominatim(r) {
+  const a = r.address || {};
+  const street = [a.road, a.house_number].filter(Boolean).join(' ');
+  const name = r.name || a.amenity || a.shop || a.building || street || a.neighbourhood || a.suburb || a.city || a.town || a.village || '';
+  const addr = [street, a.neighbourhood || a.suburb, a.city || a.town || a.village || a.county, a.state, a.country].filter(Boolean).filter((x, i, arr) => arr.indexOf(x) === i).join(', ');
+  return { name, addr: addr || r.display_name || '', lat: Number(r.lat), lng: Number(r.lon), kind: r.type || '' };
+}
+app.get('/api/map/search', auth, rateLimit('mapq', 600, 3600e3), wrap(async (req, res) => {
+  const q = String(req.query.q || '').trim().slice(0, 120); if (q.length < 2) return res.json([]);
+  const lat = num(req.query.lat, 90), lon = num(req.query.lon, 180);
+  const bias = lat != null && lon != null ? `&lat=${lat.toFixed(3)}&lon=${lon.toFixed(3)}` : '';
+  try {
+    const d = await mapFetch(`${MAPS.photon}/api/?q=${encodeURIComponent(q)}&limit=8${bias}`, 6 * 3600e3);
+    const list = (d.features || []).map(placeFromPhoton).filter((p) => isFinite(p.lat) && isFinite(p.lng));
+    if (list.length) return res.json(list);
+  } catch (e) { console.error('photon:', e.message); }
+  try { // zaxira: Nominatim
+    const d = await nominatim(`${MAPS.nominatim}/search?format=jsonv2&addressdetails=1&limit=8&accept-language=${mapLang(req.user.lang)}&q=${encodeURIComponent(q)}`);
+    res.json((d || []).map(placeFromNominatim));
+  } catch (e) { console.error('nominatim:', e.message); res.status(502).json({ error: 'map' }); }
+}));
+app.get('/api/map/reverse', auth, rateLimit('maprev', 600, 3600e3), wrap(async (req, res) => {
+  const lat = num(req.query.lat, 90), lon = num(req.query.lon, 180);
+  if (lat == null || lon == null) return res.status(400).json({ error: 'bad coords' });
+  try {
+    const d = await nominatim(`${MAPS.nominatim}/reverse?format=jsonv2&addressdetails=1&zoom=18&accept-language=${mapLang(req.query.lang || req.user.lang)}&lat=${lat.toFixed(5)}&lon=${lon.toFixed(5)}`);
+    if (!d || d.error) return res.json({ name: '', addr: '', lat, lng: lon });
+    res.json({ ...placeFromNominatim(d), lat, lng: lon });
+  } catch (e) { console.error('reverse:', e.message); res.json({ name: '', addr: '', lat, lng: lon }); }
+}));
+const ROUTE_PROFILES = { car: 'routed-car', foot: 'routed-foot', bike: 'routed-bike' };
+app.get('/api/map/route', auth, rateLimit('maproute', 600, 3600e3), wrap(async (req, res) => {
+  const pts = String(req.query.pts || '').split(';').map((x) => x.split(',').map(Number)).filter(([a, b]) => num(a, 180) != null && num(b, 90) != null);
+  if (pts.length < 2 || pts.length > 6) return res.status(400).json({ error: 'bad points' });
+  const prof = ROUTE_PROFILES[req.query.mode] || 'routed-car';
+  const coords = pts.map(([a, b]) => `${a.toFixed(6)},${b.toFixed(6)}`).join(';');
+  try {
+    const d = await mapFetch(`${MAPS.osrm}/${prof}/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=true&alternatives=${pts.length === 2 ? 'true' : 'false'}`, 600e3);
+    if (d.code !== 'Ok') return res.status(404).json({ error: 'no route' });
+    res.json({ routes: d.routes.slice(0, 3).map((r) => ({ distance: r.distance, duration: r.duration, geometry: r.geometry,
+      steps: r.legs.flatMap((l) => l.steps).map((st) => ({ d: st.distance, t: st.duration, name: st.name || '', ref: st.ref || '', type: st.maneuver?.type, mod: st.maneuver?.modifier || '', exit: st.maneuver?.exit, loc: st.maneuver?.location })) })) });
+  } catch (e) { console.error('route:', e.message); res.status(502).json({ error: 'map' }); }
+}));
+// MapLibre kutubxonasi o'zimizdan (CDN ishlamasa ham xarita ochiladi)
+{
+  const ml = path.join(__dirname, 'node_modules', 'maplibre-gl', 'dist');
+  if (fs.existsSync(ml)) app.use('/vendor/maplibre', express.static(ml, { maxAge: '30d' }));
+}
 
 // v6 jadval/ustunlari (db.js ga tegmasdan)
 async function extraSchema() {

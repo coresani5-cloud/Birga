@@ -377,12 +377,7 @@ async function connectSocket() {
       if (S.current === message.chat_id && !document.hidden) markRead(); else notify(chat, message);
     }
   });
-  s.on('message:deleted', ({ id, chatId }) => {
-    const m = S.msgs.get(chatId)?.find((x) => x.id === id);
-    if (m) { m.deleted = true; m.text = ''; m.file = null; }
-    const c = S.chats.get(chatId); if (c?.last?.id === id) c.last.deleted = true;
-    if (S.current === chatId) renderMessages(); renderChatList();
-  });
+  s.on('message:deleted', ({ id, chatId }) => removeMessage(id, chatId));
   s.on('chat:read', ({ chatId, messageId }) => {
     const c = S.chats.get(chatId); if (!c) return;
     c.peerReadId = Math.max(c.peerReadId || 0, messageId);
@@ -436,7 +431,7 @@ function notify(chat, m) {
   beep();
   if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
     try {
-      const n = new Notification(chatTitle(chat), { body: (chat.type === 'group' ? (S.users.get(m.sender_id)?.name || '') + ': ' : '') + stripTags(preview(m)), icon: chatAv(chat) || '/icons/icon-192.png', tag: 'chat' + chat.id });
+      const n = new Notification(chatTitle(chat), { body: (chat.type === 'group' ? (S.users.get(m.sender_id)?.name || '') + ': ' : '') + stripTags(preview(m)), icon: chatAv(chat) || '/icons/icon-192.png', badge: '/icons/badge-96.png', tag: 'chat' + chat.id });
       n.onclick = () => { window.focus(); openChat(chat.id); n.close(); };
     } catch {}
   }
@@ -1035,7 +1030,7 @@ function markRead() {
 document.addEventListener('visibilitychange', () => { if (!document.hidden && S.current) markRead(); });
 
 function renderMessages(scrollBottom) {
-  const el = $('#messages'); const arr = S.msgs.get(S.current) || [];
+  const el = $('#messages'); const arr = (S.msgs.get(S.current) || []).filter((m) => !m.deleted);
   const c = S.chats.get(S.current);
   if (roundPlaying && roundPlaying.isConnected) { S.needRender = true; return; } // video xabar tugagach yangilanadi
   S.needRender = false;
@@ -1235,12 +1230,12 @@ function openCtx(x, y, m) {
   const out = m.sender_id === S.me.id;
   const el = $('#ctx');
   S.ctxMsg = m;
-  el.innerHTML = `${m.id && !m.deleted ? `<div class="rx-bar">${REACTS.map((e) => `<button data-r="${e}" class="${myReaction(m) === e ? 'me' : ''}">${e}</button>`).join('')}</div>` : ''}<button data-a="reply">${icon('reply')}${t('reply')}</button>
+  el.innerHTML = m.type === 'call' ? `<button data-a="del" class="danger">${icon('trash')}${t('delete')}</button>` : `${m.id && !m.deleted ? `<div class="rx-bar">${REACTS.map((e) => `<button data-r="${e}" class="${myReaction(m) === e ? 'me' : ''}">${e}</button>`).join('')}</div>` : ''}<button data-a="reply">${icon('reply')}${t('reply')}</button>
     ${m.text ? `<button data-a="copy">${icon('copy')}${t('copy')}</button>` : ''}
     ${out && m.type === 'text' ? `<button data-a="edit">${icon('pen')}${t('edit')}</button>` : ''}
     <button data-a="fwd">${icon('forward')}${t('forward')}</button>
     ${m.file && (!m.gone || Media.has(m)) ? `<button data-a="save">${icon('download')}${t('save_device')}</button>` : ''}
-    ${out || ['owner', 'admin'].includes(S.chats.get(m.chat_id)?.role) ? `<button data-a="del" class="danger">${icon('trash')}${t('delete')}</button>` : ''}`;
+    ${m.id ? `<button data-a="del" class="danger">${icon('trash')}${t('delete')}</button>` : ''}`;
   el.classList.remove('hidden');
   const r = { width: el.offsetWidth, height: el.offsetHeight }; // animatsiya (scale) o'lchamni buzmasligi uchun
   el.style.left = Math.max(8, Math.min(x, innerWidth - r.width - 8)) + 'px';
@@ -1252,13 +1247,13 @@ function openCtx(x, y, m) {
     if (a === 'fwd') forwardModal([m.id]);
     if (a === 'save') Media.saveAs(m);
     if (a === 'copy') navigator.clipboard?.writeText(m.text).then(() => toast(t('copied'))).catch(() => {});
-    if (a === 'del' && confirm(t('confirm_delete'))) S.socket.emit('message:delete', { id: m.id });
+    if (a === 'del') deleteDialog(m);
   };
 }
 document.addEventListener('pointerdown', (e) => { if (!e.target.closest('#ctx')) $('#ctx').classList.add('hidden'); });
 const msgOf = (el) => S.msgs.get(S.current)?.find((m) => m.id === +el.dataset.id);
 $('#messages').addEventListener('contextmenu', (e) => {
-  const el = e.target.closest('.msg'); const m = el && msgOf(el); if (!m || m.deleted || m.type === 'call' || m.type === 'service') return;
+  const el = e.target.closest('.msg'); const m = el && msgOf(el); if (!m || m.deleted || m.type === 'service') return;
   e.preventDefault(); openCtx(e.clientX, e.clientY, m);
 });
 // mobil: uzoq bosish = menyu
@@ -1266,7 +1261,7 @@ let lpTimer;
 $('#messages').addEventListener('touchstart', (e) => {
   const el = e.target.closest('.msg'); if (!el) return;
   const tch = e.touches[0];
-  lpTimer = setTimeout(() => { const m = msgOf(el); if (m && !m.deleted && m.type !== 'call') { navigator.vibrate?.(15); openCtx(tch.clientX, tch.clientY, m); } }, 480);
+  lpTimer = setTimeout(() => { const m = msgOf(el); if (m && !m.deleted) { navigator.vibrate?.(15); openCtx(tch.clientX, tch.clientY, m); } }, 480);
 }, { passive: true });
 ['touchend', 'touchmove', 'touchcancel'].forEach((ev) => $('#messages').addEventListener(ev, () => clearTimeout(lpTimer), { passive: true }));
 $('#messages').addEventListener('dblclick', (e) => { const el = e.target.closest('.msg'); const m = el && msgOf(el); if (m && !m.deleted && m.type !== 'call') setReply(m); });
@@ -3116,18 +3111,264 @@ document.head.insertAdjacentHTML('beforeend', `<style id="birga-v8">
 .crop-zoom { width: min(46vw, 260px); accent-color: #fff; }
 </style>`);
 
+/* ======================= v9: xabarni o'chirish (menda / hammada), qo'ng'iroq ovozlari, tug'ilgan kun ======================= */
+try {
+  Object.assign(I18N.uz, { del_msg_title: 'Xabarni o‘chirish', del_msg_q: 'Bu xabarni o‘chirmoqchimisiz?', del_for_me: 'Faqat mendan o‘chirish', del_for_all: 'Hammadan o‘chirish',
+    del_for_all_p: '{n}dan ham o‘chirish', cancel_btn: 'Bekor qilish', del_saved: 'O‘chirish',
+    bday: 'Tug‘ilgan kun', bday_set: 'Tug‘ilgan kunni belgilash', bday_day: 'Kun', bday_month: 'Oy', bday_year: 'Yil (ixtiyoriy)', bday_noyear: '— ko‘rsatilmasin —', bday_remove: 'Olib tashlash',
+    bday_saved: 'Tug‘ilgan kun saqlandi', bday_today_one: 'Bugun {n}ning tug‘ilgan kuni!', bday_today_many: 'Bugun {n}ning tug‘ilgan kuni!', bday_congrats: 'Tabriklash', bday_msg: 'Tug‘ilgan kuningiz bilan! 🎉🎂',
+    bday_self: 'Tug‘ilgan kuningiz bilan, {n}! 🎉', bday_is_today: 'Bugun tug‘ilgan kuni! 🎉', years_old: '{n} yosh', bday_hint: 'Tug‘ilgan kuningizda kontaktlaringizga eslatma boradi',
+    months: ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avgust', 'sentabr', 'oktabr', 'noyabr', 'dekabr'] });
+  Object.assign(I18N.ru, { del_msg_title: 'Удалить сообщение', del_msg_q: 'Вы хотите удалить это сообщение?', del_for_me: 'Удалить только у меня', del_for_all: 'Удалить у всех',
+    del_for_all_p: 'Удалить также у {n}', cancel_btn: 'Отмена', del_saved: 'Удалить',
+    bday: 'День рождения', bday_set: 'Указать день рождения', bday_day: 'День', bday_month: 'Месяц', bday_year: 'Год (необязательно)', bday_noyear: '— не показывать —', bday_remove: 'Убрать',
+    bday_saved: 'День рождения сохранён', bday_today_one: 'Сегодня день рождения у {n}!', bday_today_many: 'Сегодня день рождения у {n}!', bday_congrats: 'Поздравить', bday_msg: 'С днём рождения! 🎉🎂',
+    bday_self: 'С днём рождения, {n}! 🎉', bday_is_today: 'Сегодня день рождения! 🎉', years_old: '{n} лет', bday_hint: 'В ваш день рождения контакты получат напоминание',
+    months: ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'] });
+  Object.assign(I18N.en, { del_msg_title: 'Delete message', del_msg_q: 'Do you want to delete this message?', del_for_me: 'Delete for me', del_for_all: 'Delete for everyone',
+    del_for_all_p: 'Also delete for {n}', cancel_btn: 'Cancel', del_saved: 'Delete',
+    bday: 'Birthday', bday_set: 'Set birthday', bday_day: 'Day', bday_month: 'Month', bday_year: 'Year (optional)', bday_noyear: '— hide —', bday_remove: 'Remove',
+    bday_saved: 'Birthday saved', bday_today_one: 'Today is {n}’s birthday!', bday_today_many: 'Today is {n}’s birthday!', bday_congrats: 'Congratulate', bday_msg: 'Happy birthday! 🎉🎂',
+    bday_self: 'Happy birthday, {n}! 🎉', bday_is_today: 'Birthday today! 🎉', years_old: '{n} years old', bday_hint: 'Your contacts get a reminder on your birthday',
+    months: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'] });
+} catch {}
+const tm = (k) => (I18N[LANG] || I18N.uz)[k] || I18N.uz[k];
+document.head.insertAdjacentHTML('beforeend', `<style id="birga-v9">
+.del-opts { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.del-opts button { height: 48px; border-radius: 14px; font-weight: 700; background: var(--panel-2, rgba(127,127,127,.12)); }
+.del-opts button.danger { background: var(--danger, #E5484D); color: #fff; }
+.del-opts button.soft-danger { color: var(--danger, #E5484D); }
+.bday-bar { display: flex; align-items: center; gap: 12px; margin: 8px 12px 4px; padding: 12px 14px; border-radius: 16px; background: linear-gradient(135deg, #FFE4F1, #E8E4FF); color: #3A2A55; box-shadow: 0 2px 10px rgba(138,43,226,.12); }
+.bday-bar .bd-ic { font-size: 28px; line-height: 1; }
+.bday-bar .bd-tx { flex: 1; min-width: 0; font-size: 14px; line-height: 1.35; }
+.bday-bar .bd-tx b { font-weight: 800; }
+.bday-bar .bd-go { height: 34px; padding: 0 14px; border-radius: 17px; background: #8A2BE2; color: #fff; font-weight: 700; font-size: 13px; flex: none; }
+.bday-bar .bd-x { width: 28px; height: 28px; display: grid; place-items: center; color: #6b5a86; flex: none; }
+.bday-bar .bd-x svg { width: 16px; height: 16px; }
+.bd-form { display: grid; grid-template-columns: 80px 1fr; gap: 8px; }
+.bd-form select { height: 46px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: inherit; padding: 0 10px; font: inherit; }
+.bd-form .full { grid-column: 1 / -1; }
+.bd-form label { font-size: 12.5px; color: var(--muted); margin: 4px 2px -4px; }
+.info-row.bd-today { background: linear-gradient(90deg, rgba(255,105,180,.12), transparent); }
+</style>`);
+
+/* --- xabarni o'chirish --- */
+function removeMessage(id, chatId) {
+  const arr = S.msgs.get(chatId); const i = arr ? arr.findIndex((x) => x.id === id) : -1;
+  if (i >= 0) arr.splice(i, 1);
+  const c = S.chats.get(chatId);
+  if (c?.last?.id === id) { c.last = arr?.filter((x) => x.id && !x.deleted).at(-1) || c.last; loadChats().catch(() => {}); }
+  if (S.current === chatId) renderMessages();
+  renderChatList();
+}
+function deleteDialog(m) {
+  const c = S.chats.get(m.chat_id) || {}; const out = m.sender_id === S.me.id;
+  const send = (forAll) => {
+    closeModal();
+    S.socket.emit('message:delete', { id: m.id, forAll }, (r) => { if (r?.error) { toast(t('not_sent')); loadMessages(m.chat_id); } });
+    removeMessage(m.id, m.chat_id);
+  };
+  if (c.self) { // "Saqlangan xabarlar" — faqat o'zingizda
+    modal(`<h3>${tm('del_msg_title')}</h3><p class="rn-hint">${esc(tm('del_msg_q'))}</p><div class="del-opts"><button class="danger" data-d="all">${tm('del_saved')}</button><button data-close>${tm('cancel_btn')}</button></div>`);
+  } else {
+    const canAll = out || c.type === 'private' || ['owner', 'admin'].includes(c.role);
+    const peer = c.type === 'private' ? S.users.get(c.peer?.id)?.name || c.peer?.name : '';
+    const allLabel = peer ? tm('del_for_all_p').replace('{n}', peer) : tm('del_for_all');
+    modal(`<h3>${tm('del_msg_title')}</h3><p class="rn-hint">${esc(tm('del_msg_q'))}</p>
+      <div class="del-opts">${canAll ? `<button class="danger" data-d="all">${esc(allLabel)}</button>` : ''}<button class="soft-danger" data-d="me">${tm('del_for_me')}</button><button data-close>${tm('cancel_btn')}</button></div>`);
+  }
+  $('#modal-card .del-opts').addEventListener('click', (e) => { const d = e.target.closest('[data-d]')?.dataset.d; if (d) send(d === 'all'); });
+}
+
+/* --- qo'ng'iroq ovozlari (baland, ilova ichida yaratiladi — fayl kerak emas) --- */
+const Ring = {
+  el: null, urls: {}, vibT: null,
+  wav(fn, secs, rate = 22050) {
+    const n = Math.floor(secs * rate), buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+    const str = (o, s) => [...s].forEach((ch, i) => v.setUint8(o + i, ch.charCodeAt(0)));
+    str(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); str(8, 'WAVE'); str(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); str(36, 'data'); v.setUint32(40, n * 2, true);
+    for (let i = 0; i < n; i++) { const s = Math.max(-1, Math.min(1, fn(i / rate))); v.setInt16(44 + i * 2, s * 32767, true); }
+    return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+  },
+  build() {
+    if (this.urls.in) return;
+    const tone = (f, tt) => Math.sin(2 * Math.PI * f * tt) + 0.35 * Math.sin(4 * Math.PI * f * tt) + 0.15 * Math.sin(6 * Math.PI * f * tt);
+    // kiruvchi: ikki marta "trel" (balandroq), keyin tanaffus
+    this.urls.in = this.wav((x) => {
+      const seg = x < 1 ? x : x >= 1.2 && x < 2.2 ? x - 1.2 : -1; if (seg < 0) return 0;
+      const note = Math.floor(seg / 0.065) % 2 ? 1046.5 : 784; const env = Math.min(1, seg / 0.02, (1 - seg) / 0.05);
+      return 0.92 * env * Math.tanh(1.8 * tone(note, x));
+    }, 3.4);
+    // chiquvchi (chaqirilmoqda): 425 Hz, 1 s ovoz — 3 s jimlik
+    this.urls.out = this.wav((x) => (x < 1 ? 0.55 * Math.min(1, x / 0.02, (1 - x) / 0.02) * Math.sin(2 * Math.PI * 425 * x) : 0), 4);
+  },
+  unlock() { // birinchi bosishda ovoz elementini "ruxsat etilgan" qilib qo'yamiz (keyin o'zi chalinishi uchun)
+    this.build(); if (this.el) return;
+    this.el = new Audio(); this.el.preload = 'auto'; this.el.src = this.urls.out; this.el.muted = true;
+    this.el.play().then(() => { this.el.pause(); this.el.muted = false; }).catch(() => { this.el.muted = false; });
+  },
+  async play(kind) {
+    this.build(); if (!this.el) { this.el = new Audio(); }
+    const a = this.el; a.muted = false; a.loop = true; a.volume = 1; a.src = this.urls[kind]; a.currentTime = 0;
+    if (kind === 'in') { navigator.vibrate?.([700, 300, 700]); this.vibT = setInterval(() => navigator.vibrate?.([700, 300, 700]), 3400); }
+    await a.play();
+  },
+  stop() { clearInterval(this.vibT); this.vibT = null; navigator.vibrate?.(0); if (this.el) { this.el.pause(); this.el.loop = false; } },
+};
+document.addEventListener('pointerdown', () => Ring.unlock(), { once: true, capture: true });
+{
+  const baseTone = Call.tone.bind(Call);
+  Call.tone = function (kind) {
+    baseTone(null); Ring.stop();
+    if (!kind) return;
+    Ring.play(kind === 'ring' ? 'in' : 'out').catch(() => baseTone(kind)); // ruxsat bo'lmasa — eski signal
+  };
+}
+
+/* --- tug'ilgan kun --- */
+const pad2 = (n) => String(n).padStart(2, '0');
+const todayMD = () => { const d = new Date(); return `${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; };
+function fmtBday(b, withAge = true) {
+  if (!b) return '';
+  const [y, mo, d] = b.split('-').map(Number); const months = tm('months');
+  let s = LANG === 'en' ? `${months[mo - 1]} ${d}` : LANG === 'ru' ? `${d} ${months[mo - 1]}` : `${d}-${months[mo - 1]}`;
+  if (y) { s += ' ' + y; if (withAge) { const n = new Date(); let age = n.getFullYear() - y; if (n.getMonth() + 1 < mo || (n.getMonth() + 1 === mo && n.getDate() < d)) age--; s += ` (${tm('years_old').replace('{n}', age)})`; } }
+  return s;
+}
+const isBdayToday = (b) => !!b && b.slice(5) === todayMD();
+function birthdayModal() {
+  const cur = S.me.birthday ? S.me.birthday.split('-').map(Number) : [0, 0, 0];
+  const months = tm('months'); const yNow = new Date().getFullYear();
+  modal(`<h3>${tm('bday')} <button class="icon-btn" data-close>${icon('close')}</button></h3>
+    <p class="rn-hint">${esc(tm('bday_hint'))}</p>
+    <div class="bd-form">
+      <label>${tm('bday_day')}</label><label>${tm('bday_month')}</label>
+      <select id="bd-d">${Array.from({ length: 31 }, (_, i) => `<option value="${i + 1}" ${cur[2] === i + 1 ? 'selected' : ''}>${i + 1}</option>`).join('')}</select>
+      <select id="bd-m">${months.map((m, i) => `<option value="${i + 1}" ${cur[1] === i + 1 ? 'selected' : ''}>${m}</option>`).join('')}</select>
+      <label class="full">${tm('bday_year')}</label>
+      <select id="bd-y" class="full"><option value="0">${tm('bday_noyear')}</option>${Array.from({ length: yNow - 1929 }, (_, i) => yNow - i).map((y) => `<option value="${y}" ${cur[0] === y ? 'selected' : ''}>${y}</option>`).join('')}</select>
+    </div>
+    <p class="err" id="bd-err"></p>
+    <button class="btn-primary" id="bd-save">${t('save')}</button>
+    ${S.me.birthday ? `<button class="rn-reset" id="bd-del">${tm('bday_remove')}</button>` : ''}`);
+  const save = async (date) => {
+    try { S.me = await api('/api/profile/birthday', { body: { date } }); closeModal(); toast(tm('bday_saved')); refreshMyProfile(); Birthdays.render(); }
+    catch (e) { $('#bd-err').textContent = e.message; }
+  };
+  $('#bd-save').onclick = () => { const y = +$('#bd-y').value, m = +$('#bd-m').value, d = +$('#bd-d').value; save(`${y ? y : '0000'}-${pad2(m)}-${pad2(d)}`); };
+  $('#bd-del')?.addEventListener('click', () => save(''));
+}
+{
+  const baseRP = renderProfile;
+  renderProfile = async function (el, user, opts = {}) {
+    await baseRP(el, user, opts);
+    const u = opts.self ? S.me : PP.user; if (!u || PP.el !== el) return;
+    const card = el.querySelector('.pp-card'); if (!card) return;
+    const today = isBdayToday(u.birthday);
+    if (opts.self) {
+      card.insertAdjacentHTML('afterbegin', `<button class="info-row act" data-x9="bday">🎂 ${u.birthday ? `${tm('bday')}: ${esc(fmtBday(u.birthday))}` : tm('bday_set')}</button>`);
+      card.querySelector('[data-x9="bday"]').onclick = birthdayModal;
+    } else if (u.birthday) {
+      card.insertAdjacentHTML('beforeend', `<div class="info-row${today ? ' bd-today' : ''}"><small>🎂 ${tm('bday')}</small>${esc(fmtBday(u.birthday))}${today ? `<br><b>${tm('bday_is_today')}</b>` : ''}</div>`);
+    }
+    if (today) { const nm = el.querySelector('.pp-name'); if (nm && !nm.textContent.includes('🎂')) nm.textContent += ' 🎂'; }
+  };
+}
+const Birthdays = {
+  list: [], md: '',
+  async load() {
+    this.md = todayMD();
+    this.list = await api('/api/birthdays?md=' + this.md).catch(() => []);
+    this.list.forEach((u) => S.users.set(u.id, { ...S.users.get(u.id), ...u }));
+    this.render();
+  },
+  render() {
+    let bar = $('#bday-bar');
+    if (!bar) { $('#chat-list').insertAdjacentHTML('beforebegin', '<div class="bday-bar hidden" id="bday-bar"></div>'); bar = $('#bday-bar'); }
+    const key = 'birga_bday_hide'; const hidden = store.get(key) === new Date().toDateString();
+    const people = this.list.map((u) => S.users.get(u.id) || u).filter((u) => !u.deleted);
+    const self = isBdayToday(S.me?.birthday);
+    if (hidden || (!people.length && !self)) { bar.classList.add('hidden'); return; }
+    let html;
+    if (people.length) {
+      const names = people.slice(0, 3).map((u) => `<b>${esc(u.name)}</b>`).join(', ') + (people.length > 3 ? ` +${people.length - 3}` : '');
+      html = `<span class="bd-ic">🎂</span><span class="bd-tx">${tm(people.length > 1 ? 'bday_today_many' : 'bday_today_one').replace('{n}', names)}</span><button class="bd-go" data-bd="${people[0].id}">${tm('bday_congrats')}</button>`;
+    } else html = `<span class="bd-ic">🎉</span><span class="bd-tx">${tm('bday_self').replace('{n}', `<b>${esc(S.me.name || '')}</b>`)}</span>`;
+    bar.innerHTML = html + `<button class="bd-x" data-bdx="1">${icon('close')}</button>`;
+    bar.classList.remove('hidden');
+    bar.onclick = async (e) => {
+      if (e.target.closest('[data-bdx]')) { store.set(key, new Date().toDateString()); bar.classList.add('hidden'); return; }
+      const g = e.target.closest('[data-bd]'); if (!g) return;
+      // bir nechta odam bo'lsa — navbatma-navbat tabriklash uchun ro'yxat
+      const go = async (uid) => { closeModal(); const c = await startChatWith(uid); if (c) setTimeout(() => { textEl.value = tm('bday_msg'); textEl.dispatchEvent(new Event('input')); textEl.focus(); }, 400); };
+      if (people.length === 1) return go(people[0].id);
+      modal(`<h3>🎂 ${tm('bday_congrats')} <button class="icon-btn" data-close>${icon('close')}</button></h3><div class="chat-pick">${people.map((u) => `<button data-uid="${u.id}">${avatar(u, 'sm')}<b>${esc(u.name)}</b></button>`).join('')}</div>`);
+      $('#modal-card .chat-pick').onclick = (ev) => { const b = ev.target.closest('[data-uid]'); if (b) go(+b.dataset.uid); };
+    };
+  },
+};
+{
+  const baseLA = loadAliases;
+  loadAliases = async function () { await baseLA(); Birthdays.load(); };
+  // kun almashsa (ilova ochiq qolgan bo'lsa) — qayta tekshirish
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && S.me && Birthdays.md && Birthdays.md !== todayMD()) Birthdays.load(); });
+}
+
+/* ======================= v11: Birga foydalanuvchilari soni (tepa o'ng burchakda, jonli) ======================= */
+try {
+  Object.assign(I18N.uz, { users_count_title: 'Birga foydalanuvchilari', users_count_text: 'Hozir Birga’dan {n} kishi foydalanmoqda', users_count_hint: 'Har bir yangi ro‘yxatdan o‘tgan odam bilan bu son o‘sib boradi.', invite_friends: 'Do‘stlarni taklif qilish' });
+  Object.assign(I18N.ru, { users_count_title: 'Пользователи Birga', users_count_text: 'Сейчас Birga пользуются {n} человек', users_count_hint: 'С каждой новой регистрацией число растёт.', invite_friends: 'Пригласить друзей' });
+  Object.assign(I18N.en, { users_count_title: 'Birga users', users_count_text: '{n} people are using Birga', users_count_hint: 'The number grows with every new sign-up.', invite_friends: 'Invite friends' });
+} catch {}
+document.head.insertAdjacentHTML('beforeend', `<style id="birga-v11">
+.user-count { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px 0 10px; border-radius: 18px; background: var(--active, rgba(31,107,255,.1)); color: var(--blue, #1F6BFF); font-weight: 800; font-size: 14.5px; white-space: nowrap; flex: none; }
+.user-count svg { width: 19px; height: 19px; }
+.user-count b { font-variant-numeric: tabular-nums; }
+.user-count.bump { animation: ucBump .7s ease; }
+@keyframes ucBump { 0% { transform: scale(1); } 30% { transform: scale(1.18); background: #22C55E; color: #fff; } 100% { transform: scale(1); } }
+.uc-big { text-align: center; padding: 6px 0 4px; }
+.uc-big b { display: block; font-size: 44px; font-weight: 900; background: var(--grad, linear-gradient(135deg,#00A8D6,#1F6BFF,#8A2BE2)); -webkit-background-clip: text; background-clip: text; color: transparent; line-height: 1.1; }
+.uc-big p { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
+</style>`);
+const UserCount = {
+  n: null,
+  fmt(n) { return n >= 100000 ? Math.floor(n / 1000) + 'K' : n.toLocaleString('ru-RU').replace(/ /g, ' '); },
+  set(n) {
+    n = Number(n); if (!isFinite(n)) return;
+    const up = this.n != null && n > this.n; this.n = n;
+    const b = $('#btn-new-top'); if (!b) return;
+    if (!b.classList.contains('user-count')) { b.className = 'user-count'; b.title = t('users_count_title'); }
+    b.innerHTML = `${icon('group')}<b>${this.fmt(n)}</b>`;
+    if (up) { b.classList.remove('bump'); void b.offsetWidth; b.classList.add('bump'); }
+  },
+  async load() { try { const r = await fetch('/api/stats/users', { cache: 'no-store' }).then((x) => x.json()); this.set(r.n); } catch {} },
+  info() {
+    modal(`<h3>${t('users_count_title')} <button class="icon-btn" data-close>${icon('close')}</button></h3>
+      <div class="uc-big"><b>${this.n != null ? this.fmt(this.n) : '…'}</b><p>${esc(t('users_count_text').replace('{n}', this.n != null ? this.fmt(this.n) : '…'))}</p><p>${esc(t('users_count_hint'))}</p></div>
+      <button class="btn-primary" id="uc-invite" style="margin-top:14px">${icon('share')} ${t('invite_friends')}</button>`);
+    $('#uc-invite').onclick = () => { closeModal(); invite(); };
+  },
+};
+$('#btn-new-top').onclick = () => UserCount.info();
+UserCount.load();
+{
+  const baseCS = connectSocket;
+  connectSocket = async function () { await baseCS(); S.socket?.on('stats:users', ({ n }) => UserCount.set(n)); };
+}
+
 /* ======================= ILOVANI TELEFONGA O'RNATISH (PWA) ======================= */
 let installPrompt = null;
 // Android ilovasi (APK) — GitHub'dan to'g'ridan-to'g'ri yuklab olinadi
 const APK_URL = 'https://raw.githubusercontent.com/coresani5-cloud/Birga/main/birga.apk';
 const APK_T = {
-  uz: { title: 'Birga ilovasini yuklab olish', btn: 'Ilovani yuklab olish (APK)', size: 'Android · 1.0 · 60 KB',
+  uz: { title: 'Birga ilovasini yuklab olish', btn: 'Ilovani yuklab olish (APK)', size: 'Android · 1.1 · 70 KB',
     steps: ['<b>“Ilovani yuklab olish”</b> ni bosing — <b>Birga.apk</b> yuklanadi', 'Yuklangan faylni oching', 'Telefon so‘rasa: <b>Sozlamalar → “Shu manbadan ruxsat berish”</b> ni yoqing', '<b>O‘rnatish</b> ni bosing — Birga ilovalar ro‘yxatida paydo bo‘ladi'],
     alt: 'Yoki brauzer orqali o‘rnatish', iosOnly: 'iPhone uchun APK yo‘q — quyidagi usul bilan o‘rnating:' },
-  ru: { title: 'Скачать приложение Birga', btn: 'Скачать приложение (APK)', size: 'Android · 1.0 · 60 КБ',
+  ru: { title: 'Скачать приложение Birga', btn: 'Скачать приложение (APK)', size: 'Android · 1.1 · 70 КБ',
     steps: ['Нажмите <b>«Скачать приложение»</b> — загрузится <b>Birga.apk</b>', 'Откройте скачанный файл', 'Если телефон спросит: <b>Настройки → «Разрешить из этого источника»</b>', 'Нажмите <b>Установить</b> — Birga появится в списке приложений'],
     alt: 'Или установить через браузер', iosOnly: 'Для iPhone APK нет — установите так:' },
-  en: { title: 'Download the Birga app', btn: 'Download app (APK)', size: 'Android · 1.0 · 60 KB',
+  en: { title: 'Download the Birga app', btn: 'Download app (APK)', size: 'Android · 1.1 · 70 KB',
     steps: ['Tap <b>“Download app”</b> — <b>Birga.apk</b> will download', 'Open the downloaded file', 'If asked: <b>Settings → “Allow from this source”</b>', 'Tap <b>Install</b> — Birga appears in your app list'],
     alt: 'Or install via the browser', iosOnly: 'There is no APK for iPhone — install like this:' },
 };

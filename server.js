@@ -32,7 +32,7 @@ function publicUser(u, self = false) {
   if (!u) return null;
   if (u.deleted) return { id: u.id, name: null, deleted: true, username: null, bio: '', avatar: null, last_seen: null, online: false };
   const hide = !!u.hide_seen && !self; // "oxirgi faollik" yashirilgan — boshqalarga "yaqinda" ko'rinadi
-  const o = { id: u.id, name: u.name, username: u.username, bio: u.bio, avatar: u.avatar, last_seen: hide ? null : u.last_seen, online: hide ? false : online.has(u.id), country: u.country };
+  const o = { id: u.id, name: u.name, username: u.username, bio: u.bio, avatar: u.avatar, last_seen: hide ? null : u.last_seen, online: hide ? false : online.has(u.id), country: u.country, birthday: u.birthday || null };
   if (self) { o.phone = String(u.phone || '').startsWith('mail:') ? null : u.phone; o.email = u.email || null; o.lang = u.lang; o.hide_seen = !!u.hide_seen; o.has2fa = !!u.pass_hash; o.pass_hint = u.pass_hint || ''; }
   return o;
 }
@@ -112,7 +112,7 @@ else {
   const FLAT = {
     '/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/i18n.js': 'i18n.js', '/styles.css': 'styles.css',
     '/sw.js': 'sw.js', '/manifest.webmanifest': 'manifest.webmanifest', '/icons/icon-192.png': 'icon-192.png',
-    '/icons/icon-512.png': 'icon-512.png', '/icons/mark.png': 'mark.png', '/icons/logo-full.jpg': 'logo-full.jpg',
+    '/icons/icon-512.png': 'icon-512.png', '/icons/mark.png': 'mark.png', '/icons/logo-full.jpg': 'logo-full.jpg', '/icons/badge-96.png': 'badge-96.png',
   };
   app.get(Object.keys(FLAT), (req, res) => {
     if (req.path.endsWith('.webmanifest')) res.type('application/manifest+json');
@@ -491,6 +491,7 @@ app.post('/api/profile', auth, wrap(async (req, res) => {
   } else username = null;
   const newLang = LANGS.includes(req.body.lang) ? req.body.lang : req.user.lang;
   await db.run('UPDATE users SET name=?, username=?, bio=?, lang=?, search=? WHERE id=?', [name, username, bio, newLang, db.searchKey(name, username), req.user.id]);
+  if (!req.user.name) broadcastUserCount(); // yangi foydalanuvchi ro'yxatdan o'tdi
   const u = await getUser(req.user.id);
   broadcastUser(u);
   res.json(publicUser(u, true));
@@ -618,8 +619,8 @@ async function chatSummary(chatId, uid) {
   const chat = await getChat(chatId);
   if (chat && chat.type !== 'private') {
     const me = await db.get('SELECT last_read_id, muted, role, pinned, archived FROM chat_members WHERE chat_id=? AND user_id=?', [chatId, uid]);
-    const last = await db.get('SELECT * FROM messages WHERE chat_id=? ORDER BY id DESC LIMIT 1', [chatId]);
-    const unread = (await db.get('SELECT COUNT(*) AS c FROM messages WHERE chat_id=? AND id>? AND sender_id<>?', [chatId, me?.last_read_id || 0, uid])).c;
+    const last = await db.get('SELECT * FROM messages WHERE chat_id=? AND deleted=0 AND id NOT IN (SELECT message_id FROM hidden_messages WHERE user_id=?) ORDER BY id DESC LIMIT 1', [chatId, uid]);
+    const unread = (await db.get('SELECT COUNT(*) AS c FROM messages WHERE chat_id=? AND id>? AND sender_id<>? AND deleted=0 AND id NOT IN (SELECT message_id FROM hidden_messages WHERE user_id=?)', [chatId, me?.last_read_id || 0, uid, uid])).c;
     const members = (await db.get('SELECT COUNT(*) AS c FROM chat_members WHERE chat_id=?', [chatId])).c;
     const peerRead = (await db.get('SELECT MAX(last_read_id) AS m FROM chat_members WHERE chat_id=? AND user_id<>?', [chatId, uid]))?.m || 0;
     let lastOut = last ? fmtMsg(last) : null;
@@ -629,8 +630,8 @@ async function chatSummary(chatId, uid) {
   const peer = (await db.get('SELECT u.* FROM chat_members m JOIN users u ON u.id=m.user_id WHERE m.chat_id=? AND m.user_id<>?', [chatId, uid])) || (await getUser(uid));
   const me = await db.get('SELECT last_read_id, muted, pinned, archived FROM chat_members WHERE chat_id=? AND user_id=?', [chatId, uid]);
   const peerRead = await db.get('SELECT last_read_id FROM chat_members WHERE chat_id=? AND user_id<>?', [chatId, uid]);
-  const last = await db.get('SELECT * FROM messages WHERE chat_id=? ORDER BY id DESC LIMIT 1', [chatId]);
-  const unread = (await db.get('SELECT COUNT(*) AS c FROM messages WHERE chat_id=? AND id>? AND sender_id<>?', [chatId, me?.last_read_id || 0, uid])).c;
+  const last = await db.get('SELECT * FROM messages WHERE chat_id=? AND deleted=0 AND id NOT IN (SELECT message_id FROM hidden_messages WHERE user_id=?) ORDER BY id DESC LIMIT 1', [chatId, uid]);
+  const unread = (await db.get('SELECT COUNT(*) AS c FROM messages WHERE chat_id=? AND id>? AND sender_id<>? AND deleted=0 AND id NOT IN (SELECT message_id FROM hidden_messages WHERE user_id=?)', [chatId, me?.last_read_id || 0, uid, uid])).c;
   return { id: Number(chatId), type: 'private', peer: publicUser(peer, peer.id === uid), last: last ? fmtMsg(last) : null, unread, peerReadId: peerRead?.last_read_id || 0, self: peer.id === uid, muted: !!me?.muted, pinned: Number(me?.pinned) || 0, archived: !!me?.archived };
 }
 
@@ -668,12 +669,12 @@ app.get('/api/chats/:id/messages', auth, wrap(async (req, res) => {
   if (!(await isMember(chatId, req.user.id))) return res.status(403).json({ error: 'forbidden' });
   const around = Number(req.query.around) || 0;
   if (around) { // qidiruvdan xabarga o'tish: oldidan 25 ta va undan keyingi hammasi (oxirigacha)
-    const older = await db.all('SELECT * FROM messages WHERE chat_id=? AND id<? ORDER BY id DESC LIMIT 25', [chatId, around]);
-    const newer = await db.all('SELECT * FROM messages WHERE chat_id=? AND id>=? ORDER BY id ASC LIMIT 2000', [chatId, around]);
+    const older = await db.all('SELECT * FROM messages WHERE chat_id=? AND id<? AND deleted=0 AND id NOT IN (SELECT message_id FROM hidden_messages WHERE user_id=?) ORDER BY id DESC LIMIT 25', [chatId, around, req.user.id]);
+    const newer = await db.all('SELECT * FROM messages WHERE chat_id=? AND id>=? AND deleted=0 AND id NOT IN (SELECT message_id FROM hidden_messages WHERE user_id=?) ORDER BY id ASC LIMIT 2000', [chatId, around, req.user.id]);
     return res.json(await withReactions([...older.reverse(), ...newer].map(fmtMsg)));
   }
   const before = Number(req.query.before) || 1e15;
-  const rows = await db.all('SELECT * FROM messages WHERE chat_id=? AND id<? ORDER BY id DESC LIMIT 50', [chatId, before]);
+  const rows = await db.all('SELECT * FROM messages WHERE chat_id=? AND id<? AND deleted=0 AND id NOT IN (SELECT message_id FROM hidden_messages WHERE user_id=?) ORDER BY id DESC LIMIT 50', [chatId, before, req.user.id]);
   res.json(await withReactions(rows.reverse().map(fmtMsg)));
 }));
 
@@ -705,6 +706,30 @@ app.post('/api/chats/:id/archive', auth, wrap(async (req, res) => {
   if (!(await isMember(chatId, req.user.id))) return res.status(403).json({ error: 'forbidden' });
   await db.run('UPDATE chat_members SET archived=?, pinned=CASE WHEN ?>0 THEN 0 ELSE pinned END WHERE chat_id=? AND user_id=?', [req.body.on ? 1 : 0, req.body.on ? 1 : 0, chatId, req.user.id]);
   res.json(await chatSummary(chatId, req.user.id));
+}));
+
+// Tug'ilgan kun: "YYYY-MM-DD" (yil yashirilsa "0000-MM-DD"); bo'sh — olib tashlash
+app.post('/api/profile/birthday', auth, wrap(async (req, res) => {
+  let v = String(req.body?.date || '').trim();
+  if (v) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v); const y = m && +m[1], mo = m && +m[2], d = m && +m[3];
+    const ok = m && mo >= 1 && mo <= 12 && d >= 1 && d <= new Date(2024, mo, 0).getDate() && (y === 0 || (y >= 1900 && y <= new Date().getFullYear()));
+    if (!ok) return res.status(400).json({ error: tr(req.user.lang, 'Sana noto‘g‘ri', 'Неверная дата', 'Invalid date') });
+  } else v = null;
+  await db.run('UPDATE users SET birthday=? WHERE id=?', [v, req.user.id]);
+  const u = await getUser(req.user.id); broadcastUser(u).catch(() => {});
+  res.json(publicUser(u, true));
+}));
+// Bugun tug'ilgan kuni bo'lgan yaqinlar (md = foydalanuvchi telefonidagi bugungi "MM-DD")
+app.get('/api/birthdays', auth, wrap(async (req, res) => {
+  const md = /^\d{2}-\d{2}$/.test(String(req.query.md)) ? String(req.query.md) : null; if (!md) return res.json([]);
+  const ids = new Set(await peersOf(req.user.id));
+  (await db.all('SELECT user_id FROM contacts WHERE owner_id=?', [req.user.id])).forEach((r) => ids.add(r.user_id));
+  ids.delete(req.user.id);
+  if (!ids.size) return res.json([]);
+  const list = [...ids].slice(0, 2000);
+  const rows = await db.all(`SELECT * FROM users WHERE birthday IS NOT NULL AND deleted=0 AND name IS NOT NULL AND id IN (${list.map(() => '?').join(',')})`, list);
+  res.json(rows.filter((u) => String(u.birthday).slice(5) === md).map((u) => publicUser(u)));
 }));
 
 // Maxfiylik: oxirgi faollik vaqtini yashirish
@@ -748,6 +773,7 @@ app.post('/api/me/delete', auth, rateLimit('delacc', 5, 3600e3), wrap(async (req
   await broadcastUser(u).catch(() => {});
   res.clearCookie(COOKIE, { path: '/' });
   res.json({ ok: true });
+  broadcastUserCount();
   setTimeout(() => io.in('u' + uid).disconnectSockets(true), 300);
 }));
 
@@ -757,7 +783,7 @@ app.get('/api/chats/:id/shared', auth, wrap(async (req, res) => {
   const chatId = Number(req.params.id);
   const cond = SHARED[req.query.kind];
   if (!cond || !(await isMember(chatId, req.user.id))) return res.status(400).json({ error: 'bad request' });
-  const rows = await db.all(`SELECT * FROM messages WHERE chat_id=? AND deleted=0 AND ${cond} ORDER BY id DESC LIMIT 300`, [chatId]);
+  const rows = await db.all(`SELECT * FROM messages WHERE chat_id=? AND deleted=0 AND id NOT IN (SELECT message_id FROM hidden_messages WHERE user_id=?) AND ${cond} ORDER BY id DESC LIMIT 300`, [chatId, req.user.id]);
   res.json(rows.map(fmtMsg));
 }));
 
@@ -1157,6 +1183,15 @@ function cleanMeta(meta) {
   return Object.keys(o).length ? JSON.stringify(o) : null;
 }
 
+// Birga'dagi jami foydalanuvchilar soni (ro'yxatdan to'liq o'tganlar) — hammaga jonli ko'rsatiladi
+let userCount = null;
+async function countUsers(fresh) {
+  if (fresh || userCount == null) userCount = Number((await db.get('SELECT COUNT(*) AS c FROM users WHERE name IS NOT NULL AND COALESCE(deleted,0)=0')).c) || 0;
+  return userCount;
+}
+async function broadcastUserCount() { try { io.emit('stats:users', { n: await countUsers(true) }); } catch (e) { console.error('count:', e.message); } }
+app.get('/api/stats/users', wrap(async (req, res) => { res.set('Cache-Control', 'no-store'); res.json({ n: await countUsers() }); }));
+
 const sentCids = new Map();
 setInterval(() => { const t = now(); for (const [k, v] of sentCids) if (t - v.at > 30 * 60e3) sentCids.delete(k); }, 300e3).unref();
 
@@ -1199,6 +1234,7 @@ io.on('connection', async (socket) => {
   const uid = socket.uid;
   socket.join('u' + uid);
   socket.emit('app:version', { v: APP_VERSION });
+  countUsers().then((n) => socket.emit('stats:users', { n })).catch(() => {});
   online.set(uid, (online.get(uid) || 0) + 1);
   await db.run('UPDATE users SET last_seen=? WHERE id=?', [now(), uid]).catch(() => {});
   getUser(uid).then((u) => u && broadcastUser(u)).catch(() => {});
@@ -1270,11 +1306,20 @@ io.on('connection', async (socket) => {
     (await membersOf(m.chat_id)).forEach((u) => io.to('u' + u).emit('message:edited', { message: msg }));
   });
 
-  on(socket, 'message:delete', async ({ id } = {}) => {
+  // Xabarni o'chirish: forAll — hammadan (izsiz), aks holda faqat o'zidan
+  on(socket, 'message:delete', async ({ id, forAll } = {}, ack) => {
     const m = await db.get('SELECT * FROM messages WHERE id=?', [Number(id) || 0]);
-    if (!m) return;
-    if (m.sender_id !== uid && !isAdmin(await roleOf(m.chat_id, uid))) return;
-    await db.run("UPDATE messages SET deleted=1, text='', file=NULL WHERE id=?", [m.id]);
+    if (!m || !(await isMember(m.chat_id, uid))) return ack?.({ error: 'forbidden' });
+    if (!forAll) {
+      await db.run('INSERT INTO hidden_messages(user_id,message_id,at) VALUES(?,?,?) ON CONFLICT(user_id,message_id) DO NOTHING', [uid, m.id, now()]);
+      io.to('u' + uid).emit('message:deleted', { id: m.id, chatId: m.chat_id });
+      return ack?.({ ok: true });
+    }
+    const chat = await getChat(m.chat_id);
+    if (m.sender_id !== uid && chat?.type !== 'private' && !isAdmin(await roleOf(m.chat_id, uid))) return ack?.({ error: 'forbidden' });
+    await db.run("UPDATE messages SET deleted=1, text='', file=NULL, meta=NULL WHERE id=?", [m.id]);
+    await db.run('DELETE FROM reactions WHERE message_id=?', [m.id]).catch(() => {});
+    ack?.({ ok: true });
     if (m.file) storage.remove(m.file, UPLOAD_DIR);
     try { const alt = JSON.parse(m.meta || '{}').alt; if (alt) storage.remove(alt, UPLOAD_DIR); } catch {}
     (await membersOf(m.chat_id)).forEach((u) => io.to('u' + u).emit('message:deleted', { id: m.id, chatId: m.chat_id }));
@@ -1432,7 +1477,8 @@ app.get('/api/map/route', auth, rateLimit('maproute', 600, 3600e3), wrap(async (
 async function extraSchema() {
   await db.run('CREATE TABLE IF NOT EXISTS reactions(message_id BIGINT, user_id BIGINT, emoji TEXT, at BIGINT, PRIMARY KEY(message_id, user_id))');
   await db.run('CREATE INDEX IF NOT EXISTS idx_react_msg ON reactions(message_id)');
-  const cols = [['chat_members', 'pinned', 'BIGINT DEFAULT 0'], ['chat_members', 'archived', 'INTEGER DEFAULT 0'], ['users', 'hide_seen', 'INTEGER DEFAULT 0'], ['users', 'deleted', 'INTEGER DEFAULT 0']];
+  await db.run('CREATE TABLE IF NOT EXISTS hidden_messages(user_id BIGINT, message_id BIGINT, at BIGINT, PRIMARY KEY(user_id, message_id))');
+  const cols = [['users', 'birthday', 'TEXT'], ['chat_members', 'pinned', 'BIGINT DEFAULT 0'], ['chat_members', 'archived', 'INTEGER DEFAULT 0'], ['users', 'hide_seen', 'INTEGER DEFAULT 0'], ['users', 'deleted', 'INTEGER DEFAULT 0']];
   for (const [t, c, type] of cols) {
     try { await db.get(`SELECT ${c} FROM ${t} LIMIT 1`); } catch { await db.run(`ALTER TABLE ${t} ADD COLUMN ${c} ${type}`); }
   }

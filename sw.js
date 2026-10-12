@@ -1,7 +1,7 @@
 // Birga service worker: ilova qobig'ini keshlash + push bildirishnomalar
-const CACHE = 'birga-v16';
+const CACHE = 'birga-v17';
 const MEDIA = 'birga-media'; // foydalanuvchi mediasi — versiya almashganda O'CHIRILMAYDI
-const SHELL = ['/', '/styles.css', '/app.js', '/i18n.js', '/vendor/phone.js', '/manifest.webmanifest', '/icons/mark.png', '/icons/icon-192.png', '/socket.io/socket.io.js'];
+const SHELL = ['/', '/styles.css', '/app.js', '/i18n.js', '/vendor/phone.js', '/manifest.webmanifest', '/icons/mark.png', '/icons/icon-192.png', '/icons/badge-96.png', '/socket.io/socket.io.js'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).catch(() => {})); self.skipWaiting(); });
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE && k !== MEDIA).map((k) => caches.delete(k)))));
@@ -73,7 +73,7 @@ self.addEventListener('push', (e) => {
     if (d.type === 'msg' && visible) return; // ilova ochiq — ichida ko'rsatiladi
     if (d.type === 'call' && visible) return;
     await self.registration.showNotification(d.title || 'Birga', {
-      body: d.body || '', icon: d.icon || '/icons/icon-192.png', badge: '/icons/icon-192.png', tag: d.tag || 'birga',
+      body: d.body || '', icon: d.icon || '/icons/icon-192.png', badge: '/icons/badge-96.png', tag: d.tag || 'birga',
       renotify: true, requireInteraction: d.type === 'call', vibrate: d.type === 'call' ? [500, 250, 500, 250, 500] : [120],
       data: { chatId: d.chatId || null, type: d.type },
     });

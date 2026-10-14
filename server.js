@@ -528,10 +528,63 @@ app.post('/api/profile', auth, wrap(async (req, res) => {
   } else username = null;
   const newLang = LANGS.includes(req.body.lang) ? req.body.lang : req.user.lang;
   await db.run('UPDATE users SET name=?, username=?, bio=?, lang=?, search=? WHERE id=?', [name, username, bio, newLang, db.searchKey(name, username), req.user.id]);
-  if (!req.user.name) broadcastUserCount(); // yangi foydalanuvchi ro'yxatdan o'tdi
+  if (!req.user.name) { broadcastUserCount(); joinedByInvite(req.user.id, req.body.ref).catch((e) => console.error('invite:', e.message)); } // yangi foydalanuvchi ro'yxatdan o'tdi
   const u = await getUser(req.user.id);
   broadcastUser(u);
   res.json(publicUser(u, true));
+}));
+
+// ===== Do'stlarni taklif qilish =====
+async function inviteCode(u) {
+  if (u.invite_code) return u.invite_code;
+  for (let i = 0; i < 5; i++) {
+    const code = crypto.randomBytes(5).toString('base64url').replace(/[-_]/g, '').slice(0, 7).toLowerCase();
+    if (code.length < 6 || (await db.get('SELECT id FROM users WHERE invite_code=?', [code]))) continue;
+    await db.run('UPDATE users SET invite_code=? WHERE id=?', [code, u.id]); return code;
+  }
+  throw new Error('code');
+}
+async function joinedByInvite(newId, ref) {
+  ref = String(ref || '').toLowerCase(); if (!/^[a-z0-9]{6,12}$/.test(ref)) return;
+  const inv = await db.get('SELECT * FROM users WHERE invite_code=?', [ref]);
+  if (!inv || inv.id === newId || inv.deleted || inv.banned) return;
+  await db.run('UPDATE users SET invited_by=? WHERE id=? AND invited_by IS NULL', [inv.id, newId]);
+  const me = await getUser(newId);
+  const cid = await privateChatId(newId, inv.id);
+  await saveMessage(cid, newId, { type: 'text', text: tr(inv.lang, `👋 Salom! Taklifingiz bilan Birga’ga qo‘shildim`, `👋 Привет! Я присоединился к Birga по вашему приглашению`, `👋 Hi! I joined Birga with your invite`) }, null);
+  for (const p of [newId, inv.id]) io.to('u' + p).emit('chat:update', await chatSummary(cid, p));
+  void me;
+}
+app.get('/api/invite', auth, wrap(async (req, res) => {
+  const code = await inviteCode(req.user);
+  const base = process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get('host')}`;
+  const rows = await db.all('SELECT * FROM users WHERE invited_by=? AND name IS NOT NULL AND COALESCE(deleted,0)=0 ORDER BY id DESC LIMIT 50', [req.user.id]);
+  const n = Number((await db.get('SELECT COUNT(*) AS c FROM users WHERE invited_by=? AND name IS NOT NULL', [req.user.id])).c);
+  res.json({ code, link: `${base.replace(/\/$/, '')}/?ref=${code}`, count: n, list: rows.map((u) => publicUser(u)) });
+}));
+app.get('/api/invite/:code', wrap(async (req, res) => { // taklif sahifasi uchun: kim taklif qildi
+  const u = await db.get('SELECT * FROM users WHERE invite_code=?', [String(req.params.code || '').toLowerCase()]);
+  if (!u || u.deleted || u.banned || !u.name) return res.status(404).json({ error: 'not_found' });
+  res.json({ name: u.name, avatar: u.avatar });
+}));
+
+// ===== Kontaktlarni sinxronlash: telefon kontaktlaridan kim Birga'da borligini topish (kontaktlar serverda saqlanmaydi) =====
+app.post('/api/contacts/match', auth, rateLimit('cmatch', 30, 3600e3), wrap(async (req, res) => {
+  const country = req.user.country || 'UZ';
+  const phones = new Set(), emails = new Set();
+  for (const x of (Array.isArray(req.body?.phones) ? req.body.phones : []).slice(0, 1000)) { const p = parsePhone(String(x), country); if (p) phones.add(p.e164); }
+  for (const x of (Array.isArray(req.body?.emails) ? req.body.emails : []).slice(0, 1000)) { const e = String(x).trim().toLowerCase(); if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) emails.add(e); }
+  const found = new Map();
+  const chunk = (arr) => { const out = []; for (let i = 0; i < arr.length; i += 100) out.push(arr.slice(i, i + 100)); return out; };
+  for (const part of chunk([...phones])) for (const u of await db.all(`SELECT * FROM users WHERE phone IN (${part.map(() => '?').join(',')})`, part)) found.set(u.id, u);
+  for (const part of chunk([...emails])) for (const u of await db.all(`SELECT * FROM users WHERE LOWER(email) IN (${part.map(() => '?').join(',')}) OR phone IN (${part.map(() => '?').join(',')})`, [...part, ...part.map((e) => 'mail:' + e)])) found.set(u.id, u);
+  const out = [];
+  for (const u of found.values()) {
+    if (u.id === req.user.id || !u.name || u.deleted || u.banned) continue;
+    if (await isBlocked(u.id, req.user.id)) continue;
+    out.push(publicUser(u));
+  }
+  res.json({ users: out, checked: phones.size + emails.size });
 }));
 
 app.post('/api/profile/lang', auth, wrap(async (req, res) => {
@@ -981,6 +1034,7 @@ app.post('/api/ai/image', auth, rateLimit('aiimg', 25, 3600e3), wrap(async (req,
 // ===== O'yinlar: eng yaxshi natijalar va reyting =====
 const GAMES = new Set(['snake', 'penalty', 'aim', '2048', 'flappy', 'blocks', 'memory', 'xo', 'breakout', 'mines', 'run', 'strike', 'football']);
 // 2 kishilik (taklif bilan) o'yinlar — g'alabalar soni 'w_<id>' nomi bilan reytingga yoziladi
+const AI_SECRET = crypto.randomBytes(8).toString('hex');
 const MP_GAMES = new Set(['chess', 'checkers', 'connect4', 'gomoku', 'battleship']);
 const TOP_GAMES = new Set([...GAMES, ...[...MP_GAMES].map((g) => 'w_' + g)]);
 app.post('/api/games/score', auth, rateLimit('gscore', 600, 3600e3), wrap(async (req, res) => {
@@ -1456,7 +1510,7 @@ async function broadcastUser(raw) {
 const PREVIEW = {
   image: ['🖼 Rasm', '🖼 Фото', '🖼 Photo'], video: ['🎬 Video', '🎬 Видео', '🎬 Video'], voice: ['🎤 Ovozli xabar', '🎤 Голосовое сообщение', '🎤 Voice message'],
   round: ['⏺ Video xabar', '⏺ Видеосообщение', '⏺ Video message'], file: ['📎 Fayl', '📎 Файл', '📎 File'],
-  sticker: ['Stiker', 'Стикер', 'Sticker'], gif: ['GIF', 'GIF', 'GIF'], location: ['📍 Joylashuv', '📍 Геопозиция', '📍 Location'], game: ['🎮 O‘yinga taklif', '🎮 Приглашение в игру', '🎮 Game invite'],
+  sticker: ['Stiker', 'Стикер', 'Sticker'], gif: ['GIF', 'GIF', 'GIF'], location: ['📍 Joylashuv', '📍 Геопозиция', '📍 Location'], game: ['🎮 O‘yinga taklif', '🎮 Приглашение в игру', '🎮 Game invite'], poll: ['📊 So‘rovnoma', '📊 Опрос', '📊 Poll'],
 };
 function previewFor(m, lang) {
   const i = Math.max(0, LANGS.indexOf(lang));
@@ -1478,6 +1532,12 @@ function cleanMeta(meta) {
     if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && isFinite(lat) && isFinite(lng))
       o.loc = { lat: Math.round(lat * 1e6) / 1e6, lng: Math.round(lng * 1e6) / 1e6, name: String(meta.loc.name || '').slice(0, 120), addr: String(meta.loc.addr || '').slice(0, 240) };
   }
+  if (meta.poll && typeof meta.poll === 'object') {
+    const q = String(meta.poll.q || '').trim().slice(0, 300);
+    const opts = (Array.isArray(meta.poll.opts) ? meta.poll.opts : []).map((x) => String(x || '').trim().slice(0, 100)).filter(Boolean).slice(0, 10);
+    if (q && opts.length >= 2) { o.poll = { q, opts, multi: !!meta.poll.multi }; const c = Number(meta.poll.quiz); if (Number.isInteger(c) && c >= 0 && c < opts.length) { o.poll.quiz = c; o.poll.multi = false; } if (meta.poll.expl) o.poll.expl = String(meta.poll.expl).slice(0, 200); }
+  }
+  if (meta.ai === 1 && meta._srv === AI_SECRET) o.ai = 1; // faqat server qo'yadi
   if (meta.game && typeof meta.game === 'object' && MP_GAMES.has(meta.game.g) && /^[a-f0-9]{12}$/.test(String(meta.game.room))) o.game = { g: meta.game.g, room: meta.game.room };
   for (const k of ['w', 'h']) { const v = Math.round(Number(meta[k])); if (v > 0 && v <= 20000) o[k] = v; }
   if (typeof meta.gif === 'string' && /^https:\/\/media\d*\.tenor\.com\/[\w./-]+$/.test(meta.gif)) { o.gif = meta.gif; o.w = Number(meta.w) || undefined; o.h = Number(meta.h) || undefined; }
@@ -1501,8 +1561,8 @@ io.use(async (socket, next) => {
   catch { next(new Error('unauthorized')); }
 });
 
-const MSG_TYPES = new Set(['text', 'image', 'video', 'voice', 'round', 'file', 'sticker', 'gif', 'location']);
-const NO_FILE = new Set(['text', 'sticker', 'gif', 'location']);
+const MSG_TYPES = new Set(['text', 'image', 'video', 'voice', 'round', 'file', 'sticker', 'gif', 'location', 'poll']);
+const NO_FILE = new Set(['text', 'sticker', 'gif', 'location', 'poll']);
 // Xabar yuborish huquqi: kanalda faqat admin, guruh/shaxsiyda a'zolar
 // Fayllar: kim yuklagani yoziladi; faylni boshqa joyda ishlatilayotgan bo'lsa o'chirilmaydi (uzatilgan nusxalar, hikoyalar...)
 async function fileAllowed(url, uid) {
@@ -1551,6 +1611,54 @@ async function saveMessage(chatId, uid, p, metaObj) {
   }
   return msg;
 }
+// ===== Rejalashtirilgan xabarlarni vaqtida yuborish =====
+async function sendScheduled(r) {
+  const chatId = Number(r.chat_id), uid = Number(r.user_id);
+  const peer = await privatePeer(chatId, uid);
+  if (!(await canPost(chatId, uid)) || (peer && ((await isBlocked(peer, uid)) || (await isBlocked(uid, peer))))) return;
+  await saveMessage(chatId, uid, { type: 'text', text: r.text, replyTo: r.reply_to }, null);
+}
+let schedBusy = false, SCHED_READY = false;
+setInterval(async () => {
+  if (schedBusy || !SCHED_READY) return; schedBusy = true;
+  try {
+    const due = await db.all('SELECT * FROM scheduled WHERE at<=? ORDER BY at ASC LIMIT 25', [now()]);
+    for (const r of due) {
+      await db.run('DELETE FROM scheduled WHERE id=?', [r.id]);
+      try { await sendScheduled(r); } catch (e) { console.error('scheduled:', e.message); }
+      io.to('u' + r.user_id).emit('msg:scheduled', { chatId: Number(r.chat_id) });
+    }
+  } catch (e) { if (!/no such table|does not exist/.test(e.message)) console.error('scheduler:', e.message); }
+  schedBusy = false;
+}, 15e3).unref();
+// Render bepul rejimida server uxlab qolmasligi uchun: rejalashtirilgan xabar bo'lsa — o'ziga murojaat qiladi
+setInterval(async () => {
+  const base = process.env.RENDER_EXTERNAL_URL; if (!base) return;
+  try { const n = Number((await db.get('SELECT COUNT(*) AS c FROM scheduled', [])).c); if (n > 0) await fetch(base + '/api/stats/users').catch(() => {}); } catch {}
+}, 9 * 60e3).unref();
+
+// ===== Chat ichida Birga AI: "@ai savol" — suhbatni o'qib, hammaga javob beradi =====
+const AI_TRIGGER = /^\s*(@ai\b|@birga\s*ai\b|@birgaai\b|\/ai\b)/i;
+async function chatAI(chatId, uid, msg) {
+  if (!rateOk('chatai' + uid, 30, 3600e3)) return;
+  const members = await membersOf(chatId);
+  const tell = (on) => members.forEach((u) => io.to('u' + u).emit('ai:thinking', { chatId, on, by: uid }));
+  tell(true);
+  try {
+    const rows = (await db.all(`SELECT m.*, u.name AS sname FROM messages m LEFT JOIN users u ON u.id=m.sender_id WHERE m.chat_id=? AND m.deleted=0 AND m.id<=? ORDER BY m.id DESC LIMIT 20`, [chatId, msg.id])).reverse();
+    const line = (m) => { const meta = (() => { try { return JSON.parse(m.meta || '{}'); } catch { return {}; } })();
+      const who = meta.ai ? 'Birga AI' : m.sname || '?';
+      const body = m.type === 'text' ? m.text : m.type === 'poll' ? `[so'rovnoma: ${meta.poll?.q} — ${(meta.poll?.opts || []).join(' / ')}]` : `[${(PREVIEW[m.type]?.[0] || m.type)}]${m.text ? ' ' + m.text : ''}`;
+      return `${who}: ${String(body || '').slice(0, 600)}`; };
+    const q = msg.text.replace(AI_TRIGGER, '').trim();
+    const asker = (await getUser(uid))?.name || '';
+    const prompt = `Sen Birga messenjeridagi chatga chaqirilding. Quyida chatdagi so'nggi xabarlar:\n---\n${rows.map(line).join('\n')}\n---\n${asker} senga savol berdi: "${q || '(savolsiz chaqirdi — suhbat mazmuniga qarab foydali javob yoki xulosa ber)'}"\nSuhbatdoshlar ikkalasi ham javobingni ko'radi. Qisqa, aniq va foydali javob ber, suhbat tilida yoz. Nizoli savol bo'lsa — xolis bo'l.`;
+    const r = await aiAnswer([{ role: 'user', content: prompt }]);
+    const text = r?.text ? r.text + (r.sources?.length ? '\n\n' + r.sources.slice(0, 3).map((s, i) => `[${i + 1}. ${s.title || 'manba'}](${s.url})`).join('\n') : '') : '⚠️ Birga AI hozir javob bera olmadi. Birozdan keyin qayta urinib ko‘ring.';
+    await saveMessage(chatId, uid, { type: 'text', text: text.slice(0, 4096), replyTo: msg.id }, { ai: 1, _srv: AI_SECRET });
+  } finally { tell(false); }
+}
+
 const rooms = new Map(), roomLoads = new Map(); // o'yin xonalari keshi
 setInterval(() => { const t = now(); for (const [k, r] of rooms) if (t - r.updated > 3600e3) rooms.delete(k); }, 600e3).unref();
 async function loadRoom(id) {
@@ -1597,15 +1705,68 @@ io.on('connection', async (socket) => {
     if (p.type === 'sticker' && !(p.meta?.e)) return ack?.({ error: 'bad sticker' });
     if (p.type === 'gif' && !cleanMeta({ gif: p.meta?.gif })) return ack?.({ error: 'bad gif' });
     if (p.type === 'location' && !cleanMeta({ loc: p.meta?.loc })) return ack?.({ error: 'bad location' });
+    if (p.type === 'poll') { const pm = cleanMeta({ poll: p.meta?.poll }); if (!pm) return ack?.({ error: 'bad poll' }); p = { ...p, text: JSON.parse(pm).poll.q }; }
+    if (p.meta && typeof p.meta === 'object') { p = { ...p, meta: { ...p.meta } }; delete p.meta.ai; delete p.meta._srv; }
     const peerId = await privatePeer(chatId, uid);
     if (peerId && (await isBlocked(peerId, uid))) return ack?.({ error: 'blocked' });
     if (peerId && (await isBlocked(uid, peerId))) return ack?.({ error: 'you_blocked' });
     // takroriy yuborish (javob yo'qolib, mijoz qayta urinsa) — bitta xabar bo'lib qoladi
     const cid = typeof p.cid === 'string' && p.cid.length <= 40 ? `${uid}:${p.cid}` : null;
     if (cid && sentCids.has(cid)) { try { return ack?.({ ok: true, message: await sentCids.get(cid).p }); } catch { sentCids.delete(cid); } }
-    const job = saveMessage(chatId, uid, { ...p, text, file }, p.meta);
+    const job = saveMessage(chatId, uid, { ...p, text: p.type === 'poll' ? p.text : text, file }, p.meta);
     if (cid) sentCids.set(cid, { p: job, at: now() });
-    try { ack?.({ ok: true, message: await job }); } catch (e) { if (cid) sentCids.delete(cid); throw e; }
+    try { const msg = await job; ack?.({ ok: true, message: msg }); if (p.type === 'text' && AI_TRIGGER.test(text)) chatAI(chatId, uid, msg).catch((e) => console.error('chat AI:', e.message)); }
+    catch (e) { if (cid) sentCids.delete(cid); throw e; }
+  });
+
+  // ===== So'rovnoma: ovoz berish =====
+  const pollState = async (mid, forUid) => {
+    const rows = await db.all('SELECT user_id, opt FROM poll_votes WHERE message_id=?', [mid]);
+    const m = await db.get('SELECT meta FROM messages WHERE id=?', [mid]); const pm = m?.meta ? JSON.parse(m.meta).poll : null;
+    const counts = Array((pm?.opts || []).length).fill(0); const voters = new Set(); const mine = [];
+    for (const r of rows) { if (counts[r.opt] !== undefined) counts[r.opt]++; voters.add(Number(r.user_id)); if (Number(r.user_id) === forUid) mine.push(Number(r.opt)); }
+    return { counts, voters: voters.size, mine };
+  };
+  on(socket, 'poll:vote', async (p, ack) => {
+    const m = await db.get('SELECT * FROM messages WHERE id=?', [Number(p?.id) || 0]);
+    if (!m || m.type !== 'poll' || m.deleted || !(await isMember(m.chat_id, uid))) return ack?.({ error: 'forbidden' });
+    const pm = JSON.parse(m.meta || '{}').poll; if (!pm) return ack?.({ error: 'bad' });
+    let opts = [...new Set((Array.isArray(p.opts) ? p.opts : []).map(Number).filter((x) => Number.isInteger(x) && x >= 0 && x < pm.opts.length))];
+    if (!pm.multi) opts = opts.slice(0, 1);
+    const had = await db.get('SELECT 1 AS x FROM poll_votes WHERE message_id=? AND user_id=? LIMIT 1', [m.id, uid]);
+    if (pm.quiz !== undefined && had) return ack?.({ error: 'already' }); // viktorinada javob bir marta
+    await db.run('DELETE FROM poll_votes WHERE message_id=? AND user_id=?', [m.id, uid]);
+    for (const o of opts) await db.run('INSERT INTO poll_votes(message_id,user_id,opt,at) VALUES(?,?,?,?) ON CONFLICT DO NOTHING', [m.id, uid, o, now()]);
+    const st = await pollState(m.id, uid);
+    ack?.({ ok: true, ...st });
+    (await membersOf(m.chat_id)).forEach((u) => u !== uid && io.to('u' + u).emit('poll:update', { id: m.id, chatId: m.chat_id, counts: st.counts, voters: st.voters }));
+  });
+  on(socket, 'poll:peek', async (p, ack) => {
+    const out = {};
+    for (const id of (Array.isArray(p?.ids) ? p.ids : []).slice(0, 80).map(Number)) {
+      const m = await db.get('SELECT chat_id, type FROM messages WHERE id=?', [id]);
+      if (m?.type === 'poll' && (await isMember(m.chat_id, uid))) out[id] = await pollState(id, uid);
+    }
+    ack?.(out);
+  });
+  // ===== Rejalashtirilgan xabarlar =====
+  on(socket, 'msg:schedule', async (p, ack) => {
+    const chatId = Number(p?.chatId), at = Number(p?.at), text = String(p?.text || '').slice(0, 4096);
+    if (!text.trim() || !(await canPost(chatId, uid))) return ack?.({ error: 'forbidden' });
+    if (!(at > now() + 20e3 && at < now() + 366 * 864e5)) return ack?.({ error: 'bad_time' });
+    if (Number((await db.get('SELECT COUNT(*) AS c FROM scheduled WHERE user_id=?', [uid])).c) >= 100) return ack?.({ error: 'too_many' });
+    const id = await db.insert('INSERT INTO scheduled(chat_id,user_id,text,reply_to,at,created) VALUES(?,?,?,?,?,?)', [chatId, uid, text, Number(p.replyTo) || null, at, now()]);
+    ack?.({ ok: true, id }); io.to('u' + uid).emit('msg:scheduled', { chatId });
+  });
+  on(socket, 'msg:schedlist', async (p, ack) => {
+    const rows = await db.all('SELECT id, chat_id, text, at FROM scheduled WHERE user_id=? AND chat_id=? ORDER BY at ASC LIMIT 100', [uid, Number(p?.chatId) || 0]);
+    ack?.({ list: rows.map((r) => ({ id: Number(r.id), text: r.text, at: Number(r.at) })) });
+  });
+  on(socket, 'msg:unschedule', async (p, ack) => {
+    const r = await db.get('SELECT * FROM scheduled WHERE id=? AND user_id=?', [Number(p?.id) || 0, uid]); if (!r) return ack?.({ error: 'not_found' });
+    await db.run('DELETE FROM scheduled WHERE id=?', [r.id]);
+    if (p.sendNow) await sendScheduled(r);
+    ack?.({ ok: true }); io.to('u' + uid).emit('msg:scheduled', { chatId: Number(r.chat_id) });
   });
 
   // ===== 2 kishilik o'yinlar: taklif → qo'shilish → yurishlar (server faqat navbat/tartibni saqlaydi va uzatadi) =====
@@ -1736,7 +1897,8 @@ io.on('connection', async (socket) => {
   on(socket, 'message:edit', async ({ id, text } = {}) => {
     const m = await db.get('SELECT * FROM messages WHERE id=?', [Number(id) || 0]);
     const t = String(text || '').slice(0, 4096);
-    if (!m || m.sender_id !== uid || m.deleted || m.type === 'call' || m.type === 'service' || (m.type === 'text' && !t.trim())) return;
+    if (!m || m.sender_id !== uid || m.deleted || m.type === 'call' || m.type === 'service' || m.type === 'poll' || (m.type === 'text' && !t.trim())) return;
+    if (/"ai":1/.test(m.meta || '')) return; // Birga AI javobini tahrirlab bo'lmaydi
     if (!(await canPost(m.chat_id, uid))) return;
     await db.run('UPDATE messages SET text=?, edited=1 WHERE id=?', [t, m.id]);
     const msg = fmtMsg(await db.get('SELECT * FROM messages WHERE id=?', [m.id]));
@@ -1927,10 +2089,13 @@ async function extraSchema() {
     reason TEXT, details TEXT, snapshot TEXT, status TEXT DEFAULT 'open', created_at BIGINT, resolved_at BIGINT)`);
   await db.run('CREATE TABLE IF NOT EXISTS game_scores(user_id BIGINT, game TEXT, best BIGINT, plays BIGINT DEFAULT 0, updated BIGINT, PRIMARY KEY(user_id, game))');
   await db.run('CREATE INDEX IF NOT EXISTS idx_scores_game ON game_scores(game, best)');
+  await db.run('CREATE TABLE IF NOT EXISTS poll_votes(message_id BIGINT, user_id BIGINT, opt INTEGER, at BIGINT, PRIMARY KEY(message_id, user_id, opt))');
+  await db.run(`CREATE TABLE IF NOT EXISTS scheduled(id ${db.kind === 'postgres' ? 'BIGSERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'}, chat_id BIGINT, user_id BIGINT, text TEXT, reply_to BIGINT, at BIGINT, created BIGINT)`);
+  await db.run('CREATE INDEX IF NOT EXISTS idx_sched_at ON scheduled(at)');
   await db.run('CREATE TABLE IF NOT EXISTS step_devices(token TEXT PRIMARY KEY, user_id BIGINT, created BIGINT, last BIGINT, sensor TEXT, err TEXT)');
   await db.run('CREATE TABLE IF NOT EXISTS steps(user_id BIGINT, day TEXT, steps BIGINT, updated BIGINT, PRIMARY KEY(user_id, day))');
   await db.run(`CREATE TABLE IF NOT EXISTS game_rooms(id TEXT PRIMARY KEY, game TEXT, chat_id BIGINT, a BIGINT, b BIGINT, moves TEXT, status TEXT, winner INTEGER, claims TEXT, created BIGINT, updated BIGINT)`);
-  const cols = [['game_rooms', 'secret', 'TEXT'], ['users', 'steps_on', 'INTEGER DEFAULT 0'], ['users', 'banned', 'INTEGER DEFAULT 0'], ['users', 'birthday', 'TEXT'], ['chat_members', 'pinned', 'BIGINT DEFAULT 0'], ['chat_members', 'archived', 'INTEGER DEFAULT 0'], ['users', 'hide_seen', 'INTEGER DEFAULT 0'], ['users', 'deleted', 'INTEGER DEFAULT 0']];
+  const cols = [['users', 'invite_code', 'TEXT'], ['users', 'invited_by', 'BIGINT'], ['game_rooms', 'secret', 'TEXT'], ['users', 'steps_on', 'INTEGER DEFAULT 0'], ['users', 'banned', 'INTEGER DEFAULT 0'], ['users', 'birthday', 'TEXT'], ['chat_members', 'pinned', 'BIGINT DEFAULT 0'], ['chat_members', 'archived', 'INTEGER DEFAULT 0'], ['users', 'hide_seen', 'INTEGER DEFAULT 0'], ['users', 'deleted', 'INTEGER DEFAULT 0']];
   for (const [t, c, type] of cols) {
     try { await db.get(`SELECT ${c} FROM ${t} LIMIT 1`); } catch { await db.run(`ALTER TABLE ${t} ADD COLUMN ${c} ${type}`); }
   }
@@ -1947,7 +2112,7 @@ process.on('uncaughtException', (e) => { console.error('uncaughtException:', e?.
 
 (async () => {
   await db.init();
-  await extraSchema();
+  await extraSchema(); SCHED_READY = true;
   if (!JWT_SECRET) { JWT_SECRET = await db.getMeta('jwt_secret'); if (!JWT_SECRET) { JWT_SECRET = crypto.randomBytes(32).toString('hex'); await db.setMeta('jwt_secret', JWT_SECRET); } }
   await storage.init();
   push = await createPush(db);

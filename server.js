@@ -106,6 +106,7 @@ app.use((req, res, next) => {
 });
 // Birga'ning o'z javoblari belgisi: service worker hosting'ning "uyg'onish" sahifasini keshlab qo'ymasligi uchun
 app.use((req, res, next) => { res.set('X-Birga', '1'); next(); });
+app.use('/api/ai', express.json({ limit: '8mb' })); // Birga AI ga rasm ham yuboriladi
 app.use(express.json({ limit: '1mb' }));
 
 // Ilova fayllari public/ papkasida yoki (GitHub'ga papkasiz yuklangan bo'lsa) ildizda turadi
@@ -900,43 +901,82 @@ async function aiFetch(url, opts, ms = 45000) {
   try { const r = await fetch(url, { ...opts, signal: ac.signal }); const txt = await r.text(); if (!r.ok) throw new Error(`${r.status} ${txt.slice(0, 200)}`); return JSON.parse(txt); }
   finally { clearTimeout(tm); }
 }
-async function aiAnswer(msgs) {
+const aiNow = () => new Date().toLocaleString('uz-UZ', { timeZone: 'Asia/Tashkent', dateStyle: 'full', timeStyle: 'short' });
+const aiSys = () => AI_SYSTEM + `\nHozirgi sana va vaqt (Toshkent): ${aiNow()}. Foydalanuvchi rasm yuborsa — uni diqqat bilan tahlil qil (matnni o'qi, narsalarni tanib ber, masalani yech).
+Javobni Markdown'da yoz: **qalin**, ro'yxatlar, kod uchun \`\`\` bloklar. Juda uzun bo'lmasin, lekin to'liq va foydali bo'lsin.`;
+// msgs: [{role, content, image?: 'data:image/jpeg;base64,...'}] — rasm faqat oxirgi savolda bo'ladi
+async function aiAnswer(msgs, { web = true } = {}) {
   const errs = [];
-  const oa = (j) => j?.choices?.[0]?.message?.content;
+  const hasImg = msgs.some((m) => m.image);
+  const split = (d) => { const m = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(d || ''); return m ? { mime: m[1], data: m[2] } : null; };
   if (process.env.GEMINI_API_KEY) {
-    try {
-      const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-      const j = await aiFetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
-        body: JSON.stringify({ systemInstruction: { parts: [{ text: AI_SYSTEM }] }, contents: msgs.map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })), generationConfig: { maxOutputTokens: 1500, temperature: 0.7 } }),
-      });
-      const out = j?.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('').trim(); if (out) return out;
-      errs.push('gemini: empty');
-    } catch (e) { errs.push('gemini: ' + e.message); }
+    const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+    const contents = msgs.map((m) => { const im = split(m.image); return { role: m.role === 'assistant' ? 'model' : 'user', parts: [...(im ? [{ inline_data: { mime_type: im.mime, data: im.data } }] : []), { text: m.content || ' ' }] }; });
+    for (const grounding of web && process.env.AI_WEB !== '0' ? [true, false] : [false]) { // Google qidiruvi bilan (yangiliklar, ob-havo, narxlar...), xato bo'lsa — qidiruvsiz
+      try {
+        const j = await aiFetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
+          body: JSON.stringify({ systemInstruction: { parts: [{ text: aiSys() }] }, contents, ...(grounding ? { tools: [{ google_search: {} }] } : {}), generationConfig: { maxOutputTokens: 2500, temperature: 0.7 } }),
+        });
+        const c = j?.candidates?.[0]; const out = c?.content?.parts?.map((p) => p.text || '').join('').trim();
+        if (out) {
+          const src = (c.groundingMetadata?.groundingChunks || []).map((g) => g.web).filter((w) => w?.uri).slice(0, 5).map((w) => ({ title: String(w.title || '').slice(0, 80), url: w.uri }));
+          return { text: out, sources: src };
+        }
+        errs.push('gemini: empty');
+      } catch (e) { errs.push('gemini' + (grounding ? '+web' : '') + ': ' + e.message); }
+    }
   }
   const compat = [];
-  if (process.env.GROQ_API_KEY) compat.push(['https://api.groq.com/openai/v1/chat/completions', process.env.GROQ_API_KEY, process.env.GROQ_MODEL || 'llama-3.3-70b-versatile']);
+  if (process.env.GROQ_API_KEY) compat.push(['https://api.groq.com/openai/v1/chat/completions', process.env.GROQ_API_KEY, hasImg ? process.env.GROQ_VISION_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct' : process.env.GROQ_MODEL || 'llama-3.3-70b-versatile']);
   if (process.env.AI_API_URL && process.env.AI_API_KEY) compat.push([process.env.AI_API_URL, process.env.AI_API_KEY, process.env.AI_MODEL || 'gpt-4o-mini']);
   if (process.env.AI_FREE !== '0') compat.push(['https://text.pollinations.ai/openai', null, 'openai']); // kalitsiz bepul zaxira (cheklangan)
+  const oaMsgs = msgs.map((m) => (m.image ? { role: m.role, content: [{ type: 'text', text: m.content || ' ' }, { type: 'image_url', image_url: { url: m.image } }] } : { role: m.role, content: m.content }));
   for (const [url, key, model] of compat) {
     try {
       const j = await aiFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(key ? { Authorization: 'Bearer ' + key } : {}) },
-        body: JSON.stringify({ model, messages: [{ role: 'system', content: AI_SYSTEM }, ...msgs], max_tokens: 1500, temperature: 0.7 }) });
-      const out = String(oa(j) || '').trim(); if (out) return out;
+        body: JSON.stringify({ model, messages: [{ role: 'system', content: aiSys() }, ...oaMsgs], max_tokens: 2500, temperature: 0.7 }) });
+      const out = String(j?.choices?.[0]?.message?.content || '').trim(); if (out) return { text: out, sources: [] };
       errs.push(url + ': empty');
     } catch (e) { errs.push(url.split('/')[2] + ': ' + e.message); }
   }
   console.error('Birga AI:', errs.join(' | '));
   return null;
 }
-app.post('/api/ai', auth, rateLimit('ai', 60, 3600e3), wrap(async (req, res) => {
+app.post('/api/ai', auth, rateLimit('ai', 80, 3600e3), wrap(async (req, res) => {
   const raw = Array.isArray(req.body?.messages) ? req.body.messages : [];
-  const msgs = raw.slice(-16).map((m) => ({ role: m?.role === 'assistant' ? 'assistant' : 'user', content: String(m?.content || '').slice(0, 4000) })).filter((m) => m.content.trim());
+  const msgs = raw.slice(-16).map((m, i, a) => ({ role: m?.role === 'assistant' ? 'assistant' : 'user', content: String(m?.content || '').slice(0, 6000),
+    image: i === a.length - 1 && typeof m?.image === 'string' && m.image.length < 7e6 && /^data:image\/(jpeg|png|webp);base64,/.test(m.image) ? m.image : undefined }))
+    .filter((m) => m.content.trim() || m.image);
   if (!msgs.length || msgs[msgs.length - 1].role !== 'user') return res.status(400).json({ error: 'empty' });
-  const out = await aiAnswer(msgs);
+  const out = await aiAnswer(msgs, { web: req.body?.web !== false });
   if (!out) return res.status(503).json({ error: 'ai_unavailable' });
-  res.json({ text: out.slice(0, 12000) });
+  res.json({ text: out.text.slice(0, 16000), sources: out.sources || [] });
 }));
+// Birga AI — rasm chizish (bepul: Pollinations), natija Birga omboriga saqlanadi va chatga yuborish mumkin
+app.post('/api/ai/image', auth, rateLimit('aiimg', 25, 3600e3), wrap(async (req, res) => {
+  const prompt = String(req.body?.prompt || '').trim().slice(0, 600); if (!prompt) return res.status(400).json({ error: 'empty' });
+  let en = prompt;
+  if (process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY) { // tasvir modeli inglizchani yaxshiroq tushunadi
+    try { const r = await aiAnswer([{ role: 'user', content: 'Translate this image description into a detailed English prompt for an image generator. Reply with the prompt only, no quotes:\n' + prompt }], { web: false }); if (r?.text && r.text.length < 900) en = r.text.replace(/^["'`]+|["'`]+$/g, ''); } catch {}
+  }
+  const seed = crypto.randomInt(1, 1e9);
+  const url = `${process.env.AI_IMAGE_URL || 'https://image.pollinations.ai/prompt/'}${encodeURIComponent(en)}?width=1024&height=1024&nologo=true&enhance=true&seed=${seed}`;
+  const ac = new AbortController(); const tm = setTimeout(() => ac.abort(), 90000);
+  try {
+    const r = await fetch(url, { signal: ac.signal, headers: process.env.POLLINATIONS_TOKEN ? { Authorization: 'Bearer ' + process.env.POLLINATIONS_TOKEN } : {} });
+    const type = r.headers.get('content-type') || '';
+    if (!r.ok || !/^image\//.test(type)) throw new Error('status ' + r.status);
+    const buf = Buffer.from(await r.arrayBuffer()); if (buf.length < 2000) throw new Error('small');
+    const f = path.join(UPLOAD_DIR, 'ai-' + crypto.randomBytes(8).toString('hex') + (type.includes('png') ? '.png' : '.jpg'));
+    fs.writeFileSync(f, buf);
+    const saved = await storage.save(f, type.split(';')[0]);
+    await db.run('INSERT INTO uploads(url,user_id,at) VALUES(?,?,?) ON CONFLICT(url) DO NOTHING', [saved, req.user.id, now()]).catch(() => {});
+    res.json({ url: saved, mime: type.split(';')[0], size: buf.length });
+  } catch (e) { console.error('Birga AI rasm:', e.message); res.status(503).json({ error: 'image_unavailable' }); }
+  finally { clearTimeout(tm); }
+}));
+
 
 // ===== O'yinlar: eng yaxshi natijalar va reyting =====
 const GAMES = new Set(['snake', 'penalty', 'aim', '2048', 'flappy', 'blocks', 'memory', 'xo', 'breakout', 'mines', 'run', 'strike', 'football']);

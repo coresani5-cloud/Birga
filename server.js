@@ -945,6 +945,12 @@ app.get('/api/steps', auth, wrap(async (req, res) => {
 const AI_SYSTEM = `Sen "Birga AI" — Birga messenjeridagi aqlli yordamchisan. Foydalanuvchi qaysi tilda yozsa, o'sha tilda javob ber (odatda o'zbek tilida, lotin yozuvida).
 Javoblaring aniq, foydali va qisqa bo'lsin; kerak bo'lsa ro'yxat yoki qadamlar bilan tushuntir. Bilmagan narsangni to'qib chiqarma — bilmasligingni ayt.
 Tibbiy, huquqiy yoki moliyaviy savollarda umumiy ma'lumot ber va mutaxassisga murojaat qilishni maslahat ber. Zararli, noqonuniy yoki xavfli ishlarga yordam berma.
+O'ZBEK TILI QOIDALARI (o'zbekcha javob berganda albatta rioya qil):
+- Sof adabiy o'zbek tilida, joriy lotin alifbosida yoz. "O‘" va "g‘" harflarini to'g'ri yoz (o‘, g‘, ʼ — tutuq belgisi), kirill harflarini aralashtirma.
+- Rus, ingliz va turk so'zlarini ishlatma, o'zbekcha muqobilini ishlat: "konechno" emas "albatta", "normalno" emas "yaxshi", "ponyatno" emas "tushunarli", "voobshe" emas "umuman", "eshyo" emas "yana", "spasibo" emas "rahmat", "problema" emas "muammo", "vopros" emas "savol", "variant" o'rniga ko'pincha "yo'l" yoki "imkoniyat".
+- Turkcha shakllardan qoch ("bilgi" emas "ma'lumot", "teşekkür" emas "rahmat", "-yor" qo'shimchasi emas "-yapti"). Grammatika va so'z tartibi tabiiy o'zbekcha bo'lsin, tarjima ohangi sezilmasin.
+- Atamalar uchun o'zbek tilida qabul qilingan so'zni ishlat (kompyuter, internet, telefon kabi xalqaro so'zlar mumkin).
+- Foydalanuvchi kirill yozuvida yozsa — kirill yozuvida, sof o'zbekcha javob ber.
 Birga ilovasi va uning yaratuvchisi haqida ma'lumot (faqat shu haqda so'ralganda ishlat):
 - Birga messenjerini (Birga platformasi va Birga AI ni) Hayitboyev Sardorbek yaratgan.
 - Hayitboyev Sardorbek 2002-yil 29-dekabrda tug'ilgan.
@@ -1006,6 +1012,50 @@ app.post('/api/ai', auth, rateLimit('ai', 80, 3600e3), wrap(async (req, res) => 
   if (!out) return res.status(503).json({ error: 'ai_unavailable' });
   res.json({ text: out.text.slice(0, 16000), sources: out.sources || [] });
 }));
+// ===== Birga AI ovozi: Microsoft Azure neyron ovozlari (o'zbekcha: Madina — ayol, Sardor — erkak). Kalit: AZURE_SPEECH_KEY + AZURE_SPEECH_REGION =====
+const TTS_VOICES = { uz: ['uz-UZ-MadinaNeural', 'uz-UZ-SardorNeural'], ru: ['ru-RU-SvetlanaNeural', 'ru-RU-DmitryNeural'], en: ['en-US-JennyNeural', 'en-US-GuyNeural'] };
+const ttsCache = new Map();
+app.get('/api/ai/voice', auth, (req, res) => res.json({ neural: !!(process.env.AZURE_SPEECH_KEY && process.env.AZURE_SPEECH_REGION), voices: TTS_VOICES }));
+app.post('/api/ai/tts', auth, rateLimit('tts', 120, 3600e3), wrap(async (req, res) => {
+  const key = process.env.AZURE_SPEECH_KEY, region = process.env.AZURE_SPEECH_REGION;
+  if (!key || !region) return res.status(501).json({ error: 'no_tts' });
+  const lang = ['uz', 'ru', 'en'].includes(req.body?.lang) ? req.body.lang : 'uz';
+  const voice = TTS_VOICES[lang][req.body?.voice === 1 ? 1 : 0];
+  let text = String(req.body?.text || '').replace(/```[\s\S]*?```/g, ' ').replace(/https?:\/\/\S+/g, ' ').replace(/[*#_`>|~\[\]]/g, '').replace(/[ʻ‘’`']/g, (c, i, s2) => (/[oOgG]/.test(s2[i - 1] || '') ? '‘' : 'ʼ')).replace(/\s+/g, ' ').trim().slice(0, 2500);
+  if (!text) return res.status(400).json({ error: 'empty' });
+  const ck = voice + ':' + crypto.createHash('sha1').update(text).digest('hex');
+  let buf = ttsCache.get(ck);
+  if (!buf) {
+    const esc = (x) => x.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const ssml = `<speak version="1.0" xml:lang="${voice.slice(0, 5)}"><voice name="${voice}"><prosody rate="${lang === 'uz' ? '-4%' : '0%'}">${esc(text)}</prosody></voice></speak>`;
+    const r = await fetch(`https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`, { method: 'POST', headers: { 'Ocp-Apim-Subscription-Key': key, 'Content-Type': 'application/ssml+xml', 'X-Microsoft-OutputFormat': 'audio-24khz-48kbitrate-mono-mp3', 'User-Agent': 'Birga' }, body: ssml });
+    if (!r.ok) { console.error('TTS:', r.status, (await r.text()).slice(0, 200)); return res.status(502).json({ error: 'tts_failed' }); }
+    buf = Buffer.from(await r.arrayBuffer());
+    ttsCache.set(ck, buf); if (ttsCache.size > 200) ttsCache.delete(ttsCache.keys().next().value);
+  }
+  res.set({ 'Content-Type': 'audio/mpeg', 'Cache-Control': 'private, max-age=86400' }); res.end(buf);
+}));
+// Chat xulosasi (faqat so'ragan odamga ko'rinadi)
+app.post('/api/ai/summary', auth, rateLimit('aisum', 30, 3600e3), wrap(async (req, res) => {
+  const chatId = Number(req.body?.chatId); if (!(await isMember(chatId, req.user.id))) return res.status(403).json({ error: 'forbidden' });
+  const rows = (await db.all(`SELECT m.*, u.name AS sname FROM messages m LEFT JOIN users u ON u.id=m.sender_id WHERE m.chat_id=? AND m.deleted=0 AND m.id NOT IN (SELECT message_id FROM hidden_messages WHERE user_id=?) ORDER BY m.id DESC LIMIT 150`, [chatId, req.user.id])).reverse();
+  if (!rows.length) return res.json({ text: '' });
+  const lines = rows.map((m) => { let meta = {}; try { meta = JSON.parse(m.meta || '{}'); } catch {} const who = meta.ai ? 'Birga AI' : m.sname || '?';
+    const body = m.type === 'text' ? m.text : m.type === 'poll' ? `[so'rovnoma: ${meta.poll?.q}]` : `[${PREVIEW[m.type]?.[0] || m.type}]${m.text ? ' ' + m.text : ''}`;
+    return `${new Date(Number(m.created_at)).toISOString().slice(5, 16).replace('T', ' ')} ${who}: ${String(body || '').slice(0, 400)}`; }).join('\n');
+  const lang = LANGS.includes(req.body?.lang) ? req.body.lang : req.user.lang || 'uz';
+  const r = await aiAnswer([{ role: 'user', content: `Quyidagi chat yozishmasining qisqa xulosasini ${lang === 'ru' ? 'rus' : lang === 'en' ? 'ingliz' : 'sof o‘zbek'} tilida yoz: asosiy mavzular, kelishilgan narsalar, savollar va bajarilishi kerak bo'lgan ishlar (ro'yxat ko'rinishida, 8 banddan oshmasin).\n---\n${lines}` }], { web: false });
+  if (!r) return res.status(503).json({ error: 'ai_unavailable' });
+  res.json({ text: r.text });
+}));
+// Chat tarixini faqat o'zi uchun tozalash
+app.post('/api/chats/:id/clear', auth, wrap(async (req, res) => {
+  const chatId = Number(req.params.id); if (!(await isMember(chatId, req.user.id))) return res.status(403).json({ error: 'forbidden' });
+  await db.run(`INSERT INTO hidden_messages(user_id, message_id, at) SELECT ?, id, ? FROM messages WHERE chat_id=? AND id NOT IN (SELECT message_id FROM hidden_messages WHERE user_id=?)`, [req.user.id, now(), chatId, req.user.id]);
+  io.to('u' + req.user.id).emit('chat:update', await chatSummary(chatId, req.user.id));
+  res.json({ ok: true });
+}));
+
 // Birga AI — rasm chizish (bepul: Pollinations), natija Birga omboriga saqlanadi va chatga yuborish mumkin
 app.post('/api/ai/image', auth, rateLimit('aiimg', 25, 3600e3), wrap(async (req, res) => {
   const prompt = String(req.body?.prompt || '').trim().slice(0, 600); if (!prompt) return res.status(400).json({ error: 'empty' });

@@ -231,7 +231,19 @@ app.get('/.well-known/assetlinks.json', (req, res) => {
     target: { namespace: 'android_app', package_name: 'uz.birga.app', sha256_cert_fingerprints: APK_SHA256 } }]);
 });
 // APK fayli (repo ildizida yoki public/ ichida bo'lsa)
+// Yangi APK matn (base64) ko'rinishida ham yuklanishi mumkin: birga-apk.txt — GitHub'ga oddiy matn sifatida qo'yish oson
+let apkB64 = null;
+function apkFromText() {
+  if (apkB64 !== null) return apkB64;
+  apkB64 = false;
+  for (const f of [path.join(__dirname, 'birga-apk.txt'), path.join(__dirname, 'public', 'birga-apk.txt')]) {
+    try { const buf = Buffer.from(fs.readFileSync(f, 'utf8').replace(/[^A-Za-z0-9+/=]/g, ''), 'base64'); if (buf.length > 10000 && buf[0] === 0x50 && buf[1] === 0x4b) { apkB64 = buf; break; } } catch {}
+  }
+  return apkB64;
+}
 app.get('/birga.apk', (req, res) => {
+  const txt = apkFromText();
+  if (txt) { res.set({ 'Content-Type': 'application/vnd.android.package-archive', 'Content-Disposition': 'attachment; filename="Birga.apk"', 'Cache-Control': 'no-cache', 'Content-Length': txt.length }); return res.end(txt); }
   const f = [path.join(__dirname, 'birga.apk'), path.join(__dirname, 'public', 'birga.apk')].find((x) => fs.existsSync(x));
   if (!f) return res.redirect('https://raw.githubusercontent.com/coresani5-cloud/Birga/main/birga.apk');
   res.set({ 'Content-Type': 'application/vnd.android.package-archive', 'Content-Disposition': 'attachment; filename="Birga.apk"', 'Cache-Control': 'no-cache' });
@@ -831,7 +843,27 @@ const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 app.post('/api/steps/toggle', auth, wrap(async (req, res) => {
   const on = req.body?.on ? 1 : 0;
   await db.run('UPDATE users SET steps_on=? WHERE id=?', [on, req.user.id]);
+  if (!on) await db.run('DELETE FROM step_devices WHERE user_id=?', [req.user.id]); // telefondagi ilova keyingi urinishda o'zini to'xtatadi
   res.json({ on: !!on });
+}));
+// Android ilovasi (fon xizmati) uchun alohida token — faqat qadamlar sonini yuborishga yaraydi
+app.post('/api/steps/device-token', auth, rateLimit('stepdt', 20, 3600e3), wrap(async (req, res) => {
+  const token = crypto.randomBytes(24).toString('hex');
+  await db.run('DELETE FROM step_devices WHERE user_id=?', [req.user.id]);
+  await db.run('INSERT INTO step_devices(token,user_id,created,last) VALUES(?,?,?,NULL)', [token, req.user.id, now()]);
+  await db.run('UPDATE users SET steps_on=1 WHERE id=?', [req.user.id]);
+  res.json({ token });
+}));
+app.post('/api/steps/device', rateLimit('stepdev', 240, 3600e3), wrap(async (req, res) => {
+  const t = String(req.body?.t || ''); if (!/^[a-f0-9]{48}$/.test(t)) return res.status(401).json({ error: 'token' });
+  const d = await db.get('SELECT user_id FROM step_devices WHERE token=?', [t]); if (!d) return res.status(401).json({ error: 'token' });
+  const day = String(req.body?.day || ''), n = Math.floor(Number(req.body?.steps));
+  if (!DAY_RE.test(day) || !(n >= 0 && n <= 150000) || Math.abs(Date.parse(day) - Date.now()) > 3 * 864e5) return res.status(400).json({ error: 'bad' });
+  const u = await getUser(d.user_id); if (!u || u.deleted || u.banned) return res.status(410).json({ error: 'gone' });
+  await db.run(`INSERT INTO steps(user_id,day,steps,updated) VALUES(?,?,?,?) ON CONFLICT(user_id,day) DO UPDATE SET
+    steps=CASE WHEN steps.steps<excluded.steps THEN excluded.steps ELSE steps.steps END, updated=excluded.updated`, [d.user_id, day, n, now()]);
+  await db.run('UPDATE step_devices SET last=?, sensor=?, err=? WHERE token=?', [now(), String(req.body?.sensor || '').slice(0, 12), String(req.body?.err || '').slice(0, 12), t]);
+  res.json({ ok: true });
 }));
 app.post('/api/steps', auth, rateLimit('steps', 240, 3600e3), wrap(async (req, res) => {
   const day = String(req.body?.day || ''), n = Math.floor(Number(req.body?.steps));
@@ -850,14 +882,19 @@ app.get('/api/steps', auth, wrap(async (req, res) => {
     const r = await db.get('SELECT steps FROM steps WHERE user_id=? AND day=?', [id, day]);
     out.push({ user: publicUser(u), steps: Number(r?.steps) || 0 });
   }
-  res.json({ on: !!(await getUser(req.user.id))?.steps_on, list: out });
+  const dev = await db.get('SELECT last, sensor, err FROM step_devices WHERE user_id=?', [req.user.id]);
+  res.json({ on: !!(await getUser(req.user.id))?.steps_on, list: out, device: dev ? { linked: true, last: Number(dev.last) || null, sensor: dev.sensor || '', err: dev.err || '' } : null });
 }));
 
 // ===== Birga AI — umumiy savollarga javob beruvchi yordamchi =====
 // Bepul yo'l: Google AI Studio'dan GEMINI_API_KEY (Render → Environment). Yoki GROQ_API_KEY, yoki OpenAI-mos AI_API_URL + AI_API_KEY.
 const AI_SYSTEM = `Sen "Birga AI" — Birga messenjeridagi aqlli yordamchisan. Foydalanuvchi qaysi tilda yozsa, o'sha tilda javob ber (odatda o'zbek tilida, lotin yozuvida).
 Javoblaring aniq, foydali va qisqa bo'lsin; kerak bo'lsa ro'yxat yoki qadamlar bilan tushuntir. Bilmagan narsangni to'qib chiqarma — bilmasligingni ayt.
-Tibbiy, huquqiy yoki moliyaviy savollarda umumiy ma'lumot ber va mutaxassisga murojaat qilishni maslahat ber. Zararli, noqonuniy yoki xavfli ishlarga yordam berma.`;
+Tibbiy, huquqiy yoki moliyaviy savollarda umumiy ma'lumot ber va mutaxassisga murojaat qilishni maslahat ber. Zararli, noqonuniy yoki xavfli ishlarga yordam berma.
+Birga ilovasi va uning yaratuvchisi haqida ma'lumot (faqat shu haqda so'ralganda ishlat):
+- Birga messenjerini (Birga platformasi va Birga AI ni) Hayitboyev Sardorbek yaratgan.
+- Hayitboyev Sardorbek 2002-yil 29-dekabrda tug'ilgan.
+- U haqida boshqa ma'lumot hozircha yo'q. Shu ikki faktdan tashqari narsalarni (yashash joyi, ta'limi, oilasi va h.k.) to'qib chiqarma — "bu haqda hozircha ma'lumot yo'q" deb ayt.`;
 async function aiFetch(url, opts, ms = 45000) {
   const ac = new AbortController(); const tm = setTimeout(() => ac.abort(), ms);
   try { const r = await fetch(url, { ...opts, signal: ac.signal }); const txt = await r.text(); if (!r.ok) throw new Error(`${r.status} ${txt.slice(0, 200)}`); return JSON.parse(txt); }
@@ -1850,6 +1887,7 @@ async function extraSchema() {
     reason TEXT, details TEXT, snapshot TEXT, status TEXT DEFAULT 'open', created_at BIGINT, resolved_at BIGINT)`);
   await db.run('CREATE TABLE IF NOT EXISTS game_scores(user_id BIGINT, game TEXT, best BIGINT, plays BIGINT DEFAULT 0, updated BIGINT, PRIMARY KEY(user_id, game))');
   await db.run('CREATE INDEX IF NOT EXISTS idx_scores_game ON game_scores(game, best)');
+  await db.run('CREATE TABLE IF NOT EXISTS step_devices(token TEXT PRIMARY KEY, user_id BIGINT, created BIGINT, last BIGINT, sensor TEXT, err TEXT)');
   await db.run('CREATE TABLE IF NOT EXISTS steps(user_id BIGINT, day TEXT, steps BIGINT, updated BIGINT, PRIMARY KEY(user_id, day))');
   await db.run(`CREATE TABLE IF NOT EXISTS game_rooms(id TEXT PRIMARY KEY, game TEXT, chat_id BIGINT, a BIGINT, b BIGINT, moves TEXT, status TEXT, winner INTEGER, claims TEXT, created BIGINT, updated BIGINT)`);
   const cols = [['game_rooms', 'secret', 'TEXT'], ['users', 'steps_on', 'INTEGER DEFAULT 0'], ['users', 'banned', 'INTEGER DEFAULT 0'], ['users', 'birthday', 'TEXT'], ['chat_members', 'pinned', 'BIGINT DEFAULT 0'], ['chat_members', 'archived', 'INTEGER DEFAULT 0'], ['users', 'hide_seen', 'INTEGER DEFAULT 0'], ['users', 'deleted', 'INTEGER DEFAULT 0']];

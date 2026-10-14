@@ -3723,13 +3723,13 @@ let installPrompt = null;
 // Android ilovasi (APK) — GitHub'dan to'g'ridan-to'g'ri yuklab olinadi
 const APK_URL = 'https://raw.githubusercontent.com/coresani5-cloud/Birga/main/birga.apk';
 const APK_T = {
-  uz: { title: 'Birga ilovasini yuklab olish', btn: 'Ilovani yuklab olish (APK)', size: 'Android · 1.1 · 70 KB',
+  uz: { title: 'Birga ilovasini yuklab olish', btn: 'Ilovani yuklab olish (APK)', size: 'Android · 1.2 · 75 KB',
     steps: ['<b>“Ilovani yuklab olish”</b> ni bosing — <b>Birga.apk</b> yuklanadi', 'Yuklangan faylni oching', 'Telefon so‘rasa: <b>Sozlamalar → “Shu manbadan ruxsat berish”</b> ni yoqing', '<b>O‘rnatish</b> ni bosing — Birga ilovalar ro‘yxatida paydo bo‘ladi'],
     alt: 'Yoki brauzer orqali o‘rnatish', iosOnly: 'iPhone uchun APK yo‘q — quyidagi usul bilan o‘rnating:' },
-  ru: { title: 'Скачать приложение Birga', btn: 'Скачать приложение (APK)', size: 'Android · 1.1 · 70 КБ',
+  ru: { title: 'Скачать приложение Birga', btn: 'Скачать приложение (APK)', size: 'Android · 1.2 · 75 КБ',
     steps: ['Нажмите <b>«Скачать приложение»</b> — загрузится <b>Birga.apk</b>', 'Откройте скачанный файл', 'Если телефон спросит: <b>Настройки → «Разрешить из этого источника»</b>', 'Нажмите <b>Установить</b> — Birga появится в списке приложений'],
     alt: 'Или установить через браузер', iosOnly: 'Для iPhone APK нет — установите так:' },
-  en: { title: 'Download the Birga app', btn: 'Download app (APK)', size: 'Android · 1.1 · 70 KB',
+  en: { title: 'Download the Birga app', btn: 'Download app (APK)', size: 'Android · 1.2 · 75 KB',
     steps: ['Tap <b>“Download app”</b> — <b>Birga.apk</b> will download', 'Open the downloaded file', 'If asked: <b>Settings → “Allow from this source”</b>', 'Tap <b>Install</b> — Birga appears in your app list'],
     alt: 'Or install via the browser', iosOnly: 'There is no APK for iPhone — install like this:' },
 };
@@ -4711,6 +4711,11 @@ try {
     ai_ex: ['Bugun nima pishirsam bo‘ladi?', 'Ingliz tilini qanday tez o‘rgansam bo‘ladi?', 'Menga tabrik matni yozib ber', '“Rahmat” so‘zini 5 tilga tarjima qil'],
     st_title: 'Qadamlar hisoblagichi', st_on: 'Yoqilgan · do‘stlaringiz bugungi qadamlaringizni ko‘radi', st_off: 'O‘chirilgan', st_note: 'Telefon datchigi orqali sanaydi. Brauzer cheklovi tufayli faqat Birga ochiq turganda hisoblanadi.',
     st_enable: 'Yoqish', st_disable: 'O‘chirish', st_noperm: 'Harakat datchigiga ruxsat berilmadi', st_nosensor: 'Bu qurilmada harakat datchigi topilmadi', st_today: 'bugun {n} qadam', steps_word: 'qadam',
+    st_note_app: 'Telefoningizning o‘z qadam datchigi orqali sanaydi (Samsung Health kabi aniq). Birga yopiq bo‘lsa ham, ekran o‘chiq bo‘lsa ham hisoblanadi. Telefon “Jismoniy faollik” ruxsatini so‘raydi — “Ruxsat berish” ni bosing.',
+    st_on_bg: 'Yoqilgan · ilova yopiq bo‘lsa ham sanaydi', st_bg_on: 'Telefon datchigi orqali sanalmoqda — Birga yopiq bo‘lsa ham', st_synced: 'Oxirgi yangilanish',
+    st_bg_need: 'Hozir faqat sahifa ochiq turganda sanaydi. Ilova yopiq bo‘lsa ham aniq sanashi uchun Birga ilovasini o‘rnating.', st_bg_btn: 'Birga ilovasini o‘rnatish',
+    st_ios: 'iPhone’da brauzer cheklovi tufayli faqat Birga ochiq turganda sanaydi.', st_e_perm: 'Ruxsat berilmagan: Sozlamalar → Ilovalar → Birga → Ruxsatlar → “Jismoniy faollik” ni yoqing, so‘ng hisoblagichni qayta yoqing.',
+    st_e_sensor: 'Bu telefonda qadam datchigi topilmadi.', st_upd: 'Ilova yopiq bo‘lsa ham qadamlarni sanash uchun Birga ilovasining yangi versiyasini (1.2) o‘rnating. Eski ilova ustidan o‘rnatiladi — ma’lumotlar saqlanib qoladi.', st_upd_btn: 'Yangi versiyani yuklab olish',
     inst_real: 'Birga ilovasini o‘rnatish', inst_real_sub: 'Haqiqiy ilova — brauzer belgisisiz, o‘z belgisi bilan, to‘liq ekranda', inst_badge: 'Hozirgi belgi brauzer (Yandex/Chrome) orqali qo‘shilgan. Uni o‘chirib, haqiqiy Birga ilovasini o‘rnating:',
     inst_dl: 'Birga ilovasini yuklab olish', inst_chrome2: 'Yoki Chrome orqali o‘rnatish', inst_open_app: 'Birga ilovasida ochish', inst_has_app: 'Birga ilovasi o‘rnatilgan', inst_bar_real: 'Brauzersiz, haqiqiy Birga ilovasini o‘rnating',
     inst_del_old: 'Eski belgini (brauzer belgisi bilan) bosh ekrandan o‘chirib tashlang: belgini bosib turing → “O‘chirish”.' });
@@ -4720,6 +4725,11 @@ try {
     ai_ex: ['Что приготовить сегодня?', 'Как быстро выучить английский?', 'Напиши поздравление', 'Переведи «спасибо» на 5 языков'],
     st_title: 'Счётчик шагов', st_on: 'Включён · друзья видят ваши шаги за сегодня', st_off: 'Выключен', st_note: 'Считает по датчику телефона. Из-за ограничений браузера — только пока Birga открыт.',
     st_enable: 'Включить', st_disable: 'Выключить', st_noperm: 'Нет доступа к датчику движения', st_nosensor: 'На этом устройстве нет датчика движения', st_today: 'сегодня {n} шагов', steps_word: 'шагов',
+    st_note_app: 'Считает встроенным датчиком шагов телефона (точно, как Samsung Health) — даже когда Birga закрыт и экран выключен. Телефон попросит разрешение «Физическая активность» — нажмите «Разрешить».',
+    st_on_bg: 'Включён · считает даже когда приложение закрыто', st_bg_on: 'Считает датчик телефона — даже когда Birga закрыт', st_synced: 'Последнее обновление',
+    st_bg_need: 'Сейчас считает только пока страница открыта. Чтобы считать точно и в фоне, установите приложение Birga.', st_bg_btn: 'Установить приложение Birga',
+    st_ios: 'На iPhone из-за ограничений браузера считает только пока Birga открыт.', st_e_perm: 'Нет разрешения: Настройки → Приложения → Birga → Разрешения → «Физическая активность», затем включите счётчик снова.',
+    st_e_sensor: 'На этом телефоне нет датчика шагов.', st_upd: 'Чтобы считать шаги в фоне, установите новую версию приложения Birga (1.2). Ставится поверх старой — данные сохранятся.', st_upd_btn: 'Скачать новую версию',
     inst_real: 'Установить приложение Birga', inst_real_sub: 'Настоящее приложение — без значка браузера, на весь экран', inst_badge: 'Текущий значок добавлен через браузер (Яндекс/Chrome). Удалите его и установите настоящее приложение Birga:',
     inst_dl: 'Скачать приложение Birga', inst_chrome2: 'Или установить через Chrome', inst_open_app: 'Открыть в приложении Birga', inst_has_app: 'Приложение Birga установлено', inst_bar_real: 'Установите настоящее приложение Birga без браузера',
     inst_del_old: 'Удалите старый значок (со значком браузера): удерживайте его → «Удалить».' });
@@ -4729,6 +4739,11 @@ try {
     ai_ex: ['What should I cook today?', 'How can I learn English fast?', 'Write me a greeting message', 'Translate “thank you” into 5 languages'],
     st_title: 'Step counter', st_on: 'On · friends see your steps today', st_off: 'Off', st_note: 'Counts with the phone sensor. Due to browser limits it only counts while Birga is open.',
     st_enable: 'Turn on', st_disable: 'Turn off', st_noperm: 'Motion sensor permission denied', st_nosensor: 'No motion sensor on this device', st_today: '{n} steps today', steps_word: 'steps',
+    st_note_app: 'Uses your phone’s built-in step sensor (as accurate as Samsung Health) — even when Birga is closed and the screen is off. Your phone will ask for “Physical activity” permission — tap “Allow”.',
+    st_on_bg: 'On · counts even when the app is closed', st_bg_on: 'Counting with the phone sensor — even when Birga is closed', st_synced: 'Last update',
+    st_bg_need: 'Right now it only counts while the page is open. Install the Birga app to count accurately in the background.', st_bg_btn: 'Install the Birga app',
+    st_ios: 'On iPhone, browser limits mean it only counts while Birga is open.', st_e_perm: 'Permission missing: Settings → Apps → Birga → Permissions → “Physical activity”, then turn the counter on again.',
+    st_e_sensor: 'This phone has no step sensor.', st_upd: 'To count steps in the background, install the new Birga app (1.2). It installs over the old one — your data stays.', st_upd_btn: 'Download the new version',
     inst_real: 'Install the Birga app', inst_real_sub: 'A real app — no browser badge, its own icon, full screen', inst_badge: 'Your current icon was added by a browser (Yandex/Chrome). Remove it and install the real Birga app:',
     inst_dl: 'Download the Birga app', inst_chrome2: 'Or install via Chrome', inst_open_app: 'Open in the Birga app', inst_has_app: 'The Birga app is installed', inst_bar_real: 'Install the real Birga app, no browser',
     inst_del_old: 'Remove the old icon (with the browser badge): long-press it → “Remove”.' });
@@ -4857,19 +4872,24 @@ $('#chat-list').addEventListener('click', (e) => { if (e.target.closest('[data-a
 setTimeout(() => { try { if (S.me) { AI.load(); renderChatList(); } } catch {} }, 1500);
 
 /* ======================= KUNLIK QADAMLAR ======================= */
+const STEPS_UPD = /[?&]steps_update=1/.test(location.search);
+if (STEPS_UPD) try { history.replaceState(history.state, '', location.pathname); } catch {}
 const Steps = {
-  on: false, list: [], n: 0, day: '', sent: -1, ok: false, f: 9.8, base: 9.8, above: false, lastT: 0, timer: null,
+  on: false, list: [], n: 0, day: '', sent: -1, ok: false, f: 9.8, base: 9.8, above: false, lastT: 0, timer: null, dev: null,
+  streak: 0, hold: 0, // ketma-ket qadamlar: tasodifiy silkinishlar sanalmasin
   today() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; },
   restore() { const d = this.today(); try { const o = JSON.parse(store.get('birga_steps_d') || '{}'); this.n = o.day === d ? Number(o.n) || 0 : 0; } catch { this.n = 0; } this.day = d; },
   persist() { try { store.set('birga_steps_d', JSON.stringify({ day: this.day, n: this.n })); } catch {} },
+  native() { return !!this.dev?.linked && isAndroid() && inApp(); }, // Birga ilovasi telefon datchigi orqali sanayapti
   async init() {
     this.restore();
-    try { const r = await api('/api/steps?day=' + this.today()); this.on = r.on; this.list = r.list || []; } catch {}
-    if (this.on) this.start(false);
+    try { const r = await api('/api/steps?day=' + this.today()); this.on = r.on; this.list = r.list || []; this.dev = r.device; } catch {}
+    if (this.on && !this.native()) this.start(false);
     this.paint(); Stories.render();
     setInterval(() => this.refresh(), 90e3);
+    if (STEPS_UPD) setTimeout(() => this.needUpdate(), 600);
   },
-  async refresh() { try { const r = await api('/api/steps?day=' + this.today()); this.list = r.list || []; Stories.render(); } catch {} },
+  async refresh() { try { const r = await api('/api/steps?day=' + this.today()); this.list = r.list || []; this.dev = r.device; if (this.native()) this.stop(); Stories.render(); this.paint(); } catch {} },
   handler: null,
   async start(gesture) {
     if (this.handler) return true;
@@ -4883,12 +4903,21 @@ const Steps = {
       const m = Math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z);
       this.f = this.f * 0.75 + m * 0.25; this.base = this.base * 0.98 + m * 0.02;
       const d = this.f - this.base, now = performance.now();
-      if (!this.above && d > 1.1 && now - this.lastT > 260) { this.above = true; this.lastT = now; this.step(); }
+      if (!this.above && d > 1.1 && d < 12 && now - this.lastT > 260) { this.above = true; this.peak(now); }
       else if (this.above && d < 0.3) this.above = false;
     };
     addEventListener('devicemotion', this.handler);
     clearInterval(this.timer); this.timer = setInterval(() => this.flush(), 30e3);
     return true;
+  },
+  // Faqat bir maromda (0.26–1.6 soniya oralig'ida) kamida 4 ta ketma-ket qadam bo'lsa sanaladi — telefonni silkitish, mashinada tebranish hisobga kirmaydi
+  peak(now) {
+    const gap = now - this.lastT; this.lastT = now;
+    if (gap > 1600) { this.streak = 1; this.hold = 1; return; }
+    this.streak++;
+    if (this.streak < 4) { this.hold++; return; }
+    const add = this.streak === 4 ? this.hold + 1 : 1; this.hold = 0;
+    for (let i = 0; i < add; i++) this.step();
   },
   stop() { if (this.handler) removeEventListener('devicemotion', this.handler); this.handler = null; clearInterval(this.timer); },
   step() {
@@ -4896,19 +4925,43 @@ const Steps = {
     this.n++; if (this.n % 10 === 0) { this.persist(); this.paintMine(); }
   },
   async flush() {
-    if (!this.on || this.n === this.sent) return; this.persist();
+    if (!this.on || this.n === this.sent || this.native()) return; this.persist();
     try { await api('/api/steps', { body: { day: this.day, steps: this.n } }); this.sent = this.n; const me = this.list.find((x) => x.user.id === S.me.id); if (me) me.steps = Math.max(me.steps, this.n); this.paintMine(); } catch {}
   },
-  mine() { const me = this.list.find((x) => x.user.id === S.me?.id); return Math.max(this.n, me?.steps || 0); },
+  mine() { const me = this.list.find((x) => x.user.id === S.me?.id); return Math.max(this.native() ? 0 : this.n, me?.steps || 0); },
   paintMine() { const el = $('#stories [data-me] .st-n'); if (el) el.textContent = '👟 ' + fmtSteps(this.mine()); },
+  appLink(path) { return `intent://${path}#Intent;scheme=birgasteps;package=uz.birga.app;S.browser_fallback_url=${encodeURIComponent(location.origin + '/?steps_update=1')};end`; },
+  needUpdate() {
+    modal(`<h3>👟 ${esc(t('st_title'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><p>${esc(t('st_upd'))}</p>
+      <a class="btn-primary inst-go" href="${APK_SELF}" download="Birga.apk">${icon('download')}<span>${esc(t('st_upd_btn'))}</span></a>`);
+  },
   async toggle() {
     const want = !this.on;
+    if (want && isAndroid() && inApp()) { // Birga ilovasi: telefonning qadam datchigi, ilova yopiq bo'lsa ham
+      let tok; try { tok = (await api('/api/steps/device-token', { body: {} })).token; } catch (e) { toast(e.message || t('net_err')); return; }
+      this.on = true; this.dev = { linked: true, last: null }; this.stop(); this.paint(); Stories.render();
+      location.href = this.appLink('on?t=' + tok);
+      [4e3, 12e3, 30e3].forEach((ms) => setTimeout(() => this.refresh(), ms));
+      return;
+    }
     if (want && !(await this.start(true))) return;
     try { await api('/api/steps/toggle', { body: { on: want } }); } catch (e) { toast(e.message || t('net_err')); return; }
-    this.on = want; if (!want) this.stop(); else { this.flush(); setTimeout(() => { if (!this.ok) toast(t('st_nosensor'), 3500); }, 4000); }
+    const wasNative = this.native();
+    this.on = want; if (!want) { this.stop(); if (wasNative || (isAndroid() && inApp())) location.href = `intent://off#Intent;scheme=birgasteps;package=uz.birga.app;end`; }
+    else { this.flush(); setTimeout(() => { if (!this.ok) toast(t('st_nosensor'), 3500); }, 4000); }
     await this.refresh(); this.paint();
   },
-  paint() { const v = $('#set-steps-v'); if (v) v.textContent = t(this.on ? 'st_on' : 'st_off'); const sw = $('#set-steps .sw14'); if (sw) sw.classList.toggle('on', this.on); },
+  status() {
+    if (!this.on) return '';
+    if (this.native()) {
+      const d = this.dev;
+      if (d.err === 'noperm') return `<p class="st-warn">${esc(t('st_e_perm'))}</p>`;
+      if (d.err === 'nosensor') return `<p class="st-warn">${esc(t('st_e_sensor'))}</p>`;
+      return `<p class="st-okk">✅ ${esc(t('st_bg_on'))}${d.last ? `<br><small>${esc(t('st_synced'))}: ${esc(fmtTime(d.last))}</small>` : ''}</p>`;
+    }
+    return isAndroid() ? `<p class="st-warn">${esc(t('st_bg_need'))}</p><button class="btn-ghost14" id="st-inst">${icon('download')} ${esc(t('st_bg_btn'))}</button>` : isIOS() ? `<p class="st-warn">${esc(t('st_ios'))}</p>` : '';
+  },
+  paint() { const v = $('#set-steps-v'); if (v) v.textContent = t(this.on ? (this.native() ? 'st_on_bg' : 'st_on') : 'st_off'); const sw = $('#set-steps .sw14'); if (sw) sw.classList.toggle('on', this.on); },
 };
 const fmtSteps = (n) => (n >= 10000 ? (n / 1000).toFixed(1).replace('.0', '') + 'k' : n.toLocaleString('ru-RU').replace(/,/g, ' '));
 {
@@ -4936,12 +4989,13 @@ $('#stories').addEventListener('click', (e) => {
   const baseRS14 = renderSettings; renderSettings = function () { baseRS14(); paint(); };
   setTimeout(paint, 0);
   $('#set-steps')?.addEventListener('click', () => {
-    modal(`<h3>👟 ${esc(t('st_title'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><p class="muted">${esc(t('st_note'))}</p>
-      ${Steps.on ? `<div class="st-big">${fmtSteps(Steps.mine())}<small>${esc(t('steps_word'))}</small></div>` : ''}
+    const km = (Steps.mine() * 0.75 / 1000).toFixed(2);
+    modal(`<h3>👟 ${esc(t('st_title'))} <button class="icon-btn" data-close>${icon('close')}</button></h3>
+      ${Steps.on ? `<div class="st-big">${fmtSteps(Steps.mine())}<small>${esc(t('steps_word'))} · ≈ ${km} km</small></div>${Steps.status()}` : `<p class="muted">${esc(t(isAndroid() && inApp() ? 'st_note_app' : 'st_note'))}</p>`}
       <button class="btn-primary" id="st-tg">${esc(t(Steps.on ? 'st_disable' : 'st_enable'))}</button>`);
     $('#st-tg').onclick = async () => { closeModal(); await Steps.toggle(); };
-  });
-}
+    $('#st-inst')?.addEventListener('click', () => { closeModal(); installApp(); });
+  });}
 document.addEventListener('visibilitychange', () => { if (document.hidden) Steps.flush(); else if (Steps.on) Steps.refresh(); });
 {
   const baseLA14 = loadAliases;
@@ -5072,6 +5126,9 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .sw14::after { content: ''; position: absolute; left: 3px; top: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: .2s; }
 .sw14.on { background: #22C55E; } .sw14.on::after { left: 21px; }
 .st-big { text-align: center; font-size: 44px; font-weight: 900; color: #16A34A; margin: 8px 0 14px; } .st-big small { display: block; font-size: 14px; color: var(--muted); font-weight: 700; }
+.st-okk { background: rgba(34,197,94,.12); color: #15803D; border-radius: 14px; padding: 10px 12px; font-size: 13.5px; font-weight: 600; margin: 0 0 12px; } .st-okk small { color: var(--muted); font-weight: 500; }
+.st-warn { background: rgba(245,158,11,.14); border-radius: 14px; padding: 10px 12px; font-size: 13.5px; line-height: 1.4; margin: 0 0 10px; }
+.btn-ghost14 { width: 100%; height: 44px; border-radius: 14px; margin-bottom: 10px; font-weight: 700; color: var(--blue, #1F6BFF); background: rgba(31,107,255,.1); display: flex; align-items: center; justify-content: center; gap: 8px; } .btn-ghost14 svg { width: 18px; height: 18px; }
 </style>`);
 
 boot();

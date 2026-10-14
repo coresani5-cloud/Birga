@@ -48,5 +48,12 @@
   "display_override": [
     "standalone"
   ],
-  "prefer_related_applications": false
+  "prefer_related_applications": false,
+  "related_applications": [
+    {
+      "platform": "play",
+      "id": "uz.birga.app",
+      "url": "https://birga.onrender.com/birga.apk"
+    }
+  ]
 }

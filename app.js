@@ -1128,6 +1128,7 @@ function msgInner(m, c, tail, gap) {
     }
     case 'location': return locMsgHTML(m, attrs, reply, meta());
     case 'game': return gameMsgHTML(m, attrs, reply, meta());
+    case 'poll': return Polls.html(m, attrs, reply, meta());
     case 'gif':
       return `<div ${attrs}><div class="bubble media">${reply}<video class="gif" src="${esc(m.meta?.gif || '')}" autoplay loop muted playsinline></video>${meta(true)}</div></div>`;
     default: {
@@ -5265,6 +5266,503 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .st-okk { background: rgba(34,197,94,.12); color: #15803D; border-radius: 14px; padding: 10px 12px; font-size: 13.5px; font-weight: 600; margin: 0 0 12px; } .st-okk small { color: var(--muted); font-weight: 500; }
 .st-warn { background: rgba(245,158,11,.14); border-radius: 14px; padding: 10px 12px; font-size: 13.5px; line-height: 1.4; margin: 0 0 10px; }
 .btn-ghost14 { width: 100%; height: 44px; border-radius: 14px; margin-bottom: 10px; font-weight: 700; color: var(--blue, #1F6BFF); background: rgba(31,107,255,.1); display: flex; align-items: center; justify-content: center; gap: 8px; } .btn-ghost14 svg { width: 18px; height: 18px; }
+</style>`);
+
+/* ======================= v15: taklif havolasi, kontaktlar, PIN qulf, rejalashtirilgan xabar, so'rovnoma, chat foni, chatda AI ======================= */
+try {
+  Object.assign(I18N.uz, {
+    inv_title: 'Do‘stlarni taklif qilish', inv_sub: 'Havolangiz orqali qo‘shilgan do‘stlar avtomatik sizga yozadi', inv_count: 'Siz taklif qilganlar: {n}', inv_text: 'Men Birga messenjeridan foydalanyapman — tezkor chat, qo‘ng‘iroqlar, o‘yinlar va Birga AI. Qo‘shil: ',
+    inv_by: '{n} sizni Birga’ga taklif qildi 🎁', inv_none: 'Hali hech kim qo‘shilmagan — havolani do‘stlaringizga yuboring!',
+    cs_title: 'Telefon kontaktlaridan topish', cs_sub: 'Kontaktlaringizdan kim Birga’da borligini ko‘ring', cs_found: 'Birga’da topildi: {n}', cs_checked: '{n} ta kontakt tekshirildi. Kontaktlar serverda saqlanmaydi.',
+    cs_none: 'Tanlangan kontaktlardan hech kim hali Birga’da emas. Ularni taklif qiling!', cs_unsup: 'Bu brauzer telefon kontaktlarini ochishga ruxsat bermaydi. Android’da Birga ilovasi yoki Chrome orqali ishlaydi. Hozircha do‘stlaringizga taklif havolasini yuboring:', cs_write: 'Yozish',
+    pin_title: 'Ekran qulfi (PIN kod)', pin_on: 'Yoqilgan', pin_off: 'O‘chirilgan', pin_new: 'Yangi PIN kod (4 raqam)', pin_again: 'PIN kodni qayta kiriting', pin_enter: 'PIN kodni kiriting', pin_wrong: 'PIN kod noto‘g‘ri', pin_mismatch: 'Kodlar mos kelmadi, qaytadan',
+    pin_set: 'Ekran qulfi yoqildi 🔒', pin_forgot: 'PIN kodni unutdingizmi?', pin_forgot_q: 'PIN kodni tiklash uchun akkauntdan chiqib, email kodi bilan qayta kirasiz. Davom etilsinmi?', pin_wait: '{n} soniyadan keyin urinib ko‘ring',
+    pin_change: 'PIN kodni o‘zgartirish', pin_disable: 'Qulfni o‘chirish', pin_when: 'Qachon qulflansin', pin_now: 'Darhol', pin_1m: '1 daqiqadan keyin', pin_5m: '5 daqiqadan keyin', pin_1h: '1 soatdan keyin',
+    pin_bio: 'Barmoq izi / yuz bilan ochish', pin_bio_on: 'Barmoq izi yoqildi', pin_bio_fail: 'Barmoq izini ulab bo‘lmadi', pin_cur: 'Joriy PIN kodni kiriting', pin_hint: 'Birga har ochilganda PIN kod so‘raladi — telefoningizni olgan begona odam chatlaringizni ko‘ra olmaydi.',
+    sc_title: 'Keyinroq yuborish', sc_1h: '1 soatdan keyin', sc_tonight: 'Bugun 20:00 da', sc_morning: 'Ertaga 09:00 da', sc_custom: 'Sana va vaqtni tanlash', sc_ok: 'Rejalashtirish', sc_done: '🕒 Xabar rejalashtirildi: {t}',
+    sc_bar: '🕒 Rejalashtirilgan xabarlar: {n}', sc_list: 'Rejalashtirilgan xabarlar', sc_send_now: 'Hozir yuborish', sc_del: 'O‘chirish', sc_empty_text: 'Avval xabar matnini yozing', sc_bad_time: 'Kelajakdagi vaqtni tanlang', sc_hint: 'Yuborish tugmasini bosib turing — xabarni keyinroq yuborish uchun',
+    poll: 'So‘rovnoma', poll_new: 'Yangi so‘rovnoma', poll_q: 'Savol', poll_opt: 'Variant {n}', poll_add: '+ Variant qo‘shish', poll_multi: 'Bir nechta javob tanlash mumkin', poll_quiz: 'Viktorina (to‘g‘ri javob bor)', poll_quiz_pick: 'To‘g‘ri javobni belgilang',
+    poll_send: 'Yuborish', poll_votes: '{n} ovoz', poll_vote: 'Ovoz berish', poll_retract: 'Ovozni bekor qilish', poll_open: 'Ochiq so‘rovnoma', poll_quiz_l: 'Viktorina', poll_need: 'Savol va kamida 2 ta variant kiriting', poll_right: 'To‘g‘ri! 🎉', poll_wrong: 'Noto‘g‘ri 😔',
+    bg_title: 'Chat foni', bg_all: 'Barcha chatlar uchun', bg_this: 'Faqat shu chat uchun', bg_upload: 'O‘z rasmingizni qo‘yish', bg_default: 'Standart', bg_saved: 'Fon o‘zgartirildi', bg_reset: 'Umumiy fonga qaytarish',
+    ai_chat: 'Birga AI’dan so‘rash', ai_chat_sub: 'Ikkalangizga ham javob beradi — “@ai savol”', ai_thinking: 'Birga AI javob yozmoqda…', att_sched: 'Keyinroq yuborish', att_sched_sub: 'Belgilangan vaqtda o‘zi yuboriladi', att_poll_sub: 'Ovoz berish, savol-javob, viktorina' });
+  Object.assign(I18N.ru, {
+    inv_title: 'Пригласить друзей', inv_sub: 'Друзья, пришедшие по вашей ссылке, сразу вам напишут', inv_count: 'Вы пригласили: {n}', inv_text: 'Я пользуюсь мессенджером Birga — быстрый чат, звонки, игры и Birga AI. Присоединяйся: ',
+    inv_by: '{n} приглашает вас в Birga 🎁', inv_none: 'Пока никто не присоединился — отправьте ссылку друзьям!',
+    cs_title: 'Найти из контактов телефона', cs_sub: 'Узнайте, кто из ваших контактов уже в Birga', cs_found: 'Найдено в Birga: {n}', cs_checked: 'Проверено контактов: {n}. Контакты не сохраняются на сервере.',
+    cs_none: 'Из выбранных контактов пока никого нет в Birga. Пригласите их!', cs_unsup: 'Этот браузер не даёт доступ к контактам телефона. Работает на Android в приложении Birga или Chrome. Пока отправьте друзьям ссылку-приглашение:', cs_write: 'Написать',
+    pin_title: 'Блокировка экрана (PIN)', pin_on: 'Включена', pin_off: 'Выключена', pin_new: 'Новый PIN-код (4 цифры)', pin_again: 'Повторите PIN-код', pin_enter: 'Введите PIN-код', pin_wrong: 'Неверный PIN-код', pin_mismatch: 'Коды не совпали, ещё раз',
+    pin_set: 'Блокировка включена 🔒', pin_forgot: 'Забыли PIN-код?', pin_forgot_q: 'Чтобы сбросить PIN, вы выйдете из аккаунта и войдёте снова по коду из email. Продолжить?', pin_wait: 'Попробуйте через {n} сек',
+    pin_change: 'Изменить PIN-код', pin_disable: 'Выключить блокировку', pin_when: 'Когда блокировать', pin_now: 'Сразу', pin_1m: 'Через 1 минуту', pin_5m: 'Через 5 минут', pin_1h: 'Через 1 час',
+    pin_bio: 'Открывать отпечатком / лицом', pin_bio_on: 'Отпечаток подключён', pin_bio_fail: 'Не удалось подключить отпечаток', pin_cur: 'Введите текущий PIN-код', pin_hint: 'При каждом открытии Birga спросит PIN — посторонний с вашим телефоном не увидит переписку.',
+    sc_title: 'Отправить позже', sc_1h: 'Через 1 час', sc_tonight: 'Сегодня в 20:00', sc_morning: 'Завтра в 09:00', sc_custom: 'Выбрать дату и время', sc_ok: 'Запланировать', sc_done: '🕒 Сообщение запланировано: {t}',
+    sc_bar: '🕒 Запланировано сообщений: {n}', sc_list: 'Запланированные сообщения', sc_send_now: 'Отправить сейчас', sc_del: 'Удалить', sc_empty_text: 'Сначала напишите текст', sc_bad_time: 'Выберите время в будущем', sc_hint: 'Удерживайте кнопку отправки, чтобы отправить позже',
+    poll: 'Опрос', poll_new: 'Новый опрос', poll_q: 'Вопрос', poll_opt: 'Вариант {n}', poll_add: '+ Добавить вариант', poll_multi: 'Можно выбрать несколько', poll_quiz: 'Викторина (есть правильный ответ)', poll_quiz_pick: 'Отметьте правильный ответ',
+    poll_send: 'Отправить', poll_votes: '{n} голосов', poll_vote: 'Голосовать', poll_retract: 'Отменить голос', poll_open: 'Открытый опрос', poll_quiz_l: 'Викторина', poll_need: 'Введите вопрос и минимум 2 варианта', poll_right: 'Верно! 🎉', poll_wrong: 'Неверно 😔',
+    bg_title: 'Фон чата', bg_all: 'Для всех чатов', bg_this: 'Только для этого чата', bg_upload: 'Свой фон из фото', bg_default: 'Стандартный', bg_saved: 'Фон изменён', bg_reset: 'Вернуть общий фон',
+    ai_chat: 'Спросить Birga AI', ai_chat_sub: 'Ответит вам обоим — «@ai вопрос»', ai_thinking: 'Birga AI пишет ответ…', att_sched: 'Отправить позже', att_sched_sub: 'Отправится в выбранное время', att_poll_sub: 'Голосование, вопрос-ответ, викторина' });
+  Object.assign(I18N.en, {
+    inv_title: 'Invite friends', inv_sub: 'Friends who join with your link message you automatically', inv_count: 'You invited: {n}', inv_text: 'I use the Birga messenger — fast chat, calls, games and Birga AI. Join me: ',
+    inv_by: '{n} invites you to Birga 🎁', inv_none: 'Nobody has joined yet — send the link to your friends!',
+    cs_title: 'Find from phone contacts', cs_sub: 'See which of your contacts are on Birga', cs_found: 'Found on Birga: {n}', cs_checked: '{n} contacts checked. Contacts are not stored on the server.',
+    cs_none: 'None of the selected contacts are on Birga yet. Invite them!', cs_unsup: 'This browser cannot open phone contacts. It works on Android in the Birga app or Chrome. For now, send friends your invite link:', cs_write: 'Message',
+    pin_title: 'Screen lock (PIN)', pin_on: 'On', pin_off: 'Off', pin_new: 'New PIN (4 digits)', pin_again: 'Enter the PIN again', pin_enter: 'Enter PIN', pin_wrong: 'Wrong PIN', pin_mismatch: 'PINs didn’t match, try again',
+    pin_set: 'Screen lock is on 🔒', pin_forgot: 'Forgot PIN?', pin_forgot_q: 'To reset the PIN you will log out and sign in again with an email code. Continue?', pin_wait: 'Try again in {n} s',
+    pin_change: 'Change PIN', pin_disable: 'Turn off lock', pin_when: 'Lock after', pin_now: 'Immediately', pin_1m: '1 minute', pin_5m: '5 minutes', pin_1h: '1 hour',
+    pin_bio: 'Unlock with fingerprint / face', pin_bio_on: 'Fingerprint enabled', pin_bio_fail: 'Could not enable fingerprint', pin_cur: 'Enter your current PIN', pin_hint: 'Birga will ask for the PIN every time it opens — a stranger with your phone can’t read your chats.',
+    sc_title: 'Send later', sc_1h: 'In 1 hour', sc_tonight: 'Today at 20:00', sc_morning: 'Tomorrow at 09:00', sc_custom: 'Pick date and time', sc_ok: 'Schedule', sc_done: '🕒 Message scheduled: {t}',
+    sc_bar: '🕒 Scheduled messages: {n}', sc_list: 'Scheduled messages', sc_send_now: 'Send now', sc_del: 'Delete', sc_empty_text: 'Type a message first', sc_bad_time: 'Pick a time in the future', sc_hint: 'Press and hold the send button to send later',
+    poll: 'Poll', poll_new: 'New poll', poll_q: 'Question', poll_opt: 'Option {n}', poll_add: '+ Add option', poll_multi: 'Allow multiple answers', poll_quiz: 'Quiz (has a correct answer)', poll_quiz_pick: 'Mark the correct answer',
+    poll_send: 'Send', poll_votes: '{n} votes', poll_vote: 'Vote', poll_retract: 'Retract vote', poll_open: 'Poll', poll_quiz_l: 'Quiz', poll_need: 'Enter a question and at least 2 options', poll_right: 'Correct! 🎉', poll_wrong: 'Wrong 😔',
+    bg_title: 'Chat background', bg_all: 'For all chats', bg_this: 'Only this chat', bg_upload: 'Use my photo', bg_default: 'Default', bg_saved: 'Background changed', bg_reset: 'Use the common background',
+    ai_chat: 'Ask Birga AI', ai_chat_sub: 'Answers both of you — “@ai question”', ai_thinking: 'Birga AI is typing…', att_sched: 'Send later', att_sched_sub: 'Sent automatically at the chosen time', att_poll_sub: 'Voting, Q&A, quiz' });
+} catch {}
+const tf = (k, o = {}) => Object.entries(o).reduce((s, [a, b]) => s.replaceAll('{' + a + '}', b), t(k));
+const emitAck = (ev, p) => new Promise((res, rej) => { if (!S.socket) return rej(new Error(t('net_err'))); S.socket.timeout(15000).emit(ev, p, (err, r) => (err ? rej(new Error(t('net_err'))) : r?.error ? rej(Object.assign(new Error(r.error), { code: r.error })) : res(r))); });
+
+/* ---------- 1) Do'stlarni taklif qilish ---------- */
+{
+  const ref = new URLSearchParams(location.search).get('ref');
+  if (ref && /^[a-z0-9]{6,12}$/i.test(ref)) {
+    store.set('birga_ref', ref.toLowerCase());
+    if (!S.token) fetch('/api/invite/' + encodeURIComponent(ref)).then((r) => (r.ok ? r.json() : null)).then((u) => {
+      if (!u?.name) return;
+      $('#step-email')?.insertAdjacentHTML('afterbegin', `<div class="ref-card">${avatar({ id: 1, name: u.name, avatar: u.avatar, online: false }, 'sm')}<span>${esc(tf('inv_by', { n: u.name }))}</span></div>`);
+    }).catch(() => {});
+  }
+}
+const Invite = {
+  async open() {
+    modal(`<h3>🎁 ${esc(t('inv_title'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><p class="muted">${esc(t('inv_sub'))}</p><div id="inv-body"><p class="empty-note">…</p></div>`);
+    let r; try { r = await api('/api/invite'); } catch (e) { $('#inv-body').innerHTML = `<p class="empty-note">${esc(e.message)}</p>`; return; }
+    const msg = t('inv_text') + r.link;
+    $('#inv-body').innerHTML = `<div class="link-box" id="inv-link">${esc(r.link)}</div>
+      <div class="inv-btns"><button class="btn-primary" id="inv-share">${icon('share')} ${esc(t('share'))}</button><button class="btn-ghost14" id="inv-copy">${icon('copy')} ${esc(t('copy'))}</button></div>
+      <div class="inv-apps"><a target="_blank" rel="noopener" href="https://t.me/share/url?url=${encodeURIComponent(r.link)}&text=${encodeURIComponent(t('inv_text'))}">Telegram</a><a target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(msg)}">WhatsApp</a><a href="sms:?body=${encodeURIComponent(msg)}">SMS</a></div>
+      <h4 class="inv-h">${esc(tf('inv_count', { n: r.count }))}</h4>
+      <div class="inv-list">${r.list.length ? r.list.map((u) => `<button data-uid="${u.id}">${avatar({ ...u, online: false }, 'sm')}<b>${esc(u.name)}</b></button>`).join('') : `<p class="empty-note">${esc(t('inv_none'))}</p>`}</div>`;
+    $('#inv-copy').onclick = async () => { try { await navigator.clipboard.writeText(r.link); toast(t('link_copied')); } catch { getSelection().selectAllChildren($('#inv-link')); } };
+    $('#inv-share').onclick = async () => { try { if (navigator.share) return await navigator.share({ title: 'Birga', text: t('inv_text'), url: r.link }); } catch { return; } try { await navigator.clipboard.writeText(msg); toast(t('link_copied')); } catch {} };
+    $('#inv-body .inv-list').onclick = async (e) => { const b = e.target.closest('[data-uid]'); if (!b) return; closeModal(); const c = await api('/api/chats', { body: { userId: +b.dataset.uid } }); upsertChat(c); setTab('chats'); openChat(c.id); };
+  },
+};
+{
+  // ro'yxatdan o'tishda taklif kodi yuboriladi
+  const baseApi = api;
+  api = function (path, opts = {}) {
+    if (path === '/api/profile' && opts.body && !(opts.body instanceof FormData) && !S.me?.name && store.get('birga_ref')) { opts = { ...opts, body: { ...opts.body, ref: store.get('birga_ref') } }; return baseApi(path, opts).then((r) => { store.del('birga_ref'); return r; }); }
+    return baseApi(path, opts);
+  };
+}
+$('#btn-invite').onclick = () => Invite.open();
+
+/* ---------- 2) Kontaktlarni sinxronlash ---------- */
+const ContactSync = {
+  supported: () => 'contacts' in navigator && 'ContactsManager' in window,
+  async run() {
+    if (!this.supported()) {
+      modal(`<h3>📇 ${esc(t('cs_title'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><p class="muted">${esc(t('cs_unsup'))}</p><button class="btn-primary" id="cs-inv">🎁 ${esc(t('inv_title'))}</button>`);
+      $('#cs-inv').onclick = () => Invite.open(); return;
+    }
+    let picked;
+    try { picked = await navigator.contacts.select(['name', 'tel', 'email'], { multiple: true }); } catch { return; }
+    if (!picked?.length) return;
+    const phones = picked.flatMap((c) => c.tel || []), emails = picked.flatMap((c) => c.email || []);
+    let r; try { r = await api('/api/contacts/match', { body: { phones, emails } }); } catch (e) { toast(e.message); return; }
+    r.users.forEach((u) => S.users.set(u.id, { ...(S.users.get(u.id) || {}), ...u }));
+    modal(`<h3>📇 ${esc(tf('cs_found', { n: r.users.length }))} <button class="icon-btn" data-close>${icon('close')}</button></h3>
+      <div class="cs-list">${r.users.map((u) => `<div class="cs-row">${avatar({ ...u, online: false }, 'sm')}<span><b>${esc(u.name)}</b>${u.username ? `<small>@${esc(u.username)}</small>` : ''}</span><button data-uid="${u.id}">${esc(t('cs_write'))}</button></div>`).join('') || `<p class="empty-note">${esc(t('cs_none'))}</p>`}</div>
+      <p class="muted cs-note">${esc(tf('cs_checked', { n: r.checked }))}</p><button class="btn-ghost14" id="cs-inv">🎁 ${esc(t('inv_title'))}</button>`);
+    $('#cs-inv').onclick = () => Invite.open();
+    $('#modal-card .cs-list').onclick = async (e) => { const b = e.target.closest('[data-uid]'); if (!b) return; closeModal(); const c = await api('/api/chats', { body: { userId: +b.dataset.uid } }); upsertChat(c); setTab('chats'); renderChatList(); openChat(c.id); };
+  },
+};
+$('#btn-invite')?.insertAdjacentHTML('afterend', `<button class="row-btn" id="btn-csync"><span class="ri c3">📇</span><span><span data-t15="cs_title"></span><small data-t15="cs_sub"></small></span></button>`);
+$('#btn-csync')?.addEventListener('click', () => ContactSync.run());
+{
+  const baseCM = createMenu;
+  createMenu = function () {
+    baseCM();
+    $('.menu-list')?.insertAdjacentHTML('beforeend', `<button class="row-btn" data-cm15="sync"><span class="ri c3">📇</span><span>${esc(t('cs_title'))}<small>${esc(t('cs_sub'))}</small></span></button>
+      <button class="row-btn" data-cm15="invite"><span class="ri c1">🎁</span><span>${esc(t('inv_title'))}<small>${esc(t('inv_sub'))}</small></span></button>`);
+    $('#modal-card').addEventListener('click', (e) => { const b = e.target.closest('[data-cm15]'); if (!b) return; e.stopPropagation(); const k = b.dataset.cm15; closeModal(); setTimeout(() => (k === 'sync' ? ContactSync.run() : Invite.open()), 50); }, true);
+  };
+}
+
+/* ---------- 3) Ekran qulfi (PIN kod) ---------- */
+const Lock = {
+  cfg() { try { return JSON.parse(store.get('birga_pin') || 'null'); } catch { return null; } },
+  saveCfg(c) { if (c) store.set('birga_pin', JSON.stringify(c)); else store.del('birga_pin'); },
+  async hash(pin, salt) { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(salt + ':' + pin)); return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join(''); },
+  locked: false, hiddenAt: 0,
+  show() {
+    const c = this.cfg(); if (!c || this.locked) return;
+    this.locked = true;
+    let el = $('#pin-lock');
+    if (!el) { document.body.insertAdjacentHTML('beforeend', `<div class="pin-lock" id="pin-lock"></div>`); el = $('#pin-lock'); }
+    el.innerHTML = `<div class="pl-top"><img src="${typeof AI_LOGO !== 'undefined' ? AI_LOGO : '/icons/icon-192.png'}" alt=""><b>Birga</b><p id="pl-msg">${esc(t('pin_enter'))}</p><div class="pl-dots" id="pl-dots">${'<i></i>'.repeat(4)}</div></div>
+      <div class="pl-pad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => `<button data-n="${n}">${n}</button>`).join('')}<button data-bio="1" class="${c.bio ? '' : 'inv'}">${c.bio ? '👆' : ''}</button><button data-n="0">0</button><button data-del="1">⌫</button></div>
+      <button class="pl-forgot" id="pl-forgot">${esc(t('pin_forgot'))}</button>`;
+    el.classList.remove('hidden'); document.documentElement.classList.add('pin-on');
+    let v = '';
+    const dots = () => $$('#pl-dots i').forEach((d, i) => d.classList.toggle('on', i < v.length));
+    const tryPin = async () => {
+      const wait = Number(store.get('birga_pin_wait')) || 0;
+      if (Date.now() < wait) { $('#pl-msg').textContent = tf('pin_wait', { n: Math.ceil((wait - Date.now()) / 1000) }); v = ''; dots(); return; }
+      if ((await this.hash(v, c.s)) === c.h) { store.del('birga_pin_fails'); this.unlock(); return; }
+      const f = (Number(store.get('birga_pin_fails')) || 0) + 1; store.set('birga_pin_fails', String(f));
+      if (f % 5 === 0) store.set('birga_pin_wait', String(Date.now() + 30e3 * (f / 5)));
+      navigator.vibrate?.(200); $('#pl-dots').classList.add('shake'); setTimeout(() => $('#pl-dots')?.classList.remove('shake'), 400);
+      $('#pl-msg').textContent = t('pin_wrong'); v = ''; dots();
+    };
+    el.onclick = (e) => {
+      const b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.n && v.length < 4) { v += b.dataset.n; dots(); if (v.length === 4) setTimeout(tryPin, 80); }
+      else if (b.dataset.del) { v = v.slice(0, -1); dots(); }
+      else if (b.dataset.bio && c.bio) this.bio();
+      else if (b.id === 'pl-forgot' && confirm(t('pin_forgot_q'))) { this.saveCfg(null); this.unlock(); logout(true); }
+    };
+    this.keys = (e) => { if (!this.locked) return; if (/^\d$/.test(e.key)) el.querySelector(`[data-n="${e.key}"]`)?.click(); if (e.key === 'Backspace') el.querySelector('[data-del]')?.click(); };
+    addEventListener('keydown', this.keys);
+    if (c.bio) setTimeout(() => this.bio(), 300);
+  },
+  unlock() { this.locked = false; $('#pin-lock')?.classList.add('hidden'); document.documentElement.classList.remove('pin-on'); removeEventListener('keydown', this.keys); },
+  b64: (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))), unb64: (s) => Uint8Array.from(atob(s), (ch) => ch.charCodeAt(0)),
+  async bio() {
+    const c = this.cfg(); if (!c?.bio) return;
+    try { await navigator.credentials.get({ publicKey: { challenge: crypto.getRandomValues(new Uint8Array(32)), allowCredentials: [{ type: 'public-key', id: this.unb64(c.bio) }], userVerification: 'required', timeout: 60000 } }); this.unlock(); } catch {}
+  },
+  async bioAvailable() { try { return !!(window.PublicKeyCredential && (await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable())); } catch { return false; } },
+  async enableBio() {
+    try {
+      const cred = await navigator.credentials.create({ publicKey: { challenge: crypto.getRandomValues(new Uint8Array(32)), rp: { name: 'Birga', id: location.hostname },
+        user: { id: crypto.getRandomValues(new Uint8Array(16)), name: S.me?.username || 'birga', displayName: S.me?.name || 'Birga' },
+        pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }], authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'discouraged' }, timeout: 60000 } });
+      const c = this.cfg(); c.bio = this.b64(cred.rawId); this.saveCfg(c); toast(t('pin_bio_on')); return true;
+    } catch { toast(t('pin_bio_fail')); return false; }
+  },
+  // PIN kiritish oynasi (sozlash uchun)
+  ask(title) {
+    return new Promise((res) => {
+      modal(`<h3>🔒 ${esc(title)} <button class="icon-btn" data-close>${icon('close')}</button></h3><input class="pin-in" id="pin-in" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]*" autocomplete="off"><p class="pin-err" id="pin-err"></p>`);
+      const inp = $('#pin-in'); setTimeout(() => inp.focus(), 60); let done = false;
+      inp.oninput = () => { inp.value = inp.value.replace(/\D/g, '').slice(0, 4); if (inp.value.length === 4 && !done) { done = true; const v = inp.value; closeModal(); res(v); } };
+      const mo = new MutationObserver(() => { if ($('#modal').classList.contains('hidden') && !done) { done = true; mo.disconnect(); res(null); } }); mo.observe($('#modal'), { attributes: true, attributeFilter: ['class'] });
+    });
+  },
+  async setup() {
+    const a = await this.ask(t('pin_new')); if (!a) return;
+    await new Promise((r) => setTimeout(r, 250));
+    const b = await this.ask(t('pin_again')); if (!b) return;
+    if (a !== b) { toast(t('pin_mismatch'), 2500); return this.setup(); }
+    const s = [...crypto.getRandomValues(new Uint8Array(12))].map((x) => x.toString(16).padStart(2, '0')).join('');
+    this.saveCfg({ h: await this.hash(a, s), s, d: 0, bio: null }); toast(t('pin_set')); paint15();
+    if (await this.bioAvailable()) setTimeout(() => this.settings(), 400);
+  },
+  async verify() { const c = this.cfg(); const p = await this.ask(t('pin_cur')); if (!p) return false; if ((await this.hash(p, c.s)) !== c.h) { toast(t('pin_wrong')); return false; } return true; },
+  async settings() {
+    const c = this.cfg(); if (!c) return this.setup();
+    const bioOk = await this.bioAvailable();
+    modal(`<h3>🔒 ${esc(t('pin_title'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><p class="muted">${esc(t('pin_hint'))}</p>
+      <h4 class="inv-h">${esc(t('pin_when'))}</h4><div class="pin-when">${[[0, 'pin_now'], [60e3, 'pin_1m'], [300e3, 'pin_5m'], [3600e3, 'pin_1h']].map(([d, k]) => `<button data-d="${d}" class="${(c.d || 0) === d ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</div>
+      ${bioOk ? `<button class="row-btn" id="pin-bio"><span class="ri c3">👆</span><span>${esc(t('pin_bio'))}</span><i class="sw14${c.bio ? ' on' : ''}"></i></button>` : ''}
+      <button class="row-btn" id="pin-ch"><span class="ri c2">🔑</span><span>${esc(t('pin_change'))}</span></button>
+      <button class="row-btn danger" id="pin-off"><span class="ri c7">🔓</span><span>${esc(t('pin_disable'))}</span></button>`);
+    $('#modal-card .pin-when').onclick = (e) => { const b = e.target.closest('[data-d]'); if (!b) return; c.d = +b.dataset.d; this.saveCfg(c); $$('#modal-card .pin-when button').forEach((x) => x.classList.toggle('on', x === b)); };
+    $('#pin-bio')?.addEventListener('click', async () => { if (c.bio) { c.bio = null; this.saveCfg(c); $('#pin-bio .sw14').classList.remove('on'); } else if (await this.enableBio()) $('#pin-bio .sw14')?.classList.add('on'); });
+    $('#pin-ch').onclick = async () => { closeModal(); await new Promise((r) => setTimeout(r, 200)); if (await this.verify()) { await new Promise((r) => setTimeout(r, 250)); this.setup(); } };
+    $('#pin-off').onclick = async () => { closeModal(); await new Promise((r) => setTimeout(r, 200)); if (await this.verify()) { this.saveCfg(null); paint15(); toast(t('pin_off')); } };
+  },
+};
+if (Lock.cfg() && store.get('birga_token')) Lock.show(); // ilova ochilishi bilan — hech narsa ko'rinmasidan oldin
+document.addEventListener('visibilitychange', () => {
+  const c = Lock.cfg(); if (!c || !S.me) return;
+  if (document.hidden) { Lock.hiddenAt = Date.now(); if (!c.d) Lock.show(); } // "darhol" — yaqinda ochilganlar ro'yxatida ham ko'rinmaydi
+  else if (!Lock.locked && Lock.hiddenAt && Date.now() - Lock.hiddenAt >= (c.d || 0)) Lock.show();
+});
+{
+  const baseLogout = logout;
+  logout = async function (silent) { if (!silent && !confirm(t('confirm_logout'))) return; Lock.saveCfg(null); store.del('birga_pin_fails'); store.del('birga_pin_wait'); return baseLogout(true); };
+}
+
+/* ---------- 4) Rejalashtirilgan xabarlar ---------- */
+const Sched = {
+  count: 0,
+  pad: (n) => String(n).padStart(2, '0'),
+  local: (d) => `${d.getFullYear()}-${Sched.pad(d.getMonth() + 1)}-${Sched.pad(d.getDate())}T${Sched.pad(d.getHours())}:${Sched.pad(d.getMinutes())}`,
+  fmt(at) { const d = new Date(at), n = new Date(); const same = d.toDateString() === n.toDateString(); return (same ? '' : d.toLocaleDateString(LANG === 'en' ? 'en-GB' : 'ru-RU', { day: 'numeric', month: 'short' }) + ', ') + Sched.pad(d.getHours()) + ':' + Sched.pad(d.getMinutes()); },
+  open(text) {
+    text = (text ?? textEl.value).trim();
+    if (!text) { toast(t('sc_empty_text')); return; }
+    const n = new Date(); const opts = [[Date.now() + 3600e3, 'sc_1h']];
+    const tn = new Date(n); tn.setHours(20, 0, 0, 0); if (tn > n) opts.push([+tn, 'sc_tonight']);
+    const tm = new Date(n); tm.setDate(tm.getDate() + 1); tm.setHours(9, 0, 0, 0); opts.push([+tm, 'sc_morning']);
+    modal(`<h3>🕒 ${esc(t('sc_title'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><div class="sc-prev">${esc(text.slice(0, 200))}</div>
+      <div class="sc-opts">${opts.map(([at, k]) => `<button data-at="${at}"><b>${esc(t(k))}</b><small>${esc(Sched.fmt(at))}</small></button>`).join('')}</div>
+      <label class="sc-custom"><span>${esc(t('sc_custom'))}</span><input type="datetime-local" id="sc-dt" min="${Sched.local(new Date(Date.now() + 60e3))}" value="${Sched.local(new Date(Date.now() + 2 * 3600e3))}"></label>
+      <button class="btn-primary" id="sc-go">${esc(t('sc_ok'))}</button>`);
+    const go = async (at) => {
+      if (!(at > Date.now() + 20e3)) { toast(t('sc_bad_time')); return; }
+      try { await emitAck('msg:schedule', { chatId: S.current, text, at, replyTo: S.replyTo?.id }); closeModal(); if (textEl.value.trim() === text) { textEl.value = ''; textEl.dispatchEvent(new Event('input')); } if (S.replyTo) $('#reply-cancel').click(); toast(tf('sc_done', { t: Sched.fmt(at) }), 3000); this.refresh(); }
+      catch (e) { toast(e.code === 'bad_time' ? t('sc_bad_time') : e.message); }
+    };
+    $('#modal-card .sc-opts').onclick = (e) => { const b = e.target.closest('[data-at]'); if (b) go(+b.dataset.at); };
+    $('#sc-go').onclick = () => go(new Date($('#sc-dt').value).getTime());
+  },
+  async refresh() {
+    const cid = S.current; if (!cid) return;
+    try { const r = await emitAck('msg:schedlist', { chatId: cid }); if (cid !== S.current) return; this.list = r.list; this.count = r.list.length; } catch { this.count = 0; this.list = []; }
+    let bar = $('#sched-bar');
+    if (!bar) { $('#composer')?.insertAdjacentHTML('beforebegin', `<button class="sched-bar hidden" id="sched-bar"></button>`); bar = $('#sched-bar'); bar.onclick = () => this.manage(); }
+    bar.textContent = tf('sc_bar', { n: this.count }); bar.classList.toggle('hidden', !this.count || $('#composer').classList.contains('hidden'));
+  },
+  manage() {
+    modal(`<h3>🕒 ${esc(t('sc_list'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><div class="sc-list">${(this.list || []).map((m) => `<div class="sc-item"><small>${esc(Sched.fmt(m.at))}</small><p>${esc(m.text)}</p><div><button data-now="${m.id}">${esc(t('sc_send_now'))}</button><button data-del="${m.id}" class="danger">${esc(t('sc_del'))}</button></div></div>`).join('')}</div>`);
+    $('#modal-card .sc-list').onclick = async (e) => { const b = e.target.closest('[data-now],[data-del]'); if (!b) return; b.disabled = true; try { await emitAck('msg:unschedule', { id: +(b.dataset.now || b.dataset.del), sendNow: !!b.dataset.now }); b.closest('.sc-item').remove(); await this.refresh(); if (!this.count) closeModal(); } catch (er) { toast(er.message); } };
+  },
+};
+{
+  // yuborish tugmasini bosib turish — keyinroq yuborish
+  let lp = null, fired = false;
+  const start = () => { fired = false; if (actionBtn.dataset.mode !== 'send') return; lp = setTimeout(() => { fired = true; navigator.vibrate?.(20); Sched.open(); }, 550); };
+  const end = () => clearTimeout(lp);
+  actionBtn.addEventListener('pointerdown', start); ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) => actionBtn.addEventListener(ev, end));
+  actionBtn.addEventListener('click', (e) => { if (fired) { e.stopImmediatePropagation(); e.preventDefault(); fired = false; } }, true);
+  actionBtn.addEventListener('contextmenu', (e) => { if (actionBtn.dataset.mode === 'send') { e.preventDefault(); Sched.open(); } });
+}
+
+/* ---------- 5) So'rovnoma ---------- */
+const Polls = {
+  st: new Map(), q: new Set(), tm: null, sel: new Map(),
+  want(id) { if (!id || this.st.has(id)) return; this.q.add(id); clearTimeout(this.tm); this.tm = setTimeout(() => this.flush(), 80); },
+  async flush() { const ids = [...this.q]; this.q.clear(); if (!ids.length) return; try { const r = await emitAck('poll:peek', { ids }); Object.entries(r || {}).forEach(([k, v]) => { this.st.set(+k, v); this.paint(+k); }); } catch {} },
+  paint(id) { const m = (S.msgs.get(S.current) || []).find((x) => x.id === id); const el = document.querySelector(`.poll[data-poll="${id}"]`); if (m && el) el.outerHTML = this.inner(m); },
+  inner(m) {
+    const p = m.meta?.poll || {}; const st = this.st.get(m.id); const mine = st?.mine || []; const voted = mine.length > 0;
+    const total = st?.voters || 0; const sum = (st?.counts || []).reduce((a, b) => a + b, 0) || 1; const quiz = p.quiz !== undefined;
+    const show = voted || m.sender_id === S.me.id && total > 0; const sel = this.sel.get(m.id) || new Set();
+    const rows = (p.opts || []).map((o, i) => {
+      const n = st?.counts?.[i] || 0, pc = Math.round((n / sum) * 100);
+      const cls = [voted && mine.includes(i) ? 'mine' : '', quiz && voted && i === p.quiz ? 'right' : '', quiz && voted && mine.includes(i) && i !== p.quiz ? 'wrong' : '', sel.has(i) ? 'sel' : ''].join(' ');
+      return `<button class="po ${cls}" data-popt="${i}" data-pid="${m.id}"${voted && (quiz || !p.multi) ? ' data-done="1"' : ''}>${show ? `<i style="width:${pc}%"></i>` : ''}<span class="po-c">${p.multi && !voted ? (sel.has(i) ? '☑' : '☐') : voted && mine.includes(i) ? '✓' : quiz && voted && i === p.quiz ? '✓' : '○'}</span><span class="po-t">${esc(o)}</span>${show ? `<b>${pc}%</b>` : ''}</button>`;
+    }).join('');
+    const foot = `<div class="po-foot"><small>${esc(quiz ? t('poll_quiz_l') : t('poll_open'))} · ${esc(tf('poll_votes', { n: total }))}</small>${p.multi && !voted ? `<button data-pvote="${m.id}"${sel.size ? '' : ' disabled'}>${esc(t('poll_vote'))}</button>` : ''}${voted && !quiz ? `<button data-pretract="${m.id}">${esc(t('poll_retract'))}</button>` : ''}</div>`;
+    const res = quiz && voted ? `<div class="po-res ${mine.includes(p.quiz) ? 'ok' : 'no'}">${esc(t(mine.includes(p.quiz) ? 'poll_right' : 'poll_wrong'))}${p.expl ? ' — ' + esc(p.expl) : ''}</div>` : '';
+    return `<div class="poll" data-poll="${m.id}"><div class="po-q">📊 ${esc(p.q || m.text)}</div>${rows}${res}${foot}</div>`;
+  },
+  html(m, attrs, reply, metaHtml) { if (m.id) this.want(m.id); return `<div ${attrs}><div class="bubble poll-b">${reply}${this.inner(m)}${metaHtml}</div></div>`; },
+  async vote(id, opts) {
+    try { const r = await emitAck('poll:vote', { id, opts }); this.st.set(id, { counts: r.counts, voters: r.voters, mine: r.mine }); this.sel.delete(id); this.paint(id); navigator.vibrate?.(15); }
+    catch (e) { toast(e.code === 'already' ? '✓' : e.message); }
+  },
+  create(chatId = S.current) {
+    modal(`<h3>📊 ${esc(t('poll_new'))} <button class="icon-btn" data-close>${icon('close')}</button></h3>
+      <input class="pl-in" id="pq" maxlength="300" placeholder="${esc(t('poll_q'))}"><div id="popts"></div><button class="link-btn" id="padd">${esc(t('poll_add'))}</button>
+      <label class="pl-tg"><input type="checkbox" id="pmulti"> ${esc(t('poll_multi'))}</label><label class="pl-tg"><input type="checkbox" id="pquiz"> ${esc(t('poll_quiz'))}</label><p class="muted hidden" id="pqhint">${esc(t('poll_quiz_pick'))}</p>
+      <p class="pin-err" id="perr"></p><button class="btn-primary" id="psend">${esc(t('poll_send'))}</button>`);
+    let right = 0;
+    const add = () => { const n = $$('#popts .pl-opt').length; if (n >= 10) return; $('#popts').insertAdjacentHTML('beforeend', `<div class="pl-opt"><input type="radio" name="pright" value="${n}"${n === right ? ' checked' : ''}><input class="pl-in" maxlength="100" placeholder="${esc(tf('poll_opt', { n: n + 1 }))}"></div>`); };
+    add(); add();
+    $('#padd').onclick = add;
+    $('#popts').addEventListener('input', (e) => { const all = $$('#popts .pl-opt .pl-in'); if (e.target === all[all.length - 1] && e.target.value && all.length < 10) add(); });
+    $('#popts').onchange = (e) => { if (e.target.name === 'pright') right = +e.target.value; };
+    const sync = () => { $('#modal-card').classList.toggle('quiz', $('#pquiz').checked); $('#pqhint').classList.toggle('hidden', !$('#pquiz').checked); if ($('#pquiz').checked) $('#pmulti').checked = false; };
+    $('#pquiz').onchange = sync; $('#pmulti').onchange = () => { if ($('#pmulti').checked) { $('#pquiz').checked = false; sync(); } };
+    setTimeout(() => $('#pq').focus(), 60);
+    $('#psend').onclick = async () => {
+      const q = $('#pq').value.trim(); const items = $$('#popts .pl-opt').map((d, i) => ({ i, v: d.querySelector('.pl-in').value.trim() })).filter((x) => x.v);
+      if (!q || items.length < 2) { $('#perr').textContent = t('poll_need'); return; }
+      const poll = { q, opts: items.map((x) => x.v), multi: $('#pmulti').checked };
+      if ($('#pquiz').checked) { const k = items.findIndex((x) => x.i === right); poll.quiz = k >= 0 ? k : 0; }
+      $('#psend').disabled = true;
+      try { await emitSend({ chatId, type: 'poll', text: q, meta: { poll } }); closeModal(); } catch (e) { $('#perr').textContent = e.message; $('#psend').disabled = false; }
+    };
+  },
+};
+$('#messages').addEventListener('click', (e) => {
+  const o = e.target.closest('[data-popt]'), v = e.target.closest('[data-pvote]'), r = e.target.closest('[data-pretract]');
+  if (!o && !v && !r) return; e.stopImmediatePropagation();
+  if (r) return Polls.vote(+r.dataset.pretract, []);
+  if (v) return Polls.vote(+v.dataset.pvote, [...(Polls.sel.get(+v.dataset.pvote) || [])]);
+  if (o.dataset.done) return;
+  const id = +o.dataset.pid, i = +o.dataset.popt, m = (S.msgs.get(S.current) || []).find((x) => x.id === id); if (!m) return;
+  const st = Polls.st.get(id);
+  if (m.meta?.poll?.multi && !(st?.mine?.length)) { const s = Polls.sel.get(id) || new Set(); s.has(i) ? s.delete(i) : s.add(i); Polls.sel.set(id, s); Polls.paint(id); return; }
+  Polls.vote(id, [i]);
+}, true);
+{
+  const basePrev = preview;
+  preview = function (m) {
+    if (m && !m.deleted && m.type === 'poll') return `<span class="tag">📊 ${esc(t('poll'))}:</span> ${esc(m.meta?.poll?.q || m.text || '')}`;
+    if (m && !m.deleted && m.meta?.ai) return `<span class="tag">✦ Birga AI:</span> ${esc(String(m.text || '').replace(/[*#`_]/g, '').slice(0, 90))}`;
+    return basePrev(m);
+  };
+}
+
+/* ---------- 6) Chat foni ---------- */
+const BG = {
+  presets: [
+    ['', null],
+    ['sky', 'linear-gradient(160deg,#CFE8FF 0%,#E9D8FF 100%)'],
+    ['mint', 'linear-gradient(160deg,#D9F7E8 0%,#C9ECFF 100%)'],
+    ['peach', 'linear-gradient(160deg,#FFE3D3 0%,#FFD1E8 100%)'],
+    ['sunset', 'linear-gradient(170deg,#FF9A8B 0%,#FF6A88 55%,#FF99AC 100%)'],
+    ['ocean', 'linear-gradient(170deg,#2E3192 0%,#1BFFFF 100%)'],
+    ['night', 'linear-gradient(170deg,#0F2027 0%,#203A43 50%,#2C5364 100%)'],
+    ['purple', 'linear-gradient(160deg,#4C1D95 0%,#7C3AED 50%,#DB2777 100%)'],
+    ['forest', 'linear-gradient(170deg,#134E5E 0%,#71B280 100%)'],
+    ['dots', 'radial-gradient(rgba(31,107,255,.18) 1.6px, transparent 1.8px) 0 0/18px 18px, linear-gradient(#F3F7FF,#F3F7FF)'],
+    ['grid', 'linear-gradient(rgba(138,43,226,.10) 1px, transparent 1px) 0 0/22px 22px, linear-gradient(90deg, rgba(138,43,226,.10) 1px, transparent 1px) 0 0/22px 22px, linear-gradient(#FAF7FF,#FAF7FF)'],
+    ['uzb', `url("data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60"><g fill="none" stroke="#1F6BFF" stroke-opacity=".14" stroke-width="2"><path d="M30 6l7 17 17 7-17 7-7 17-7-17-17-7 17-7z"/><circle cx="30" cy="30" r="5"/></g></svg>')}") 0 0/60px 60px, linear-gradient(#F4F8FF,#F4F8FF)`],
+  ],
+  get() { try { return JSON.parse(store.get('birga_bg') || '{}'); } catch { return {}; } },
+  set(o) { store.set('birga_bg', JSON.stringify(o)); },
+  css(v) { if (!v) return ''; if (v.startsWith('img:')) return `url("${v.slice(4).replace(/"/g, '%22')}") center/cover no-repeat`; return (this.presets.find((p) => p[0] === v) || [])[1] || ''; },
+  apply() { const o = this.get(); const v = (S.current && o.chats?.[S.current] !== undefined ? o.chats[S.current] : o.all) || ''; const c = $('#chat'); const css = this.css(v); c.style.background = css; c.classList.toggle('has-bg', !!css); c.classList.toggle('bg-dark', /night|ocean|purple|forest|sunset/.test(v) || v.startsWith('img:')); },
+  pick(chatId) {
+    const o = this.get(); const cur = chatId ? o.chats?.[chatId] ?? null : o.all || '';
+    modal(`<h3>🖼 ${esc(t('bg_title'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><p class="muted">${esc(t(chatId ? 'bg_this' : 'bg_all'))}</p>
+      <div class="bg-grid">${this.presets.map(([k, css]) => `<button data-bg="${k}" class="${(cur || '') === k ? 'on' : ''}" style="background:${css ? css.replace(/"/g, '&quot;') : 'var(--chat-bg)'}">${k ? '' : esc(t('bg_default'))}</button>`).join('')}
+        <button data-bg="upload" class="bg-up${cur?.startsWith?.('img:') ? ' on' : ''}"${cur?.startsWith?.('img:') ? ` style="background:${this.css(cur).replace(/"/g, '&quot;')}"` : ''}>📷<small>${esc(t('bg_upload'))}</small></button></div>
+      ${chatId && cur !== null ? `<button class="link-btn" id="bg-reset">${esc(t('bg_reset'))}</button>` : ''}<input type="file" id="bg-file" accept="image/*" hidden>`);
+    const save = (v) => { const o2 = this.get(); if (chatId) { o2.chats = o2.chats || {}; if (v === null) delete o2.chats[chatId]; else o2.chats[chatId] = v; } else o2.all = v; this.set(o2); this.apply(); closeModal(); toast(t('bg_saved')); };
+    $('#modal-card .bg-grid').onclick = (e) => { const b = e.target.closest('[data-bg]'); if (!b) return; if (b.dataset.bg === 'upload') return $('#bg-file').click(); save(b.dataset.bg); };
+    $('#bg-reset')?.addEventListener('click', () => save(null));
+    $('#bg-file').onchange = async (e) => {
+      const f = e.target.files[0]; if (!f) return; toast('…', 8000);
+      try { const small = await compressImage(f, 1600); const r = await uploadFile(small, null, 'bg'); save('img:' + (r.url || r.file)); } catch (er) { toast(er.message || t('upload_fail')); }
+    };
+  },
+};
+{
+  const baseOC15 = openChat;
+  openChat = async function (id, ...rest) { const r = await baseOC15(id, ...rest); BG.apply(); Sched.refresh(); AIChat.paint(); return r; };
+  const baseCM15 = chatMenu;
+  chatMenu = function (chatId, x, y) { baseCM15(chatId, x, y); const el = $('#ctx'); el.insertAdjacentHTML('beforeend', `<button data-a15="bg">🖼 ${esc(t('bg_title'))}</button>`); el.querySelector('[data-a15]').onclick = (e) => { e.stopPropagation(); el.classList.add('hidden'); BG.pick(chatId); }; };
+}
+
+/* ---------- 7) Chat ichida Birga AI ---------- */
+const AIChat = {
+  on: new Set(),
+  paint() {
+    $('#ai-typing')?.remove();
+    if (!S.current || !this.on.has(S.current)) return;
+    $('#messages').insertAdjacentHTML('beforeend', `<div class="msg in ai-msg" id="ai-typing"><img class="ai-mav" src="${AI_LOGO}" alt=""><div class="bubble"><div class="ai-name">✦ Birga AI</div><div class="ai-dots"><i></i><i></i><i></i></div></div></div>`);
+    const box = $('#messages'); if (box.scrollHeight - box.scrollTop - box.clientHeight < 300) box.scrollTop = box.scrollHeight;
+  },
+};
+{
+  const baseMI = msgInner;
+  msgInner = function (m, c, tail, gap) {
+    if (!m.meta?.ai || m.deleted) return baseMI(m, c, tail, gap);
+    const meta = `<span class="meta">${fmtTime(m.created_at)}</span>`;
+    return `<div class="msg in ai-msg${gap ? ' gap' : ''}" data-id="${m.id || ''}"><img class="ai-mav" src="${AI_LOGO}" alt=""><div class="bubble"><div class="ai-name">✦ Birga AI</div><div class="txt ai-txt">${AI.md(m.text || '')}</div>${meta}</div></div>`;
+  };
+  const baseMH = msgHTML;
+  msgHTML = function (m, c, tail, gap) {
+    if (!m.meta?.ai || m.deleted) return baseMH(m, c, tail, gap);
+    const rx = m.id && m.reactions ? reactsHTML(m) : '';
+    const inner = msgInner(m, c, tail, gap); return rx ? `<div class="msg-fail-wrap${gap ? ' gap' : ''}">${inner}${rx}</div>` : inner;
+  };
+}
+{
+  const baseCS15 = connectSocket;
+  connectSocket = async function () {
+    await baseCS15();
+    S.socket?.on('ai:thinking', ({ chatId, on }) => { if (on) AIChat.on.add(chatId); else AIChat.on.delete(chatId); if (chatId === S.current) AIChat.paint(); });
+    S.socket?.on('message:new', ({ message }) => { if (message?.meta?.ai) { AIChat.on.delete(message.chat_id); if (message.chat_id === S.current) setTimeout(() => AIChat.paint(), 0); } });
+    S.socket?.on('poll:update', ({ id, counts, voters }) => { const st = Polls.st.get(id) || { mine: [] }; Polls.st.set(id, { ...st, counts, voters }); Polls.paint(id); });
+    S.socket?.on('msg:scheduled', ({ chatId }) => { if (chatId === S.current) Sched.refresh(); });
+  };
+}
+
+/* ---------- biriktirish menyusi: fayl, so'rovnoma, keyinroq yuborish, AI, o'yin ---------- */
+$('#btn-attach').onclick = () => {
+  const c = S.chats.get(S.current); if (!c) return;
+  const canGame = c.type !== 'channel' && !c.self;
+  const hasText = !!textEl.value.trim();
+  modal(`<h3>${esc(t('att_title'))} <button class="icon-btn" data-close>${icon('close')}</button></h3>
+    <div class="att-sheet"><button class="row-btn" data-at="file"><span class="ri c2">${icon('clip')}</span><span>${esc(t('att_file'))}</span></button>
+    <button class="row-btn" data-at="poll"><span class="ri c4">📊</span><span>${esc(t('poll'))}<small>${esc(t('att_poll_sub'))}</small></span></button>
+    ${c.type !== 'channel' ? `<button class="row-btn" data-at="ai"><span class="ri c1 ai-ri"><img src="${AI_LOGO}" alt=""></span><span>${esc(t('ai_chat'))}<small>${esc(t('ai_chat_sub'))}</small></span></button>` : ''}
+    <button class="row-btn" data-at="sched"${hasText ? '' : ' disabled'}><span class="ri c6">🕒</span><span>${esc(t('att_sched'))}<small>${esc(hasText ? t('att_sched_sub') : t('sc_hint'))}</small></span></button>
+    ${canGame ? `<button class="row-btn" data-at="game"><span class="ri c5">🎮</span><span>${esc(t('att_game'))}<small>${esc(t('att_game_sub'))}</small></span></button>` : ''}</div>
+    <div class="att-games hidden">${Object.keys(MPN).map((g) => `<button data-g="${g}" style="--g1:${MPC[g][0]};--g2:${MPC[g][1]}"><span>${MPN[g][0]}</span><b>${esc(mpName(g))}</b></button>`).join('')}</div>`);
+  const card = $('#modal-card');
+  card.onclick = (e) => {
+    const a = e.target.closest('[data-at]')?.dataset.at;
+    if (a === 'file') { closeModal(); $('#file-input').click(); return; }
+    if (a === 'poll') { closeModal(); setTimeout(() => Polls.create(), 60); return; }
+    if (a === 'sched') { closeModal(); setTimeout(() => Sched.open(), 60); return; }
+    if (a === 'ai') { closeModal(); if (!/^\s*@ai\b/i.test(textEl.value)) textEl.value = '@ai ' + textEl.value; textEl.dispatchEvent(new Event('input')); textEl.focus(); return; }
+    if (a === 'game') { card.querySelector('.att-sheet').classList.add('hidden'); card.querySelector('.att-games').classList.remove('hidden'); return; }
+    const g = e.target.closest('[data-g]')?.dataset.g;
+    if (g) { const cid = S.current; closeModal(); loadGames14().then(() => BirgaGames.invite(g, cid)).catch(() => toast(t('net_err'))); }
+  };
+};
+
+/* ---------- sozlamalar ---------- */
+{
+  const g = $('#set-steps')?.parentElement || $('#set-privacy')?.parentElement;
+  g?.insertAdjacentHTML('beforeend', `<button class="row-btn" id="set-pin"><span class="ri c7">🔒</span><span><span data-t15="pin_title"></span><small id="set-pin-v"></small></span></button>
+    <button class="row-btn" id="set-bg"><span class="ri c4">🖼</span><span data-t15="bg_title"></span></button>
+    <button class="row-btn" id="set-inv"><span class="ri c1">🎁</span><span><span data-t15="inv_title"></span><small data-t15="inv_sub"></small></span></button>`);
+  $('#set-pin')?.addEventListener('click', () => Lock.settings());
+  $('#set-bg')?.addEventListener('click', () => BG.pick(null));
+  $('#set-inv')?.addEventListener('click', () => Invite.open());
+  const baseRS15 = renderSettings; renderSettings = function () { baseRS15(); paint15(); };
+}
+function paint15() { $$('[data-t15]').forEach((x) => (x.textContent = t(x.dataset.t15))); const v = $('#set-pin-v'); if (v) v.textContent = t(Lock.cfg() ? 'pin_on' : 'pin_off'); }
+setTimeout(paint15, 0);
+
+document.head.insertAdjacentHTML('beforeend', `<style>
+.ref-card { display: flex; align-items: center; gap: 10px; padding: 10px 12px; margin-bottom: 14px; border-radius: 14px; background: linear-gradient(135deg, rgba(31,107,255,.12), rgba(138,43,226,.12)); font-weight: 600; font-size: 14px; }
+.inv-btns { display: flex; gap: 10px; margin: 10px 0; } .inv-btns > * { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; margin: 0; } .inv-btns svg { width: 18px; height: 18px; }
+.inv-apps { display: flex; gap: 8px; } .inv-apps a { flex: 1; text-align: center; padding: 9px 0; border-radius: 12px; background: var(--panel-2, rgba(127,127,127,.1)); font-weight: 700; font-size: 13px; color: inherit; text-decoration: none; }
+.inv-h { margin: 16px 0 8px; font-size: 14px; } .inv-list { display: flex; flex-wrap: wrap; gap: 8px; max-height: 30vh; overflow: auto; }
+.inv-list button { display: flex; align-items: center; gap: 6px; padding: 4px 10px 4px 4px; border-radius: 20px; background: var(--panel-2, rgba(127,127,127,.1)); } .inv-list b { font-size: 13px; }
+.cs-list { display: flex; flex-direction: column; gap: 4px; max-height: 55vh; overflow: auto; } .cs-row { display: flex; align-items: center; gap: 10px; padding: 6px; border-radius: 12px; }
+.cs-row span { flex: 1; min-width: 0; display: flex; flex-direction: column; } .cs-row small { color: var(--muted); } .cs-row button { padding: 7px 14px; border-radius: 16px; background: var(--grad, #1F6BFF); color: #fff; font-weight: 700; font-size: 13px; }
+.cs-note { font-size: 12.5px; margin: 10px 0; }
+html.pin-on body > *:not(#pin-lock):not(#toast):not(#modal) { visibility: hidden; }
+.pin-lock { position: fixed; inset: 0; z-index: 2147483000; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: calc(40px + env(safe-area-inset-top)) 20px calc(20px + env(safe-area-inset-bottom)); background: linear-gradient(170deg, #0B1B3F 0%, #1F2A6B 55%, #4B1D8F 100%); color: #fff; visibility: visible !important; }
+.pin-lock.hidden { display: none; } .pl-top { display: flex; flex-direction: column; align-items: center; gap: 8px; } .pl-top img { width: 76px; height: 76px; border-radius: 22px; background: #fff; }
+.pl-top b { font-size: 22px; letter-spacing: 2px; } .pl-top p { margin: 10px 0 4px; opacity: .9; min-height: 20px; }
+.pl-dots { display: flex; gap: 16px; } .pl-dots i { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(255,255,255,.7); } .pl-dots i.on { background: #fff; border-color: #fff; }
+.pl-dots.shake { animation: plsh .35s; } @keyframes plsh { 25% { transform: translateX(-10px); } 75% { transform: translateX(10px); } }
+.pl-pad { display: grid; grid-template-columns: repeat(3, 76px); gap: 16px 28px; } .pl-pad button { width: 76px; height: 76px; border-radius: 50%; background: rgba(255,255,255,.12); color: #fff; font-size: 28px; font-weight: 600; }
+.pl-pad button:active { background: rgba(255,255,255,.3); } .pl-pad button.inv { visibility: hidden; } .pl-forgot { color: rgba(255,255,255,.75); font-size: 14px; padding: 10px; }
+.pin-in { width: 100%; height: 56px; font-size: 32px; letter-spacing: 18px; text-align: center; border-radius: 14px; border: 1px solid var(--line, rgba(127,127,127,.3)); background: var(--panel-2, rgba(127,127,127,.08)); color: inherit; }
+.pin-err { color: #EF4444; min-height: 18px; font-size: 13px; margin: 6px 0; }
+.pin-when { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; } .pin-when button { padding: 10px; border-radius: 12px; background: var(--panel-2, rgba(127,127,127,.1)); font-weight: 600; font-size: 13px; } .pin-when button.on { background: var(--grad, #1F6BFF); color: #fff; }
+.sc-prev { padding: 10px 12px; border-radius: 12px; background: var(--panel-2, rgba(127,127,127,.1)); font-size: 14px; margin-bottom: 12px; max-height: 90px; overflow: auto; white-space: pre-wrap; }
+.sc-opts { display: flex; flex-direction: column; gap: 6px; } .sc-opts button { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-radius: 12px; background: var(--panel-2, rgba(127,127,127,.1)); } .sc-opts small { color: var(--muted); }
+.sc-custom { display: flex; flex-direction: column; gap: 6px; margin: 12px 0; font-size: 13px; color: var(--muted); } .sc-custom input { height: 44px; border-radius: 12px; border: 1px solid var(--line, rgba(127,127,127,.3)); padding: 0 10px; background: transparent; color: var(--text); font: inherit; font-size: 15px; }
+.sched-bar { display: block; width: calc(100% - 20px); margin: 4px 10px; padding: 8px 12px; border-radius: 14px; background: rgba(31,107,255,.12); color: var(--blue, #1F6BFF); font-weight: 700; font-size: 13.5px; text-align: left; position: relative; z-index: 2; }
+.sc-list { display: flex; flex-direction: column; gap: 8px; max-height: 60vh; overflow: auto; } .sc-item { padding: 10px 12px; border-radius: 14px; background: var(--panel-2, rgba(127,127,127,.1)); }
+.sc-item small { color: var(--blue, #1F6BFF); font-weight: 700; } .sc-item p { margin: 4px 0 8px; white-space: pre-wrap; word-break: break-word; } .sc-item div { display: flex; gap: 8px; } .sc-item button { padding: 6px 12px; border-radius: 12px; background: rgba(31,107,255,.12); color: var(--blue, #1F6BFF); font-weight: 700; font-size: 13px; } .sc-item button.danger { background: rgba(239,68,68,.12); color: #EF4444; }
+.poll-b { min-width: min(280px, 72vw); } .poll { display: flex; flex-direction: column; gap: 6px; } .po-q { font-weight: 800; font-size: 15px; margin-bottom: 2px; }
+.po { position: relative; display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 10px; border-radius: 12px; background: rgba(127,127,127,.12); text-align: left; overflow: hidden; font-size: 14px; color: inherit; }
+.po i { position: absolute; left: 0; top: 0; bottom: 0; background: rgba(31,107,255,.22); border-radius: 12px; transition: width .4s; } .msg.out .po i { background: rgba(255,255,255,.28); }
+.po > span, .po > b { position: relative; } .po-t { flex: 1; min-width: 0; word-break: break-word; } .po b { font-size: 13px; } .po-c { width: 16px; text-align: center; opacity: .8; }
+.po.mine { box-shadow: inset 0 0 0 2px rgba(31,107,255,.6); } .msg.out .po.mine { box-shadow: inset 0 0 0 2px rgba(255,255,255,.8); }
+.po.right i { background: rgba(34,197,94,.35) !important; } .po.wrong i { background: rgba(239,68,68,.35) !important; } .po.sel { box-shadow: inset 0 0 0 2px rgba(31,107,255,.6); }
+.po-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; } .po-foot small { opacity: .75; font-size: 12px; }
+.po-foot button { padding: 5px 12px; border-radius: 12px; font-weight: 700; font-size: 12.5px; background: rgba(31,107,255,.15); color: inherit; } .po-foot button:disabled { opacity: .5; }
+.po-res { font-weight: 700; font-size: 13px; padding: 6px 8px; border-radius: 10px; } .po-res.ok { background: rgba(34,197,94,.18); } .po-res.no { background: rgba(239,68,68,.15); }
+.pl-in { width: 100%; height: 44px; border-radius: 12px; border: 1px solid var(--line, rgba(127,127,127,.3)); padding: 0 12px; margin-bottom: 8px; background: transparent; color: var(--text); font: inherit; font-size: 15px; box-sizing: border-box; }
+.pl-opt { display: flex; align-items: center; gap: 8px; } .pl-opt input[type=radio] { display: none; width: 20px; height: 20px; flex: none; margin: 0 0 8px; } #modal-card.quiz .pl-opt input[type=radio] { display: block; }
+.pl-tg { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; font-size: 14px; } .pl-tg input { width: 18px; height: 18px; }
+.bg-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; } .bg-grid button { aspect-ratio: 9 / 14; border-radius: 12px; border: 2px solid transparent; font-size: 11px; font-weight: 700; color: var(--muted); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; box-shadow: inset 0 0 0 1px rgba(127,127,127,.25); }
+.bg-grid button.on { border-color: var(--blue, #1F6BFF); } .bg-up { font-size: 22px !important; background: var(--panel-2, rgba(127,127,127,.1)); } .bg-up small { font-size: 10px; text-align: center; padding: 0 4px; }
+.chat.has-bg .chat-head, .chat.has-bg .composer { position: relative; z-index: 1; }
+.chat.bg-dark .svc, .chat.bg-dark .day-sep, .chat.bg-dark .date-chip { background: rgba(0,0,0,.35); color: #fff; }
+.msg.ai-msg { align-items: flex-end; gap: 6px; flex-direction: row; } .msg.ai-msg .bubble { background: linear-gradient(135deg, rgba(31,107,255,.10), rgba(138,43,226,.12)), var(--in-bg, #fff); border: 1px solid rgba(31,107,255,.25); max-width: min(560px, 82%); }
+.ai-name { font-size: 12.5px; font-weight: 800; background: linear-gradient(90deg, #1F6BFF, #8A2BE2); -webkit-background-clip: text; background-clip: text; color: transparent; margin-bottom: 2px; }
+.ai-txt pre { background: rgba(0,0,0,.75); color: #E5E7EB; padding: 8px; border-radius: 8px; overflow-x: auto; font-size: 12.5px; white-space: pre; } .ai-txt code { font-size: 12.5px; background: rgba(127,127,127,.18); padding: 1px 4px; border-radius: 5px; } .ai-txt pre code { background: none; }
+.ai-txt .ai-li { display: block; } .ai-txt .ai-h { display: block; } .ai-txt a { color: var(--blue, #1F6BFF); }
+#ai-typing .ai-dots { display: flex; gap: 4px; padding: 4px 2px; } #ai-typing .ai-dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); animation: aid 1s infinite; } #ai-typing .ai-dots i:nth-child(2) { animation-delay: .15s; } #ai-typing .ai-dots i:nth-child(3) { animation-delay: .3s; }
+.ai-ri { overflow: hidden; background: #fff !important; } .ai-ri img { width: 100%; height: 100%; object-fit: cover; }
+.row-btn:disabled { opacity: .55; }
 </style>`);
 
 boot();

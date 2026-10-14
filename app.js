@@ -4705,10 +4705,15 @@ pullToRefresh($('#pane-contacts'), async () => { await loadContacts(); await Upd
 
 /* ======================= v14: 2 kishilik o'yinlar, Birga AI, qadamlar, haqiqiy ilova o'rnatish ======================= */
 try {
-  Object.assign(I18N.uz, { att_file: 'Rasm, video yoki fayl', att_game: 'O‘yinga taklif qilish', att_game_sub: 'Shaxmat, shashka, dengiz jangi…', att_title: 'Yuborish',
-    ai_name: 'Birga AI', ai_sub: 'Har qanday savolingizga javob beraman', ai_ph: 'Savolingizni yozing…', ai_hello: 'Salom! Men Birga AI — aqlli yordamchingizman. 🤖\nIstalgan savol bering: maslahat, tarjima, matn yozish, hisob-kitob, o‘qish va boshqalar.',
+  Object.assign(I18N.uz, { ai_t_img: 'Rasm chizish', ai_t_photo: 'Rasmni tahlil', ai_t_tr: 'Tarjima', ai_t_write: 'Matn yozish', ai_t_math: 'Hisob-kitob', ai_t_news: 'Yangiliklar',
+    ai_t_tr_p: 'Ingliz tiliga tarjima qil: ', ai_t_write_p: 'Menga chiroyli matn yozib ber: ', ai_t_math_p: 'Bosqichma-bosqich yechib ber: ', ai_t_news_p: 'Bugun O‘zbekistonda qanday muhim yangiliklar bor?',
+    ai_draw_ph: 'Nimani chizay? Masalan: tog‘lar orasida quyosh botishi', ai_img_q: 'Bu rasmda nima bor?', ai_no_mic: 'Ovozli kiritish bu brauzerda ishlamaydi', ai_no_tts: 'Ovozli o‘qish bu qurilmada yo‘q',
+    ai_share: 'Chatga yuborish', ai_again: 'Qayta javob', ai_copy_t: 'Nusxa olish', ai_say: 'Ovoz chiqarib o‘qish', ai_limit: 'Birga AI ga juda ko‘p so‘rov yuborildi. Birozdan keyin qayta urinib ko‘ring.',
+    ai_drawing: 'Rasm chizilmoqda… (10–30 soniya)', ai_no_chats: 'Hali chatlar yo‘q — avval kimgadir yozing.', ai_img_err: 'Rasm chizib bo‘lmadi. Birozdan keyin qayta urinib ko‘ring.',
+    att_file: 'Rasm, video yoki fayl', att_game: 'O‘yinga taklif qilish', att_game_sub: 'Shaxmat, shashka, dengiz jangi…', att_title: 'Yuborish',
+    ai_name: 'Birga AI', ai_sub: 'Har qanday savolingizga javob beraman', ai_ph: 'Savolingizni yozing…', ai_hello: 'Salom! Men **Birga AI** — aqlli yordamchingizman. 🤖\nSavol bering, rasm yuboring — tahlil qilaman, 🎨 rasm chizaman, tarjima qilaman, matn yozaman, masala yechaman, internetdan eng so‘nggi ma’lumotni topaman. 🎤 bilan gapirib ham so‘rashingiz mumkin.',
     ai_clear: 'Suhbatni tozalash', ai_err: 'Birga AI hozir javob bera olmadi. Birozdan keyin qayta urinib ko‘ring.', ai_think: 'O‘ylayapman…', ai_copy: 'Nusxa olindi', ai_note: 'Birga AI xato qilishi mumkin — muhim ma’lumotlarni tekshiring.',
-    ai_ex: ['Bugun nima pishirsam bo‘ladi?', 'Ingliz tilini qanday tez o‘rgansam bo‘ladi?', 'Menga tabrik matni yozib ber', '“Rahmat” so‘zini 5 tilga tarjima qil'],
+    ai_ex: ['Bugun nima pishirsam bo‘ladi?', '/rasm Samarqanddagi Registon tunda, chiroyli', 'Ingliz tilini qanday tez o‘rgansam bo‘ladi?', 'Menga tug‘ilgan kun tabrigi yozib ber'],
     st_title: 'Qadamlar hisoblagichi', st_on: 'Yoqilgan · do‘stlaringiz bugungi qadamlaringizni ko‘radi', st_off: 'O‘chirilgan', st_note: 'Telefon datchigi orqali sanaydi. Brauzer cheklovi tufayli faqat Birga ochiq turganda hisoblanadi.',
     st_enable: 'Yoqish', st_disable: 'O‘chirish', st_noperm: 'Harakat datchigiga ruxsat berilmadi', st_nosensor: 'Bu qurilmada harakat datchigi topilmadi', st_today: 'bugun {n} qadam', steps_word: 'qadam',
     st_note_app: 'Telefoningizning o‘z qadam datchigi orqali sanaydi (Samsung Health kabi aniq). Birga yopiq bo‘lsa ham, ekran o‘chiq bo‘lsa ham hisoblanadi. Telefon “Jismoniy faollik” ruxsatini so‘raydi — “Ruxsat berish” ni bosing.',
@@ -4719,8 +4724,13 @@ try {
     inst_real: 'Birga ilovasini o‘rnatish', inst_real_sub: 'Haqiqiy ilova — brauzer belgisisiz, o‘z belgisi bilan, to‘liq ekranda', inst_badge: 'Hozirgi belgi brauzer (Yandex/Chrome) orqali qo‘shilgan. Uni o‘chirib, haqiqiy Birga ilovasini o‘rnating:',
     inst_dl: 'Birga ilovasini yuklab olish', inst_chrome2: 'Yoki Chrome orqali o‘rnatish', inst_open_app: 'Birga ilovasida ochish', inst_has_app: 'Birga ilovasi o‘rnatilgan', inst_bar_real: 'Brauzersiz, haqiqiy Birga ilovasini o‘rnating',
     inst_del_old: 'Eski belgini (brauzer belgisi bilan) bosh ekrandan o‘chirib tashlang: belgini bosib turing → “O‘chirish”.' });
-  Object.assign(I18N.ru, { att_file: 'Фото, видео или файл', att_game: 'Пригласить в игру', att_game_sub: 'Шахматы, шашки, морской бой…', att_title: 'Отправить',
-    ai_name: 'Birga AI', ai_sub: 'Отвечу на любой ваш вопрос', ai_ph: 'Напишите вопрос…', ai_hello: 'Привет! Я Birga AI — ваш умный помощник. 🤖\nСпрашивайте что угодно: советы, перевод, тексты, расчёты, учёба и многое другое.',
+  Object.assign(I18N.ru, { ai_t_img: 'Нарисовать', ai_t_photo: 'Анализ фото', ai_t_tr: 'Перевод', ai_t_write: 'Написать текст', ai_t_math: 'Расчёты', ai_t_news: 'Новости',
+    ai_t_tr_p: 'Переведи на английский: ', ai_t_write_p: 'Напиши красивый текст: ', ai_t_math_p: 'Реши пошагово: ', ai_t_news_p: 'Какие важные новости сегодня в Узбекистане?',
+    ai_draw_ph: 'Что нарисовать? Например: закат в горах', ai_img_q: 'Что на этом фото?', ai_no_mic: 'Голосовой ввод не работает в этом браузере', ai_no_tts: 'Озвучка недоступна на этом устройстве',
+    ai_share: 'Отправить в чат', ai_again: 'Ответить заново', ai_copy_t: 'Копировать', ai_say: 'Прочитать вслух', ai_limit: 'Слишком много запросов к Birga AI. Попробуйте чуть позже.',
+    ai_drawing: 'Рисую… (10–30 секунд)', ai_no_chats: 'Пока нет чатов — сначала напишите кому-нибудь.', ai_img_err: 'Не удалось нарисовать. Попробуйте чуть позже.',
+    att_file: 'Фото, видео или файл', att_game: 'Пригласить в игру', att_game_sub: 'Шахматы, шашки, морской бой…', att_title: 'Отправить',
+    ai_name: 'Birga AI', ai_sub: 'Отвечу на любой ваш вопрос', ai_ph: 'Напишите вопрос…', ai_hello: 'Привет! Я **Birga AI** — ваш умный помощник. 🤖\nСпрашивайте, присылайте фото — разберу, 🎨 нарисую картинку, переведу, напишу текст, решу задачу, найду свежую информацию в интернете. Можно спрашивать голосом 🎤.',
     ai_clear: 'Очистить диалог', ai_err: 'Birga AI сейчас не смог ответить. Попробуйте чуть позже.', ai_think: 'Думаю…', ai_copy: 'Скопировано', ai_note: 'Birga AI может ошибаться — проверяйте важное.',
     ai_ex: ['Что приготовить сегодня?', 'Как быстро выучить английский?', 'Напиши поздравление', 'Переведи «спасибо» на 5 языков'],
     st_title: 'Счётчик шагов', st_on: 'Включён · друзья видят ваши шаги за сегодня', st_off: 'Выключен', st_note: 'Считает по датчику телефона. Из-за ограничений браузера — только пока Birga открыт.',
@@ -4733,8 +4743,13 @@ try {
     inst_real: 'Установить приложение Birga', inst_real_sub: 'Настоящее приложение — без значка браузера, на весь экран', inst_badge: 'Текущий значок добавлен через браузер (Яндекс/Chrome). Удалите его и установите настоящее приложение Birga:',
     inst_dl: 'Скачать приложение Birga', inst_chrome2: 'Или установить через Chrome', inst_open_app: 'Открыть в приложении Birga', inst_has_app: 'Приложение Birga установлено', inst_bar_real: 'Установите настоящее приложение Birga без браузера',
     inst_del_old: 'Удалите старый значок (со значком браузера): удерживайте его → «Удалить».' });
-  Object.assign(I18N.en, { att_file: 'Photo, video or file', att_game: 'Invite to a game', att_game_sub: 'Chess, checkers, battleship…', att_title: 'Send',
-    ai_name: 'Birga AI', ai_sub: 'Ask me anything', ai_ph: 'Type your question…', ai_hello: 'Hi! I am Birga AI — your smart assistant. 🤖\nAsk anything: advice, translation, writing, math, study and more.',
+  Object.assign(I18N.en, { ai_t_img: 'Draw', ai_t_photo: 'Analyze photo', ai_t_tr: 'Translate', ai_t_write: 'Write', ai_t_math: 'Math', ai_t_news: 'News',
+    ai_t_tr_p: 'Translate into Uzbek: ', ai_t_write_p: 'Write a nice text for me: ', ai_t_math_p: 'Solve step by step: ', ai_t_news_p: 'What are today’s important news in Uzbekistan?',
+    ai_draw_ph: 'What should I draw? E.g. a sunset in the mountains', ai_img_q: 'What is in this picture?', ai_no_mic: 'Voice input is not supported in this browser', ai_no_tts: 'Read-aloud is not available on this device',
+    ai_share: 'Send to chat', ai_again: 'Regenerate', ai_copy_t: 'Copy', ai_say: 'Read aloud', ai_limit: 'Too many requests to Birga AI. Please try again later.',
+    ai_drawing: 'Drawing… (10–30 seconds)', ai_no_chats: 'No chats yet — message someone first.', ai_img_err: 'Could not draw the picture. Please try again later.',
+    att_file: 'Photo, video or file', att_game: 'Invite to a game', att_game_sub: 'Chess, checkers, battleship…', att_title: 'Send',
+    ai_name: 'Birga AI', ai_sub: 'Ask me anything', ai_ph: 'Type your question…', ai_hello: 'Hi! I am **Birga AI** — your smart assistant. 🤖\nAsk anything, send a photo to analyze, 🎨 ask me to draw, translate, write, solve problems or find fresh info on the web. You can also ask by voice 🎤.',
     ai_clear: 'Clear conversation', ai_err: 'Birga AI could not answer right now. Please try again later.', ai_think: 'Thinking…', ai_copy: 'Copied', ai_note: 'Birga AI can make mistakes — check important info.',
     ai_ex: ['What should I cook today?', 'How can I learn English fast?', 'Write me a greeting message', 'Translate “thank you” into 5 languages'],
     st_title: 'Step counter', st_on: 'On · friends see your steps today', st_off: 'Off', st_note: 'Counts with the phone sensor. Due to browser limits it only counts while Birga is open.',
@@ -4800,60 +4815,165 @@ $('#btn-attach').onclick = () => {
 };
 
 /* ======================= BIRGA AI ======================= */
+const AI_LOGO = 'data:image/webp;base64,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';
+const aiAv = (cls = 'ai-av') => `<img class="${cls}" src="${AI_LOGO}" alt="Birga AI">`;
 const AI = {
   key: () => 'birga_ai_' + (S.me?.id || 0),
-  hist: [], busy: false,
+  hist: [], busy: false, img: null, rec: null, speaking: -1,
   load() { try { this.hist = JSON.parse(store.get(this.key()) || '[]'); } catch { this.hist = []; } },
-  save() { try { store.set(this.key(), JSON.stringify(this.hist.slice(-40))); } catch {} },
+  save() { for (let n = 40; n >= 6; n -= 8) { try { store.set(this.key(), JSON.stringify(this.hist.slice(-n))); return; } catch {} } },
   md(s) {
     let h = esc(s);
     h = h.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, l, c) => `<pre><code>${c.replace(/\n$/, '')}</code></pre>`);
     h = h.replace(/`([^`\n]+)`/g, '<code>$1</code>').replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>').replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s).,!?:;]|$)/g, '$1<i>$2</i>');
-    h = h.replace(/^#{1,4}\s+(.+)$/gm, '<b class="ai-h">$1</b>').replace(/^\s*[-*•]\s+(.+)$/gm, '<span class="ai-li">• $1</span>');
+    h = h.replace(/\[([^\]\n]{1,120})\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    h = h.replace(/^#{1,4}\s+(.+)$/gm, '<b class="ai-h">$1</b>').replace(/^\s*[-*•]\s+(.+)$/gm, '<span class="ai-li">• $1</span>').replace(/^\s*(\d+)[.)]\s+(.+)$/gm, '<span class="ai-li"><b>$1.</b> $2</span>');
     return h.replace(/\n/g, '<br>').replace(/<\/pre><br>/g, '</pre>').replace(/<\/span><br>/g, '</span>');
   },
   ensure() {
     if ($('#ai-page')) return;
     document.body.insertAdjacentHTML('beforeend', `<div class="ai-page hidden" id="ai-page">
-      <header class="ai-head"><button class="icon-btn" id="ai-back">${icon('back')}</button><span class="ai-av">✦</span><div class="ai-tt"><b>Birga AI</b><small id="ai-st"></small></div><button class="icon-btn" id="ai-clear" title="">${icon('trash')}</button></header>
+      <header class="ai-head"><button class="icon-btn" id="ai-back">${icon('back')}</button>${aiAv()}<div class="ai-tt"><b>Birga AI</b><small id="ai-st"></small></div><button class="icon-btn" id="ai-clear" title="">${icon('trash')}</button></header>
       <div class="ai-msgs" id="ai-msgs"></div>
-      <footer class="ai-comp"><textarea id="ai-in" rows="1"></textarea><button class="ai-send" id="ai-send">${icon('send')}</button></footer></div>`);
+      <div class="ai-tools" id="ai-tools"></div>
+      <div class="ai-prev hidden" id="ai-prev"></div>
+      <footer class="ai-comp"><button class="ai-ic" id="ai-att" title="">${icon('clip')}</button><input type="file" id="ai-file" accept="image/*" hidden>
+        <textarea id="ai-in" rows="1"></textarea><button class="ai-ic" id="ai-mic">${icon('mic')}</button><button class="ai-send" id="ai-send">${icon('send')}</button></footer></div>`);
     $('#ai-back').onclick = () => this.close();
     $('#ai-clear').onclick = () => { if (!this.hist.length || !confirm(t('ai_clear') + '?')) return; this.hist = []; this.save(); this.render(); };
     const inp = $('#ai-in');
-    inp.addEventListener('input', () => { inp.style.height = 'auto'; inp.style.height = Math.min(140, inp.scrollHeight) + 'px'; });
+    const grow = () => { inp.style.height = 'auto'; inp.style.height = Math.min(140, inp.scrollHeight) + 'px'; this.sendState(); };
+    inp.addEventListener('input', grow);
     inp.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !('ontouchstart' in window)) { e.preventDefault(); this.send(); } });
     $('#ai-send').onclick = () => this.send();
+    $('#ai-att').onclick = () => $('#ai-file').click();
+    $('#ai-file').onchange = async (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) this.setImage(f); };
+    inp.addEventListener('paste', (e) => { const f = [...(e.clipboardData?.files || [])].find((x) => /^image\//.test(x.type)); if (f) { e.preventDefault(); this.setImage(f); } });
+    $('#ai-prev').onclick = (e) => { if (e.target.closest('[data-x]')) { this.img = null; this.paintPrev(); } };
+    $('#ai-mic').onclick = () => this.listen();
+    $('#ai-tools').onclick = (e) => { const b = e.target.closest('[data-tool]'); if (!b) return; const k = b.dataset.tool; if (k === 'img') { this.mode = this.mode === 'draw' ? '' : 'draw'; this.paintTools(); inp.focus(); return; } if (k === 'photo') { $('#ai-file').click(); return; } inp.value = t('ai_t_' + k + '_p'); grow(); inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); };
     $('#ai-msgs').onclick = (e) => {
       const ex = e.target.closest('[data-ex]'); if (ex) { inp.value = ex.dataset.ex; this.send(); return; }
-      const cp = e.target.closest('[data-cp]'); if (cp) { const m = this.hist[+cp.dataset.cp]; navigator.clipboard?.writeText(m?.content || '').then(() => toast(t('ai_copy'))).catch(() => {}); }
+      const a = e.target.closest('[data-act]'); if (!a) return; const i = +a.dataset.i, m = this.hist[i];
+      if (a.dataset.act === 'copy') navigator.clipboard?.writeText(m?.content || '').then(() => toast(t('ai_copy'))).catch(() => {});
+      if (a.dataset.act === 'say') this.say(i);
+      if (a.dataset.act === 'again') this.again(i);
+      if (a.dataset.act === 'share') this.share(m);
+      if (a.dataset.act === 'img') openViewer('image', m.gen || m.image);
     };
     trackEl($('#ai-page'), 'ai', () => this.close());
   },
+  mode: '',
+  paintTools() {
+    const tl = [['img', '🎨'], ['photo', '📷'], ['tr', '🌐'], ['write', '✍️'], ['math', '🧮'], ['news', '📰']];
+    $('#ai-tools').innerHTML = tl.map(([k, e]) => `<button data-tool="${k}" class="${k === 'img' && this.mode === 'draw' ? 'on' : ''}">${e} ${esc(t('ai_t_' + k))}</button>`).join('');
+    $('#ai-in').placeholder = this.mode === 'draw' ? t('ai_draw_ph') : t('ai_ph');
+  },
+  sendState() { $('#ai-send')?.classList.toggle('off', !($('#ai-in').value.trim() || this.img) || this.busy); },
+  async setImage(f) {
+    if (!/^image\//.test(f.type)) return;
+    try { this.img = { full: await this.shrink(f, 1280, 0.82), thumb: await this.shrink(f, 360, 0.7) }; } catch { toast(t('err')); return; }
+    if (this.mode === 'draw') { this.mode = ''; this.paintTools(); }
+    this.paintPrev();
+  },
+  shrink(f, max, q) {
+    return new Promise((res, rej) => { const u = URL.createObjectURL(f); const im = new Image(); im.onload = () => { const k = Math.min(1, max / Math.max(im.width, im.height)); const c = document.createElement('canvas'); c.width = Math.round(im.width * k); c.height = Math.round(im.height * k); const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(im, 0, 0, c.width, c.height); URL.revokeObjectURL(u); res(c.toDataURL('image/jpeg', q)); }; im.onerror = () => { URL.revokeObjectURL(u); rej(); }; im.src = u; });
+  },
+  paintPrev() { const p = $('#ai-prev'); p.classList.toggle('hidden', !this.img); p.innerHTML = this.img ? `<img src="${this.img.thumb}" alt=""><span>${esc(t('ai_img_q'))}</span><button data-x="1">${icon('close')}</button>` : ''; this.sendState(); },
+  listen() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { toast(t('ai_no_mic'), 3000); return; }
+    if (this.rec) { this.rec.stop(); return; }
+    const r = new SR(); this.rec = r; r.lang = { uz: 'uz-UZ', ru: 'ru-RU', en: 'en-US' }[LANG] || 'uz-UZ'; r.interimResults = true; r.continuous = false;
+    const inp = $('#ai-in'), base = inp.value ? inp.value + ' ' : '';
+    $('#ai-mic').classList.add('rec');
+    r.onresult = (e) => { inp.value = base + [...e.results].map((x) => x[0].transcript).join(''); inp.dispatchEvent(new Event('input')); };
+    r.onerror = (e) => { if (e.error === 'not-allowed') toast(t('ai_no_mic'), 3000); };
+    r.onend = () => { this.rec = null; $('#ai-mic')?.classList.remove('rec'); };
+    try { r.start(); } catch { this.rec = null; $('#ai-mic').classList.remove('rec'); }
+  },
+  say(i) {
+    if (!window.speechSynthesis) return toast(t('ai_no_tts'), 3000);
+    speechSynthesis.cancel(); if (this.speaking === i) { this.speaking = -1; this.render(); return; }
+    const m = this.hist[i]; const txt = String(m?.content || '').replace(/```[\s\S]*?```/g, '').replace(/[*#`_>\[\]()]/g, '').slice(0, 4000);
+    const u = new SpeechSynthesisUtterance(txt); const lang = { uz: 'uz', ru: 'ru', en: 'en' }[LANG] || 'uz';
+    const v = speechSynthesis.getVoices().find((x) => x.lang.toLowerCase().startsWith(lang)) || (lang === 'uz' ? speechSynthesis.getVoices().find((x) => /^(tr|ru)/i.test(x.lang)) : null);
+    if (v) { u.voice = v; u.lang = v.lang; } else u.lang = lang;
+    u.onend = u.onerror = () => { this.speaking = -1; this.render(false); };
+    this.speaking = i; speechSynthesis.speak(u); this.render(false);
+  },
+  share(m) {
+    if (!m) return;
+    const list = [...S.chats.values()].filter((c) => !(c.type === 'channel' && !['owner', 'admin'].includes(c.role)) && (c.last || c.self)).sort((a, b) => (b.last?.created_at || 0) - (a.last?.created_at || 0)).slice(0, 60);
+    modal(`<h3>${esc(t('ai_share'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><div class="chat-pick">${list.map((c) => `<button data-cid="${c.id}">${chatAvatar(c, 'sm')}<b>${esc(chatTitle(c))}</b></button>`).join('') || `<p class="empty-note">${esc(t('ai_no_chats'))}</p>`}</div>`);
+    $('#modal-card .chat-pick').onclick = async (e) => {
+      const b = e.target.closest('[data-cid]'); if (!b) return; closeModal();
+      try {
+        if (m.gen) await emitSend({ chatId: +b.dataset.cid, type: 'image', file: m.gen, mime: m.mime || 'image/jpeg', size: m.size || 0, text: '🎨 Birga AI', meta: { w: 1024, h: 1024 } });
+        else await emitSend({ chatId: +b.dataset.cid, type: 'text', text: '✦ Birga AI:\n' + m.content.slice(0, 4000) });
+        toast('✓');
+      } catch (er) { toast(er.message || t('not_sent')); }
+    };
+  },
   open() {
     this.ensure(); this.load();
-    $('#ai-st').textContent = t('ai_sub'); $('#ai-in').placeholder = t('ai_ph'); $('#ai-clear').title = t('ai_clear');
-    $('#ai-page').classList.remove('hidden'); this.render();
+    $('#ai-st').textContent = t('ai_sub'); $('#ai-clear').title = t('ai_clear'); $('#ai-att').title = t('ai_t_photo');
+    this.paintTools();
+    $('#ai-page').classList.remove('hidden'); this.render(); this.sendState();
     if (!('ontouchstart' in window)) setTimeout(() => $('#ai-in').focus(), 50);
   },
-  close() { $('#ai-page')?.classList.add('hidden'); },
-  render() {
+  close() { try { speechSynthesis?.cancel(); } catch {} this.speaking = -1; this.rec?.stop(); $('#ai-page')?.classList.add('hidden'); },
+  render(scroll = true) {
     const box = $('#ai-msgs'); if (!box) return;
-    const hello = `<div class="ai-m bot"><div class="ai-b">${this.md(t('ai_hello'))}</div></div>`;
+    const hello = `<div class="ai-m bot">${aiAv('ai-mav')}<div class="ai-b">${this.md(t('ai_hello'))}</div></div>`;
     const ex = this.hist.length ? '' : `<div class="ai-ex">${t('ai_ex').map((x) => `<button data-ex="${esc(x)}">${esc(x)}</button>`).join('')}</div>`;
-    box.innerHTML = hello + ex + this.hist.map((m, i) => `<div class="ai-m ${m.role === 'user' ? 'me' : 'bot'}${m.err ? ' err' : ''}"><div class="ai-b">${m.role === 'user' ? esc(m.content).replace(/\n/g, '<br>') : this.md(m.content)}</div>${m.role !== 'user' && !m.err ? `<button class="ai-cp" data-cp="${i}">${icon('copy') || '⧉'}</button>` : ''}</div>`).join('')
-      + (this.busy ? `<div class="ai-m bot"><div class="ai-b ai-dots"><i></i><i></i><i></i></div></div>` : '') + `<p class="ai-note">${esc(t('ai_note'))}</p>`;
-    box.scrollTop = box.scrollHeight;
+    const lastBot = this.hist.map((m) => m.role).lastIndexOf('assistant');
+    box.innerHTML = hello + ex + this.hist.map((m, i) => {
+      if (m.role === 'user') return `<div class="ai-m me"><div class="ai-b">${m.image ? `<img class="ai-ui" src="${m.image}" data-act="img" data-i="${i}" alt="">` : ''}${m.draw ? '🎨 ' : ''}${esc(m.content).replace(/\n/g, '<br>')}</div></div>`;
+      const acts = m.err ? (i === lastBot ? `<div class="ai-acts"><button data-act="again" data-i="${i}">${icon('refresh')} ${esc(t('ai_again'))}</button></div>` : '')
+        : `<div class="ai-acts">${m.gen ? '' : `<button data-act="copy" data-i="${i}" title="${esc(t('ai_copy_t'))}">${icon('copy')}</button><button data-act="say" data-i="${i}" class="${this.speaking === i ? 'on' : ''}" title="${esc(t('ai_say'))}">🔊</button>`}
+          <button data-act="share" data-i="${i}" title="${esc(t('ai_share'))}">${icon('forward') || '↗'}</button>${i === lastBot ? `<button data-act="again" data-i="${i}" title="${esc(t('ai_again'))}">${icon('refresh')}</button>` : ''}</div>`;
+      const src = m.sources?.length ? `<div class="ai-src">${m.sources.map((s, k) => `<a href="${esc(s.url)}" target="_blank" rel="noopener">${k + 1}. ${esc(s.title || new URL(s.url).hostname)}</a>`).join('')}</div>` : '';
+      const body = m.gen ? `<img class="ai-gen" src="${esc(m.gen)}" data-act="img" data-i="${i}" alt="">${m.content ? `<div class="ai-cap">${esc(m.content)}</div>` : ''}` : this.md(m.content);
+      return `<div class="ai-m bot${m.err ? ' err' : ''}">${aiAv('ai-mav')}<div class="ai-col"><div class="ai-b">${body}${src}</div>${acts}</div></div>`;
+    }).join('')
+      + (this.busy ? `<div class="ai-m bot">${aiAv('ai-mav')}<div class="ai-b ai-dots">${this.busy === 'draw' ? `<span class="ai-drawing">🎨 ${esc(t('ai_drawing'))}</span>` : '<i></i><i></i><i></i>'}</div></div>` : '') + `<p class="ai-note">${esc(t('ai_note'))}</p>`;
+    if (scroll) box.scrollTop = box.scrollHeight;
   },
+  drawIntent: (q) => /^(\/rasm|\/draw|rasm(ini)?\s+(chiz|yarat|chizib)|surat(ini)?\s+(chiz|yarat)|нарисуй|сгенерируй (картинку|изображение)|draw\b|generate (an? )?(image|picture))/i.test(q),
   async send() {
-    const inp = $('#ai-in'); const q = inp.value.trim(); if (!q || this.busy) return;
+    const inp = $('#ai-in'); const q = inp.value.trim(); if ((!q && !this.img) || this.busy) return;
     inp.value = ''; inp.style.height = 'auto';
-    this.hist = this.hist.filter((m) => !m.err); this.hist.push({ role: 'user', content: q }); this.busy = true; this.save(); this.render();
+    this.hist = this.hist.filter((m) => !m.err);
+    if (!this.img && (this.mode === 'draw' || this.drawIntent(q))) return this.draw(q);
+    const img = this.img; this.img = null; this.paintPrev();
+    this.hist.push({ role: 'user', content: q || t('ai_img_q'), ...(img ? { image: img.thumb } : {}) });
+    return this.ask(img?.full);
+  },
+  async ask(fullImg) {
+    this.busy = true; this.save(); this.render(); this.sendState();
     try {
-      const r = await api('/api/ai', { body: { messages: this.hist.slice(-16).map(({ role, content }) => ({ role, content })) } });
-      this.hist.push({ role: 'assistant', content: r.text });
-    } catch (e) { this.hist.push({ role: 'assistant', content: e.status === 429 ? t('too_many') || t('ai_err') : t('ai_err'), err: 1 }); }
-    this.busy = false; this.save(); this.render();
+      const msgs = this.hist.filter((m) => !m.gen && !m.err).slice(-16).map(({ role, content }) => ({ role, content }));
+      if (fullImg) msgs[msgs.length - 1].image = fullImg;
+      const r = await api('/api/ai', { body: { messages: msgs } });
+      this.hist.push({ role: 'assistant', content: r.text, sources: r.sources || [] });
+    } catch (e) { this.hist.push({ role: 'assistant', content: e.status === 429 ? t('ai_limit') : t('ai_err'), err: 1 }); }
+    this.busy = false; this.save(); this.render(); this.sendState();
+  },
+  async draw(q) {
+    const prompt = q.replace(/^\/(rasm|draw)\s*/i, '').trim() || q;
+    this.hist.push({ role: 'user', content: prompt, draw: 1 }); this.busy = 'draw'; this.save(); this.render(); this.sendState();
+    try { const r = await api('/api/ai/image', { body: { prompt } }); this.hist.push({ role: 'assistant', content: prompt, gen: r.url, mime: r.mime, size: r.size }); }
+    catch (e) { this.hist.push({ role: 'assistant', content: e.status === 429 ? t('ai_limit') : t('ai_img_err'), err: 1 }); }
+    if (this.mode === 'draw') { this.mode = ''; this.paintTools(); }
+    this.busy = false; this.save(); this.render(); this.sendState();
+  },
+  again(i) {
+    if (this.busy) return;
+    const u = this.hist.slice(0, i).map((m) => m.role).lastIndexOf('user'); if (u < 0) return;
+    const um = this.hist[u]; this.hist = this.hist.slice(0, u + 1);
+    if (um.draw) { this.hist.pop(); return this.draw(um.content); }
+    this.ask();
   },
 };
 {
@@ -4863,8 +4983,8 @@ const AI = {
     const q = $('#chat-search').value.trim().toLowerCase();
     if (S.archView || FILTER !== 'all' || (q && !'birga ai'.includes(q) && !q.includes('ai'))) return;
     const last = AI.hist.length ? AI.hist[AI.hist.length - 1] : null;
-    $('#chat-list').insertAdjacentHTML('afterbegin', `<li class="chat-item ai-row" data-ai="1"><div class="av ai-av2">✦</div><div class="ci-body"><div class="ci-row"><span class="ci-name">Birga AI<span class="ai-tag">AI</span></span></div>
-      <div class="ci-row"><span class="ci-sub">${esc(last ? last.content.slice(0, 80) : t('ai_sub'))}</span></div></div></li>`);
+    $('#chat-list').insertAdjacentHTML('afterbegin', `<li class="chat-item ai-row" data-ai="1">${aiAv('av ai-av2')}<div class="ci-body"><div class="ci-row"><span class="ci-name">Birga AI<span class="ai-tag">AI</span></span></div>
+      <div class="ci-row"><span class="ci-sub">${esc(last ? (last.gen ? '🎨 ' + last.content : last.content).slice(0, 80) : t('ai_sub'))}</span></div></div></li>`);
     $('#list-empty')?.classList.add('hidden');
   };
 }
@@ -5096,11 +5216,27 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .gm-bsbar button { height: 44px; padding: 0 18px; border-radius: 22px; font-weight: 800; color: #fff; }
 .gm-ghost { background: rgba(0,0,0,.3); } .gm-solid { background: #22C55E; }
 /* Birga AI */
-.ai-row .ai-av2, .ai-av { width: 54px; height: 54px; border-radius: 50%; display: grid; place-items: center; font-size: 26px; color: #fff; background: conic-gradient(from 210deg, #1F6BFF, #8A2BE2, #EC4899, #F59E0B, #1F6BFF); flex: none; }
+.ai-row .ai-av2, .ai-av { width: 54px; height: 54px; border-radius: 50%; object-fit: cover; background: #fff; box-shadow: 0 0 0 1px rgba(31,107,255,.15); flex: none; }
+.ai-mav { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; background: #fff; flex: none; align-self: flex-start; box-shadow: 0 0 0 1px rgba(31,107,255,.15); }
+.ai-col { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ai-acts { display: flex; gap: 2px; padding-left: 4px; } .ai-acts button { height: 28px; min-width: 28px; padding: 0 6px; border-radius: 14px; color: var(--muted); display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; }
+.ai-acts button svg { width: 15px; height: 15px; } .ai-acts button.on { color: var(--blue, #1F6BFF); background: rgba(31,107,255,.1); } .ai-acts button:active { background: rgba(127,127,127,.15); }
+.ai-src { display: flex; flex-direction: column; gap: 2px; margin-top: 8px; padding-top: 6px; border-top: 1px solid rgba(127,127,127,.2); font-size: 12.5px; } .ai-src a { color: var(--blue, #1F6BFF); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ai-b a { color: var(--blue, #1F6BFF); }
+.ai-ui { display: block; max-width: 220px; max-height: 260px; border-radius: 12px; margin-bottom: 6px; cursor: pointer; }
+.ai-gen { display: block; width: min(280px, 70vw); aspect-ratio: 1; object-fit: cover; border-radius: 14px; cursor: pointer; background: rgba(127,127,127,.15); }
+.ai-cap { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+.ai-drawing { font-size: 14px; animation: aid 1.2s infinite; }
+.ai-tools { display: flex; gap: 6px; overflow-x: auto; padding: 6px 10px 2px; scrollbar-width: none; } .ai-tools::-webkit-scrollbar { display: none; }
+.ai-tools button { flex: none; height: 32px; padding: 0 12px; border-radius: 16px; font-size: 13px; font-weight: 600; background: var(--panel-2, rgba(127,127,127,.1)); white-space: nowrap; }
+.ai-tools button.on { background: linear-gradient(135deg, #1F6BFF, #8A2BE2); color: #fff; }
+.ai-prev { display: flex; align-items: center; gap: 10px; margin: 6px 10px 0; padding: 6px; border-radius: 14px; background: var(--panel-2, rgba(127,127,127,.1)); } .ai-prev img { width: 48px; height: 48px; border-radius: 10px; object-fit: cover; } .ai-prev span { flex: 1; font-size: 13px; color: var(--muted); } .ai-prev button { width: 30px; height: 30px; display: grid; place-items: center; } .ai-prev button svg { width: 16px; height: 16px; }
+.ai-ic { width: 40px; height: 44px; display: grid; place-items: center; color: var(--muted); flex: none; } .ai-ic svg { width: 22px; height: 22px; } .ai-ic.rec { color: #EF4444; animation: aid 1s infinite; }
+.ai-send.off { opacity: .45; }
 .ai-tag { margin-left: 6px; font-size: 10px; font-weight: 900; padding: 2px 6px; border-radius: 8px; color: #fff; background: linear-gradient(135deg, #1F6BFF, #8A2BE2); vertical-align: 2px; }
 .ai-page { position: fixed; inset: 0; z-index: 35; display: flex; flex-direction: column; background: var(--bg, #fff); color: var(--text); }
 .ai-head { display: flex; align-items: center; gap: 10px; padding: calc(8px + env(safe-area-inset-top)) 8px 8px; border-bottom: 1px solid var(--line, rgba(127,127,127,.15)); }
-.ai-head .ai-av { width: 40px; height: 40px; font-size: 19px; } .ai-tt { flex: 1; display: flex; flex-direction: column; min-width: 0; } .ai-tt small { color: var(--muted); font-size: 12.5px; }
+.ai-head .ai-av { width: 40px; height: 40px; } .ai-tt { flex: 1; display: flex; flex-direction: column; min-width: 0; } .ai-tt small { color: var(--muted); font-size: 12.5px; }
 .ai-msgs { flex: 1; overflow-y: auto; padding: 14px 12px; display: flex; flex-direction: column; gap: 10px; }
 .ai-m { display: flex; align-items: flex-end; gap: 4px; max-width: 88%; } .ai-m.me { align-self: flex-end; } .ai-m.bot { align-self: flex-start; }
 .ai-b { padding: 10px 13px; border-radius: 18px; line-height: 1.45; font-size: 15px; word-break: break-word; }

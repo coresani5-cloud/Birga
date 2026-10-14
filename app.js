@@ -5765,4 +5765,157 @@ html.pin-on body > *:not(#pin-lock):not(#toast):not(#modal) { visibility: hidden
 .row-btn:disabled { opacity: .55; }
 </style>`);
 
+/* ======================= v16: Birga AI o'zbekcha neyron ovozi, chat ichidagi ⋮ menyu ======================= */
+try {
+  Object.assign(I18N.uz, { ai_set: 'Birga AI sozlamalari', ai_voice: 'Ovoz', ai_v0: 'Madina (ayol ovozi)', ai_v1: 'Sardor (erkak ovozi)', ai_auto: 'Javoblarni avtomatik ovoz chiqarib o‘qish',
+    ai_voice_basic: 'Hozir telefoningizning oddiy ovozi ishlatilmoqda. Tabiiy o‘zbekcha ovoz (Madina / Sardor) uchun administrator Azure Speech kalitini ulashi kerak.', ai_voice_neural: '✅ Tabiiy o‘zbekcha neyron ovoz ulangan',
+    cm_search: 'Chatda qidirish', cm_bg: 'Chat foni', cm_mute: 'Ovozsiz qilish', cm_unmute: 'Ovozni yoqish', cm_pin: 'Tepaga qadash', cm_unpin: 'Qadashni olib tashlash', cm_sched: 'Rejalashtirilgan xabarlar', cm_poll: 'So‘rovnoma yaratish',
+    cm_sum: 'Birga AI: chat xulosasi', cm_media: 'Media, fayllar va havolalar', cm_info: 'Ma’lumot', cm_clear: 'Chat tarixini tozalash', cm_clear_q: 'Bu chatdagi barcha xabarlar faqat siz uchun o‘chiriladi. Suhbatdoshingizda qoladi. Davom etilsinmi?',
+    cm_cleared: 'Chat tarixi tozalandi', cm_export: 'Chatni saqlab olish (.txt)', cm_sum_t: 'Chat xulosasi', cm_sum_empty: 'Chatda hali xabar yo‘q', cm_sum_wait: 'Birga AI chatni o‘qimoqda…', cm_ai_ask: 'Birga AI’dan so‘rash' });
+  Object.assign(I18N.ru, { ai_set: 'Настройки Birga AI', ai_voice: 'Голос', ai_v0: 'Мадина (женский)', ai_v1: 'Сардор (мужской)', ai_auto: 'Автоматически озвучивать ответы',
+    ai_voice_basic: 'Сейчас используется стандартный голос телефона. Для естественного узбекского голоса (Мадина / Сардор) администратору нужно подключить ключ Azure Speech.', ai_voice_neural: '✅ Подключён естественный нейронный голос',
+    cm_search: 'Поиск в чате', cm_bg: 'Фон чата', cm_mute: 'Без звука', cm_unmute: 'Включить звук', cm_pin: 'Закрепить', cm_unpin: 'Открепить', cm_sched: 'Запланированные сообщения', cm_poll: 'Создать опрос',
+    cm_sum: 'Birga AI: краткое содержание', cm_media: 'Медиа, файлы и ссылки', cm_info: 'Информация', cm_clear: 'Очистить историю', cm_clear_q: 'Все сообщения этого чата будут удалены только у вас. У собеседника они останутся. Продолжить?',
+    cm_cleared: 'История очищена', cm_export: 'Сохранить чат (.txt)', cm_sum_t: 'Краткое содержание чата', cm_sum_empty: 'В чате пока нет сообщений', cm_sum_wait: 'Birga AI читает чат…', cm_ai_ask: 'Спросить Birga AI' });
+  Object.assign(I18N.en, { ai_set: 'Birga AI settings', ai_voice: 'Voice', ai_v0: 'Madina (female)', ai_v1: 'Sardor (male)', ai_auto: 'Read answers aloud automatically',
+    ai_voice_basic: 'Your phone’s basic voice is used now. For a natural Uzbek voice (Madina / Sardor) the admin needs to connect an Azure Speech key.', ai_voice_neural: '✅ Natural neural voice is connected',
+    cm_search: 'Search in chat', cm_bg: 'Chat background', cm_mute: 'Mute', cm_unmute: 'Unmute', cm_pin: 'Pin chat', cm_unpin: 'Unpin chat', cm_sched: 'Scheduled messages', cm_poll: 'Create poll',
+    cm_sum: 'Birga AI: chat summary', cm_media: 'Media, files and links', cm_info: 'Info', cm_clear: 'Clear chat history', cm_clear_q: 'All messages in this chat will be removed only for you. The other person keeps them. Continue?',
+    cm_cleared: 'Chat history cleared', cm_export: 'Save chat (.txt)', cm_sum_t: 'Chat summary', cm_sum_empty: 'No messages in this chat yet', cm_sum_wait: 'Birga AI is reading the chat…', cm_ai_ask: 'Ask Birga AI' });
+} catch {}
+
+/* --- Ovoz: tabiiy o'zbekcha neyron ovoz (server orqali), bo'lmasa telefon ovozi --- */
+const Voice = {
+  neural: null, audio: null, cfg() { try { return { v: 0, auto: false, ...JSON.parse(store.get('birga_ai_voice') || '{}') }; } catch { return { v: 0, auto: false }; } },
+  setCfg(c) { store.set('birga_ai_voice', JSON.stringify(c)); },
+  async check() { if (this.neural !== null) return this.neural; try { this.neural = !!(await api('/api/ai/voice')).neural; } catch { this.neural = false; } return this.neural; },
+  lang(txt) {
+    if (/[а-яё]/i.test(txt)) return /[ўқғҳ]/i.test(txt) ? 'uz' : 'ru';
+    if (/[oOgG][‘'ʻ’`]|\b(va|bilan|uchun|emas|ham|lekin|qanday|nima|siz|men|bu|bor|yo‘q|kerak)\b/i.test(txt)) return 'uz';
+    return LANG === 'en' ? 'en' : LANG === 'ru' ? 'en' : 'uz';
+  },
+  stop() { try { this.audio?.pause(); } catch {} this.audio = null; try { speechSynthesis?.cancel(); } catch {} },
+  async speak(text, onEnd) {
+    this.stop();
+    const clean = String(text || '').replace(/```[\s\S]*?```/g, ' ').replace(/https?:\/\/\S+/g, ' ').replace(/[*#`_>\[\]()|]/g, '').trim().slice(0, 2500);
+    const lang = this.lang(clean);
+    if (await this.check()) {
+      try {
+        const r = await fetch('/api/ai/tts', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + S.token }, body: JSON.stringify({ text: clean, lang, voice: this.cfg().v }) });
+        if (r.ok) { const url = URL.createObjectURL(await r.blob()); const a = new Audio(url); this.audio = a; a.onended = a.onerror = () => { URL.revokeObjectURL(url); if (this.audio === a) this.audio = null; onEnd?.(); }; await a.play(); return; }
+      } catch {}
+    }
+    if (!window.speechSynthesis) { toast(t('ai_no_tts'), 3000); onEnd?.(); return; }
+    const u = new SpeechSynthesisUtterance(clean); const vs = speechSynthesis.getVoices();
+    const v = vs.find((x) => x.lang.toLowerCase().startsWith(lang)) || (lang === 'uz' ? vs.find((x) => /^tr/i.test(x.lang)) || vs.find((x) => /^ru/i.test(x.lang)) : null);
+    if (v) { u.voice = v; u.lang = v.lang; } else u.lang = lang; u.rate = 0.98;
+    u.onend = u.onerror = () => onEnd?.(); speechSynthesis.speak(u);
+  },
+};
+AI.say = function (i) {
+  if (this.speaking === i) { Voice.stop(); this.speaking = -1; this.render(false); return; }
+  this.speaking = i; this.render(false);
+  Voice.speak(this.hist[i]?.content, () => { if (this.speaking === i) { this.speaking = -1; this.render(false); } });
+};
+{
+  const baseClose = AI.close.bind(AI); AI.close = function () { Voice.stop(); return baseClose(); };
+  const baseAsk = AI.ask.bind(AI);
+  AI.ask = async function (img) { await baseAsk(img); const last = this.hist[this.hist.length - 1]; if (Voice.cfg().auto && last?.role === 'assistant' && !last.err && !$('#ai-page')?.classList.contains('hidden')) this.say(this.hist.length - 1); };
+  const baseEnsure = AI.ensure.bind(AI);
+  AI.ensure = function () {
+    const first = !$('#ai-page'); baseEnsure();
+    if (first) { $('#ai-clear').insertAdjacentHTML('beforebegin', `<button class="icon-btn" id="ai-set">⚙️</button>`); $('#ai-set').onclick = () => AI.settings(); }
+  };
+  AI.settings = async function () {
+    const c = Voice.cfg(); const neural = await Voice.check();
+    modal(`<h3>⚙️ ${esc(t('ai_set'))} <button class="icon-btn" data-close>${icon('close')}</button></h3>
+      <p class="${neural ? 'st-okk' : 'st-warn'}">${esc(t(neural ? 'ai_voice_neural' : 'ai_voice_basic'))}</p>
+      <h4 class="inv-h">${esc(t('ai_voice'))}</h4><div class="pin-when vc">${[0, 1].map((v) => `<button data-v="${v}" class="${c.v === v ? 'on' : ''}">${v ? '👨' : '👩'} ${esc(t('ai_v' + v))}</button>`).join('')}</div>
+      <button class="row-btn" id="ai-auto"><span class="ri c3">🔊</span><span>${esc(t('ai_auto'))}</span><i class="sw14${c.auto ? ' on' : ''}"></i></button>`);
+    $('#modal-card .vc').onclick = (e) => { const b = e.target.closest('[data-v]'); if (!b) return; c.v = +b.dataset.v; Voice.setCfg(c); $$('#modal-card .vc button').forEach((x) => x.classList.toggle('on', x === b)); Voice.speak(c.v ? 'Salom! Men Birga AI man, Sardor ovozidaman.' : 'Salom! Men Birga AI man, Madina ovozidaman.'); };
+    $('#ai-auto').onclick = () => { c.auto = !c.auto; Voice.setCfg(c); $('#ai-auto .sw14').classList.toggle('on', c.auto); };
+  };
+}
+
+/* --- Chat ichida ⋮ menyu (qo'ng'iroq tugmalari oldida) --- */
+$('#btn-find')?.classList.add('hidden');
+$('#btn-audio-call').insertAdjacentHTML('beforebegin', `<button class="icon-btn" id="btn-more" aria-label="menu"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="19" r="2" fill="currentColor"/></svg></button>`);
+$('#set-bg')?.remove(); // fon endi chat ichidagi menyuda
+const ChatMore = {
+  open() {
+    const c = S.chats.get(S.current); if (!c) return;
+    const peer = c.type === 'private' && !c.self ? currentPeer() : null; const admin = ['owner', 'admin'].includes(c.role);
+    const canPost = c.type !== 'channel' || admin;
+    const it = [
+      ['search', '🔍', 'cm_search'],
+      ['bg', '🖼', 'cm_bg'],
+      ['mute', c.muted ? '🔔' : '🔕', c.muted ? 'cm_unmute' : 'cm_mute'],
+      ['pin', '📌', c.pinned ? 'cm_unpin' : 'cm_pin'],
+      ...(Sched.count ? [['sched', '🕒', 'cm_sched']] : []),
+      ...(canPost ? [['poll', '📊', 'cm_poll']] : []),
+      ...(canPost && c.type !== 'channel' ? [['ai', '✦', 'cm_ai_ask']] : []),
+      ['sum', '🧠', 'cm_sum'],
+      [c.self ? 'export' : 'media', c.self ? '💾' : '🗂', c.self ? 'cm_export' : 'cm_media'],
+      ...(c.self ? [] : [['export', '💾', 'cm_export']]),
+      ...(peer ? [['block', '🚫', Blocks.has(peer.id) ? 'unblock' : 'block'], ['report', '⚠️', 'report']] : []),
+      ['clear', '🧹', 'cm_clear'],
+    ];
+    const el = $('#ctx');
+    el.innerHTML = it.map(([k, e, l]) => `<button data-cm="${k}" class="${['clear', 'block', 'report'].includes(k) ? 'danger' : ''}"><span class="cm-e">${e}</span>${esc(t(l))}</button>`).join('');
+    el.classList.remove('hidden'); el.classList.add('chat-more');
+    const r = $('#btn-more').getBoundingClientRect();
+    el.style.left = Math.max(8, Math.min(r.right - el.offsetWidth, innerWidth - el.offsetWidth - 8)) + 'px'; el.style.top = r.bottom + 4 + 'px';
+    el.onclick = (ev) => { const k = ev.target.closest('[data-cm]')?.dataset.cm; if (!k) return; el.classList.add('hidden'); el.classList.remove('chat-more'); this.act(k, c, peer); };
+  },
+  async act(k, c, peer) {
+    if (k === 'search') return openFind();
+    if (k === 'bg') return BG.pick(c.id);
+    if (k === 'mute') return setMuted(c.id, !c.muted);
+    if (k === 'pin') return chatFlag(c.id, 'pin', !c.pinned);
+    if (k === 'sched') return Sched.manage();
+    if (k === 'poll') return Polls.create(c.id);
+    if (k === 'ai') { if (!/^\s*@ai\b/i.test(textEl.value)) textEl.value = '@ai ' + textEl.value; textEl.dispatchEvent(new Event('input')); return textEl.focus(); }
+    if (k === 'media') return c.type === 'private' ? openProfile(peer?.id || c.peer.id) : openGroupInfo(c.id);
+    if (k === 'block') return Blocks.toggle(peer, !Blocks.has(peer.id));
+    if (k === 'report') return reportDialog({ userId: peer.id });
+    if (k === 'sum') return this.summary(c);
+    if (k === 'export') return this.exportTxt(c);
+    if (k === 'clear') {
+      if (!confirm(t('cm_clear_q'))) return;
+      try { await api(`/api/chats/${c.id}/clear`, { body: {} }); S.msgs.set(c.id, []); toast(t('cm_cleared')); openChat(c.id); } catch (e) { toast(e.message); }
+    }
+  },
+  async summary(c) {
+    modal(`<h3>🧠 ${esc(t('cm_sum_t'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><div class="sum-box" id="sum-box"><div class="ai-dots sum-wait"><i></i><i></i><i></i></div><p class="muted">${esc(t('cm_sum_wait'))}</p></div>`);
+    try {
+      const r = await api('/api/ai/summary', { body: { chatId: c.id } });
+      const box = $('#sum-box'); if (!box) return;
+      box.innerHTML = r.text ? `<div class="sum-head">${aiAv('ai-mav')}<b>Birga AI</b><button class="icon-btn" id="sum-say">🔊</button><button class="icon-btn" id="sum-copy">${icon('copy')}</button></div><div class="ai-txt">${AI.md(r.text)}</div>` : `<p class="empty-note">${esc(t('cm_sum_empty'))}</p>`;
+      $('#sum-copy')?.addEventListener('click', () => navigator.clipboard?.writeText(r.text).then(() => toast(t('ai_copy'))).catch(() => {}));
+      $('#sum-say')?.addEventListener('click', () => Voice.speak(r.text));
+    } catch (e) { const box = $('#sum-box'); if (box) box.innerHTML = `<p class="empty-note">${esc(e.status === 429 ? t('ai_limit') : t('ai_err'))}</p>`; }
+  },
+  exportTxt(c) {
+    const list = (S.msgs.get(c.id) || []).filter((m) => m.id && !m.deleted);
+    const name = (m) => (m.meta?.ai ? 'Birga AI' : m.sender_id === S.me.id ? S.me.name : S.users.get(m.sender_id)?.name || '?');
+    const body = list.map((m) => `[${new Date(m.created_at).toLocaleString('ru-RU')}] ${name(m)}: ${m.type === 'text' ? m.text : stripTags(preview(m))}`).join('\n');
+    const blob = new Blob([`Birga — ${chatTitle(c)}\n${'='.repeat(30)}\n${body}\n`], { type: 'text/plain;charset=utf-8' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `Birga-${chatTitle(c).replace(/[^\wЀ-ӿ‘ʼ -]/g, '').slice(0, 40) || 'chat'}.txt`; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  },
+};
+$('#btn-more').onclick = (e) => { e.stopPropagation(); ChatMore.open(); };
+new MutationObserver(() => { const c = $('#ctx').classList; if (c.contains('hidden') && c.contains('chat-more')) c.remove('chat-more'); }).observe($('#ctx'), { attributes: true, attributeFilter: ['class'] });
+{
+  // kanal va saqlangan xabarlarda ham menyu ko'rinsin (qo'ng'iroq tugmalari yashirilsa ham)
+  const fix = () => { const c = S.chats.get(S.current); $('#btn-more')?.classList.toggle('hidden', !c); };
+  const baseOC16 = openChat; openChat = async function (...a) { const r = await baseOC16(...a); fix(); return r; };
+}
+document.head.insertAdjacentHTML('beforeend', `<style>
+#btn-more svg { width: 22px; height: 22px; }
+#ctx.chat-more { min-width: 240px; max-height: calc(100vh - 90px); overflow-y: auto; }
+#ctx.chat-more button { display: flex; align-items: center; gap: 12px; } .cm-e { width: 22px; text-align: center; font-size: 17px; }
+.sum-box { min-height: 120px; max-height: 65vh; overflow: auto; } .sum-wait { display: flex; gap: 5px; justify-content: center; padding: 20px 0 6px; } .sum-wait i { width: 9px; height: 9px; border-radius: 50%; background: var(--blue, #1F6BFF); animation: aid 1s infinite; } .sum-wait i:nth-child(2) { animation-delay: .15s; } .sum-wait i:nth-child(3) { animation-delay: .3s; }
+.sum-box .muted { text-align: center; } .sum-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; } .sum-head b { flex: 1; } .sum-box .ai-txt { line-height: 1.5; font-size: 15px; }
+</style>`);
+
 boot();

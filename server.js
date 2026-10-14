@@ -826,8 +826,86 @@ app.post('/api/admin/reports/:id', auth, adminOnly, wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
+// ===== Kunlik qadamlar (foydalanuvchi o'zi yoqsa — yaqinlariga hikoyalar qatorida ko'rinadi) =====
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+app.post('/api/steps/toggle', auth, wrap(async (req, res) => {
+  const on = req.body?.on ? 1 : 0;
+  await db.run('UPDATE users SET steps_on=? WHERE id=?', [on, req.user.id]);
+  res.json({ on: !!on });
+}));
+app.post('/api/steps', auth, rateLimit('steps', 240, 3600e3), wrap(async (req, res) => {
+  const day = String(req.body?.day || ''), n = Math.floor(Number(req.body?.steps));
+  if (!DAY_RE.test(day) || !(n >= 0 && n <= 150000)) return res.status(400).json({ error: 'bad' });
+  await db.run(`INSERT INTO steps(user_id,day,steps,updated) VALUES(?,?,?,?) ON CONFLICT(user_id,day) DO UPDATE SET
+    steps=CASE WHEN steps.steps<excluded.steps THEN excluded.steps ELSE steps.steps END, updated=excluded.updated`, [req.user.id, day, n, now()]);
+  res.json({ ok: true });
+}));
+app.get('/api/steps', auth, wrap(async (req, res) => {
+  const day = String(req.query.day || ''); if (!DAY_RE.test(day)) return res.status(400).json({ error: 'bad' });
+  const ids = [req.user.id, ...(await peersOf(req.user.id))].slice(0, 500);
+  const out = [];
+  for (const id of ids) {
+    const u = await getUser(id); if (!u || !u.steps_on || u.deleted || u.banned) continue;
+    if (id !== req.user.id && ((await isBlocked(id, req.user.id)) || (await isBlocked(req.user.id, id)))) continue;
+    const r = await db.get('SELECT steps FROM steps WHERE user_id=? AND day=?', [id, day]);
+    out.push({ user: publicUser(u), steps: Number(r?.steps) || 0 });
+  }
+  res.json({ on: !!(await getUser(req.user.id))?.steps_on, list: out });
+}));
+
+// ===== Birga AI — umumiy savollarga javob beruvchi yordamchi =====
+// Bepul yo'l: Google AI Studio'dan GEMINI_API_KEY (Render → Environment). Yoki GROQ_API_KEY, yoki OpenAI-mos AI_API_URL + AI_API_KEY.
+const AI_SYSTEM = `Sen "Birga AI" — Birga messenjeridagi aqlli yordamchisan. Foydalanuvchi qaysi tilda yozsa, o'sha tilda javob ber (odatda o'zbek tilida, lotin yozuvida).
+Javoblaring aniq, foydali va qisqa bo'lsin; kerak bo'lsa ro'yxat yoki qadamlar bilan tushuntir. Bilmagan narsangni to'qib chiqarma — bilmasligingni ayt.
+Tibbiy, huquqiy yoki moliyaviy savollarda umumiy ma'lumot ber va mutaxassisga murojaat qilishni maslahat ber. Zararli, noqonuniy yoki xavfli ishlarga yordam berma.`;
+async function aiFetch(url, opts, ms = 45000) {
+  const ac = new AbortController(); const tm = setTimeout(() => ac.abort(), ms);
+  try { const r = await fetch(url, { ...opts, signal: ac.signal }); const txt = await r.text(); if (!r.ok) throw new Error(`${r.status} ${txt.slice(0, 200)}`); return JSON.parse(txt); }
+  finally { clearTimeout(tm); }
+}
+async function aiAnswer(msgs) {
+  const errs = [];
+  const oa = (j) => j?.choices?.[0]?.message?.content;
+  if (process.env.GEMINI_API_KEY) {
+    try {
+      const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+      const j = await aiFetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
+        body: JSON.stringify({ systemInstruction: { parts: [{ text: AI_SYSTEM }] }, contents: msgs.map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })), generationConfig: { maxOutputTokens: 1500, temperature: 0.7 } }),
+      });
+      const out = j?.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('').trim(); if (out) return out;
+      errs.push('gemini: empty');
+    } catch (e) { errs.push('gemini: ' + e.message); }
+  }
+  const compat = [];
+  if (process.env.GROQ_API_KEY) compat.push(['https://api.groq.com/openai/v1/chat/completions', process.env.GROQ_API_KEY, process.env.GROQ_MODEL || 'llama-3.3-70b-versatile']);
+  if (process.env.AI_API_URL && process.env.AI_API_KEY) compat.push([process.env.AI_API_URL, process.env.AI_API_KEY, process.env.AI_MODEL || 'gpt-4o-mini']);
+  if (process.env.AI_FREE !== '0') compat.push(['https://text.pollinations.ai/openai', null, 'openai']); // kalitsiz bepul zaxira (cheklangan)
+  for (const [url, key, model] of compat) {
+    try {
+      const j = await aiFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(key ? { Authorization: 'Bearer ' + key } : {}) },
+        body: JSON.stringify({ model, messages: [{ role: 'system', content: AI_SYSTEM }, ...msgs], max_tokens: 1500, temperature: 0.7 }) });
+      const out = String(oa(j) || '').trim(); if (out) return out;
+      errs.push(url + ': empty');
+    } catch (e) { errs.push(url.split('/')[2] + ': ' + e.message); }
+  }
+  console.error('Birga AI:', errs.join(' | '));
+  return null;
+}
+app.post('/api/ai', auth, rateLimit('ai', 60, 3600e3), wrap(async (req, res) => {
+  const raw = Array.isArray(req.body?.messages) ? req.body.messages : [];
+  const msgs = raw.slice(-16).map((m) => ({ role: m?.role === 'assistant' ? 'assistant' : 'user', content: String(m?.content || '').slice(0, 4000) })).filter((m) => m.content.trim());
+  if (!msgs.length || msgs[msgs.length - 1].role !== 'user') return res.status(400).json({ error: 'empty' });
+  const out = await aiAnswer(msgs);
+  if (!out) return res.status(503).json({ error: 'ai_unavailable' });
+  res.json({ text: out.slice(0, 12000) });
+}));
+
 // ===== O'yinlar: eng yaxshi natijalar va reyting =====
-const GAMES = new Set(['snake', 'penalty', 'aim', '2048', 'flappy', 'blocks', 'memory', 'xo', 'breakout', 'mines']);
+const GAMES = new Set(['snake', 'penalty', 'aim', '2048', 'flappy', 'blocks', 'memory', 'xo', 'breakout', 'mines', 'run', 'strike', 'football']);
+// 2 kishilik (taklif bilan) o'yinlar — g'alabalar soni 'w_<id>' nomi bilan reytingga yoziladi
+const MP_GAMES = new Set(['chess', 'checkers', 'connect4', 'gomoku', 'battleship']);
+const TOP_GAMES = new Set([...GAMES, ...[...MP_GAMES].map((g) => 'w_' + g)]);
 app.post('/api/games/score', auth, rateLimit('gscore', 600, 3600e3), wrap(async (req, res) => {
   const g = String(req.body?.game || ''); const sc = Math.floor(Number(req.body?.score));
   if (!GAMES.has(g) || !isFinite(sc) || sc < 0 || sc > 1e7) return res.status(400).json({ error: 'bad score' });
@@ -839,7 +917,7 @@ app.post('/api/games/score', auth, rateLimit('gscore', 600, 3600e3), wrap(async 
   res.json({ best, rank, record: !cur || sc > Number(cur.best) });
 }));
 app.get('/api/games/top', auth, wrap(async (req, res) => {
-  const g = String(req.query.game || ''); if (!GAMES.has(g)) return res.status(400).json({ error: 'bad game' });
+  const g = String(req.query.game || ''); if (!TOP_GAMES.has(g)) return res.status(400).json({ error: 'bad game' });
   const rows = await db.all('SELECT s.best, u.* FROM game_scores s JOIN users u ON u.id=s.user_id WHERE s.game=? AND u.name IS NOT NULL AND COALESCE(u.deleted,0)=0 AND COALESCE(u.banned,0)=0 ORDER BY s.best DESC, s.updated ASC LIMIT 20', [g]);
   const me = await db.get('SELECT best FROM game_scores WHERE user_id=? AND game=?', [req.user.id, g]);
   const rank = me ? Number((await db.get('SELECT COUNT(*) AS c FROM game_scores WHERE game=? AND best>?', [g, me.best])).c) + 1 : null;
@@ -1301,7 +1379,7 @@ async function broadcastUser(raw) {
 const PREVIEW = {
   image: ['🖼 Rasm', '🖼 Фото', '🖼 Photo'], video: ['🎬 Video', '🎬 Видео', '🎬 Video'], voice: ['🎤 Ovozli xabar', '🎤 Голосовое сообщение', '🎤 Voice message'],
   round: ['⏺ Video xabar', '⏺ Видеосообщение', '⏺ Video message'], file: ['📎 Fayl', '📎 Файл', '📎 File'],
-  sticker: ['Stiker', 'Стикер', 'Sticker'], gif: ['GIF', 'GIF', 'GIF'], location: ['📍 Joylashuv', '📍 Геопозиция', '📍 Location'],
+  sticker: ['Stiker', 'Стикер', 'Sticker'], gif: ['GIF', 'GIF', 'GIF'], location: ['📍 Joylashuv', '📍 Геопозиция', '📍 Location'], game: ['🎮 O‘yinga taklif', '🎮 Приглашение в игру', '🎮 Game invite'],
 };
 function previewFor(m, lang) {
   const i = Math.max(0, LANGS.indexOf(lang));
@@ -1323,6 +1401,7 @@ function cleanMeta(meta) {
     if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && isFinite(lat) && isFinite(lng))
       o.loc = { lat: Math.round(lat * 1e6) / 1e6, lng: Math.round(lng * 1e6) / 1e6, name: String(meta.loc.name || '').slice(0, 120), addr: String(meta.loc.addr || '').slice(0, 240) };
   }
+  if (meta.game && typeof meta.game === 'object' && MP_GAMES.has(meta.game.g) && /^[a-f0-9]{12}$/.test(String(meta.game.room))) o.game = { g: meta.game.g, room: meta.game.room };
   for (const k of ['w', 'h']) { const v = Math.round(Number(meta[k])); if (v > 0 && v <= 20000) o[k] = v; }
   if (typeof meta.gif === 'string' && /^https:\/\/media\d*\.tenor\.com\/[\w./-]+$/.test(meta.gif)) { o.gif = meta.gif; o.w = Number(meta.w) || undefined; o.h = Number(meta.h) || undefined; }
   return Object.keys(o).length ? JSON.stringify(o) : null;
@@ -1395,6 +1474,21 @@ async function saveMessage(chatId, uid, p, metaObj) {
   }
   return msg;
 }
+const rooms = new Map(), roomLoads = new Map(); // o'yin xonalari keshi
+setInterval(() => { const t = now(); for (const [k, r] of rooms) if (t - r.updated > 3600e3) rooms.delete(k); }, 600e3).unref();
+async function loadRoom(id) {
+  id = String(id || ''); if (!/^[a-f0-9]{12}$/.test(id)) return null;
+  if (rooms.has(id)) return rooms.get(id);
+  if (roomLoads.has(id)) return roomLoads.get(id);
+  const job = (async () => {
+  const row = await db.get('SELECT * FROM game_rooms WHERE id=?', [id]); if (!row) return null;
+  const j = (x, d) => { try { return JSON.parse(x) ?? d; } catch { return d; } };
+  const r = { ...row, a: Number(row.a), b: row.b == null ? null : Number(row.b), chat_id: Number(row.chat_id), winner: row.winner == null ? null : Number(row.winner),
+    moves: j(row.moves, []), claims: j(row.claims, {}), secret: j(row.secret, {}), updated: Number(row.updated) };
+  rooms.set(id, r); return r;
+  })().finally(() => roomLoads.delete(id));
+  roomLoads.set(id, job); return job;
+}
 const pendingCalls = new Map(); // calleeId -> { offer, ice[], expires, callId, from }
 const on = (socket, ev, fn) => socket.on(ev, (...a) => Promise.resolve(fn(...a)).catch((e) => { console.error(ev, e.message); const ack = a.find((x) => typeof x === 'function'); ack?.({ error: 'server' }); }));
 
@@ -1435,6 +1529,99 @@ io.on('connection', async (socket) => {
     const job = saveMessage(chatId, uid, { ...p, text, file }, p.meta);
     if (cid) sentCids.set(cid, { p: job, at: now() });
     try { ack?.({ ok: true, message: await job }); } catch (e) { if (cid) sentCids.delete(cid); throw e; }
+  });
+
+  // ===== 2 kishilik o'yinlar: taklif → qo'shilish → yurishlar (server faqat navbat/tartibni saqlaydi va uzatadi) =====
+  const roomView = async (r) => {
+    const ua = await getUser(r.a), ub = r.b ? await getUser(r.b) : null;
+    return { id: r.id, game: r.game, chatId: r.chat_id, a: r.a, b: r.b, status: r.status, winner: r.winner, moves: r.moves,
+      seat: r.a === uid ? 0 : r.b === uid ? 1 : -1, users: [ua && publicUser(ua), ub && publicUser(ub)],
+      secret: r.a === uid ? r.secret[0] ?? null : r.b === uid ? r.secret[1] ?? null : null, turn: r.moves.length ? 1 - r.moves[r.moves.length - 1].s : 0 };
+  };
+  const roomPush = async (r) => { const v = await roomView(r); [r.a, r.b].filter(Boolean).forEach((x) => io.to('u' + x).emit('game:state', { ...v, seat: x === r.a ? 0 : 1, secret: undefined })); };
+  on(socket, 'game:invite', async (p, ack) => {
+    const chatId = Number(p?.chatId), g = String(p?.game || '');
+    if (!MP_GAMES.has(g) || !(await canPost(chatId, uid))) return ack?.({ error: 'forbidden' });
+    if (!rateOk('ginv' + uid, 30, 600e3)) return ack?.({ error: 'rate' });
+    const peerId = await privatePeer(chatId, uid);
+    if (peerId && ((await isBlocked(peerId, uid)) || (await isBlocked(uid, peerId)))) return ack?.({ error: 'blocked' });
+    const chat = await getChat(chatId); if (chat.type === 'channel') return ack?.({ error: 'forbidden' });
+    const id = crypto.randomBytes(6).toString('hex');
+    const r = { id, game: g, chat_id: chatId, a: uid, b: peerId || null, moves: [], status: peerId ? 'play' : 'wait', winner: null, claims: {}, secret: {}, created: now(), updated: now() };
+    if (peerId === uid || chat.type === 'private' && !peerId) r.b = null, r.status = 'wait'; // "Saqlangan xabarlar"
+    await db.run('INSERT INTO game_rooms(id,game,chat_id,a,b,moves,status,winner,claims,created,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?)', [id, g, chatId, r.a, r.b, '[]', r.status, null, '{}', r.created, r.updated]);
+    rooms.set(id, r);
+    const msg = await saveMessage(chatId, uid, { type: 'game', text: '' }, { game: { g, room: id } });
+    ack?.({ ok: true, room: await roomView(r), message: msg });
+  });
+  on(socket, 'game:join', async (p, ack) => {
+    const r = await loadRoom(p?.room); if (!r) return ack?.({ error: 'not_found' });
+    if (r.a !== uid && r.b !== uid) {
+      if (!(await isMember(r.chat_id, uid))) return ack?.({ error: 'forbidden' });
+      if (!r.b && r.status === 'wait') {
+        r.b = uid; r.status = 'play'; r.updated = now();
+        await db.run('UPDATE game_rooms SET b=?, status=?, updated=? WHERE id=? AND b IS NULL', [uid, 'play', r.updated, r.id]);
+        roomPush(r).catch(() => {});
+      }
+    }
+    ack?.({ ok: true, room: await roomView(r) });
+  });
+  on(socket, 'game:secret', async (p, ack) => { // faqat o'sha o'yinchiga qaytariladigan maxfiy holat (masalan, kemalar joylashuvi)
+    const r = await loadRoom(p?.room); if (!r) return ack?.({ error: 'not_found' });
+    const seat = r.a === uid ? 0 : r.b === uid ? 1 : -1; const raw = JSON.stringify(p?.data ?? null);
+    if (seat < 0 || r.status === 'over' || raw.length > 3000) return ack?.({ error: 'forbidden' });
+    if (r.moves.some((m) => m.s === seat && m.m?.t === 'r')) return ack?.({ error: 'locked' }); // tayyor bo'lgandan keyin o'zgartirib bo'lmaydi
+    r.secret[seat] = JSON.parse(raw); await db.run('UPDATE game_rooms SET secret=? WHERE id=?', [JSON.stringify(r.secret), r.id]);
+    ack?.({ ok: true });
+  });
+  on(socket, 'game:mine', async (p, ack) => {
+    const rows = await db.all("SELECT id FROM game_rooms WHERE (a=? OR b=?) AND status<>'over' AND updated>? ORDER BY updated DESC LIMIT 12", [uid, uid, now() - 14 * 864e5]);
+    const out = []; for (const x of rows) { const r = await loadRoom(x.id); if (r) { const v = await roomView(r); delete v.moves; delete v.secret; out.push(v); } }
+    ack?.({ rooms: out });
+  });
+  on(socket, 'game:peek', async (p, ack) => {
+    const ids = (Array.isArray(p?.ids) ? p.ids : []).slice(0, 60).map(String);
+    const out = {};
+    for (const id of ids) { const r = await loadRoom(id); if (r && (await isMember(r.chat_id, uid) || r.a === uid || r.b === uid)) out[id] = { status: r.status, winner: r.winner, a: r.a, b: r.b, n: r.moves.length }; }
+    ack?.(out);
+  });
+  on(socket, 'game:move', async (p, ack) => {
+    const r = await loadRoom(p?.room); if (!r) return ack?.({ error: 'not_found' });
+    const seat = r.a === uid ? 0 : r.b === uid ? 1 : -1;
+    if (seat < 0 || r.status !== 'play') return ack?.({ error: 'forbidden', moves: r.moves, status: r.status });
+    const raw = JSON.stringify(p?.m ?? null);
+    if (raw.length > 800 || r.moves.length >= 4000) return ack?.({ error: 'bad' });
+    if (Number(p?.n) !== r.moves.length) return ack?.({ error: 'sync', moves: r.moves });
+    const mv = { s: seat, m: JSON.parse(raw) }; r.moves.push(mv); r.updated = now();
+    await db.run('UPDATE game_rooms SET moves=?, updated=? WHERE id=?', [JSON.stringify(r.moves), r.updated, r.id]);
+    const ev = { room: r.id, i: r.moves.length - 1, ...mv };
+    [r.a, r.b].forEach((x) => io.to('u' + x).emit('game:move', ev));
+    ack?.({ ok: true, i: ev.i });
+    const other = seat ? r.a : r.b;
+    if (!online.has(other) && (!r.pushed || now() - r.pushed > 10 * 60e3)) { // raqib ilovada bo'lmasa — eslatma
+      r.pushed = now(); const me = await getUser(uid);
+      push.send(other, { type: 'msg', chatId: r.chat_id, title: me?.name || 'Birga', body: '🎮 ' + (PREVIEW.game[0]), tag: 'game' + r.id }).catch(() => {});
+    }
+  });
+  on(socket, 'game:over', async (p, ack) => {
+    const r = await loadRoom(p?.room); if (!r) return ack?.({ error: 'not_found' });
+    const seat = r.a === uid ? 0 : r.b === uid ? 1 : -1;
+    if (seat < 0) return ack?.({ error: 'forbidden' });
+    if (r.status === 'over') return ack?.({ ok: true, winner: r.winner });
+    let w = null;
+    if (p?.resign) w = r.b ? 1 - seat : 2;
+    else {
+      const c = [0, 1, 2].includes(Number(p?.w)) ? Number(p.w) : null; if (c === null) return ack?.({ error: 'bad' });
+      r.claims[seat] = c;
+      if (c === 1 - seat) w = c; // yutqazgan tomon tan oldi
+      else if (r.claims[1 - seat] === c) w = c; // ikkala tomon bir xil natija
+    }
+    if (w === null) { await db.run('UPDATE game_rooms SET claims=? WHERE id=?', [JSON.stringify(r.claims), r.id]); return ack?.({ ok: true, pending: true }); }
+    r.status = 'over'; r.winner = w; r.updated = now();
+    await db.run('UPDATE game_rooms SET status=?, winner=?, claims=?, updated=? WHERE id=?', ['over', w, JSON.stringify(r.claims), r.updated, r.id]);
+    const wu = w === 0 ? r.a : w === 1 ? r.b : null;
+    if (wu) await db.run(`INSERT INTO game_scores(user_id,game,best,plays,updated) VALUES(?,?,1,1,?) ON CONFLICT(user_id,game) DO UPDATE SET best=game_scores.best+1, plays=game_scores.plays+1, updated=excluded.updated`, [wu, 'w_' + r.game, now()]);
+    await roomPush(r); ack?.({ ok: true, winner: w });
   });
 
   // Xabarni boshqa chat(lar)ga uzatish
@@ -1663,7 +1850,9 @@ async function extraSchema() {
     reason TEXT, details TEXT, snapshot TEXT, status TEXT DEFAULT 'open', created_at BIGINT, resolved_at BIGINT)`);
   await db.run('CREATE TABLE IF NOT EXISTS game_scores(user_id BIGINT, game TEXT, best BIGINT, plays BIGINT DEFAULT 0, updated BIGINT, PRIMARY KEY(user_id, game))');
   await db.run('CREATE INDEX IF NOT EXISTS idx_scores_game ON game_scores(game, best)');
-  const cols = [['users', 'banned', 'INTEGER DEFAULT 0'], ['users', 'birthday', 'TEXT'], ['chat_members', 'pinned', 'BIGINT DEFAULT 0'], ['chat_members', 'archived', 'INTEGER DEFAULT 0'], ['users', 'hide_seen', 'INTEGER DEFAULT 0'], ['users', 'deleted', 'INTEGER DEFAULT 0']];
+  await db.run('CREATE TABLE IF NOT EXISTS steps(user_id BIGINT, day TEXT, steps BIGINT, updated BIGINT, PRIMARY KEY(user_id, day))');
+  await db.run(`CREATE TABLE IF NOT EXISTS game_rooms(id TEXT PRIMARY KEY, game TEXT, chat_id BIGINT, a BIGINT, b BIGINT, moves TEXT, status TEXT, winner INTEGER, claims TEXT, created BIGINT, updated BIGINT)`);
+  const cols = [['game_rooms', 'secret', 'TEXT'], ['users', 'steps_on', 'INTEGER DEFAULT 0'], ['users', 'banned', 'INTEGER DEFAULT 0'], ['users', 'birthday', 'TEXT'], ['chat_members', 'pinned', 'BIGINT DEFAULT 0'], ['chat_members', 'archived', 'INTEGER DEFAULT 0'], ['users', 'hide_seen', 'INTEGER DEFAULT 0'], ['users', 'deleted', 'INTEGER DEFAULT 0']];
   for (const [t, c, type] of cols) {
     try { await db.get(`SELECT ${c} FROM ${t} LIMIT 1`); } catch { await db.run(`ALTER TABLE ${t} ADD COLUMN ${c} ${type}`); }
   }

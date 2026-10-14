@@ -1127,6 +1127,7 @@ function msgInner(m, c, tail, gap) {
       return `<div ${attrs}><div class="sticker-wrap">${reply ? `<div class="bubble mini">${reply}</div>` : ''}${stickerImg(m.meta?.e, cp, 'sticker')}<span class="meta stk">${fmtTime(m.created_at)}<span class="tk">${ticksFor(m, c)}</span></span></div></div>`;
     }
     case 'location': return locMsgHTML(m, attrs, reply, meta());
+    case 'game': return gameMsgHTML(m, attrs, reply, meta());
     case 'gif':
       return `<div ${attrs}><div class="bubble media">${reply}<video class="gif" src="${esc(m.meta?.gif || '')}" autoplay loop muted playsinline></video>${meta(true)}</div></div>`;
     default: {
@@ -3689,7 +3690,7 @@ const Admin = {
 /* --- O'yinlar bo'limi --- */
 {
   $('.sidebar #pane-settings')?.insertAdjacentHTML('beforebegin', `<section class="pane hidden" id="pane-games"><header class="pane-head"><h2 data-t12="games"></h2></header>
-    <div class="scroll"><p class="gm-sub" data-t12="games_sub"></p><div class="gm-grid" id="games-grid"></div></div></section>`);
+    <div class="scroll"><p class="gm-sub" data-t12="games_sub"></p><div class="gm-lobby" id="games-grid"></div></div></section>`);
   $('#bottom-nav [data-tab="chats"]')?.insertAdjacentHTML('afterend', `<button data-tab="games"><span class="nb">${icon('game')}</span><span data-t12="games"></span></button>`);
   $$('[data-t12]').forEach((x) => (x.textContent = t(x.dataset.t12)));
   let gamesLib = null;
@@ -4701,5 +4702,376 @@ function pullToRefresh(pane, onRefresh) {
 const fullRefresh = async () => { softT = 0; await Promise.all([softRefresh(), Updater.check()]); };
 pullToRefresh($('#pane-chats'), fullRefresh);
 pullToRefresh($('#pane-contacts'), async () => { await loadContacts(); await Updater.check(); });
+
+/* ======================= v14: 2 kishilik o'yinlar, Birga AI, qadamlar, haqiqiy ilova o'rnatish ======================= */
+try {
+  Object.assign(I18N.uz, { att_file: 'Rasm, video yoki fayl', att_game: 'O‘yinga taklif qilish', att_game_sub: 'Shaxmat, shashka, dengiz jangi…', att_title: 'Yuborish',
+    ai_name: 'Birga AI', ai_sub: 'Har qanday savolingizga javob beraman', ai_ph: 'Savolingizni yozing…', ai_hello: 'Salom! Men Birga AI — aqlli yordamchingizman. 🤖\nIstalgan savol bering: maslahat, tarjima, matn yozish, hisob-kitob, o‘qish va boshqalar.',
+    ai_clear: 'Suhbatni tozalash', ai_err: 'Birga AI hozir javob bera olmadi. Birozdan keyin qayta urinib ko‘ring.', ai_think: 'O‘ylayapman…', ai_copy: 'Nusxa olindi', ai_note: 'Birga AI xato qilishi mumkin — muhim ma’lumotlarni tekshiring.',
+    ai_ex: ['Bugun nima pishirsam bo‘ladi?', 'Ingliz tilini qanday tez o‘rgansam bo‘ladi?', 'Menga tabrik matni yozib ber', '“Rahmat” so‘zini 5 tilga tarjima qil'],
+    st_title: 'Qadamlar hisoblagichi', st_on: 'Yoqilgan · do‘stlaringiz bugungi qadamlaringizni ko‘radi', st_off: 'O‘chirilgan', st_note: 'Telefon datchigi orqali sanaydi. Brauzer cheklovi tufayli faqat Birga ochiq turganda hisoblanadi.',
+    st_enable: 'Yoqish', st_disable: 'O‘chirish', st_noperm: 'Harakat datchigiga ruxsat berilmadi', st_nosensor: 'Bu qurilmada harakat datchigi topilmadi', st_today: 'bugun {n} qadam', steps_word: 'qadam',
+    inst_real: 'Birga ilovasini o‘rnatish', inst_real_sub: 'Haqiqiy ilova — brauzer belgisisiz, o‘z belgisi bilan, to‘liq ekranda', inst_badge: 'Hozirgi belgi brauzer (Yandex/Chrome) orqali qo‘shilgan. Uni o‘chirib, haqiqiy Birga ilovasini o‘rnating:',
+    inst_dl: 'Birga ilovasini yuklab olish', inst_chrome2: 'Yoki Chrome orqali o‘rnatish', inst_open_app: 'Birga ilovasida ochish', inst_has_app: 'Birga ilovasi o‘rnatilgan', inst_bar_real: 'Brauzersiz, haqiqiy Birga ilovasini o‘rnating',
+    inst_del_old: 'Eski belgini (brauzer belgisi bilan) bosh ekrandan o‘chirib tashlang: belgini bosib turing → “O‘chirish”.' });
+  Object.assign(I18N.ru, { att_file: 'Фото, видео или файл', att_game: 'Пригласить в игру', att_game_sub: 'Шахматы, шашки, морской бой…', att_title: 'Отправить',
+    ai_name: 'Birga AI', ai_sub: 'Отвечу на любой ваш вопрос', ai_ph: 'Напишите вопрос…', ai_hello: 'Привет! Я Birga AI — ваш умный помощник. 🤖\nСпрашивайте что угодно: советы, перевод, тексты, расчёты, учёба и многое другое.',
+    ai_clear: 'Очистить диалог', ai_err: 'Birga AI сейчас не смог ответить. Попробуйте чуть позже.', ai_think: 'Думаю…', ai_copy: 'Скопировано', ai_note: 'Birga AI может ошибаться — проверяйте важное.',
+    ai_ex: ['Что приготовить сегодня?', 'Как быстро выучить английский?', 'Напиши поздравление', 'Переведи «спасибо» на 5 языков'],
+    st_title: 'Счётчик шагов', st_on: 'Включён · друзья видят ваши шаги за сегодня', st_off: 'Выключен', st_note: 'Считает по датчику телефона. Из-за ограничений браузера — только пока Birga открыт.',
+    st_enable: 'Включить', st_disable: 'Выключить', st_noperm: 'Нет доступа к датчику движения', st_nosensor: 'На этом устройстве нет датчика движения', st_today: 'сегодня {n} шагов', steps_word: 'шагов',
+    inst_real: 'Установить приложение Birga', inst_real_sub: 'Настоящее приложение — без значка браузера, на весь экран', inst_badge: 'Текущий значок добавлен через браузер (Яндекс/Chrome). Удалите его и установите настоящее приложение Birga:',
+    inst_dl: 'Скачать приложение Birga', inst_chrome2: 'Или установить через Chrome', inst_open_app: 'Открыть в приложении Birga', inst_has_app: 'Приложение Birga установлено', inst_bar_real: 'Установите настоящее приложение Birga без браузера',
+    inst_del_old: 'Удалите старый значок (со значком браузера): удерживайте его → «Удалить».' });
+  Object.assign(I18N.en, { att_file: 'Photo, video or file', att_game: 'Invite to a game', att_game_sub: 'Chess, checkers, battleship…', att_title: 'Send',
+    ai_name: 'Birga AI', ai_sub: 'Ask me anything', ai_ph: 'Type your question…', ai_hello: 'Hi! I am Birga AI — your smart assistant. 🤖\nAsk anything: advice, translation, writing, math, study and more.',
+    ai_clear: 'Clear conversation', ai_err: 'Birga AI could not answer right now. Please try again later.', ai_think: 'Thinking…', ai_copy: 'Copied', ai_note: 'Birga AI can make mistakes — check important info.',
+    ai_ex: ['What should I cook today?', 'How can I learn English fast?', 'Write me a greeting message', 'Translate “thank you” into 5 languages'],
+    st_title: 'Step counter', st_on: 'On · friends see your steps today', st_off: 'Off', st_note: 'Counts with the phone sensor. Due to browser limits it only counts while Birga is open.',
+    st_enable: 'Turn on', st_disable: 'Turn off', st_noperm: 'Motion sensor permission denied', st_nosensor: 'No motion sensor on this device', st_today: '{n} steps today', steps_word: 'steps',
+    inst_real: 'Install the Birga app', inst_real_sub: 'A real app — no browser badge, its own icon, full screen', inst_badge: 'Your current icon was added by a browser (Yandex/Chrome). Remove it and install the real Birga app:',
+    inst_dl: 'Download the Birga app', inst_chrome2: 'Or install via Chrome', inst_open_app: 'Open in the Birga app', inst_has_app: 'The Birga app is installed', inst_bar_real: 'Install the real Birga app, no browser',
+    inst_del_old: 'Remove the old icon (with the browser badge): long-press it → “Remove”.' });
+} catch {}
+
+/* --- o'yin taklifi xabari --- */
+const MPN = { chess: ['♟️', 'Shaxmat', 'Шахматы', 'Chess'], checkers: ['⚪', 'Shashka', 'Шашки', 'Checkers'], battleship: ['🚢', 'Dengiz jangi', 'Морской бой', 'Battleship'], connect4: ['🔴', '4 qator', '4 в ряд', 'Connect Four'], gomoku: ['⚫', '5 qator', 'Гомоку', 'Gomoku'] };
+const MPC = { chess: ['#78350F', '#1C1917'], checkers: ['#B91C1C', '#7F1D1D'], battleship: ['#0369A1', '#1E3A8A'], connect4: ['#2563EB', '#7C3AED'], gomoku: ['#A16207', '#713F12'] };
+const mpName = (g) => (MPN[g] || ['🎮', g])[1 + Math.max(0, ['uz', 'ru', 'en'].indexOf(LANG))] || g;
+let gamesLib14 = null;
+const loadGames14 = () => (window.BirgaGames ? Promise.resolve() : (gamesLib14 ||= loadScript('/games.js').catch((e) => { gamesLib14 = null; throw e; })));
+function gameMsgHTML(m, attrs, reply, metaHtml) {
+  const gm = m.meta?.game || {}; const e = (MPN[gm.g] || ['🎮'])[0], c = MPC[gm.g] || ['#1F6BFF', '#8A2BE2'];
+  if (gm.room) loadGames14().then(() => { BirgaGames.GameCards.want(gm.room); BirgaGames.GameCards.paint(gm.room); }).catch(() => {});
+  return `<div ${attrs}><div class="bubble">${reply}<div class="game-card" data-groom="${esc(gm.room || '')}" style="--g1:${c[0]};--g2:${c[1]}"><span class="gc-e">${e}</span>
+    <div class="gc-t"><small>🎮 ${esc(PREV14[0])}</small><b>${esc(mpName(gm.g))}</b><span class="gc-st"></span></div><button class="gc-go">▶</button></div>${metaHtml}</div></div>`;
+}
+const PREV14 = { get 0() { return { uz: 'O‘yinga taklif', ru: 'Приглашение в игру', en: 'Game invite' }[LANG] || 'O‘yinga taklif'; } };
+$('#messages').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-groom]'); if (!b) return;
+  e.stopImmediatePropagation();
+  const room = b.dataset.groom; if (!room) return;
+  loadGames14().then(() => BirgaGames.openRoom(room)).catch(() => toast(t('net_err')));
+}, true);
+{
+  const basePrev = preview;
+  preview = function (m) { if (m && !m.deleted && m.type === 'game') return `<span class="tag">🎮 ${esc(PREV14[0])}</span> ${esc(mpName(m.meta?.game?.g))}`; return basePrev(m); };
+}
+{
+  const baseCS14 = connectSocket;
+  connectSocket = async function () {
+    await baseCS14();
+    S.socket?.on('game:state', (st) => { try { window.BirgaGames?.GameCards.set(st.id, st); } catch {} });
+  };
+}
+
+/* --- biriktirish menyusi: fayl yoki o'yin --- */
+$('#btn-attach').onclick = () => {
+  const c = S.chats.get(S.current);
+  const canGame = c && c.type !== 'channel' && !c.self;
+  if (!canGame) return $('#file-input').click();
+  modal(`<h3>${esc(t('att_title'))} <button class="icon-btn" data-close>${icon('close')}</button></h3>
+    <div class="att-sheet"><button class="row-btn" data-at="file"><span class="ri c2">${icon('clip')}</span><span>${esc(t('att_file'))}</span></button>
+    <button class="row-btn" data-at="game"><span class="ri c5">🎮</span><span>${esc(t('att_game'))}<small>${esc(t('att_game_sub'))}</small></span></button></div>
+    <div class="att-games hidden">${Object.keys(MPN).map((g) => `<button data-g="${g}" style="--g1:${MPC[g][0]};--g2:${MPC[g][1]}"><span>${MPN[g][0]}</span><b>${esc(mpName(g))}</b></button>`).join('')}</div>`);
+  const card = $('#modal-card');
+  card.onclick = (e) => {
+    const a = e.target.closest('[data-at]')?.dataset.at;
+    if (a === 'file') { closeModal(); $('#file-input').click(); return; }
+    if (a === 'game') { card.querySelector('.att-sheet').classList.add('hidden'); card.querySelector('.att-games').classList.remove('hidden'); return; }
+    const g = e.target.closest('[data-g]')?.dataset.g;
+    if (g) { const cid = S.current; closeModal(); loadGames14().then(() => BirgaGames.invite(g, cid)).catch(() => toast(t('net_err'))); }
+  };
+};
+
+/* ======================= BIRGA AI ======================= */
+const AI = {
+  key: () => 'birga_ai_' + (S.me?.id || 0),
+  hist: [], busy: false,
+  load() { try { this.hist = JSON.parse(store.get(this.key()) || '[]'); } catch { this.hist = []; } },
+  save() { try { store.set(this.key(), JSON.stringify(this.hist.slice(-40))); } catch {} },
+  md(s) {
+    let h = esc(s);
+    h = h.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, l, c) => `<pre><code>${c.replace(/\n$/, '')}</code></pre>`);
+    h = h.replace(/`([^`\n]+)`/g, '<code>$1</code>').replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>').replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s).,!?:;]|$)/g, '$1<i>$2</i>');
+    h = h.replace(/^#{1,4}\s+(.+)$/gm, '<b class="ai-h">$1</b>').replace(/^\s*[-*•]\s+(.+)$/gm, '<span class="ai-li">• $1</span>');
+    return h.replace(/\n/g, '<br>').replace(/<\/pre><br>/g, '</pre>').replace(/<\/span><br>/g, '</span>');
+  },
+  ensure() {
+    if ($('#ai-page')) return;
+    document.body.insertAdjacentHTML('beforeend', `<div class="ai-page hidden" id="ai-page">
+      <header class="ai-head"><button class="icon-btn" id="ai-back">${icon('back')}</button><span class="ai-av">✦</span><div class="ai-tt"><b>Birga AI</b><small id="ai-st"></small></div><button class="icon-btn" id="ai-clear" title="">${icon('trash')}</button></header>
+      <div class="ai-msgs" id="ai-msgs"></div>
+      <footer class="ai-comp"><textarea id="ai-in" rows="1"></textarea><button class="ai-send" id="ai-send">${icon('send')}</button></footer></div>`);
+    $('#ai-back').onclick = () => this.close();
+    $('#ai-clear').onclick = () => { if (!this.hist.length || !confirm(t('ai_clear') + '?')) return; this.hist = []; this.save(); this.render(); };
+    const inp = $('#ai-in');
+    inp.addEventListener('input', () => { inp.style.height = 'auto'; inp.style.height = Math.min(140, inp.scrollHeight) + 'px'; });
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !('ontouchstart' in window)) { e.preventDefault(); this.send(); } });
+    $('#ai-send').onclick = () => this.send();
+    $('#ai-msgs').onclick = (e) => {
+      const ex = e.target.closest('[data-ex]'); if (ex) { inp.value = ex.dataset.ex; this.send(); return; }
+      const cp = e.target.closest('[data-cp]'); if (cp) { const m = this.hist[+cp.dataset.cp]; navigator.clipboard?.writeText(m?.content || '').then(() => toast(t('ai_copy'))).catch(() => {}); }
+    };
+    trackEl($('#ai-page'), 'ai', () => this.close());
+  },
+  open() {
+    this.ensure(); this.load();
+    $('#ai-st').textContent = t('ai_sub'); $('#ai-in').placeholder = t('ai_ph'); $('#ai-clear').title = t('ai_clear');
+    $('#ai-page').classList.remove('hidden'); this.render();
+    if (!('ontouchstart' in window)) setTimeout(() => $('#ai-in').focus(), 50);
+  },
+  close() { $('#ai-page')?.classList.add('hidden'); },
+  render() {
+    const box = $('#ai-msgs'); if (!box) return;
+    const hello = `<div class="ai-m bot"><div class="ai-b">${this.md(t('ai_hello'))}</div></div>`;
+    const ex = this.hist.length ? '' : `<div class="ai-ex">${t('ai_ex').map((x) => `<button data-ex="${esc(x)}">${esc(x)}</button>`).join('')}</div>`;
+    box.innerHTML = hello + ex + this.hist.map((m, i) => `<div class="ai-m ${m.role === 'user' ? 'me' : 'bot'}${m.err ? ' err' : ''}"><div class="ai-b">${m.role === 'user' ? esc(m.content).replace(/\n/g, '<br>') : this.md(m.content)}</div>${m.role !== 'user' && !m.err ? `<button class="ai-cp" data-cp="${i}">${icon('copy') || '⧉'}</button>` : ''}</div>`).join('')
+      + (this.busy ? `<div class="ai-m bot"><div class="ai-b ai-dots"><i></i><i></i><i></i></div></div>` : '') + `<p class="ai-note">${esc(t('ai_note'))}</p>`;
+    box.scrollTop = box.scrollHeight;
+  },
+  async send() {
+    const inp = $('#ai-in'); const q = inp.value.trim(); if (!q || this.busy) return;
+    inp.value = ''; inp.style.height = 'auto';
+    this.hist = this.hist.filter((m) => !m.err); this.hist.push({ role: 'user', content: q }); this.busy = true; this.save(); this.render();
+    try {
+      const r = await api('/api/ai', { body: { messages: this.hist.slice(-16).map(({ role, content }) => ({ role, content })) } });
+      this.hist.push({ role: 'assistant', content: r.text });
+    } catch (e) { this.hist.push({ role: 'assistant', content: e.status === 429 ? t('too_many') || t('ai_err') : t('ai_err'), err: 1 }); }
+    this.busy = false; this.save(); this.render();
+  },
+};
+{
+  const baseRCL14 = renderChatList;
+  renderChatList = function () {
+    baseRCL14();
+    const q = $('#chat-search').value.trim().toLowerCase();
+    if (S.archView || FILTER !== 'all' || (q && !'birga ai'.includes(q) && !q.includes('ai'))) return;
+    const last = AI.hist.length ? AI.hist[AI.hist.length - 1] : null;
+    $('#chat-list').insertAdjacentHTML('afterbegin', `<li class="chat-item ai-row" data-ai="1"><div class="av ai-av2">✦</div><div class="ci-body"><div class="ci-row"><span class="ci-name">Birga AI<span class="ai-tag">AI</span></span></div>
+      <div class="ci-row"><span class="ci-sub">${esc(last ? last.content.slice(0, 80) : t('ai_sub'))}</span></div></div></li>`);
+    $('#list-empty')?.classList.add('hidden');
+  };
+}
+$('#chat-list').addEventListener('click', (e) => { if (e.target.closest('[data-ai]')) { e.stopImmediatePropagation(); AI.open(); } }, true);
+setTimeout(() => { try { if (S.me) { AI.load(); renderChatList(); } } catch {} }, 1500);
+
+/* ======================= KUNLIK QADAMLAR ======================= */
+const Steps = {
+  on: false, list: [], n: 0, day: '', sent: -1, ok: false, f: 9.8, base: 9.8, above: false, lastT: 0, timer: null,
+  today() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; },
+  restore() { const d = this.today(); try { const o = JSON.parse(store.get('birga_steps_d') || '{}'); this.n = o.day === d ? Number(o.n) || 0 : 0; } catch { this.n = 0; } this.day = d; },
+  persist() { try { store.set('birga_steps_d', JSON.stringify({ day: this.day, n: this.n })); } catch {} },
+  async init() {
+    this.restore();
+    try { const r = await api('/api/steps?day=' + this.today()); this.on = r.on; this.list = r.list || []; } catch {}
+    if (this.on) this.start(false);
+    this.paint(); Stories.render();
+    setInterval(() => this.refresh(), 90e3);
+  },
+  async refresh() { try { const r = await api('/api/steps?day=' + this.today()); this.list = r.list || []; Stories.render(); } catch {} },
+  handler: null,
+  async start(gesture) {
+    if (this.handler) return true;
+    if (typeof DeviceMotionEvent === 'undefined') { if (gesture) toast(t('st_nosensor'), 3000); return false; }
+    if (gesture && typeof DeviceMotionEvent.requestPermission === 'function') {
+      try { if ((await DeviceMotionEvent.requestPermission()) !== 'granted') { toast(t('st_noperm'), 3000); return false; } } catch { toast(t('st_noperm'), 3000); return false; }
+    }
+    this.handler = (e) => {
+      const a = e.accelerationIncludingGravity; if (!a || a.x == null) return;
+      this.ok = true;
+      const m = Math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z);
+      this.f = this.f * 0.75 + m * 0.25; this.base = this.base * 0.98 + m * 0.02;
+      const d = this.f - this.base, now = performance.now();
+      if (!this.above && d > 1.1 && now - this.lastT > 260) { this.above = true; this.lastT = now; this.step(); }
+      else if (this.above && d < 0.3) this.above = false;
+    };
+    addEventListener('devicemotion', this.handler);
+    clearInterval(this.timer); this.timer = setInterval(() => this.flush(), 30e3);
+    return true;
+  },
+  stop() { if (this.handler) removeEventListener('devicemotion', this.handler); this.handler = null; clearInterval(this.timer); },
+  step() {
+    const d = this.today(); if (d !== this.day) { this.day = d; this.n = 0; this.sent = -1; }
+    this.n++; if (this.n % 10 === 0) { this.persist(); this.paintMine(); }
+  },
+  async flush() {
+    if (!this.on || this.n === this.sent) return; this.persist();
+    try { await api('/api/steps', { body: { day: this.day, steps: this.n } }); this.sent = this.n; const me = this.list.find((x) => x.user.id === S.me.id); if (me) me.steps = Math.max(me.steps, this.n); this.paintMine(); } catch {}
+  },
+  mine() { const me = this.list.find((x) => x.user.id === S.me?.id); return Math.max(this.n, me?.steps || 0); },
+  paintMine() { const el = $('#stories [data-me] .st-n'); if (el) el.textContent = '👟 ' + fmtSteps(this.mine()); },
+  async toggle() {
+    const want = !this.on;
+    if (want && !(await this.start(true))) return;
+    try { await api('/api/steps/toggle', { body: { on: want } }); } catch (e) { toast(e.message || t('net_err')); return; }
+    this.on = want; if (!want) this.stop(); else { this.flush(); setTimeout(() => { if (!this.ok) toast(t('st_nosensor'), 3500); }, 4000); }
+    await this.refresh(); this.paint();
+  },
+  paint() { const v = $('#set-steps-v'); if (v) v.textContent = t(this.on ? 'st_on' : 'st_off'); const sw = $('#set-steps .sw14'); if (sw) sw.classList.toggle('on', this.on); },
+};
+const fmtSteps = (n) => (n >= 10000 ? (n / 1000).toFixed(1).replace('.0', '') + 'k' : n.toLocaleString('ru-RU').replace(/,/g, ' '));
+{
+  const baseSR = Stories.render.bind(Stories);
+  Stories.render = function () {
+    baseSR();
+    const box = $('#stories'); if (!box || !S.me) return;
+    const map = new Map(Steps.list.map((x) => [x.user.id, x]));
+    if (Steps.on) { const mb = box.querySelector('[data-me]'); if (mb && !mb.querySelector('.st-n')) mb.insertAdjacentHTML('beforeend', `<span class="st-n">👟 ${fmtSteps(Steps.mine())}</span>`); }
+    box.querySelectorAll('.st[data-uid]').forEach((b) => { const x = map.get(+b.dataset.uid); if (x) { b.insertAdjacentHTML('beforeend', `<span class="st-n">👟 ${fmtSteps(x.steps)}</span>`); map.delete(x.user.id); } });
+    map.delete(S.me.id);
+    const rest = [...map.values()].sort((a, b) => b.steps - a.steps);
+    box.insertAdjacentHTML('beforeend', rest.map((x) => `<button class="st st-plain" data-suid="${x.user.id}"><span class="st-av">${avatar({ ...x.user, online: false })}</span><span class="nm">${esc((S.users.get(x.user.id)?.name || x.user.name || '').split(' ')[0])}</span><span class="st-n">👟 ${fmtSteps(x.steps)}</span></button>`).join(''));
+    box.classList.toggle('has-steps', Steps.on || Steps.list.length > 0);
+  };
+}
+$('#stories').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-suid]'); if (!b) return; e.stopImmediatePropagation();
+  const x = Steps.list.find((y) => y.user.id === +b.dataset.suid); if (x) toast(`${S.users.get(x.user.id)?.name || x.user.name}: ${t('st_today').replace('{n}', x.steps.toLocaleString('ru-RU'))}`, 2500);
+}, true);
+{
+  const g = $('#set-privacy')?.parentElement;
+  g?.insertAdjacentHTML('beforeend', `<button class="row-btn" id="set-steps"><span class="ri c3">👟</span><span><span data-t14="st_title"></span><small id="set-steps-v"></small></span><i class="sw14"></i></button>`);
+  const paint = () => { $$('[data-t14]').forEach((x) => (x.textContent = t(x.dataset.t14))); Steps.paint(); };
+  const baseRS14 = renderSettings; renderSettings = function () { baseRS14(); paint(); };
+  setTimeout(paint, 0);
+  $('#set-steps')?.addEventListener('click', () => {
+    modal(`<h3>👟 ${esc(t('st_title'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><p class="muted">${esc(t('st_note'))}</p>
+      ${Steps.on ? `<div class="st-big">${fmtSteps(Steps.mine())}<small>${esc(t('steps_word'))}</small></div>` : ''}
+      <button class="btn-primary" id="st-tg">${esc(t(Steps.on ? 'st_disable' : 'st_enable'))}</button>`);
+    $('#st-tg').onclick = async () => { closeModal(); await Steps.toggle(); };
+  });
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden) Steps.flush(); else if (Steps.on) Steps.refresh(); });
+{
+  const baseLA14 = loadAliases;
+  let started = false;
+  loadAliases = async function () { await baseLA14(); if (!started) { started = true; Steps.init(); AI.load(); renderChatList(); } };
+}
+
+/* ======================= ILOVA: brauzer belgisisiz haqiqiy Birga ilovasi ======================= */
+const APK_SELF = '/birga.apk';
+const uaNow = navigator.userAgent;
+const realChrome = () => /Chrome\//.test(uaNow) && !/EdgA|SamsungBrowser|YaBrowser|YaApp|OPR|Firefox|MiuiBrowser|UCBrowser|HeyTap|VivoBrowser|Version\/[\d.]+ Chrome/i.test(uaNow);
+// Brauzer yorlig'i (Yandex/Samsung va h.k.) orqali ochilgan — belgida brauzer nishoni bor
+const badgedLaunch = () => isAndroid() && !inApp() && !(realChrome() && matchMedia('(display-mode: standalone)').matches);
+let appInstalled = false;
+(async () => { try { const r = await navigator.getInstalledRelatedApps?.(); appInstalled = !!r?.some((a) => a.id === 'uz.birga.app'); if (appInstalled) installBanner(); } catch {} })();
+const openInApp = `intent://${location.host}/#Intent;scheme=https;package=uz.birga.app;S.browser_fallback_url=${encodeURIComponent(location.origin + APK_SELF)};end`;
+const installApp14base = installApp;
+installApp = async function () {
+  const I = INST[LANG] || INST.en, L = APK_T[LANG] || APK_T.en;
+  if (!isAndroid()) return installApp14base(); // iPhone va kompyuter — avvalgi usul
+  if (inApp()) { toast(I.done, 3000); return; }
+  if (installPrompt && realChrome() && !appInstalled) return installApp14base(); // Chrome: bitta bosishda haqiqiy ilova (WebAPK, belgisiz)
+  const hero = `<div class="install-hero"><img src="/icons/icon-192.png" alt=""><div><b>Birga</b><br><small class="muted">${esc(t('inst_real_sub'))}</small></div></div>`;
+  const viaChrome = installPrompt ? `<button class="link-btn inst-apk" id="inst-pwa">${esc(t('inst_chrome2'))}</button>`
+    : !realChrome() ? `<a class="link-btn inst-apk" href="intent://${location.host}${location.pathname}#Intent;scheme=https;package=com.android.chrome;end">${esc(t('inst_chrome2'))}</a>` : '';
+  modal(`<h3>${esc(t('inst_real'))} <button class="icon-btn" data-close>${icon('close')}</button></h3>${hero}
+    ${appInstalled ? `<a class="btn-primary inst-go" href="${openInApp}">${icon('download')}<span>${esc(t('inst_open_app'))}</span></a>` : `
+    ${matchMedia('(display-mode: standalone)').matches || !realChrome() ? `<p class="inst-warn">${esc(t('inst_badge'))}</p>` : ''}
+    <a class="btn-primary inst-go" href="${APK_SELF}" download="Birga.apk">${icon('download')}<span>${esc(t('inst_dl'))}</span></a>
+    <p class="muted inst-size">${esc(L.size)}</p>
+    <ol class="install-steps">${L.steps.map((x) => `<li><span>${x}</span></li>`).join('')}<li><span>${esc(t('inst_del_old'))}</span></li></ol>`}
+    ${appInstalled ? '' : viaChrome}`);
+  $('#inst-pwa')?.addEventListener('click', () => pwaInstall());
+};
+installBanner = function () {
+  let bar = $('#inst-bar');
+  const hideUntil = Number(store.get('birga_inst_hide')) || 0;
+  const android = badgedLaunch() || (isAndroid() && !inApp() && !matchMedia('(display-mode: standalone)').matches);
+  const show = S.me && Date.now() > hideUntil && (android || (isIOS() && !isStandalone()));
+  if (!show) { bar?.remove(); return; }
+  if (!bar) { $('#chat-list')?.insertAdjacentHTML('beforebegin', `<div class="inst-bar" id="inst-bar"></div>`); bar = $('#inst-bar'); if (!bar) return; }
+  const I = INST[LANG] || INST.en;
+  const txt = appInstalled ? t('inst_has_app') : isAndroid() ? t('inst_bar_real') : I.banner;
+  bar.innerHTML = `<img src="/icons/icon-192.png" alt=""><span>${esc(txt)}</span>${appInstalled ? `<a class="ib-go" href="${openInApp}">${esc(t('inst_open_app').split(' ').slice(-2).join(' '))}</a>` : `<button class="ib-go">${esc(I.banner_btn)}</button>`}<button class="ib-x" aria-label="close">${icon('close')}</button>`;
+  bar.querySelector('button.ib-go')?.addEventListener('click', () => installApp());
+  bar.querySelector('.ib-x').onclick = () => { store.set('birga_inst_hide', String(Date.now() + 3 * 864e5)); bar.remove(); };
+};
+$$('[data-install]').forEach((b) => (b.onclick = () => installApp()));
+setTimeout(() => { try { installBanner(); } catch {} }, 2500);
+
+document.head.insertAdjacentHTML('beforeend', `<style>
+.inst-warn { background: rgba(245,158,11,.14); color: var(--text); border-radius: 14px; padding: 10px 12px; font-size: 13.5px; line-height: 1.4; margin: 0 0 12px; }
+.inst-go { display: flex; align-items: center; justify-content: center; gap: 10px; height: 54px; font-size: 17px; text-decoration: none; }
+.inst-size { text-align: center; font-size: 12.5px; margin: 6px 0 4px; }
+/* o'yin kartochkasi */
+.game-card { display: flex; align-items: center; gap: 10px; min-width: 220px; padding: 10px; margin: 2px 0 4px; border-radius: 16px; color: #fff; background: linear-gradient(135deg, var(--g1), var(--g2)); cursor: pointer; }
+.game-card .gc-e { font-size: 34px; width: 46px; height: 46px; display: grid; place-items: center; background: rgba(255,255,255,.16); border-radius: 14px; }
+.game-card .gc-t { flex: 1; min-width: 0; display: flex; flex-direction: column; } .game-card small { opacity: .85; font-size: 11.5px; font-weight: 700; } .game-card b { font-size: 16px; }
+.game-card .gc-st { font-size: 12px; opacity: .9; min-height: 14px; }
+.game-card .gc-go { height: 36px; min-width: 36px; padding: 0 12px; border-radius: 18px; background: #fff; color: #111; font-weight: 800; font-size: 13px; }
+.att-sheet { display: flex; flex-direction: column; gap: 4px; }
+.att-games { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.att-games button { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 12px; border-radius: 16px; color: #fff; background: linear-gradient(135deg, var(--g1), var(--g2)); text-align: left; }
+.att-games button span { font-size: 30px; } .att-games button b { font-size: 15px; }
+/* o'yinlar lobbisi */
+.gm-lobby { display: block; }
+.gm-h { margin: 18px 2px 4px; font-size: 16px; font-weight: 800; } .gm-h:first-child { margin-top: 4px; }
+.gm-hs { margin: 0 2px 10px; color: var(--muted); font-size: 13px; }
+.gm-tile.big { grid-column: span 2; min-height: 130px; }
+.gm-tile .gm-2p { position: absolute; right: 10px; bottom: 10px; font-size: 11.5px; font-weight: 800; background: rgba(0,0,0,.22); padding: 3px 8px; border-radius: 10px; }
+.gm-room { width: 100%; display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 16px; background: var(--panel-2, rgba(127,127,127,.1)); margin-bottom: 8px; text-align: left; }
+.gm-e2 { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; font-size: 22px; flex: none; }
+.gm-rt { flex: 1; min-width: 0; display: flex; flex-direction: column; } .gm-rt small { color: var(--muted); }
+.gm-dot { width: 10px; height: 10px; border-radius: 50%; background: #22C55E; flex: none; } .gm-go { color: var(--blue, #1F6BFF); font-weight: 800; font-size: 13px; }
+.gm-stage { position: relative; }
+.gm-stage-pad { padding-bottom: calc(150px + env(safe-area-inset-bottom)); }
+.gm-pad { position: absolute; left: 0; right: 0; bottom: 0; height: 150px; display: flex; align-items: center; justify-content: space-between; padding: 0 18px calc(10px + env(safe-area-inset-bottom)); pointer-events: none; }
+.gm-joy { width: 120px; height: 120px; border-radius: 50%; background: rgba(255,255,255,.14); border: 2px solid rgba(255,255,255,.3); position: relative; pointer-events: auto; touch-action: none; }
+.gm-joy i { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px; border-radius: 50%; background: rgba(255,255,255,.85); box-shadow: 0 4px 12px rgba(0,0,0,.3); }
+.gm-btns { display: flex; align-items: center; gap: 12px; pointer-events: auto; }
+.gm-btns button { width: 62px; height: 62px; border-radius: 50%; background: rgba(255,255,255,.2); border: 2px solid rgba(255,255,255,.4); font-size: 24px; touch-action: none; user-select: none; -webkit-user-select: none; }
+.gm-btns button.big { width: 84px; height: 84px; font-size: 32px; background: rgba(239,68,68,.55); }
+.gm-btns button.on { transform: scale(.92); background: rgba(255,255,255,.45); }
+/* 2 kishilik o'yin oynasi */
+.mp-bar { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 2px 10px 6px; width: 100%; }
+.mp-p { display: flex; align-items: center; gap: 6px; padding: 4px 10px 4px 4px; border-radius: 22px; background: rgba(0,0,0,.2); max-width: 42%; border: 2px solid transparent; transition: .2s; }
+.mp-p.on { border-color: #FDE047; background: rgba(0,0,0,.35); box-shadow: 0 0 0 4px rgba(253,224,71,.18); }
+.mp-p b { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .mp-p .av { width: 28px; height: 28px; font-size: 12px; }
+.mp-q { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.2); font-weight: 800; }
+.mp-vs { font-weight: 900; opacity: .8; font-size: 12px; }
+.gm-extra:has(.mp-bar) { flex-direction: column; align-items: center; }
+.mp-turn { font-weight: 800; font-size: 14px; min-height: 20px; opacity: .9; } .mp-turn.me { color: #FDE047; } .mp-turn.flash { animation: pop .3s; color: #FCA5A5; }
+.mp-resign { padding: 4px 10px; border-radius: 14px; background: rgba(0,0,0,.25); font-size: 15px; }
+.mp-wait { text-align: center; padding: 30px; max-width: 340px; } .mp-wait h3 { margin: 14px 0 6px; } .mp-wait p { opacity: .9; line-height: 1.45; }
+.mp-spin { font-size: 64px; animation: mpb 1.4s ease-in-out infinite; } @keyframes mpb { 50% { transform: translateY(-10px) rotate(-8deg); } }
+.gm-bsbar { position: absolute; left: 0; right: 0; bottom: calc(10px + env(safe-area-inset-bottom)); display: flex; justify-content: center; gap: 10px; }
+.gm-bsbar:empty { display: none; }
+.gm-bsbar button { height: 44px; padding: 0 18px; border-radius: 22px; font-weight: 800; color: #fff; }
+.gm-ghost { background: rgba(0,0,0,.3); } .gm-solid { background: #22C55E; }
+/* Birga AI */
+.ai-row .ai-av2, .ai-av { width: 54px; height: 54px; border-radius: 50%; display: grid; place-items: center; font-size: 26px; color: #fff; background: conic-gradient(from 210deg, #1F6BFF, #8A2BE2, #EC4899, #F59E0B, #1F6BFF); flex: none; }
+.ai-tag { margin-left: 6px; font-size: 10px; font-weight: 900; padding: 2px 6px; border-radius: 8px; color: #fff; background: linear-gradient(135deg, #1F6BFF, #8A2BE2); vertical-align: 2px; }
+.ai-page { position: fixed; inset: 0; z-index: 35; display: flex; flex-direction: column; background: var(--bg, #fff); color: var(--text); }
+.ai-head { display: flex; align-items: center; gap: 10px; padding: calc(8px + env(safe-area-inset-top)) 8px 8px; border-bottom: 1px solid var(--line, rgba(127,127,127,.15)); }
+.ai-head .ai-av { width: 40px; height: 40px; font-size: 19px; } .ai-tt { flex: 1; display: flex; flex-direction: column; min-width: 0; } .ai-tt small { color: var(--muted); font-size: 12.5px; }
+.ai-msgs { flex: 1; overflow-y: auto; padding: 14px 12px; display: flex; flex-direction: column; gap: 10px; }
+.ai-m { display: flex; align-items: flex-end; gap: 4px; max-width: 88%; } .ai-m.me { align-self: flex-end; } .ai-m.bot { align-self: flex-start; }
+.ai-b { padding: 10px 13px; border-radius: 18px; line-height: 1.45; font-size: 15px; word-break: break-word; }
+.ai-m.me .ai-b { background: var(--grad, #1F6BFF); color: #fff; border-bottom-right-radius: 6px; }
+.ai-m.bot .ai-b { background: var(--panel-2, rgba(127,127,127,.12)); border-bottom-left-radius: 6px; }
+.ai-m.err .ai-b { background: rgba(239,68,68,.12); color: #DC2626; }
+.ai-b pre { background: rgba(0,0,0,.75); color: #E5E7EB; padding: 10px; border-radius: 10px; overflow-x: auto; font-size: 13px; margin: 6px 0; white-space: pre; }
+.ai-b code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; background: rgba(127,127,127,.18); padding: 1px 5px; border-radius: 6px; } .ai-b pre code { background: none; padding: 0; }
+.ai-b .ai-h { display: block; margin: 4px 0 2px; } .ai-b .ai-li { display: block; padding-left: 4px; }
+.ai-cp { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); flex: none; } .ai-cp svg { width: 15px; height: 15px; }
+.ai-ex { display: flex; flex-wrap: wrap; gap: 8px; } .ai-ex button { padding: 8px 12px; border-radius: 16px; border: 1px solid var(--line, rgba(127,127,127,.25)); font-size: 13.5px; text-align: left; }
+.ai-dots { display: flex; gap: 4px; padding: 14px 16px; } .ai-dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); animation: aid 1s infinite; } .ai-dots i:nth-child(2) { animation-delay: .15s; } .ai-dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes aid { 50% { opacity: .25; transform: translateY(-3px); } }
+.ai-note { text-align: center; color: var(--muted); font-size: 11.5px; margin: 6px 0 0; }
+.ai-comp { display: flex; align-items: flex-end; gap: 8px; padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line, rgba(127,127,127,.15)); }
+.ai-comp textarea { flex: 1; resize: none; border-radius: 20px; padding: 10px 14px; font: inherit; font-size: 15px; background: var(--panel-2, rgba(127,127,127,.1)); color: inherit; border: 0; max-height: 140px; outline: none; }
+.ai-send { width: 44px; height: 44px; border-radius: 50%; background: var(--grad, #1F6BFF); color: #fff; display: grid; place-items: center; flex: none; } .ai-send svg { width: 20px; height: 20px; }
+/* qadamlar */
+.stories.has-steps .st { min-height: 96px; }
+.st .st-n { display: block; font-size: 11px; font-weight: 800; color: #16A34A; margin-top: 1px; white-space: nowrap; }
+.st-plain .st-av { display: inline-grid; padding: 3px; } .st-plain .st-av .av { width: 56px; height: 56px; }
+.sw14 { margin-left: auto; width: 42px; height: 24px; border-radius: 12px; background: rgba(127,127,127,.35); position: relative; flex: none; transition: .2s; }
+.sw14::after { content: ''; position: absolute; left: 3px; top: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: .2s; }
+.sw14.on { background: #22C55E; } .sw14.on::after { left: 21px; }
+.st-big { text-align: center; font-size: 44px; font-weight: 900; color: #16A34A; margin: 8px 0 14px; } .st-big small { display: block; font-size: 14px; color: var(--muted); font-weight: 700; }
+</style>`);
 
 boot();

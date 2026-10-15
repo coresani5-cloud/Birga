@@ -188,7 +188,7 @@ async function sendCode(isResend) {
     auth.email = r.email; store.set('birga_email', r.email);
     $('#code-target').textContent = r.email;
     boxes.forEach((i) => (i.value = '')); $('#code-err').textContent = '';
-    if (r.devCode) { $('#dev-code').innerHTML = `${esc(t('dev_code_email'))} <b>${r.devCode}</b>`; $('#dev-code').classList.remove('hidden'); }
+    if (r.devCode) { $('#dev-code').innerHTML = `${esc(t('dev_code_email'))} <b>${r.devCode}</b><small style="display:block;margin-top:8px;font-weight:400;line-height:1.45">${esc(t('dev_code_why'))}</small>`; $('#dev-code').classList.remove('hidden'); }
     else $('#dev-code').classList.add('hidden');
     $('#mail-open').classList.toggle('hidden', !!r.devCode || !mailLink(r.email));
     showStep('code'); startResendTimer(r.timeout || 60);
@@ -4209,7 +4209,7 @@ function bindEmailModal(prompted) {
     try {
       const r = await api('/api/me/email/send', { body: { email } });
       $('#eb-1').classList.add('hidden'); $('#eb-2').classList.remove('hidden'); $('#eb-code').focus();
-      if (r.devCode) { $('#eb-dev').innerHTML = `${esc(t('dev_code_email'))} <b>${r.devCode}</b>`; $('#eb-dev').classList.remove('hidden'); }
+      if (r.devCode) { $('#eb-dev').innerHTML = `${esc(t('dev_code_email'))} <b>${r.devCode}</b><small style="display:block;margin-top:8px;font-weight:400;line-height:1.45">${esc(t('dev_code_why'))}</small>`; $('#eb-dev').classList.remove('hidden'); }
     } catch (e) { $('#eb-err').textContent = e.message; }
   };
   $('#eb-ok').onclick = async () => {
@@ -6935,3 +6935,160 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 </style>`);
 
 boot();
+
+/* ======================= v19 ======================= */
+try { (() => {
+Object.assign(I18N.uz, {
+  dev_code_email: 'Tasdiqlash kodingiz:',
+  dev_code_why: 'Email xizmati ulanmagani uchun kod xatga yuborilmadi — shu yerda ko‘rsatildi. Kodni kiriting, so‘ng o‘zingiz uchun xavfsizlik kodi o‘rnatasiz. Shu emailni kim kiritsa ham, har safar xavfsizlik kodi so‘raladi — uni hech kimga bermang va unutmang.',
+  v19_inst_t: 'Birga yuklanmoqda', v19_inst_p: 'Fayl yuklanmoqda. Tugagach quyidagilarni bajaring:',
+  v19_cmt: 'Izohlar', v19_cmt_ph: 'Izoh yozing…', v19_cmt_none: 'Hozircha izoh yo‘q', v19_shared: 'Havola nusxalandi', v19_tap_sound: 'Ovozni yoqish uchun ekranga tegining',
+  v19_gallery: 'Galereya', v19_gallery_sub: 'Rasm yoki video tanlash', v19_nores: 'Hech narsa topilmadi'
+});
+Object.assign(I18N.ru, {
+  dev_code_email: 'Ваш код подтверждения:',
+  dev_code_why: 'Почтовый сервис не подключён, поэтому код не отправлен письмом — он показан здесь. Введите код, затем задайте свой код безопасности. Кто бы ни ввёл этот email, каждый раз будет запрашиваться код безопасности — никому его не сообщайте и не забывайте.',
+  v19_inst_t: 'Birga загружается', v19_inst_p: 'Файл загружается. Когда закончится:',
+  v19_cmt: 'Комментарии', v19_cmt_ph: 'Напишите комментарий…', v19_cmt_none: 'Комментариев пока нет', v19_shared: 'Ссылка скопирована', v19_tap_sound: 'Коснитесь экрана, чтобы включить звук',
+  v19_gallery: 'Галерея', v19_gallery_sub: 'Выбрать фото или видео', v19_nores: 'Ничего не найдено'
+});
+Object.assign(I18N.en, {
+  dev_code_email: 'Your verification code:',
+  dev_code_why: 'No email service is connected, so the code was not emailed — it is shown here. Enter it, then set your own security code. Whoever enters this email will always be asked for that security code — never share it and do not forget it.',
+  v19_inst_t: 'Downloading Birga', v19_inst_p: 'The file is downloading. When it finishes:',
+  v19_cmt: 'Comments', v19_cmt_ph: 'Write a comment…', v19_cmt_none: 'No comments yet', v19_shared: 'Link copied', v19_tap_sound: 'Tap the screen to turn sound on',
+  v19_gallery: 'Gallery', v19_gallery_sub: 'Pick a photo or video', v19_nores: 'Nothing found'
+});
+
+/* 1) AI javobi: matn ko'rinmay qolmasin (och fonda oq matn) */
+document.head.insertAdjacentHTML('beforeend', `<style id="birga-v19">
+.msg.ai-msg .bubble { background: linear-gradient(135deg, rgba(31,107,255,.10), rgba(138,43,226,.12)), #F1F4FF !important; color: #0F1C3A !important; }
+.msg.ai-msg .bubble .ai-txt, .msg.ai-msg .bubble .ai-txt * { color: #0F1C3A; opacity: 1 !important; -webkit-text-fill-color: currentColor; -webkit-mask-image: none !important; mask-image: none !important; filter: none !important; }
+.msg.ai-msg .bubble .ai-txt a, .msg.ai-msg .bubble .ai-txt a * { color: #1F6BFF; }
+.msg.ai-msg .bubble .ai-txt pre, .msg.ai-msg .bubble .ai-txt pre * { color: #E5E7EB; }
+.msg.ai-msg .bubble .ai-name { -webkit-text-fill-color: transparent; }
+.msg.ai-msg .bubble small, .msg.ai-msg .bubble .time, .msg.ai-msg .bubble .meta { color: #5B6B7D !important; -webkit-text-fill-color: #5B6B7D; }
+.reel-acts { position: absolute; right: 10px; bottom: 96px; display: flex; flex-direction: column; gap: 14px; align-items: center; z-index: 4; }
+.reel-acts button { display: flex; flex-direction: column; align-items: center; gap: 2px; color: #fff; background: rgba(0,0,0,.35); border-radius: 26px; padding: 10px 8px; min-width: 48px; font-size: 12px; text-shadow: 0 1px 3px rgba(0,0,0,.6); }
+.reel-acts button svg { width: 28px; height: 28px; fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.reel-acts button.on svg { fill: #FF3B5C; stroke: #FF3B5C; }
+.rc-list { max-height: 50vh; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; margin: 8px 0; }
+.rc-item { display: flex; gap: 8px; align-items: flex-start; } .rc-item b { font-size: 13px; } .rc-item p { margin: 2px 0 0; word-break: break-word; }
+.rc-row { display: flex; gap: 8px; } .rc-row input { flex: 1; }
+</style>`);
+
+/* 2) O'rnatish: brauzer belgili "ekranga qo'shish" EMAS — to'g'ridan-to'g'ri APK yuklanadi */
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installPrompt = null; });
+const installBase19 = installApp;
+installApp = async function () {
+  if (!isAndroid()) return installBase19();
+  if (inApp()) { toast((INST[LANG] || INST.en).done, 3000); return; }
+  const a = document.createElement('a'); a.href = APK_SELF; a.download = 'Birga.apk'; a.hidden = true; document.body.appendChild(a); a.click(); a.remove();
+  const L = APK_T[LANG] || APK_T.en;
+  modal(`<h3>${esc(t('v19_inst_t'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><p class="muted">${esc(t('v19_inst_p'))}</p><ol class="install-steps">${L.steps.slice(1).map((x) => `<li><span>${x}</span></li>`).join('')}</ol>`);
+};
+// Ilova o'rnatilgan bo'lsa, havola brauzerda emas — Birga ilovasining o'zida ochiladi
+(async () => { try {
+  if (!isAndroid() || inApp() || sessionStorage.getItem('birga_open_try')) return;
+  const r = await navigator.getInstalledRelatedApps?.();
+  if (r?.some((x) => x.id === 'uz.birga.app')) { sessionStorage.setItem('birga_open_try', '1'); location.href = openInApp; }
+} catch {} })();
+
+/* 3) Reels: like / izoh / ulashish + ovozli avtoplay */
+const RI = {
+  heart: '<svg viewBox="0 0 24 24"><path d="M20.8 5.6a5.2 5.2 0 0 0-7.4 0L12 7l-1.4-1.4a5.2 5.2 0 1 0-7.4 7.4L12 21.8l8.8-8.8a5.2 5.2 0 0 0 0-7.4z"/></svg>',
+  cmt: '<svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L3 21l1.9-6.1A8 8 0 1 1 21 12z"/></svg>',
+  share: '<svg viewBox="0 0 24 24"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></svg>'
+};
+Reels.muted = false;
+const reelsRender19 = Reels.render.bind(Reels);
+Reels.render = function () {
+  reelsRender19();
+  $$('#reels-feed .reel-slot').forEach((sl) => {
+    if (sl.querySelector('.reel-acts')) return;
+    const it = this.items[+sl.dataset.i]; if (!it) return;
+    sl.insertAdjacentHTML('beforeend', `<div class="reel-acts"><button data-ra="like" class="${it.liked ? 'on' : ''}">${RI.heart}<b>${it.likes || 0}</b></button><button data-ra="cmt">${RI.cmt}<b>${it.comments || 0}</b></button><button data-ra="share">${RI.share}<b></b></button></div>`);
+  });
+};
+const reelsMount19 = Reels.mount.bind(Reels);
+Reels.mount = function (slot) {
+  reelsMount19(slot);
+  const v = slot.querySelector('video.reel-video'); if (!v) return;
+  v.muted = this.muted;
+  const p = v.play();
+  if (p?.catch) p.catch(() => { v.muted = true; this.needTap = true; v.play().catch(() => {}); if (!this.tapHint) { this.tapHint = 1; toast(t('v19_tap_sound'), 2500); } });
+};
+document.addEventListener('pointerdown', () => { if (Reels.needTap) { Reels.needTap = false; Reels.muted = false; $$('#reels-feed .reel-video').forEach((x) => { x.muted = false; x.play?.().catch(() => {}); }); } }, true);
+Reels.comments = async function (it, slot) {
+  modal(`<h3>${esc(t('v19_cmt'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><div class="rc-list" id="rc-list"></div><div class="rc-row"><input class="pl-in" id="rc-in" maxlength="500" placeholder="${esc(t('v19_cmt_ph'))}"><button class="btn-primary" id="rc-send">➤</button></div>`);
+  const paint = async () => {
+    let l = []; try { l = (await api(`/api/reels/${it.id}/comments`)).items || []; } catch (e) { toast(e.message); }
+    const box = $('#rc-list'); if (!box) return;
+    box.innerHTML = l.length ? l.map((c) => `<div class="rc-item" data-id="${c.id}">${avatar(c.user, 'sm')}<div style="flex:1"><b>${esc(c.user?.name || '')}</b><p>${esc(c.text)}</p></div>${c.canDelete ? `<button class="icon-btn" data-del="${c.id}">${icon('trash')}</button>` : ''}</div>`).join('') : `<p class="muted" style="text-align:center">${esc(t('v19_cmt_none'))}</p>`;
+    it.comments = l.length; const b = slot?.querySelector('[data-ra="cmt"] b'); if (b) b.textContent = l.length;
+  };
+  await paint();
+  $('#rc-list').onclick = async (e) => { const d = e.target.closest('[data-del]'); if (!d) return; try { await api(`/api/reels/${it.id}/comments/${d.dataset.del}`, { method: 'DELETE' }); paint(); } catch (er) { toast(er.message); } };
+  const send = async () => { const inp = $('#rc-in'); const text = inp.value.trim(); if (!text) return; inp.value = ''; try { await api(`/api/reels/${it.id}/comments`, { body: { text } }); paint(); } catch (e) { toast(e.message); } };
+  $('#rc-send').onclick = send; $('#rc-in').onkeydown = (e) => { if (e.key === 'Enter') send(); };
+};
+$('#reels-feed')?.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-ra]'); if (!b) return;
+  e.stopPropagation();
+  const slot = b.closest('.reel-slot'); const it = Reels.items[+slot.dataset.i]; if (!it) return;
+  if (b.dataset.ra === 'like') {
+    it.liked = !it.liked; it.likes = Math.max(0, (it.likes || 0) + (it.liked ? 1 : -1)); b.classList.toggle('on', it.liked); b.querySelector('b').textContent = it.likes;
+    try { const r = await api(`/api/reels/${it.id}/like`, { method: 'POST', body: {} }); it.liked = r.liked; it.likes = r.likes; b.classList.toggle('on', r.liked); b.querySelector('b').textContent = r.likes; } catch (er) { toast(er.message); }
+  } else if (b.dataset.ra === 'cmt') Reels.comments(it, slot);
+  else if (b.dataset.ra === 'share') {
+    const url = it.kind === 'ig' ? `https://www.instagram.com/${it.igKind}/${it.igCode}/` : new URL(it.file, location.href).href;
+    try { if (navigator.share) await navigator.share({ title: 'Birga', text: it.caption || '', url }); else { await navigator.clipboard.writeText(url); toast(t('v19_shared')); } } catch {}
+  }
+}, true);
+
+/* 4) Rasm/video yuborish: Birga ichida galereya tanlash oynasi (Google/brauzer emas) */
+{
+  const FI = $('#file-input');
+  if (FI) {
+    const nativeClick = HTMLInputElement.prototype.click;
+    const gal = Object.assign(document.createElement('input'), { type: 'file', accept: 'image/*,video/*', multiple: true, hidden: true });
+    document.body.appendChild(gal);
+    gal.onchange = () => { if (!gal.files.length) return; const dt = new DataTransfer(); [...gal.files].forEach((f) => dt.items.add(f)); FI.files = dt.files; FI.dispatchEvent(new Event('change', { bubbles: true })); gal.value = ''; };
+    FI.click = function () {
+      modal(`<h3>${esc(t('att_title'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><div class="att-sheet"><button class="row-btn" id="v19-gal"><span class="ri c2">🖼</span><span>${esc(t('v19_gallery'))}<small>${esc(t('v19_gallery_sub'))}</small></span></button><button class="row-btn" id="v19-doc"><span class="ri c2">${icon('clip')}</span><span>${esc(t('att_file'))}</span></button></div>`);
+      $('#v19-gal').onclick = () => { closeModal(); nativeClick.call(gal); };
+      $('#v19-doc').onclick = () => { closeModal(); nativeClick.call(FI); };
+    };
+  }
+}
+
+/* 5) Ob-havo: server ololmasa telefonning o'zidan (Open-Meteo, kalitsiz) */
+{
+  const wxOM = async (reg) => {
+    const u = `https://api.open-meteo.com/v1/forecast?latitude=${reg.lat}&longitude=${reg.lon}&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=4&wind_speed_unit=ms`;
+    const j = await (await fetch(u)).json();
+    return { region: reg, cur: { t: j.current.temperature_2m, feels: j.current.apparent_temperature, hum: j.current.relative_humidity_2m, code: j.current.weather_code, wind: j.current.wind_speed_10m, day: !!j.current.is_day },
+      days: j.daily.time.map((d, i) => ({ d, code: j.daily.weather_code[i], max: j.daily.temperature_2m_max[i], min: j.daily.temperature_2m_min[i], rain: j.daily.precipitation_probability_max?.[i] ?? null })), sun: {}, at: Date.now() };
+  };
+  const wxLoad19 = WX.load.bind(WX);
+  WX.load = async function () {
+    await wxLoad19();
+    if (S.me?.region && !this.data?.cur) { try { this.data = await wxOM(S.me.region); this.chip(); this.settingsRow(); } catch {} }
+  };
+  const wxPick19 = WX.pick.bind(WX);
+  WX.pick = function () {
+    wxPick19();
+    const q = $('#wx-q'); if (!q) return; let tm;
+    q.oninput = (e) => {
+      clearTimeout(tm); const v = e.target.value.trim(); if (v.length < 2) { $('#wx-res').innerHTML = ''; return; }
+      tm = setTimeout(async () => {
+        let l = [];
+        try { const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(v)}&count=6&language=${LANG}&format=json`); l = (await r.json()).results || []; } catch {}
+        if (!l.length) { try { const r = await api('/api/map/search?q=' + encodeURIComponent(v)); l = (r || []).map((p) => ({ name: p.name || v, admin1: '', country: '', latitude: p.lat, longitude: p.lng })); } catch {} }
+        const box = $('#wx-res'); if (!box) return;
+        box.innerHTML = l.slice(0, 6).map((p) => `<button data-c="${esc(p.name)}|${p.latitude}|${p.longitude}"><b>${esc(p.name)}</b><small>${esc([p.admin1, p.country].filter(Boolean).join(', '))}</small></button>`).join('') || `<p class="muted tiny">${esc(t('v19_nores'))}</p>`;
+      }, 350);
+    };
+  };
+}
+})(); } catch (e) { console.error('v19', e); }

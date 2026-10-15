@@ -36,7 +36,7 @@ function publicUser(u, self = false) {
   if (u.deleted) return { id: u.id, name: null, deleted: true, username: null, bio: '', avatar: null, last_seen: null, online: false };
   const hide = !!u.hide_seen && !self; // "oxirgi faollik" yashirilgan — boshqalarga "yaqinda" ko'rinadi
   const o = { id: u.id, name: u.name, username: u.username, bio: u.bio, avatar: u.avatar, last_seen: hide ? null : u.last_seen, online: hide ? false : online.has(u.id), country: u.country, birthday: u.birthday || null };
-  if (self) { o.phone = String(u.phone || '').startsWith('mail:') ? null : u.phone; o.email = u.email || null; o.lang = u.lang; o.hide_seen = !!u.hide_seen; o.has2fa = !!u.pass_hash; o.pass_hint = u.pass_hint || ''; o.isAdmin = isAdminUser(u); }
+  if (self) { o.phone = String(u.phone || '').startsWith('mail:') ? null : u.phone; o.email = u.email || null; o.lang = u.lang; o.hide_seen = !!u.hide_seen; o.has2fa = !!u.pass_hash; o.pass_hint = u.pass_hint || ''; o.isAdmin = isAdminUser(u); try { o.region = JSON.parse(u.region || 'null'); } catch { o.region = null; } }
   return o;
 }
 
@@ -57,7 +57,7 @@ const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).cat
 
 // ---------- TURN (qo'ng'iroqlar boshqa davlat/tarmoqlar orasida ham ulanishi uchun) ----------
 function iceServersFor(uid) {
-  const list = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] }];
+  const list = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] }];
   if (process.env.TURN_SECRET && process.env.TURN_HOST) { // o'z coturn serveringiz
     const user = `${Math.floor(now() / 1000) + 12 * 3600}:${uid}`;
     const credential = crypto.createHmac('sha1', process.env.TURN_SECRET).update(user).digest('base64');
@@ -76,6 +76,14 @@ function iceServersFor(uid) {
     list.push({ urls: [`turn:${h}:80`, `turn:${h}:80?transport=tcp`, `turn:${h}:443`, `turn:${h}:443?transport=tcp`, `turns:${h}:443?transport=tcp`], username: user, credential });
   }
   return list;
+}
+// Metered (Open Relay) — foydalanuvchiga eng yaqin TURN serverlar: METERED_DOMAIN (masalan birga.metered.live) + METERED_API_KEY
+let mtIce = null, mtIceAt = 0;
+async function meteredIce() {
+  const d = process.env.METERED_DOMAIN, k = process.env.METERED_API_KEY; if (!d || !k) return [];
+  if (mtIce && now() - mtIceAt < 3600e3) return mtIce;
+  try { const r = await fetch(`https://${d}/api/v1/turn/credentials?apiKey=${encodeURIComponent(k)}`); if (r.ok) { const j = await r.json(); if (Array.isArray(j)) { mtIce = j; mtIceAt = now(); } } } catch (e) { console.error('metered:', e.message); }
+  return mtIce || [];
 }
 // Cloudflare TURN (oyiga 1000 GB bepul): CF_TURN_KEY_ID + CF_TURN_API_TOKEN
 let cfIce = null, cfIceAt = 0;
@@ -160,13 +168,56 @@ function rateLimit(key, max, windowMs) {
 
 function rateOk(k, max, windowMs) { const t = now(); const arr = (hits.get(k) || []).filter((x) => t - x < windowMs); if (arr.length >= max) return false; arr.push(t); hits.set(k, arr); return true; }
 
-const tokenFor = (u) => jwt.sign({ uid: u.id, pv: hash(u.phone).slice(0, 12) }, JWT_SECRET, { expiresIn: '365d' });
+const tokenFor = (u, sid) => jwt.sign({ uid: u.id, pv: hash(u.phone).slice(0, 12), ...(sid ? { sid } : {}) }, JWT_SECRET, { expiresIn: '365d' });
+// ===== Sessiyalar (qurilmalar): har bir kirish — alohida qurilma, istalganini masofadan chiqarib yuborish mumkin =====
+const sessCache = new Map(); // sid -> { revoked, last }
+function deviceName(ua) {
+  ua = String(ua || '');
+  const app = /BirgaApp/.test(ua) ? 'Birga ilovasi' : /YaBrowser/.test(ua) ? 'Yandex Browser' : /SamsungBrowser/.test(ua) ? 'Samsung Internet' : /EdgA?\//.test(ua) ? 'Edge' : /OPR\//.test(ua) ? 'Opera' : /Firefox\//.test(ua) ? 'Firefox' : /CriOS|Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'Brauzer';
+  let os = '', model = '';
+  const an = /Android ([\d.]+)(?:;\s*([^;)]+))?/.exec(ua);
+  if (an) { os = 'Android ' + an[1].split('.')[0]; model = (an[2] || '').replace(/Build\/.*$/, '').trim(); if (/^(K|wv)$/.test(model)) model = ''; }
+  else if (/iPhone/.test(ua)) { os = 'iOS'; model = 'iPhone'; } else if (/iPad/.test(ua)) { os = 'iPadOS'; model = 'iPad'; }
+  else if (/Windows NT/.test(ua)) os = 'Windows'; else if (/Mac OS X/.test(ua)) os = 'macOS'; else if (/Linux/.test(ua)) os = 'Linux';
+  return { app, os, model };
+}
+const geoCache = new Map();
+async function ipGeo(ip) {
+  ip = String(ip || '').replace(/^::ffff:/, '');
+  if (!ip || /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|::1$|fc|fd)/.test(ip)) return { city: '', country: '' };
+  if (geoCache.has(ip)) return geoCache.get(ip);
+  try { const r = await fetch(`https://ipwho.is/${encodeURIComponent(ip)}?fields=success,city,region,country,country_code`, { signal: AbortSignal.timeout(5000) }); const j = await r.json(); const g = j.success ? { city: j.city || j.region || '', country: j.country || '', cc: j.country_code || '' } : { city: '', country: '' }; geoCache.set(ip, g); if (geoCache.size > 3000) geoCache.delete(geoCache.keys().next().value); return g; }
+  catch { return { city: '', country: '' }; }
+}
+async function createSession(req, user) {
+  const id = crypto.randomBytes(12).toString('hex'); const ua = String(req.headers['user-agent'] || '').slice(0, 400);
+  const d = deviceName(ua);
+  await db.run('INSERT INTO sessions(id,user_id,ua,app,os,model,ip,city,country,created,last,revoked) VALUES(?,?,?,?,?,?,?,?,?,?,?,0)', [id, user.id, ua, d.app, d.os, d.model, req.ip || '', '', '', now(), now()]);
+  ipGeo(req.ip).then(async (g) => {
+    await db.run('UPDATE sessions SET city=?, country=? WHERE id=?', [g.city, g.country, id]);
+    const u = await getUser(user.id);
+    if (u && !u.reg_info) await db.run('UPDATE users SET reg_info=? WHERE id=?', [JSON.stringify({ at: u.created_at || now(), app: d.app, os: d.os, model: d.model, city: g.city, country: g.country, first: !user.name }), user.id]);
+  }).catch(() => {});
+  sessCache.set(id, { revoked: 0, last: now() });
+  return id;
+}
+async function sessionOk(sid) {
+  let c = sessCache.get(sid);
+  if (!c) { const r = await db.get('SELECT revoked, last FROM sessions WHERE id=?', [sid]); c = r ? { revoked: Number(r.revoked), last: Number(r.last) } : { revoked: 1 }; sessCache.set(sid, c); }
+  return !c.revoked;
+}
+function touchSession(sid, req) {
+  const c = sessCache.get(sid); if (!c || now() - (c.last || 0) < 5 * 60e3) return; c.last = now();
+  db.run('UPDATE sessions SET last=?, ip=? WHERE id=?', [now(), req?.ip || '', sid]).catch(() => {});
+}
 async function userFromToken(t) {
-  const { uid, pv } = jwt.verify(t, JWT_SECRET);
+  const { uid, pv, sid } = jwt.verify(t, JWT_SECRET);
   const u = await getUser(uid);
   // baza yangilangan bo'lsa eski token boshqa odamga tegib qolmasligi uchun telefon ham tekshiriladi
   if (!u || hash(u.phone).slice(0, 12) !== pv) throw new Error('bad token');
   if (u.banned) throw new Error('banned');
+  if (sid && !(await sessionOk(sid))) throw new Error('revoked');
+  u._sid = sid || null;
   return u;
 }
 // Doimiy sessiya: token localStorage'dan tashqari HttpOnly cookie'da ham saqlanadi (Safari 7 kunlik tozalashidan himoya)
@@ -197,8 +248,7 @@ function finishLogin(req, res, user, isNew) {
     const ticket = jwt.sign({ t2: user.id }, JWT_SECRET, { expiresIn: '10m' });
     return res.json({ need2fa: true, ticket, hint: user.pass_hint || '' });
   }
-  const token = tokenFor(user); setSession(req, res, token);
-  res.json({ token, user: publicUser(user, true), isNew });
+  createSession(req, user).then((sid) => { const token = tokenFor(user, sid); setSession(req, res, token); res.json({ token, user: publicUser(user, true), isNew }); }).catch((e) => { console.error('session:', e.message); res.status(500).json({ error: 'server' }); });
 }
 
 const auth = wrap(async (req, res, next) => {
@@ -208,9 +258,13 @@ const auth = wrap(async (req, res, next) => {
     try { req.user = await userFromToken(cookieToken(req)); } // localStorage tozalangan bo'lsa ham profil saqlanadi
     catch { return res.status(401).json({ error: 'unauthorized' }); }
   }
+  req.sid = req.user._sid; if (req.sid) touchSession(req.sid, req);
   next();
 });
-app.post('/api/auth/logout', (req, res) => { res.clearCookie(COOKIE, { path: '/' }); res.json({ ok: true }); });
+app.post('/api/auth/logout', async (req, res) => {
+  try { const t = (req.headers.authorization || '').replace('Bearer ', '').trim() || cookieToken(req); const { uid, sid } = jwt.verify(t, JWT_SECRET); if (sid) await revokeSessions(uid, [sid]); } catch {}
+  res.clearCookie(COOKIE, { path: '/' }); res.json({ ok: true });
+});
 
 const upload = multer({
   storage: multer.diskStorage({
@@ -261,7 +315,7 @@ app.get('/holat', wrap(async (req, res) => {
     try { const f = path.join(UPLOAD_DIR, 'holat-' + crypto.randomBytes(4).toString('hex') + '.txt'); fs.writeFileSync(f, 'ok'); const u = await storage.save(f, 'text/plain'); await storage.remove(u, UPLOAD_DIR); add(1, 'Fayl ombori', 'Supabase Storage ishlayapti (yozish/o‘chirish sinovi o‘tdi)'); }
     catch (e) { add(0, 'Fayl ombori', 'Supabase Storage xatosi: ' + e.message.slice(0, 120), 'SUPABASE_URL va SUPABASE_SERVICE_KEY ni tekshiring'); }
   } else add(process.env.RENDER ? 0 : 2, 'Fayl ombori', 'Server diski', process.env.RENDER ? 'SUPABASE_URL va SUPABASE_SERVICE_KEY qo‘shing' : '');
-  add(mailer ? 1 : 0, 'Email kodi', mailer ? (process.env.BREVO_API_KEY ? 'Brevo orqali yuboriladi' : 'SMTP orqali yuboriladi') : 'TEST rejimi — kod ekranda chiqadi, istalgan odam istalgan email bilan kira oladi!', mailer ? '' : 'BREVO_API_KEY va MAIL_FROM qo‘shing');
+  add(mailer ? 1 : 0, 'Email kodi', mailer ? mailProviders.map((p) => p.name).join(' → ') + ' orqali yuboriladi' : 'TEST rejimi — kod ekranda chiqadi (xavfsizlik kodi himoya qiladi)', mailer ? '' : 'BREVO_API_KEY yoki GMAIL_SCRIPT_URL qo‘shing');
   const turn = process.env.CF_TURN_KEY_ID || process.env.TURN_SECRET || process.env.TURN_URL;
   const pub = !turn && process.env.PUBLIC_TURN !== '0';
   add(turn ? 1 : pub ? 1 : 2, 'Qo‘ng‘iroqlar (TURN)', turn ? 'Ulangan — turli tarmoqlar orasida ham ulanadi' : pub ? 'Bepul Open Relay (oyiga ~20 GB) — turli tarmoqlar orasida ham ulanadi' : 'Ulanmagan — ba’zi mobil tarmoqlarda qo‘ng‘iroq ulanmasligi mumkin', turn ? '' : 'Ko‘proq hajm: Cloudflare TURN (oyiga 1000 GB bepul): CF_TURN_KEY_ID va CF_TURN_API_TOKEN');
@@ -286,7 +340,7 @@ ${rows.map((r) => `<div class="r"><i>${ic[r.ok]}</i><div><b>${r.name}</b><small>
 </main></body></html>`);
 }));
 app.get('/api/health', wrap(async (req, res) => { await db.get('SELECT 1 AS ok'); res.json({ ok: true, db: db.kind, storage: storage.remote ? 'supabase' : 'disk', email: mailer ? 'on' : 'test', media: MEDIA_DELETE ? 'device' : 'server' }); }));
-app.get('/api/ice', auth, wrap(async (req, res) => res.json({ iceServers: [...iceServersFor(req.user.id), ...(await cloudflareIce())] })));
+app.get('/api/ice', auth, wrap(async (req, res) => { const [cf, mt] = await Promise.all([cloudflareIce(), meteredIce()]); res.json({ iceServers: [...iceServersFor(req.user.id), ...cf, ...mt], strong: !!(cf.length || mt.length || process.env.TURN_SECRET || process.env.TURN_URL) }); }));
 
 // ===== 1) SMS kod =====
 const SMS_PER_PHONE_DAY = Number(process.env.SMS_PER_PHONE_DAY) || 6;
@@ -323,22 +377,35 @@ app.post('/api/auth/send-code', rateLimit('code', 8, 3600e3), wrap(async (req, r
 
 // ===== 1b) Kodni email orqali olish (SMS kelmasa — bepul, istalgan davlatdan) =====
 let mailer = null;
-// 1) Brevo HTTP API (bepul: kuniga 300 ta email). Render bepul rejasi SMTP portlarini yopgan, HTTP API esa ishlaydi.
-if (process.env.BREVO_API_KEY) {
-  const from = process.env.MAIL_FROM || '';
-  const m = from.match(/^(.*)<(.+)>$/);
-  const sender = m ? { name: m[1].trim() || 'Birga', email: m[2].trim() } : { name: 'Birga', email: from.trim() };
-  mailer = { async sendMail({ to, subject, text, html }) {
-    const r = await fetch('https://api.brevo.com/v3/smtp/email', { method: 'POST', headers: { 'api-key': process.env.BREVO_API_KEY, 'Content-Type': 'application/json', accept: 'application/json' },
-      body: JSON.stringify({ sender, to: [{ email: to }], subject, textContent: text, htmlContent: html }) });
-    if (!r.ok) throw new Error('Brevo ' + r.status + ' ' + (await r.text()).slice(0, 200));
-  } };
-// 2) Oddiy SMTP (masalan Gmail ilova paroli) — VPS uchun
-} else if (process.env.SMTP_HOST && process.env.SMTP_USER) {
-  const nodemailer = require('nodemailer');
-  mailer = nodemailer.createTransport({ host: process.env.SMTP_HOST, port: Number(process.env.SMTP_PORT) || 465, secure: (Number(process.env.SMTP_PORT) || 465) === 465,
-    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } });
-}
+// Email yuborish: bir nechta bepul xizmat ketma-ket sinab ko'riladi (biri limitga yetsa — keyingisi).
+// 1) Brevo (kuniga 300) 2) Mailjet (kuniga 200) 3) Gmail — Google Apps Script orqali (kuniga 100) 4) SMTP (VPS uchun)
+const mailProviders = [];
+const fromParts = () => { const from = process.env.MAIL_FROM || ''; const m = from.match(/^(.*)<(.+)>$/); return m ? { name: m[1].trim() || 'Birga', email: m[2].trim() } : { name: 'Birga', email: from.trim() }; };
+if (process.env.BREVO_API_KEY) mailProviders.push({ name: 'Brevo', async send({ to, subject, text, html }) {
+  const r = await fetch(process.env.BREVO_API_URL || 'https://api.brevo.com/v3/smtp/email', { method: 'POST', headers: { 'api-key': process.env.BREVO_API_KEY, 'Content-Type': 'application/json', accept: 'application/json' }, body: JSON.stringify({ sender: fromParts(), to: [{ email: to }], subject, textContent: text, htmlContent: html }) });
+  if (!r.ok) throw new Error('Brevo ' + r.status + ' ' + (await r.text()).slice(0, 200));
+} });
+if (process.env.MAILJET_API_KEY && process.env.MAILJET_SECRET_KEY) mailProviders.push({ name: 'Mailjet', async send({ to, subject, text, html }) {
+  const f = fromParts(); const r = await fetch('https://api.mailjet.com/v3.1/send', { method: 'POST', headers: { Authorization: 'Basic ' + Buffer.from(process.env.MAILJET_API_KEY + ':' + process.env.MAILJET_SECRET_KEY).toString('base64'), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ Messages: [{ From: { Email: f.email, Name: f.name }, To: [{ Email: to }], Subject: subject, TextPart: text, HTMLPart: html }] }) });
+  if (!r.ok) throw new Error('Mailjet ' + r.status + ' ' + (await r.text()).slice(0, 200));
+} });
+if (process.env.GMAIL_SCRIPT_URL) mailProviders.push({ name: 'Gmail', async send({ to, subject, text, html }) {
+  const r = await fetch(process.env.GMAIL_SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: process.env.GMAIL_SCRIPT_SECRET || '', to, subject, text, html }), redirect: 'follow' });
+  const out = (await r.text()).slice(0, 200); if (!r.ok || !/ok/i.test(out)) throw new Error('Gmail script ' + r.status + ' ' + out);
+} });
+if (process.env.SMTP_HOST && process.env.SMTP_USER) { const nm = require('nodemailer'); const tp = nm.createTransport({ host: process.env.SMTP_HOST, port: Number(process.env.SMTP_PORT) || 465, secure: (Number(process.env.SMTP_PORT) || 465) === 465, auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } });
+  mailProviders.push({ name: 'SMTP', send: (m) => tp.sendMail({ from: process.env.MAIL_FROM || `Birga <${process.env.SMTP_USER}>`, ...m }) }); }
+const mailDown = new Map(); // provayder -> qachongacha o'tkazib yuboriladi (limit tugagan)
+if (mailProviders.length) mailer = { async sendMail(m) {
+  const errs = [];
+  for (const p of mailProviders) {
+    if ((mailDown.get(p.name) || 0) > now()) continue;
+    try { await p.send(m); return p.name; }
+    catch (e) { errs.push(e.message); if (/\b(429|402|403|limit|quota|exceed)/i.test(e.message)) mailDown.set(p.name, now() + 3600e3); }
+  }
+  throw new Error(errs.join(' | ') || 'all providers down');
+} };
 app.post('/api/auth/send-email', rateLimit('email', 8, 3600e3), wrap(async (req, res) => {
   // eski "raqam + email" usuli: begona email orqali raqamli akkauntni egallab olish mumkin edi — yopildi
   return res.status(410).json({ error: tr(req.body?.lang, 'Bu usul o‘chirilgan — email orqali kiring', 'Этот способ отключён — войдите через email', 'This method is disabled — use email sign-in') });
@@ -384,16 +451,22 @@ async function issueEmailCode(req, res, key, email) {
   const byIp = (await db.get("SELECT COUNT(*) AS c FROM sms_log WHERE ip=? AND country='EMAIL' AND at>?", [req.ip, day])).c;
   if (byMail >= EMAIL_PER_DAY || byIp >= EMAIL_PER_IP_DAY) return res.status(429).json({ error: tr(lang, 'Bugun juda ko‘p kod so‘raldi. Keyinroq urinib ko‘ring', 'Слишком много запросов. Попробуйте позже', 'Too many requests. Try again later') });
   const code = String(crypto.randomInt(10000, 100000));
-  if (mailer) {
-    try { await mailCode(email, code, lang); }
-    catch (e) { console.error('Email:', e.message); return res.status(502).json({ error: tr(lang, 'Email yuborib bo‘lmadi. Manzilni tekshiring yoki keyinroq urinib ko‘ring', 'Не удалось отправить письмо. Проверьте адрес или попробуйте позже', 'Could not send the email. Check the address or try later') }); }
-  } else console.log(`📧 [TEST EMAIL] ${email} → ${code}`);
+  let fallback = false;
+  try { if (!mailer) throw new Error('email xizmati ulanmagan'); await mailCode(email, code, lang); }
+  catch (e) {
+      console.error('Email:', e.message);
+      // email xizmati yo'q yoki barcha xizmatlar limitga yetgan — avvalgi holat: kod ekranda (faqat xavfsizlik kodi bor yoki yangi akkauntlar uchun; ular baribir xavfsizlik kodi bilan himoyalangan)
+      const u = key.startsWith('mail:') ? await db.get('SELECT pass_hash FROM users WHERE email=? ORDER BY id LIMIT 1', [email]) : null;
+      if (process.env.DEV_CODES !== '0' && !ADMIN_EMAILS.includes(email) && (!u || u.pass_hash)) fallback = 'down';
+      else return res.status(502).json({ error: tr(lang, 'Email yuborib bo‘lmadi. Keyinroq urinib ko‘ring', 'Не удалось отправить письмо. Попробуйте позже', 'Could not send the email. Try again later') });
+  }
+  if (fallback) console.log(`📧 [TEST EMAIL] ${email} → ${code}`);
   await db.run('INSERT INTO codes(phone,code_hash,expires,attempts,sent_at,email) VALUES(?,?,?,?,?,?) ON CONFLICT(phone) DO UPDATE SET code_hash=excluded.code_hash, expires=excluded.expires, attempts=0, sent_at=excluded.sent_at, email=excluded.email',
     [key, hash(key + code), now() + 10 * 60_000, 0, now(), email]);
   await db.run('INSERT INTO sms_log(phone,ip,country,at) VALUES(?,?,?,?)', [key, req.ip, 'EMAIL', now()]);
-  const out = { ok: true, email, timeout: 60 };
-  // email xizmati ulanmagan — TEST rejimi. Admin akkauntlari uchun kod hech qachon ekranda ko'rsatilmaydi.
-  if (!mailer && !ADMIN_EMAILS.includes(email) && process.env.DEV_CODES !== '0') out.devCode = code;
+  const out = { ok: true, email, timeout: 60, sent: !fallback };
+  // email xizmati ulanmagan yoki limit tugagan — kod ekranda. Admin akkauntlari uchun kod hech qachon ekranda ko'rsatilmaydi.
+  if (fallback && !ADMIN_EMAILS.includes(email) && process.env.DEV_CODES !== '0') { out.devCode = code; out.mailDown = fallback === 'down'; }
   res.json(out);
 }
 async function checkEmailCode(req, res, key) {
@@ -486,7 +559,8 @@ app.post('/api/auth/2fa', rateLimit('2fa', 30, 3600e3), wrap(async (req, res) =>
     return res.status(400).json({ error: tr(lang, 'Xavfsizlik kodi noto‘g‘ri', 'Неверный код безопасности', 'Wrong security code') });
   }
   passFails.delete(user.id);
-  const token = tokenFor(user); setSession(req, res, token);
+  const sid = await createSession(req, user);
+  const token = tokenFor(user, sid); setSession(req, res, token);
   res.json({ token, user: publicUser(user, true), isNew: !user.name });
 }));
 // Xavfsizlik kodini qo'yish / almashtirish / o'chirish (eskisi bo'lsa — eskisini kiritish shart)
@@ -499,6 +573,7 @@ app.post('/api/me/2fa', auth, rateLimit('2faset', 20, 3600e3), wrap(async (req, 
     passFails.delete(u.id);
   }
   if (req.body.off) {
+    if (process.env.ALLOW_2FA_OFF !== '1') return res.status(400).json({ error: tr(lang, 'Xavfsizlik kodi majburiy — uni faqat almashtirish mumkin', 'Код безопасности обязателен — его можно только изменить', 'The security code is required — you can only change it') });
     await db.run('UPDATE users SET pass_hash=NULL, pass_hint=NULL WHERE id=?', [u.id]);
   } else {
     const pw = String(req.body.password || '');
@@ -511,7 +586,24 @@ app.post('/api/me/2fa', auth, rateLimit('2faset', 20, 3600e3), wrap(async (req, 
 }));
 
 // har safar ochilganda token yangilanadi — faol foydalanuvchi hech qachon chiqib ketmaydi
-app.get('/api/me', auth, (req, res) => { const token = tokenFor(req.user); setSession(req, res, token); res.json({ ...publicUser(req.user, true), token }); });
+app.get('/api/me', auth, wrap(async (req, res) => { const sid = req.sid || (await createSession(req, req.user)); const token = tokenFor(req.user, sid); setSession(req, res, token); res.json({ ...publicUser(req.user, true), token }); }));
+// Qurilmalar paneli
+app.get('/api/sessions', auth, wrap(async (req, res) => {
+  const rows = await db.all('SELECT * FROM sessions WHERE user_id=? AND revoked=0 ORDER BY last DESC LIMIT 50', [req.user.id]);
+  let reg = null; try { reg = JSON.parse(req.user.reg_info || 'null'); } catch {}
+  res.json({ current: req.sid, created: Number(req.user.created_at) || null, reg, list: rows.map((r) => ({ id: r.id, app: r.app, os: r.os, model: r.model, city: r.city, country: r.country, created: Number(r.created), last: Number(r.last), online: [...io.sockets.sockets.values()].some((x) => x.sid === r.id) })) });
+}));
+async function revokeSessions(uid, ids) {
+  for (const id of ids) { await db.run('UPDATE sessions SET revoked=1 WHERE id=? AND user_id=?', [id, uid]); sessCache.set(id, { revoked: 1 }); }
+  for (const s2 of io.sockets.sockets.values()) if (s2.uid === uid && ids.includes(s2.sid)) s2.disconnect(true);
+  await db.run('DELETE FROM native_devices WHERE user_id=? AND sid IN (' + ids.map(() => '?').join(',') + ')', [uid, ...ids]).catch(() => {});
+}
+app.post('/api/sessions/revoke', auth, wrap(async (req, res) => {
+  const all = !!req.body?.others; const id = String(req.body?.id || '');
+  const ids = all ? (await db.all('SELECT id FROM sessions WHERE user_id=? AND revoked=0 AND id<>?', [req.user.id, req.sid || ''])).map((r) => r.id) : id && id !== req.sid ? [id] : [];
+  if (ids.length) await revokeSessions(req.user.id, ids);
+  res.json({ ok: true, n: ids.length });
+}));
 
 // ===== 3) Profil =====
 app.post('/api/profile', auth, wrap(async (req, res) => {
@@ -532,6 +624,86 @@ app.post('/api/profile', auth, wrap(async (req, res) => {
   const u = await getUser(req.user.id);
   broadcastUser(u);
   res.json(publicUser(u, true));
+}));
+
+// ===== Birga Android ilovasi (brauzersiz): fon xizmati uchun bildirishnomalar (long-poll) =====
+const nativeQ = new Map(); // uid -> { list: [], waiters: Set }
+function nativeEnqueue(uid, payload) {
+  const q = nativeQ.get(uid); if (!q) return; // faqat ilovasi bor (poll qilayotgan) foydalanuvchilar uchun
+  const ev = { ...payload, at: now() + Math.random() };
+  q.list.push(ev); q.list = q.list.filter((x) => now() - x.at < 15 * 60e3).slice(-40);
+  q.waiters.forEach((w) => w()); q.waiters.clear();
+}
+app.post('/api/native/register', auth, wrap(async (req, res) => {
+  const token = crypto.randomBytes(24).toString('hex');
+  if (req.sid) await db.run('DELETE FROM native_devices WHERE sid=?', [req.sid]);
+  await db.run('INSERT INTO native_devices(token,user_id,sid,model,created,last) VALUES(?,?,?,?,?,?)', [token, req.user.id, req.sid || null, String(req.body?.model || '').slice(0, 80), now(), now()]);
+  res.json({ token });
+}));
+app.post('/api/native/unregister', wrap(async (req, res) => { await db.run('DELETE FROM native_devices WHERE token=?', [String(req.body?.t || '')]); res.json({ ok: true }); }));
+const nativeTok = new Map();
+app.get('/api/native/poll', wrap(async (req, res) => {
+  const t = String(req.query.t || ''); if (!/^[a-f0-9]{48}$/.test(t)) return res.status(401).json({ error: 'token' });
+  let d = nativeTok.get(t);
+  if (!d || now() - d.at > 10 * 60e3) { const r = await db.get('SELECT user_id, sid FROM native_devices WHERE token=?', [t]); if (!r) { nativeTok.delete(t); return res.status(401).json({ error: 'token' }); } d = { uid: Number(r.user_id), sid: r.sid, at: now() }; nativeTok.set(t, d); db.run('UPDATE native_devices SET last=? WHERE token=?', [now(), t]).catch(() => {}); }
+  if (d.sid && !(await sessionOk(d.sid))) { nativeTok.delete(t); return res.status(401).json({ error: 'revoked' }); }
+  const since = Number(req.query.since) || now() - 60e3;
+  const q = nativeQ.get(d.uid) || { list: [], waiters: new Set() }; nativeQ.set(d.uid, q);
+  const pick = () => q.list.filter((x) => x.at > since);
+  let evs = pick();
+  if (!evs.length) {
+    await new Promise((r) => { const w = () => { clearTimeout(tm); r(); }; const tm = setTimeout(() => { q.waiters.delete(w); r(); }, 25000); q.waiters.add(w); req.on('close', () => { clearTimeout(tm); q.waiters.delete(w); r(); }); });
+    evs = pick();
+  }
+  res.set('Cache-Control', 'no-store'); res.json({ events: evs, now: evs.length ? Math.max(...evs.map((x) => x.at)) : since });
+}));
+
+// ===== Qo'ng'iroqlar tarixi =====
+app.get('/api/calls', auth, wrap(async (req, res) => {
+  const uid = req.user.id;
+  const rows = await db.all(`SELECT m.*, c.type AS ctype, c.title AS ctitle, c.avatar AS cavatar FROM messages m JOIN chat_members cm ON cm.chat_id=m.chat_id AND cm.user_id=? JOIN chats c ON c.id=m.chat_id
+    WHERE m.type='call' AND m.deleted=0 AND m.id NOT IN (SELECT message_id FROM hidden_messages WHERE user_id=?) ORDER BY m.id DESC LIMIT 200`, [uid, uid]);
+  const out = [];
+  for (const r of rows) {
+    const meta = r.meta ? JSON.parse(r.meta) : {};
+    let peer = null;
+    if (r.ctype === 'private') { const pid = await privatePeer(r.chat_id, uid); const pu = pid && (await getUser(pid)); if (pu) peer = publicUser(pu); }
+    out.push({ id: Number(r.id), chatId: Number(r.chat_id), at: Number(r.created_at), out: Number(r.sender_id) === uid, video: !!meta.video, status: meta.status || '', duration: Number(r.duration) || 0, group: !!meta.group,
+      peer, chat: r.ctype !== 'private' ? { id: Number(r.chat_id), title: r.ctitle, avatar: r.cavatar, type: r.ctype } : null });
+  }
+  res.json({ calls: out });
+}));
+// ===== Chat papkalari (Ish, Oila, Biznes...) — akkauntga saqlanadi, barcha qurilmalarda bir xil =====
+app.get('/api/folders', auth, wrap(async (req, res) => { let f = []; try { f = JSON.parse(req.user.folders || '[]'); } catch {} res.json({ folders: f }); }));
+app.post('/api/folders', auth, wrap(async (req, res) => {
+  const list = (Array.isArray(req.body?.folders) ? req.body.folders : []).slice(0, 20).map((f) => ({ id: String(f.id || '').replace(/[^\w-]/g, '').slice(0, 24) || crypto.randomBytes(4).toString('hex'), name: String(f.name || '').trim().slice(0, 24), emoji: String(f.emoji || '📁').slice(0, 8),
+    chats: [...new Set((Array.isArray(f.chats) ? f.chats : []).map(Number).filter((x) => x > 0))].slice(0, 500), types: (Array.isArray(f.types) ? f.types : []).filter((x) => ['private', 'group', 'channel', 'unread'].includes(x)) })).filter((f) => f.name);
+  await db.run('UPDATE users SET folders=? WHERE id=?', [JSON.stringify(list), req.user.id]);
+  res.json({ folders: list });
+}));
+// ===== Hudud va ob-havo (Open-Meteo, bepul) =====
+app.post('/api/profile/region', auth, wrap(async (req, res) => {
+  const lat = Number(req.body?.lat), lon = Number(req.body?.lon), name = String(req.body?.name || '').trim().slice(0, 60);
+  if (!name || !(Math.abs(lat) <= 90 && Math.abs(lon) <= 180)) return res.status(400).json({ error: 'bad' });
+  const region = { name, lat: Math.round(lat * 1e4) / 1e4, lon: Math.round(lon * 1e4) / 1e4 };
+  await db.run('UPDATE users SET region=? WHERE id=?', [JSON.stringify(region), req.user.id]);
+  res.json({ region });
+}));
+const wxCache = new Map();
+app.get('/api/weather', auth, wrap(async (req, res) => {
+  let reg = null; try { reg = JSON.parse(req.user.region || 'null'); } catch {}
+  if (!reg) return res.json({ region: null });
+  const key = reg.lat.toFixed(2) + ',' + reg.lon.toFixed(2);
+  const c = wxCache.get(key); if (c && now() - c.at < 15 * 60e3) return res.json({ region: reg, ...c.data });
+  try {
+    const u = `${process.env.WEATHER_API || 'https://api.open-meteo.com'}/v1/forecast?latitude=${reg.lat}&longitude=${reg.lon}&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset&timezone=auto&forecast_days=4&wind_speed_unit=ms`;
+    const r = await fetch(u); if (!r.ok) throw new Error('wx ' + r.status); const j = await r.json();
+    const data = { cur: { t: j.current.temperature_2m, feels: j.current.apparent_temperature, hum: j.current.relative_humidity_2m, code: j.current.weather_code, wind: j.current.wind_speed_10m, day: !!j.current.is_day },
+      days: j.daily.time.map((d, i) => ({ d, code: j.daily.weather_code[i], max: j.daily.temperature_2m_max[i], min: j.daily.temperature_2m_min[i], rain: j.daily.precipitation_probability_max?.[i] ?? null })),
+      sun: { rise: j.daily.sunrise?.[0], set: j.daily.sunset?.[0] }, at: now() };
+    wxCache.set(key, { at: now(), data }); if (wxCache.size > 500) wxCache.delete(wxCache.keys().next().value);
+    res.json({ region: reg, ...data });
+  } catch (e) { if (c) return res.json({ region: reg, ...c.data, stale: true }); res.status(503).json({ region: reg, error: 'weather_unavailable' }); }
 }));
 
 // ===== Do'stlarni taklif qilish =====
@@ -942,8 +1114,13 @@ app.get('/api/steps', auth, wrap(async (req, res) => {
 
 // ===== Birga AI — umumiy savollarga javob beruvchi yordamchi =====
 // Bepul yo'l: Google AI Studio'dan GEMINI_API_KEY (Render → Environment). Yoki GROQ_API_KEY, yoki OpenAI-mos AI_API_URL + AI_API_KEY.
-const AI_SYSTEM = `Sen "Birga AI" — Birga messenjeridagi aqlli yordamchisan. Foydalanuvchi qaysi tilda yozsa, o'sha tilda javob ber (odatda o'zbek tilida, lotin yozuvida).
-Javoblaring aniq, foydali va qisqa bo'lsin; kerak bo'lsa ro'yxat yoki qadamlar bilan tushuntir. Bilmagan narsangni to'qib chiqarma — bilmasligingni ayt.
+const AI_SYSTEM = `Sen "Birga yordamchi" — Birga messenjerining aqlli yordamchisisan (avval "Birga AI" deb atalgan). Foydalanuvchi qaysi tilda yozsa, o'sha tilda javob ber (odatda o'zbek tilida, lotin yozuvida).
+ISHLASH TARZI (eng yaxshi suhbat yordamchilari kabi):
+- Avval savolni to'liq tushun: maqsad nima, qanday javob kutilmoqda. Savol noaniq bo'lsa — eng ehtimolli ma'noda javob ber va oxirida bitta qisqa aniqlashtiruvchi savol ber.
+- Eng muhim javobni birinchi gapda ber, keyin kerak bo'lsa tafsilot. Ortiqcha kirish so'zlari, takrorlar va "albatta, yordam beraman" kabi to'ldiruvchi gaplarsiz yoz.
+- Hisob-kitob, mantiq va faktlarni ichingda tekshirib chiq; raqamlar va sanalarda xato qilma. Ishonching komil bo'lmasa — buni ochiq ayt, to'qib chiqarma.
+- Kerak bo'lsa ro'yxat, qadamlar yoki jadval ishlat; oddiy savolga qisqa javob ber.
+- Avvalgi suhbatni eslab qol va unga tayan; foydalanuvchi haqida eslab qolingan ma'lumotlar berilsa — javobni unga moslashtir.
 Tibbiy, huquqiy yoki moliyaviy savollarda umumiy ma'lumot ber va mutaxassisga murojaat qilishni maslahat ber. Zararli, noqonuniy yoki xavfli ishlarga yordam berma.
 O'ZBEK TILI QOIDALARI (o'zbekcha javob berganda albatta rioya qil):
 - Sof adabiy o'zbek tilida, joriy lotin alifbosida yoz. "O‘" va "g‘" harflarini to'g'ri yoz (o‘, g‘, ʼ — tutuq belgisi), kirill harflarini aralashtirma.
@@ -952,7 +1129,7 @@ O'ZBEK TILI QOIDALARI (o'zbekcha javob berganda albatta rioya qil):
 - Atamalar uchun o'zbek tilida qabul qilingan so'zni ishlat (kompyuter, internet, telefon kabi xalqaro so'zlar mumkin).
 - Foydalanuvchi kirill yozuvida yozsa — kirill yozuvida, sof o'zbekcha javob ber.
 Birga ilovasi va uning yaratuvchisi haqida ma'lumot (faqat shu haqda so'ralganda ishlat):
-- Birga messenjerini (Birga platformasi va Birga AI ni) Hayitboyev Sardorbek yaratgan.
+- Birga messenjerini (Birga platformasi va Birga yordamchini) Hayitboyev Sardorbek yaratgan.
 - Hayitboyev Sardorbek 2002-yil 29-dekabrda tug'ilgan.
 - U haqida boshqa ma'lumot hozircha yo'q. Shu ikki faktdan tashqari narsalarni (yashash joyi, ta'limi, oilasi va h.k.) to'qib chiqarma — "bu haqda hozircha ma'lumot yo'q" deb ayt.`;
 async function aiFetch(url, opts, ms = 45000) {
@@ -964,7 +1141,7 @@ const aiNow = () => new Date().toLocaleString('uz-UZ', { timeZone: 'Asia/Tashken
 const aiSys = () => AI_SYSTEM + `\nHozirgi sana va vaqt (Toshkent): ${aiNow()}. Foydalanuvchi rasm yuborsa — uni diqqat bilan tahlil qil (matnni o'qi, narsalarni tanib ber, masalani yech).
 Javobni Markdown'da yoz: **qalin**, ro'yxatlar, kod uchun \`\`\` bloklar. Juda uzun bo'lmasin, lekin to'liq va foydali bo'lsin.`;
 // msgs: [{role, content, image?: 'data:image/jpeg;base64,...'}] — rasm faqat oxirgi savolda bo'ladi
-async function aiAnswer(msgs, { web = true } = {}) {
+async function aiAnswer(msgs, { web = true, fast = false, sys = '' } = {}) {
   const errs = [];
   const hasImg = msgs.some((m) => m.image);
   const split = (d) => { const m = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(d || ''); return m ? { mime: m[1], data: m[2] } : null; };
@@ -975,7 +1152,7 @@ async function aiAnswer(msgs, { web = true } = {}) {
       try {
         const j = await aiFetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
           method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
-          body: JSON.stringify({ systemInstruction: { parts: [{ text: aiSys() }] }, contents, ...(grounding ? { tools: [{ google_search: {} }] } : {}), generationConfig: { maxOutputTokens: 2500, temperature: 0.7 } }),
+          body: JSON.stringify({ systemInstruction: { parts: [{ text: aiSys() + sys }] }, contents, ...(grounding ? { tools: [{ google_search: {} }] } : {}), generationConfig: { maxOutputTokens: 3000, temperature: fast ? 0.3 : 0.6, ...(/2\.5-flash/.test(model) ? { thinkingConfig: { thinkingBudget: fast ? 0 : Number(process.env.AI_THINK ?? 384) } } : {}) } }),
         });
         const c = j?.candidates?.[0]; const out = c?.content?.parts?.map((p) => p.text || '').join('').trim();
         if (out) {
@@ -994,7 +1171,7 @@ async function aiAnswer(msgs, { web = true } = {}) {
   for (const [url, key, model] of compat) {
     try {
       const j = await aiFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(key ? { Authorization: 'Bearer ' + key } : {}) },
-        body: JSON.stringify({ model, messages: [{ role: 'system', content: aiSys() }, ...oaMsgs], max_tokens: 2500, temperature: 0.7 }) });
+        body: JSON.stringify({ model, messages: [{ role: 'system', content: aiSys() + sys }, ...oaMsgs], max_tokens: 3000, temperature: fast ? 0.3 : 0.6 }) });
       const out = String(j?.choices?.[0]?.message?.content || '').trim(); if (out) return { text: out, sources: [] };
       errs.push(url + ': empty');
     } catch (e) { errs.push(url.split('/')[2] + ': ' + e.message); }
@@ -1008,10 +1185,99 @@ app.post('/api/ai', auth, rateLimit('ai', 80, 3600e3), wrap(async (req, res) => 
     image: i === a.length - 1 && typeof m?.image === 'string' && m.image.length < 7e6 && /^data:image\/(jpeg|png|webp);base64,/.test(m.image) ? m.image : undefined }))
     .filter((m) => m.content.trim() || m.image);
   if (!msgs.length || msgs[msgs.length - 1].role !== 'user') return res.status(400).json({ error: 'empty' });
-  const out = await aiAnswer(msgs, { web: req.body?.web !== false });
+  // "Eslab qol: ..." — foydalanuvchi haqidagi ma'lumot keyingi suhbatlarda ham ishlatiladi
+  const rem = /^\s*(eslab qol|yodda tut|esingda tursin|запомни|remember( that)?)[\s:,-]+(.{3,300})$/i.exec(msgs[msgs.length - 1].content);
+  if (rem) { await db.run('INSERT INTO ai_memory(user_id, fact, at) VALUES(?,?,?)', [req.user.id, rem[3].trim(), now()]); await db.run('DELETE FROM ai_memory WHERE user_id=? AND at < (SELECT MIN(at) FROM (SELECT at FROM ai_memory WHERE user_id=? ORDER BY at DESC LIMIT 40) x)', [req.user.id, req.user.id]).catch(() => {}); }
+  const mem = await db.all('SELECT fact FROM ai_memory WHERE user_id=? ORDER BY at DESC LIMIT 40', [req.user.id]).catch(() => []);
+  const me = req.user; let reg = null; try { reg = JSON.parse(me.region || 'null'); } catch {}
+  const sys = `\nFoydalanuvchi: ${me.name || ''}${reg?.name ? ', hududi: ' + reg.name : ''}.` + (mem.length ? `\nFoydalanuvchi so'rab eslab qolinganlar (kerak bo'lganda hisobga ol):\n${mem.map((x) => '- ' + x.fact).join('\n')}` : '') + (rem ? `\nFoydalanuvchi hozirgina "${rem[3].trim()}" ni eslab qolishni so'radi — eslab qolganingni qisqa tasdiqla.` : '');
+  const out = await aiAnswer(msgs, { web: req.body?.web !== false, sys });
   if (!out) return res.status(503).json({ error: 'ai_unavailable' });
   res.json({ text: out.text.slice(0, 16000), sources: out.sources || [] });
 }));
+app.get('/api/ai/memory', auth, wrap(async (req, res) => res.json({ list: (await db.all('SELECT at, fact FROM ai_memory WHERE user_id=? ORDER BY at DESC LIMIT 40', [req.user.id])).map((r) => ({ id: Number(r.at), fact: r.fact })) })));
+app.post('/api/ai/memory/clear', auth, wrap(async (req, res) => { const at = Number(req.body?.id); if (at) await db.run('DELETE FROM ai_memory WHERE user_id=? AND at=?', [req.user.id, at]); else await db.run('DELETE FROM ai_memory WHERE user_id=?', [req.user.id]); res.json({ ok: true }); }));
+
+// ===== Tarjima (4 til) =====
+const TR_LANGS = { uz: "o'zbek (lotin yozuvi, sof adabiy)", ru: 'rus', en: 'ingliz', tr: 'turk' };
+const trCache = new Map();
+async function msgVisible(id, uid) {
+  const m = await db.get('SELECT * FROM messages WHERE id=?', [Number(id) || 0]);
+  if (!m || m.deleted || !(await isMember(m.chat_id, uid))) return null;
+  return m;
+}
+app.post('/api/ai/translate', auth, rateLimit('aitr', 200, 3600e3), wrap(async (req, res) => {
+  const to = String(req.body?.to || ''); if (!TR_LANGS[to]) return res.status(400).json({ error: 'lang' });
+  let text = String(req.body?.text || '').slice(0, 4000);
+  if (req.body?.id) { const m = await msgVisible(req.body.id, req.user.id); if (!m) return res.status(403).json({ error: 'forbidden' }); text = m.type === 'voice' || m.type === 'round' ? (await db.get('SELECT text FROM transcripts WHERE message_id=?', [m.id]))?.text || '' : m.text; }
+  if (!text.trim()) return res.status(400).json({ error: 'empty' });
+  const ck = to + ':' + crypto.createHash('sha1').update(text).digest('hex');
+  if (trCache.has(ck)) return res.json({ text: trCache.get(ck) });
+  const r = await aiAnswer([{ role: 'user', content: `Quyidagi matnni ${TR_LANGS[to]} tiliga tarjima qil. Ma'noni, ohangni va emojilarni saqla, ismlarni tarjima qilma. Faqat tarjimaning o'zini yoz — izoh, qo'shtirnoq va sarlavhasiz.\n---\n${text}` }], { web: false, fast: true });
+  if (!r) return res.status(503).json({ error: 'ai_unavailable' });
+  const out = r.text.replace(/^["'«“]+|["'»”]+$/g, '').trim();
+  trCache.set(ck, out); if (trCache.size > 2000) trCache.delete(trCache.keys().next().value);
+  res.json({ text: out });
+}));
+
+// ===== Ovozli xabarni matnga aylantirish =====
+async function fileBytes(url) {
+  if (/^https?:\/\//.test(url)) { const r = await fetch(url); if (!r.ok) throw new Error('file ' + r.status); return Buffer.from(await r.arrayBuffer()); }
+  return fs.readFileSync(path.join(UPLOAD_DIR, path.basename(url)));
+}
+app.post('/api/ai/transcribe', auth, rateLimit('aistt', 120, 3600e3), wrap(async (req, res) => {
+  const m = await msgVisible(req.body?.id, req.user.id); if (!m || !['voice', 'round', 'video'].includes(m.type) || !m.file) return res.status(403).json({ error: 'forbidden' });
+  const have = await db.get('SELECT text FROM transcripts WHERE message_id=?', [m.id]); if (have) return res.json({ text: have.text });
+  const buf = await fileBytes(m.file); if (buf.length > 19e6) return res.status(413).json({ error: 'too_big' });
+  const mime = (m.mime || (m.type === 'voice' ? 'audio/ogg' : 'video/mp4')).split(';')[0];
+  const errs = []; let text = null;
+  if (process.env.GEMINI_API_KEY) {
+    try {
+      const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+      const j = await aiFetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
+        body: JSON.stringify({ contents: [{ role: 'user', parts: [{ inline_data: { mime_type: mime, data: buf.toString('base64') } }, { text: "Bu ovozli xabarni so'zma-so'z, aynan aytilgan tilda matnga aylantir. O'zbekcha bo'lsa — to'g'ri imlo bilan lotin yozuvida (o‘, g‘). Tinish belgilarini qo'y. Faqat matnning o'zini yoz, izohsiz. Nutq bo'lmasa — bo'sh qoldir." }] }],
+          generationConfig: { temperature: 0, maxOutputTokens: 4000, ...(/2\.5-flash/.test(model) ? { thinkingConfig: { thinkingBudget: 0 } } : {}) } }) }, 90000);
+      text = j?.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('').trim() ?? null;
+    } catch (e) { errs.push('gemini: ' + e.message); }
+  }
+  if (text == null && process.env.GROQ_API_KEY) {
+    try {
+      const fd = new FormData(); fd.append('file', new Blob([buf], { type: mime }), 'audio.' + (mime.split('/')[1] || 'ogg').replace('mpeg', 'mp3')); fd.append('model', process.env.GROQ_STT_MODEL || 'whisper-large-v3'); fd.append('temperature', '0');
+      const r = await fetch((process.env.GROQ_API_BASE || 'https://api.groq.com') + '/openai/v1/audio/transcriptions', { method: 'POST', headers: { Authorization: 'Bearer ' + process.env.GROQ_API_KEY }, body: fd });
+      const j = await r.json(); if (!r.ok) throw new Error(r.status + ' ' + JSON.stringify(j).slice(0, 150)); text = String(j.text || '').trim();
+    } catch (e) { errs.push('groq: ' + e.message); }
+  }
+  if (text == null) { if (errs.length) console.error('STT:', errs.join(' | ')); return res.status(503).json({ error: process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY ? 'stt_failed' : 'no_stt' }); }
+  await db.run('INSERT INTO transcripts(message_id, text, at) VALUES(?,?,?) ON CONFLICT(message_id) DO UPDATE SET text=excluded.text', [m.id, text.slice(0, 8000), now()]);
+  res.json({ text });
+}));
+
+// ===== Stikerlar: o'z stikerlarim + Birga yordamchi chizgan stiker =====
+app.get('/api/stickers/mine', auth, wrap(async (req, res) => res.json({ list: (await db.all('SELECT url, at FROM user_stickers WHERE user_id=? ORDER BY at DESC LIMIT 200', [req.user.id])).map((r) => r.url) })));
+app.post('/api/stickers/mine', auth, rateLimit('stk', 120, 3600e3), wrap(async (req, res) => {
+  const url = String(req.body?.url || '');
+  if (!storage.isOurs(url)) return res.status(400).json({ error: 'bad' });
+  if (req.body?.remove) await db.run('DELETE FROM user_stickers WHERE user_id=? AND url=?', [req.user.id, url]);
+  else await db.run('INSERT INTO user_stickers(user_id, url, at) VALUES(?,?,?) ON CONFLICT(user_id, url) DO NOTHING', [req.user.id, url, now()]);
+  res.json({ ok: true });
+}));
+app.post('/api/ai/sticker', auth, rateLimit('aistk', 25, 3600e3), wrap(async (req, res) => {
+  const prompt = String(req.body?.prompt || '').trim().slice(0, 300); if (!prompt) return res.status(400).json({ error: 'empty' });
+  let en = prompt;
+  if (process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY) { try { const r = await aiAnswer([{ role: 'user', content: 'Translate to a short English description for an image generator (max 25 words), reply with the description only:\n' + prompt }], { web: false, fast: true }); if (r?.text && r.text.length < 300) en = r.text.replace(/^["'`]+|["'`]+$/g, ''); } catch {} }
+  const full = `${en}, cute cartoon sticker, die-cut sticker with thick white outline, bold clean lines, vibrant colors, centered single subject, plain pure white background, no text`;
+  const url = `${process.env.AI_IMAGE_URL || 'https://image.pollinations.ai/prompt/'}${encodeURIComponent(full)}?width=512&height=512&nologo=true&seed=${crypto.randomInt(1, 1e9)}`;
+  const ac = new AbortController(); const tm = setTimeout(() => ac.abort(), 90000);
+  try {
+    const r = await fetch(url, { signal: ac.signal, headers: process.env.POLLINATIONS_TOKEN ? { Authorization: 'Bearer ' + process.env.POLLINATIONS_TOKEN } : {} });
+    const type = (r.headers.get('content-type') || '').split(';')[0];
+    if (!r.ok || !/^image\//.test(type)) throw new Error('status ' + r.status);
+    const buf = Buffer.from(await r.arrayBuffer());
+    res.json({ data: `data:${type};base64,${buf.toString('base64')}` }); // mijoz oq fonni olib tashlaydi va PNG qilib saqlaydi
+  } catch (e) { console.error('stiker:', e.message); res.status(503).json({ error: 'image_unavailable' }); }
+  finally { clearTimeout(tm); }
+}));
+
 // ===== Birga AI ovozi: Microsoft Azure neyron ovozlari (o'zbekcha: Madina — ayol, Sardor — erkak). Kalit: AZURE_SPEECH_KEY + AZURE_SPEECH_REGION =====
 const TTS_VOICES = { uz: ['uz-UZ-MadinaNeural', 'uz-UZ-SardorNeural'], ru: ['ru-RU-SvetlanaNeural', 'ru-RU-DmitryNeural'], en: ['en-US-JennyNeural', 'en-US-GuyNeural'] };
 const ttsCache = new Map();
@@ -1040,7 +1306,7 @@ app.post('/api/ai/summary', auth, rateLimit('aisum', 30, 3600e3), wrap(async (re
   const chatId = Number(req.body?.chatId); if (!(await isMember(chatId, req.user.id))) return res.status(403).json({ error: 'forbidden' });
   const rows = (await db.all(`SELECT m.*, u.name AS sname FROM messages m LEFT JOIN users u ON u.id=m.sender_id WHERE m.chat_id=? AND m.deleted=0 AND m.id NOT IN (SELECT message_id FROM hidden_messages WHERE user_id=?) ORDER BY m.id DESC LIMIT 150`, [chatId, req.user.id])).reverse();
   if (!rows.length) return res.json({ text: '' });
-  const lines = rows.map((m) => { let meta = {}; try { meta = JSON.parse(m.meta || '{}'); } catch {} const who = meta.ai ? 'Birga AI' : m.sname || '?';
+  const lines = rows.map((m) => { let meta = {}; try { meta = JSON.parse(m.meta || '{}'); } catch {} const who = meta.ai ? 'Birga yordamchi' : m.sname || '?';
     const body = m.type === 'text' ? m.text : m.type === 'poll' ? `[so'rovnoma: ${meta.poll?.q}]` : `[${PREVIEW[m.type]?.[0] || m.type}]${m.text ? ' ' + m.text : ''}`;
     return `${new Date(Number(m.created_at)).toISOString().slice(5, 16).replace('T', ' ')} ${who}: ${String(body || '').slice(0, 400)}`; }).join('\n');
   const lang = LANGS.includes(req.body?.lang) ? req.body.lang : req.user.lang || 'uz';
@@ -1560,7 +1826,7 @@ async function broadcastUser(raw) {
 const PREVIEW = {
   image: ['🖼 Rasm', '🖼 Фото', '🖼 Photo'], video: ['🎬 Video', '🎬 Видео', '🎬 Video'], voice: ['🎤 Ovozli xabar', '🎤 Голосовое сообщение', '🎤 Voice message'],
   round: ['⏺ Video xabar', '⏺ Видеосообщение', '⏺ Video message'], file: ['📎 Fayl', '📎 Файл', '📎 File'],
-  sticker: ['Stiker', 'Стикер', 'Sticker'], gif: ['GIF', 'GIF', 'GIF'], location: ['📍 Joylashuv', '📍 Геопозиция', '📍 Location'], game: ['🎮 O‘yinga taklif', '🎮 Приглашение в игру', '🎮 Game invite'], poll: ['📊 So‘rovnoma', '📊 Опрос', '📊 Poll'],
+  sticker: ['Stiker', 'Стикер', 'Sticker'], gif: ['GIF', 'GIF', 'GIF'], location: ['📍 Joylashuv', '📍 Геопозиция', '📍 Location'], game: ['🎮 O‘yinga taklif', '🎮 Приглашение в игру', '🎮 Game invite'], poll: ['📊 So‘rovnoma', '📊 Опрос', '📊 Poll'], call: ['📞 Guruh qo‘ng‘irog‘i boshlandi — qo‘shiling', '📞 Начался групповой звонок — присоединяйтесь', '📞 Group call started — join'],
 };
 function previewFor(m, lang) {
   const i = Math.max(0, LANGS.indexOf(lang));
@@ -1577,10 +1843,14 @@ function cleanMeta(meta) {
   if (meta.fwd && typeof meta.fwd === 'object') o.fwd = { name: String(meta.fwd.name || '').slice(0, 80), uid: Number(meta.fwd.uid) || undefined };
   if (typeof meta.e === 'string' && meta.e.length <= 16) o.e = meta.e;
   if (typeof meta.cp === 'string' && /^[0-9a-f-]{2,60}$/.test(meta.cp)) o.cp = meta.cp;
+  if (typeof meta.font === 'string' && /^[a-z0-9-]{1,24}$/.test(meta.font)) o.font = meta.font; // yozuvchi tanlagan shrift
+  if (typeof meta.sk === 'string' && /^[a-z0-9_-]{1,20}\/[a-z0-9_-]{1,30}$/.test(meta.sk)) o.sk = meta.sk; // Birga stiker to'plami
+  if (storage.isOurs(meta.su)) o.su = meta.su; // foydalanuvchi yasagan stiker
   if (meta.loc && typeof meta.loc === 'object') {
     const lat = Number(meta.loc.lat), lng = Number(meta.loc.lng);
     if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && isFinite(lat) && isFinite(lng))
       o.loc = { lat: Math.round(lat * 1e6) / 1e6, lng: Math.round(lng * 1e6) / 1e6, name: String(meta.loc.name || '').slice(0, 120), addr: String(meta.loc.addr || '').slice(0, 240) };
+      const lv = Number(meta.loc.live); if (lv > now() - 5e3 && lv < now() + 61 * 60e3) { o.loc.live = Math.round(lv); o.loc.upd = Number(meta.loc.upd) || now(); if (meta.loc.acc) o.loc.acc = Math.min(5000, Math.round(Number(meta.loc.acc)) || 0); }
   }
   if (meta.poll && typeof meta.poll === 'object') {
     const q = String(meta.poll.q || '').trim().slice(0, 300);
@@ -1588,6 +1858,7 @@ function cleanMeta(meta) {
     if (q && opts.length >= 2) { o.poll = { q, opts, multi: !!meta.poll.multi }; const c = Number(meta.poll.quiz); if (Number.isInteger(c) && c >= 0 && c < opts.length) { o.poll.quiz = c; o.poll.multi = false; } if (meta.poll.expl) o.poll.expl = String(meta.poll.expl).slice(0, 200); }
   }
   if (meta.ai === 1 && meta._srv === AI_SECRET) o.ai = 1; // faqat server qo'yadi
+  if (meta.group === 1 && meta._srv === AI_SECRET) Object.assign(o, { group: 1, gid: String(meta.gid || ''), status: String(meta.status || ''), video: !!meta.video });
   if (meta.game && typeof meta.game === 'object' && MP_GAMES.has(meta.game.g) && /^[a-f0-9]{12}$/.test(String(meta.game.room))) o.game = { g: meta.game.g, room: meta.game.room };
   for (const k of ['w', 'h']) { const v = Math.round(Number(meta[k])); if (v > 0 && v <= 20000) o[k] = v; }
   if (typeof meta.gif === 'string' && /^https:\/\/media\d*\.tenor\.com\/[\w./-]+$/.test(meta.gif)) { o.gif = meta.gif; o.w = Number(meta.w) || undefined; o.h = Number(meta.h) || undefined; }
@@ -1607,7 +1878,7 @@ const sentCids = new Map();
 setInterval(() => { const t = now(); for (const [k, v] of sentCids) if (t - v.at > 30 * 60e3) sentCids.delete(k); }, 300e3).unref();
 
 io.use(async (socket, next) => {
-  try { socket.uid = (await userFromToken(socket.handshake.auth?.token)).id; next(); }
+  try { const u = await userFromToken(socket.handshake.auth?.token); socket.uid = u.id; socket.sid = u._sid; next(); }
   catch { next(new Error('unauthorized')); }
 });
 
@@ -1658,6 +1929,10 @@ async function saveMessage(chatId, uid, p, metaObj) {
       const body = (chat.type === 'group' ? sender.name + ': ' : '') + previewFor(msg, rcp?.lang);
       push.send(m, { type: 'msg', chatId, title, body, icon: chat.type === 'private' ? sender.avatar : chat.avatar, tag: 'chat' + chatId }).catch(() => {});
     }
+    else if (m !== uid && !summary.muted && nativeQ.has(m)) { // ilova fonda bo'lsa ham (socket ulangan) — telefonga bildirishnoma
+      const rcp = await getUser(m);
+      nativeEnqueue(m, { type: 'msg', chatId, title: chat.type === 'private' ? sender.name : chat.title, body: (chat.type === 'group' ? sender.name + ': ' : '') + previewFor(msg, rcp?.lang), tag: 'chat' + chatId });
+    }
   }
   return msg;
 }
@@ -1688,7 +1963,7 @@ setInterval(async () => {
 }, 9 * 60e3).unref();
 
 // ===== Chat ichida Birga AI: "@ai savol" — suhbatni o'qib, hammaga javob beradi =====
-const AI_TRIGGER = /^\s*(@ai\b|@birga\s*ai\b|@birgaai\b|\/ai\b)/i;
+const AI_TRIGGER = /^\s*(@ai\b|@yordamchi\b|@birga\s*(ai|yordamchi)\b|@birgaai\b|\/ai\b)/i;
 async function chatAI(chatId, uid, msg) {
   if (!rateOk('chatai' + uid, 30, 3600e3)) return;
   const members = await membersOf(chatId);
@@ -1697,18 +1972,37 @@ async function chatAI(chatId, uid, msg) {
   try {
     const rows = (await db.all(`SELECT m.*, u.name AS sname FROM messages m LEFT JOIN users u ON u.id=m.sender_id WHERE m.chat_id=? AND m.deleted=0 AND m.id<=? ORDER BY m.id DESC LIMIT 20`, [chatId, msg.id])).reverse();
     const line = (m) => { const meta = (() => { try { return JSON.parse(m.meta || '{}'); } catch { return {}; } })();
-      const who = meta.ai ? 'Birga AI' : m.sname || '?';
+      const who = meta.ai ? 'Birga yordamchi' : m.sname || '?';
       const body = m.type === 'text' ? m.text : m.type === 'poll' ? `[so'rovnoma: ${meta.poll?.q} — ${(meta.poll?.opts || []).join(' / ')}]` : `[${(PREVIEW[m.type]?.[0] || m.type)}]${m.text ? ' ' + m.text : ''}`;
       return `${who}: ${String(body || '').slice(0, 600)}`; };
     const q = msg.text.replace(AI_TRIGGER, '').trim();
     const asker = (await getUser(uid))?.name || '';
     const prompt = `Sen Birga messenjeridagi chatga chaqirilding. Quyida chatdagi so'nggi xabarlar:\n---\n${rows.map(line).join('\n')}\n---\n${asker} senga savol berdi: "${q || '(savolsiz chaqirdi — suhbat mazmuniga qarab foydali javob yoki xulosa ber)'}"\nSuhbatdoshlar ikkalasi ham javobingni ko'radi. Qisqa, aniq va foydali javob ber, suhbat tilida yoz. Nizoli savol bo'lsa — xolis bo'l.`;
     const r = await aiAnswer([{ role: 'user', content: prompt }]);
-    const text = r?.text ? r.text + (r.sources?.length ? '\n\n' + r.sources.slice(0, 3).map((s, i) => `[${i + 1}. ${s.title || 'manba'}](${s.url})`).join('\n') : '') : '⚠️ Birga AI hozir javob bera olmadi. Birozdan keyin qayta urinib ko‘ring.';
+    const text = r?.text ? r.text + (r.sources?.length ? '\n\n' + r.sources.slice(0, 3).map((s, i) => `[${i + 1}. ${s.title || 'manba'}](${s.url})`).join('\n') : '') : '⚠️ Birga yordamchi hozir javob bera olmadi. Birozdan keyin qayta urinib ko‘ring.';
     await saveMessage(chatId, uid, { type: 'text', text: text.slice(0, 4096), replyTo: msg.id }, { ai: 1, _srv: AI_SECRET });
   } finally { tell(false); }
 }
 
+const gcalls = new Map(); // chatId -> guruh qo'ng'irog'i
+const gcallView = (chatId) => { const g = gcalls.get(chatId); return g ? { active: true, gid: g.id, video: g.video, started: g.started, count: g.peers.size, peers: [...g.peers.keys()] } : { active: false }; };
+async function broadcastGcall(chatId) { const v = gcallView(chatId); (await membersOf(chatId)).forEach((u) => io.to('u' + u).emit('gcall:update', { chatId, ...v })); }
+async function gcallLeave(chatId, uid) {
+  const g = gcalls.get(chatId); if (!g || !g.peers.has(uid)) return;
+  g.peers.delete(uid); g.peers.forEach((_, x) => io.to('u' + x).emit('gcall:left', { chatId, uid }));
+  if (!g.peers.size) setTimeout(() => endGcall(chatId, g.id).catch(() => {}), 20000); // hamma chiqsa — 20 soniyadan keyin tugaydi
+  broadcastGcall(chatId);
+}
+async function endGcall(chatId, gid) {
+  const g = gcalls.get(chatId); if (!g || g.id !== gid || g.peers.size) return;
+  gcalls.delete(chatId);
+  if (g.msgId) {
+    await db.run('UPDATE messages SET meta=?, duration=? WHERE id=?', [JSON.stringify({ group: 1, gid: g.id, status: 'ended', video: g.video }), Math.round((now() - g.started) / 1000), g.msgId]);
+    const full = fmtMsg(await db.get('SELECT * FROM messages WHERE id=?', [g.msgId]));
+    (await membersOf(chatId)).forEach((u) => io.to('u' + u).emit('message:edited', { message: full }));
+  }
+  broadcastGcall(chatId);
+}
 const rooms = new Map(), roomLoads = new Map(); // o'yin xonalari keshi
 setInterval(() => { const t = now(); for (const [k, r] of rooms) if (t - r.updated > 3600e3) rooms.delete(k); }, 600e3).unref();
 async function loadRoom(id) {
@@ -1755,6 +2049,8 @@ io.on('connection', async (socket) => {
     if (p.type === 'sticker' && !(p.meta?.e)) return ack?.({ error: 'bad sticker' });
     if (p.type === 'gif' && !cleanMeta({ gif: p.meta?.gif })) return ack?.({ error: 'bad gif' });
     if (p.type === 'location' && !cleanMeta({ loc: p.meta?.loc })) return ack?.({ error: 'bad location' });
+    if (p.type === 'location' && [15, 30, 50].includes(Number(p.meta?.loc?.liveMin))) p = { ...p, meta: { ...p.meta, loc: { ...p.meta.loc, live: now() + Number(p.meta.loc.liveMin) * 60e3, upd: now() } } };
+    else if (p.type === 'location' && p.meta?.loc) p = { ...p, meta: { ...p.meta, loc: { ...p.meta.loc, live: undefined } } };
     if (p.type === 'poll') { const pm = cleanMeta({ poll: p.meta?.poll }); if (!pm) return ack?.({ error: 'bad poll' }); p = { ...p, text: JSON.parse(pm).poll.q }; }
     if (p.meta && typeof p.meta === 'object') { p = { ...p, meta: { ...p.meta } }; delete p.meta.ai; delete p.meta._srv; }
     const peerId = await privatePeer(chatId, uid);
@@ -1768,6 +2064,68 @@ io.on('connection', async (socket) => {
     try { const msg = await job; ack?.({ ok: true, message: msg }); if (p.type === 'text' && AI_TRIGGER.test(text)) chatAI(chatId, uid, msg).catch((e) => console.error('chat AI:', e.message)); }
     catch (e) { if (cid) sentCids.delete(cid); throw e; }
   });
+
+  // ===== Jonli joylashuv: yuboruvchi har bir necha soniyada yangilaydi =====
+  on(socket, 'loc:update', async (p, ack) => {
+    const m = await db.get('SELECT * FROM messages WHERE id=?', [Number(p?.id) || 0]);
+    if (!m || m.sender_id !== uid || m.type !== 'location' || m.deleted) return ack?.({ error: 'forbidden' });
+    const meta = JSON.parse(m.meta || '{}'); const loc = meta.loc || {};
+    if (!loc.live || loc.live < now()) return ack?.({ error: 'ended' });
+    const lat = Number(p.lat), lng = Number(p.lng); if (!(Math.abs(lat) <= 90 && Math.abs(lng) <= 180)) return ack?.({ error: 'bad' });
+    if (!rateOk('locu' + m.id, 40, 60e3)) return ack?.({ error: 'rate' });
+    if (p.stop) loc.live = now(); else { loc.lat = Math.round(lat * 1e6) / 1e6; loc.lng = Math.round(lng * 1e6) / 1e6; loc.upd = now(); if (p.acc) loc.acc = Math.min(5000, Math.round(Number(p.acc)) || 0); if (typeof p.addr === 'string') loc.addr = p.addr.slice(0, 240); }
+    meta.loc = loc; await db.run('UPDATE messages SET meta=? WHERE id=?', [JSON.stringify(meta), m.id]);
+    (await membersOf(m.chat_id)).forEach((u) => io.to('u' + u).emit('loc:moved', { id: m.id, chatId: m.chat_id, loc }));
+    ack?.({ ok: true });
+  });
+  // ===== Xabarni chatda qadash =====
+  const pinsOf = async (chatId) => {
+    const rows = await db.all('SELECT p.message_id, p.at, m.* FROM chat_pins p JOIN messages m ON m.id=p.message_id WHERE p.chat_id=? AND m.deleted=0 ORDER BY p.at DESC LIMIT 20', [chatId]);
+    return rows.map((r) => ({ id: Number(r.message_id), type: r.type, text: String(r.text || '').slice(0, 200), sender_id: Number(r.sender_id), meta: r.meta ? JSON.parse(r.meta) : null, at: Number(r.at) }));
+  };
+  on(socket, 'msg:pin', async (p, ack) => {
+    const m = await db.get('SELECT * FROM messages WHERE id=?', [Number(p?.id) || 0]);
+    if (!m || m.deleted || !(await isMember(m.chat_id, uid))) return ack?.({ error: 'forbidden' });
+    const chat = await getChat(m.chat_id); if (chat.type !== 'private' && !isAdmin(await roleOf(m.chat_id, uid))) return ack?.({ error: 'admin_only' });
+    if (p.on) await db.run('INSERT INTO chat_pins(chat_id, message_id, by, at) VALUES(?,?,?,?) ON CONFLICT(chat_id, message_id) DO UPDATE SET at=excluded.at', [m.chat_id, m.id, uid, now()]);
+    else await db.run('DELETE FROM chat_pins WHERE chat_id=? AND message_id=?', [m.chat_id, m.id]);
+    const pins = await pinsOf(m.chat_id);
+    (await membersOf(m.chat_id)).forEach((u) => io.to('u' + u).emit('chat:pins', { chatId: m.chat_id, pins }));
+    ack?.({ ok: true, pins });
+  });
+  on(socket, 'chat:pins', async (p, ack) => { const cid = Number(p?.chatId); if (!(await isMember(cid, uid))) return ack?.({ error: 'forbidden' }); ack?.({ pins: await pinsOf(cid) }); });
+  // ===== Guruh qo'ng'irog'i (10 kishigacha, jonli): signalizatsiya =====
+  on(socket, 'gcall:start', async (p, ack) => {
+    const chatId = Number(p?.chatId); const chat = await getChat(chatId);
+    if (!chat || chat.type !== 'group' || !(await isMember(chatId, uid))) return ack?.({ error: 'forbidden' });
+    if (gcalls.has(chatId)) return ack?.({ ok: true, existing: true, ...gcallView(chatId) });
+    const g = { id: crypto.randomBytes(6).toString('hex'), chatId, starter: uid, video: !!p.video, started: now(), peers: new Map(), msgId: null };
+    gcalls.set(chatId, g);
+    const msg = await saveMessage(chatId, uid, { type: 'call', text: '' }, { group: 1, gid: g.id, status: 'live', video: g.video, _srv: AI_SECRET });
+    g.msgId = msg.id;
+    const me = await getUser(uid);
+    for (const m of await membersOf(chatId)) if (m !== uid) io.to('u' + m).emit('gcall:ring', { chatId, gid: g.id, from: uid, name: me?.name, title: chat.title, video: g.video });
+    ack?.({ ok: true, ...gcallView(chatId) });
+  });
+  on(socket, 'gcall:join', async (p, ack) => {
+    const chatId = Number(p?.chatId); const g = gcalls.get(chatId);
+    if (!g || !(await isMember(chatId, uid))) return ack?.({ error: 'ended' });
+    if (!g.peers.has(uid) && g.peers.size >= 10) return ack?.({ error: 'full' });
+    const others = [...g.peers.keys()].filter((x) => x !== uid);
+    g.peers.set(uid, socket.id);
+    others.forEach((x) => io.to('u' + x).emit('gcall:joined', { chatId, uid }));
+    broadcastGcall(chatId);
+    ack?.({ ok: true, gid: g.id, peers: others, video: g.video, started: g.started });
+  });
+  on(socket, 'gcall:signal', async (p) => {
+    const g = gcalls.get(Number(p?.chatId)); const to = Number(p?.to);
+    if (!g || !g.peers.has(uid) || !g.peers.has(to)) return;
+    io.to('u' + to).emit('gcall:signal', { chatId: g.chatId, from: uid, data: p.data });
+  });
+  on(socket, 'gcall:media', async (p) => { const g = gcalls.get(Number(p?.chatId)); if (!g || !g.peers.has(uid)) return; [...g.peers.keys()].forEach((x) => x !== uid && io.to('u' + x).emit('gcall:media', { chatId: g.chatId, uid, mic: !!p.mic, cam: !!p.cam })); });
+  on(socket, 'gcall:leave', async (p) => gcallLeave(Number(p?.chatId), uid));
+  on(socket, 'gcall:state', async (p, ack) => { const cid = Number(p?.chatId); if (!(await isMember(cid, uid))) return ack?.({}); ack?.(gcalls.has(cid) ? gcallView(cid) : { active: false }); });
+  socket.on('disconnect', () => { for (const g of gcalls.values()) if (g.peers.get(uid) === socket.id) gcallLeave(g.chatId, uid).catch(() => {}); });
 
   // ===== So'rovnoma: ovoz berish =====
   const pollState = async (mid, forUid) => {
@@ -2008,6 +2366,8 @@ io.on('connection', async (socket) => {
   ['call:answer', 'call:reject', 'call:end', 'call:busy'].forEach((ev) => socket.on(ev, (p) => {
     clearPending(p);
     if (p?.to) io.to('u' + p.to).emit(ev, { ...p, from: uid });
+    if (ev === 'call:end' && p?.to) nativeEnqueue(Number(p.to), { type: 'call_end', callId: p.callId }); // ilovada jiringlashni to'xtatish
+    if (ev !== 'call:end') nativeEnqueue(uid, { type: 'call_end', callId: p?.callId }); // boshqa qurilmada javob berildi — jiringlash to'xtasin
     if (ev === 'call:answer' || ev === 'call:reject' || ev === 'call:busy') socket.to('u' + uid).emit('call:handled', { callId: p?.callId });
   }));
   ['call:ringing', 'call:media', 'call:renego'].forEach((ev) => socket.on(ev, (p) => { if (p?.to) io.to('u' + p.to).emit(ev, { ...p, from: uid }); }));
@@ -2139,13 +2499,21 @@ async function extraSchema() {
     reason TEXT, details TEXT, snapshot TEXT, status TEXT DEFAULT 'open', created_at BIGINT, resolved_at BIGINT)`);
   await db.run('CREATE TABLE IF NOT EXISTS game_scores(user_id BIGINT, game TEXT, best BIGINT, plays BIGINT DEFAULT 0, updated BIGINT, PRIMARY KEY(user_id, game))');
   await db.run('CREATE INDEX IF NOT EXISTS idx_scores_game ON game_scores(game, best)');
+  await db.run('CREATE TABLE IF NOT EXISTS sessions(id TEXT PRIMARY KEY, user_id BIGINT, ua TEXT, app TEXT, os TEXT, model TEXT, ip TEXT, city TEXT, country TEXT, created BIGINT, last BIGINT, revoked INTEGER DEFAULT 0)');
+  await db.run('CREATE INDEX IF NOT EXISTS idx_sess_user ON sessions(user_id)');
+  await db.run('CREATE TABLE IF NOT EXISTS native_devices(token TEXT PRIMARY KEY, user_id BIGINT, sid TEXT, model TEXT, created BIGINT, last BIGINT)');
+  await db.run('CREATE TABLE IF NOT EXISTS ai_memory(user_id BIGINT, fact TEXT, at BIGINT)');
+  await db.run('CREATE INDEX IF NOT EXISTS idx_aimem ON ai_memory(user_id, at)');
+  await db.run('CREATE TABLE IF NOT EXISTS transcripts(message_id BIGINT PRIMARY KEY, text TEXT, at BIGINT)');
+  await db.run('CREATE TABLE IF NOT EXISTS user_stickers(user_id BIGINT, url TEXT, at BIGINT, PRIMARY KEY(user_id, url))');
+  await db.run('CREATE TABLE IF NOT EXISTS chat_pins(chat_id BIGINT, message_id BIGINT, by BIGINT, at BIGINT, PRIMARY KEY(chat_id, message_id))');
   await db.run('CREATE TABLE IF NOT EXISTS poll_votes(message_id BIGINT, user_id BIGINT, opt INTEGER, at BIGINT, PRIMARY KEY(message_id, user_id, opt))');
   await db.run(`CREATE TABLE IF NOT EXISTS scheduled(id ${db.kind === 'postgres' ? 'BIGSERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'}, chat_id BIGINT, user_id BIGINT, text TEXT, reply_to BIGINT, at BIGINT, created BIGINT)`);
   await db.run('CREATE INDEX IF NOT EXISTS idx_sched_at ON scheduled(at)');
   await db.run('CREATE TABLE IF NOT EXISTS step_devices(token TEXT PRIMARY KEY, user_id BIGINT, created BIGINT, last BIGINT, sensor TEXT, err TEXT)');
   await db.run('CREATE TABLE IF NOT EXISTS steps(user_id BIGINT, day TEXT, steps BIGINT, updated BIGINT, PRIMARY KEY(user_id, day))');
   await db.run(`CREATE TABLE IF NOT EXISTS game_rooms(id TEXT PRIMARY KEY, game TEXT, chat_id BIGINT, a BIGINT, b BIGINT, moves TEXT, status TEXT, winner INTEGER, claims TEXT, created BIGINT, updated BIGINT)`);
-  const cols = [['users', 'invite_code', 'TEXT'], ['users', 'invited_by', 'BIGINT'], ['game_rooms', 'secret', 'TEXT'], ['users', 'steps_on', 'INTEGER DEFAULT 0'], ['users', 'banned', 'INTEGER DEFAULT 0'], ['users', 'birthday', 'TEXT'], ['chat_members', 'pinned', 'BIGINT DEFAULT 0'], ['chat_members', 'archived', 'INTEGER DEFAULT 0'], ['users', 'hide_seen', 'INTEGER DEFAULT 0'], ['users', 'deleted', 'INTEGER DEFAULT 0']];
+  const cols = [['users', 'reg_info', 'TEXT'], ['users', 'folders', 'TEXT'], ['users', 'region', 'TEXT'], ['users', 'invite_code', 'TEXT'], ['users', 'invited_by', 'BIGINT'], ['game_rooms', 'secret', 'TEXT'], ['users', 'steps_on', 'INTEGER DEFAULT 0'], ['users', 'banned', 'INTEGER DEFAULT 0'], ['users', 'birthday', 'TEXT'], ['chat_members', 'pinned', 'BIGINT DEFAULT 0'], ['chat_members', 'archived', 'INTEGER DEFAULT 0'], ['users', 'hide_seen', 'INTEGER DEFAULT 0'], ['users', 'deleted', 'INTEGER DEFAULT 0']];
   for (const [t, c, type] of cols) {
     try { await db.get(`SELECT ${c} FROM ${t} LIMIT 1`); } catch { await db.run(`ALTER TABLE ${t} ADD COLUMN ${c} ${type}`); }
   }
@@ -2166,6 +2534,7 @@ process.on('uncaughtException', (e) => { console.error('uncaughtException:', e?.
   if (!JWT_SECRET) { JWT_SECRET = await db.getMeta('jwt_secret'); if (!JWT_SECRET) { JWT_SECRET = crypto.randomBytes(32).toString('hex'); await db.setMeta('jwt_secret', JWT_SECRET); } }
   await storage.init();
   push = await createPush(db);
+  { const base = push.send.bind(push); push.send = (uid, payload, opts) => { try { nativeEnqueue(uid, payload); } catch {} return base(uid, payload, opts); }; }
   server.listen(PORT, () => {
     console.log(`\n🟣 Birga ishga tushdi: http://localhost:${PORT}`);
     console.log(`   Baza: ${db.kind} · Fayllar: ${storage.remote ? 'Supabase Storage' : 'disk'} · SMS: ${sms.anyReal ? 'yoqilgan' : 'TEST rejimi (kod ekranda)'} · ffmpeg: ${media.available ? 'bor' : 'YO‘Q'} · TURN: ${process.env.TURN_SECRET || process.env.TURN_URL || process.env.CF_TURN_KEY_ID ? 'bor' : process.env.PUBLIC_TURN !== '0' ? 'Open Relay (bepul)' : 'YO‘Q'}`);

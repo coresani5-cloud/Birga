@@ -3724,13 +3724,13 @@ let installPrompt = null;
 // Android ilovasi (APK) — GitHub'dan to'g'ridan-to'g'ri yuklab olinadi
 const APK_URL = 'https://raw.githubusercontent.com/coresani5-cloud/Birga/main/birga.apk';
 const APK_T = {
-  uz: { title: 'Birga ilovasini yuklab olish', btn: 'Ilovani yuklab olish (APK)', size: 'Android · 1.2 · 75 KB',
+  uz: { title: 'Birga ilovasini yuklab olish', btn: 'Ilovani yuklab olish (APK)', size: 'Android · 2.0 · 78 KB · brauzer kerak emas',
     steps: ['<b>“Ilovani yuklab olish”</b> ni bosing — <b>Birga.apk</b> yuklanadi', 'Yuklangan faylni oching', 'Telefon so‘rasa: <b>Sozlamalar → “Shu manbadan ruxsat berish”</b> ni yoqing', '<b>O‘rnatish</b> ni bosing — Birga ilovalar ro‘yxatida paydo bo‘ladi'],
     alt: 'Yoki brauzer orqali o‘rnatish', iosOnly: 'iPhone uchun APK yo‘q — quyidagi usul bilan o‘rnating:' },
-  ru: { title: 'Скачать приложение Birga', btn: 'Скачать приложение (APK)', size: 'Android · 1.2 · 75 КБ',
+  ru: { title: 'Скачать приложение Birga', btn: 'Скачать приложение (APK)', size: 'Android · 2.0 · 78 КБ · без браузера',
     steps: ['Нажмите <b>«Скачать приложение»</b> — загрузится <b>Birga.apk</b>', 'Откройте скачанный файл', 'Если телефон спросит: <b>Настройки → «Разрешить из этого источника»</b>', 'Нажмите <b>Установить</b> — Birga появится в списке приложений'],
     alt: 'Или установить через браузер', iosOnly: 'Для iPhone APK нет — установите так:' },
-  en: { title: 'Download the Birga app', btn: 'Download app (APK)', size: 'Android · 1.2 · 75 KB',
+  en: { title: 'Download the Birga app', btn: 'Download app (APK)', size: 'Android · 2.0 · 78 KB · no browser needed',
     steps: ['Tap <b>“Download app”</b> — <b>Birga.apk</b> will download', 'Open the downloaded file', 'If asked: <b>Settings → “Allow from this source”</b>', 'Tap <b>Install</b> — Birga appears in your app list'],
     alt: 'Or install via the browser', iosOnly: 'There is no APK for iPhone — install like this:' },
 };
@@ -4704,16 +4704,16 @@ const fullRefresh = async () => { softT = 0; await Promise.all([softRefresh(), U
 pullToRefresh($('#pane-chats'), fullRefresh);
 pullToRefresh($('#pane-contacts'), async () => { await loadContacts(); await Updater.check(); });
 
-/* ======================= v14: 2 kishilik o'yinlar, Birga AI, qadamlar, haqiqiy ilova o'rnatish ======================= */
+/* ======================= v14: 2 kishilik o'yinlar, Birga yordamchi, qadamlar, haqiqiy ilova o'rnatish ======================= */
 try {
   Object.assign(I18N.uz, { ai_t_img: 'Rasm chizish', ai_t_photo: 'Rasmni tahlil', ai_t_tr: 'Tarjima', ai_t_write: 'Matn yozish', ai_t_math: 'Hisob-kitob', ai_t_news: 'Yangiliklar',
     ai_t_tr_p: 'Ingliz tiliga tarjima qil: ', ai_t_write_p: 'Menga chiroyli matn yozib ber: ', ai_t_math_p: 'Bosqichma-bosqich yechib ber: ', ai_t_news_p: 'Bugun O‘zbekistonda qanday muhim yangiliklar bor?',
     ai_draw_ph: 'Nimani chizay? Masalan: tog‘lar orasida quyosh botishi', ai_img_q: 'Bu rasmda nima bor?', ai_no_mic: 'Ovozli kiritish bu brauzerda ishlamaydi', ai_no_tts: 'Ovozli o‘qish bu qurilmada yo‘q',
-    ai_share: 'Chatga yuborish', ai_again: 'Qayta javob', ai_copy_t: 'Nusxa olish', ai_say: 'Ovoz chiqarib o‘qish', ai_limit: 'Birga AI ga juda ko‘p so‘rov yuborildi. Birozdan keyin qayta urinib ko‘ring.',
+    ai_share: 'Chatga yuborish', ai_again: 'Qayta javob', ai_copy_t: 'Nusxa olish', ai_say: 'Ovoz chiqarib o‘qish', ai_limit: 'Birga yordamchi ga juda ko‘p so‘rov yuborildi. Birozdan keyin qayta urinib ko‘ring.',
     ai_drawing: 'Rasm chizilmoqda… (10–30 soniya)', ai_no_chats: 'Hali chatlar yo‘q — avval kimgadir yozing.', ai_img_err: 'Rasm chizib bo‘lmadi. Birozdan keyin qayta urinib ko‘ring.',
     att_file: 'Rasm, video yoki fayl', att_game: 'O‘yinga taklif qilish', att_game_sub: 'Shaxmat, shashka, dengiz jangi…', att_title: 'Yuborish',
-    ai_name: 'Birga AI', ai_sub: 'Har qanday savolingizga javob beraman', ai_ph: 'Savolingizni yozing…', ai_hello: 'Salom! Men **Birga AI** — aqlli yordamchingizman. 🤖\nSavol bering, rasm yuboring — tahlil qilaman, 🎨 rasm chizaman, tarjima qilaman, matn yozaman, masala yechaman, internetdan eng so‘nggi ma’lumotni topaman. 🎤 bilan gapirib ham so‘rashingiz mumkin.',
-    ai_clear: 'Suhbatni tozalash', ai_err: 'Birga AI hozir javob bera olmadi. Birozdan keyin qayta urinib ko‘ring.', ai_think: 'O‘ylayapman…', ai_copy: 'Nusxa olindi', ai_note: 'Birga AI xato qilishi mumkin — muhim ma’lumotlarni tekshiring.',
+    ai_name: 'Birga yordamchi', ai_sub: 'Har qanday savolingizga javob beraman', ai_ph: 'Savolingizni yozing…', ai_hello: 'Salom! Men **Birga yordamchi** — aqlli yordamchingizman. 🤖\nSavol bering, rasm yuboring — tahlil qilaman, 🎨 rasm chizaman, tarjima qilaman, matn yozaman, masala yechaman, internetdan eng so‘nggi ma’lumotni topaman. 🎤 bilan gapirib ham so‘rashingiz mumkin.',
+    ai_clear: 'Suhbatni tozalash', ai_err: 'Birga yordamchi hozir javob bera olmadi. Birozdan keyin qayta urinib ko‘ring.', ai_think: 'O‘ylayapman…', ai_copy: 'Nusxa olindi', ai_note: 'Birga yordamchi xato qilishi mumkin — muhim ma’lumotlarni tekshiring.',
     ai_ex: ['Bugun nima pishirsam bo‘ladi?', '/rasm Samarqanddagi Registon tunda, chiroyli', 'Ingliz tilini qanday tez o‘rgansam bo‘ladi?', 'Menga tug‘ilgan kun tabrigi yozib ber'],
     st_title: 'Qadamlar hisoblagichi', st_on: 'Yoqilgan · do‘stlaringiz bugungi qadamlaringizni ko‘radi', st_off: 'O‘chirilgan', st_note: 'Telefon datchigi orqali sanaydi. Brauzer cheklovi tufayli faqat Birga ochiq turganda hisoblanadi.',
     st_enable: 'Yoqish', st_disable: 'O‘chirish', st_noperm: 'Harakat datchigiga ruxsat berilmadi', st_nosensor: 'Bu qurilmada harakat datchigi topilmadi', st_today: 'bugun {n} qadam', steps_word: 'qadam',
@@ -4721,18 +4721,18 @@ try {
     st_on_bg: 'Yoqilgan · ilova yopiq bo‘lsa ham sanaydi', st_bg_on: 'Telefon datchigi orqali sanalmoqda — Birga yopiq bo‘lsa ham', st_synced: 'Oxirgi yangilanish',
     st_bg_need: 'Hozir faqat sahifa ochiq turganda sanaydi. Ilova yopiq bo‘lsa ham aniq sanashi uchun Birga ilovasini o‘rnating.', st_bg_btn: 'Birga ilovasini o‘rnatish',
     st_ios: 'iPhone’da brauzer cheklovi tufayli faqat Birga ochiq turganda sanaydi.', st_e_perm: 'Ruxsat berilmagan: Sozlamalar → Ilovalar → Birga → Ruxsatlar → “Jismoniy faollik” ni yoqing, so‘ng hisoblagichni qayta yoqing.',
-    st_e_sensor: 'Bu telefonda qadam datchigi topilmadi.', st_upd: 'Ilova yopiq bo‘lsa ham qadamlarni sanash uchun Birga ilovasining yangi versiyasini (1.2) o‘rnating. Eski ilova ustidan o‘rnatiladi — ma’lumotlar saqlanib qoladi.', st_upd_btn: 'Yangi versiyani yuklab olish',
+    st_e_sensor: 'Bu telefonda qadam datchigi topilmadi.', st_upd: 'Ilova yopiq bo‘lsa ham qadamlarni sanash uchun Birga ilovasining yangi versiyasini (2.0) o‘rnating. Eski ilova ustidan o‘rnatiladi — ma’lumotlar saqlanib qoladi.', st_upd_btn: 'Yangi versiyani yuklab olish',
     inst_real: 'Birga ilovasini o‘rnatish', inst_real_sub: 'Haqiqiy ilova — brauzer belgisisiz, o‘z belgisi bilan, to‘liq ekranda', inst_badge: 'Hozirgi belgi brauzer (Yandex/Chrome) orqali qo‘shilgan. Uni o‘chirib, haqiqiy Birga ilovasini o‘rnating:',
     inst_dl: 'Birga ilovasini yuklab olish', inst_chrome2: 'Yoki Chrome orqali o‘rnatish', inst_open_app: 'Birga ilovasida ochish', inst_has_app: 'Birga ilovasi o‘rnatilgan', inst_bar_real: 'Brauzersiz, haqiqiy Birga ilovasini o‘rnating',
     inst_del_old: 'Eski belgini (brauzer belgisi bilan) bosh ekrandan o‘chirib tashlang: belgini bosib turing → “O‘chirish”.' });
   Object.assign(I18N.ru, { ai_t_img: 'Нарисовать', ai_t_photo: 'Анализ фото', ai_t_tr: 'Перевод', ai_t_write: 'Написать текст', ai_t_math: 'Расчёты', ai_t_news: 'Новости',
     ai_t_tr_p: 'Переведи на английский: ', ai_t_write_p: 'Напиши красивый текст: ', ai_t_math_p: 'Реши пошагово: ', ai_t_news_p: 'Какие важные новости сегодня в Узбекистане?',
     ai_draw_ph: 'Что нарисовать? Например: закат в горах', ai_img_q: 'Что на этом фото?', ai_no_mic: 'Голосовой ввод не работает в этом браузере', ai_no_tts: 'Озвучка недоступна на этом устройстве',
-    ai_share: 'Отправить в чат', ai_again: 'Ответить заново', ai_copy_t: 'Копировать', ai_say: 'Прочитать вслух', ai_limit: 'Слишком много запросов к Birga AI. Попробуйте чуть позже.',
+    ai_share: 'Отправить в чат', ai_again: 'Ответить заново', ai_copy_t: 'Копировать', ai_say: 'Прочитать вслух', ai_limit: 'Слишком много запросов к Birga yordamchi. Попробуйте чуть позже.',
     ai_drawing: 'Рисую… (10–30 секунд)', ai_no_chats: 'Пока нет чатов — сначала напишите кому-нибудь.', ai_img_err: 'Не удалось нарисовать. Попробуйте чуть позже.',
     att_file: 'Фото, видео или файл', att_game: 'Пригласить в игру', att_game_sub: 'Шахматы, шашки, морской бой…', att_title: 'Отправить',
-    ai_name: 'Birga AI', ai_sub: 'Отвечу на любой ваш вопрос', ai_ph: 'Напишите вопрос…', ai_hello: 'Привет! Я **Birga AI** — ваш умный помощник. 🤖\nСпрашивайте, присылайте фото — разберу, 🎨 нарисую картинку, переведу, напишу текст, решу задачу, найду свежую информацию в интернете. Можно спрашивать голосом 🎤.',
-    ai_clear: 'Очистить диалог', ai_err: 'Birga AI сейчас не смог ответить. Попробуйте чуть позже.', ai_think: 'Думаю…', ai_copy: 'Скопировано', ai_note: 'Birga AI может ошибаться — проверяйте важное.',
+    ai_name: 'Birga yordamchi', ai_sub: 'Отвечу на любой ваш вопрос', ai_ph: 'Напишите вопрос…', ai_hello: 'Привет! Я **Birga yordamchi** — ваш умный помощник. 🤖\nСпрашивайте, присылайте фото — разберу, 🎨 нарисую картинку, переведу, напишу текст, решу задачу, найду свежую информацию в интернете. Можно спрашивать голосом 🎤.',
+    ai_clear: 'Очистить диалог', ai_err: 'Birga yordamchi сейчас не смог ответить. Попробуйте чуть позже.', ai_think: 'Думаю…', ai_copy: 'Скопировано', ai_note: 'Birga yordamchi может ошибаться — проверяйте важное.',
     ai_ex: ['Что приготовить сегодня?', 'Как быстро выучить английский?', 'Напиши поздравление', 'Переведи «спасибо» на 5 языков'],
     st_title: 'Счётчик шагов', st_on: 'Включён · друзья видят ваши шаги за сегодня', st_off: 'Выключен', st_note: 'Считает по датчику телефона. Из-за ограничений браузера — только пока Birga открыт.',
     st_enable: 'Включить', st_disable: 'Выключить', st_noperm: 'Нет доступа к датчику движения', st_nosensor: 'На этом устройстве нет датчика движения', st_today: 'сегодня {n} шагов', steps_word: 'шагов',
@@ -4740,18 +4740,18 @@ try {
     st_on_bg: 'Включён · считает даже когда приложение закрыто', st_bg_on: 'Считает датчик телефона — даже когда Birga закрыт', st_synced: 'Последнее обновление',
     st_bg_need: 'Сейчас считает только пока страница открыта. Чтобы считать точно и в фоне, установите приложение Birga.', st_bg_btn: 'Установить приложение Birga',
     st_ios: 'На iPhone из-за ограничений браузера считает только пока Birga открыт.', st_e_perm: 'Нет разрешения: Настройки → Приложения → Birga → Разрешения → «Физическая активность», затем включите счётчик снова.',
-    st_e_sensor: 'На этом телефоне нет датчика шагов.', st_upd: 'Чтобы считать шаги в фоне, установите новую версию приложения Birga (1.2). Ставится поверх старой — данные сохранятся.', st_upd_btn: 'Скачать новую версию',
+    st_e_sensor: 'На этом телефоне нет датчика шагов.', st_upd: 'Чтобы считать шаги в фоне, установите новую версию приложения Birga (2.0). Ставится поверх старой — данные сохранятся.', st_upd_btn: 'Скачать новую версию',
     inst_real: 'Установить приложение Birga', inst_real_sub: 'Настоящее приложение — без значка браузера, на весь экран', inst_badge: 'Текущий значок добавлен через браузер (Яндекс/Chrome). Удалите его и установите настоящее приложение Birga:',
     inst_dl: 'Скачать приложение Birga', inst_chrome2: 'Или установить через Chrome', inst_open_app: 'Открыть в приложении Birga', inst_has_app: 'Приложение Birga установлено', inst_bar_real: 'Установите настоящее приложение Birga без браузера',
     inst_del_old: 'Удалите старый значок (со значком браузера): удерживайте его → «Удалить».' });
   Object.assign(I18N.en, { ai_t_img: 'Draw', ai_t_photo: 'Analyze photo', ai_t_tr: 'Translate', ai_t_write: 'Write', ai_t_math: 'Math', ai_t_news: 'News',
     ai_t_tr_p: 'Translate into Uzbek: ', ai_t_write_p: 'Write a nice text for me: ', ai_t_math_p: 'Solve step by step: ', ai_t_news_p: 'What are today’s important news in Uzbekistan?',
     ai_draw_ph: 'What should I draw? E.g. a sunset in the mountains', ai_img_q: 'What is in this picture?', ai_no_mic: 'Voice input is not supported in this browser', ai_no_tts: 'Read-aloud is not available on this device',
-    ai_share: 'Send to chat', ai_again: 'Regenerate', ai_copy_t: 'Copy', ai_say: 'Read aloud', ai_limit: 'Too many requests to Birga AI. Please try again later.',
+    ai_share: 'Send to chat', ai_again: 'Regenerate', ai_copy_t: 'Copy', ai_say: 'Read aloud', ai_limit: 'Too many requests to Birga yordamchi. Please try again later.',
     ai_drawing: 'Drawing… (10–30 seconds)', ai_no_chats: 'No chats yet — message someone first.', ai_img_err: 'Could not draw the picture. Please try again later.',
     att_file: 'Photo, video or file', att_game: 'Invite to a game', att_game_sub: 'Chess, checkers, battleship…', att_title: 'Send',
-    ai_name: 'Birga AI', ai_sub: 'Ask me anything', ai_ph: 'Type your question…', ai_hello: 'Hi! I am **Birga AI** — your smart assistant. 🤖\nAsk anything, send a photo to analyze, 🎨 ask me to draw, translate, write, solve problems or find fresh info on the web. You can also ask by voice 🎤.',
-    ai_clear: 'Clear conversation', ai_err: 'Birga AI could not answer right now. Please try again later.', ai_think: 'Thinking…', ai_copy: 'Copied', ai_note: 'Birga AI can make mistakes — check important info.',
+    ai_name: 'Birga yordamchi', ai_sub: 'Ask me anything', ai_ph: 'Type your question…', ai_hello: 'Hi! I am **Birga yordamchi** — your smart assistant. 🤖\nAsk anything, send a photo to analyze, 🎨 ask me to draw, translate, write, solve problems or find fresh info on the web. You can also ask by voice 🎤.',
+    ai_clear: 'Clear conversation', ai_err: 'Birga yordamchi could not answer right now. Please try again later.', ai_think: 'Thinking…', ai_copy: 'Copied', ai_note: 'Birga yordamchi can make mistakes — check important info.',
     ai_ex: ['What should I cook today?', 'How can I learn English fast?', 'Write me a greeting message', 'Translate “thank you” into 5 languages'],
     st_title: 'Step counter', st_on: 'On · friends see your steps today', st_off: 'Off', st_note: 'Counts with the phone sensor. Due to browser limits it only counts while Birga is open.',
     st_enable: 'Turn on', st_disable: 'Turn off', st_noperm: 'Motion sensor permission denied', st_nosensor: 'No motion sensor on this device', st_today: '{n} steps today', steps_word: 'steps',
@@ -4759,7 +4759,7 @@ try {
     st_on_bg: 'On · counts even when the app is closed', st_bg_on: 'Counting with the phone sensor — even when Birga is closed', st_synced: 'Last update',
     st_bg_need: 'Right now it only counts while the page is open. Install the Birga app to count accurately in the background.', st_bg_btn: 'Install the Birga app',
     st_ios: 'On iPhone, browser limits mean it only counts while Birga is open.', st_e_perm: 'Permission missing: Settings → Apps → Birga → Permissions → “Physical activity”, then turn the counter on again.',
-    st_e_sensor: 'This phone has no step sensor.', st_upd: 'To count steps in the background, install the new Birga app (1.2). It installs over the old one — your data stays.', st_upd_btn: 'Download the new version',
+    st_e_sensor: 'This phone has no step sensor.', st_upd: 'To count steps in the background, install the new Birga app (2.0). It installs over the old one — your data stays.', st_upd_btn: 'Download the new version',
     inst_real: 'Install the Birga app', inst_real_sub: 'A real app — no browser badge, its own icon, full screen', inst_badge: 'Your current icon was added by a browser (Yandex/Chrome). Remove it and install the real Birga app:',
     inst_dl: 'Download the Birga app', inst_chrome2: 'Or install via Chrome', inst_open_app: 'Open in the Birga app', inst_has_app: 'The Birga app is installed', inst_bar_real: 'Install the real Birga app, no browser',
     inst_del_old: 'Remove the old icon (with the browser badge): long-press it → “Remove”.' });
@@ -4817,7 +4817,7 @@ $('#btn-attach').onclick = () => {
 
 /* ======================= BIRGA AI ======================= */
 const AI_LOGO = 'data:image/webp;base64,UklGRi4WAABXRUJQVlA4ICIWAABQWwCdASrAAMAAPj0cjEOiIaGnKHPLKOAHiWgDsB5TwDq9uXda/Ir8p/lU4N6T+8Hdb+x/+T/F/IfyT588ybyL9Y/2/9t/c7+9/AD/Y+zf8+f8n3B/00/tH9U/wf/b/u/de8yf8r/qn/p/uPun/6H/Tf533Uf4P9wPcA/xn+s6yr0Fv5P/ff//7Of/E/dD4OP2r/bz4Ff5p/df/F+f/fkfwDMR8vX7i6B32I/Gf1rkZ4AX4l/Kv75+TH9e/dLnrrP+gd7H/Vf9l6UU1nqi9wDhLKAn5t/33p7/9P+Q8+P0n/4P8T8BH81/sv/C/wHaP/cn2bv23//5le3RIRAI4rmxS+Rn61wcrz3T7bmaem5M4bmw17ZMmD8eEqqKSRqUBu+ZEbs9zbVvv53M3q9b9uUE4Vc49XXuTXCFEjXpgdtKUCBDwGtI70om9Yoei70iZSqA2QmpkcbOykBqcBmRF7V/5zYIomyOkXqqVagGYW+qo6w7Ml/UcVAz9jxCNivg9VEjT1E2lJjTQRj+NAXc8zr4GDT0hxGGW/9MJHdE0LiNwoy+PyWah2OBqw1tkyORZA/jC0Kops7/CFl+oovgXzgK96ZNCvX7hX2lbr2CylGEgd/Pn7XJMafuVFx0uYi9W+yyHklXrIukCtLnCYdVcA6VCbvyZ9/YO9fc/wcTj5L81ugxB4XymTAOYRoELaScuK+Toj9vFMrT8a94BEL2Fi1xNXen5MZt26pYH284inRYSbFT88mOaE1eEFocWoLwyqOYLZMlat9tO/RsE8Qebhvxpk19eCeTdiU/Rj0ZMhqjbItcrpJSPTdyofJr88301mkm05Ny0E1qIfdC+yOaqfN9WjPv+zkSkjezQjcXxp5aK5L/TJaUmgrLumnflKmf9Vtuw1///qIAXXxYdNDKPgPqBAFZZdrA3M/TWxZ+Gx+/Pb1SkBJxwWL+r7w/a31kl6Qehrrwv77Gn1M2HQ1KZV2oBu4AAP788MWVdpsZG0XSVfvlmIoKXKamoihXmryHHOR+ggyoRhJy0WqllCBHfwKqHhzkMlibKdqNgfbu326L+rtn8CvQYvZUERbJp86lnshi7suLELCI0f4PSSBRzxLXCA7iI0qRY6n6ExkuJHZ4AN+RVU083HKBPBx+OBiEG359P0C//738Rs/hynz7gAdYaR0ZThrhTEaoYdNh9a3fvyCUk3L69AoM7w0nHvDAt3pUb7jjidO4eLjDgILU7qHuTHK7idjiTWI5D3OWLVSRfaaxDkjnqx0Mdq3MOerodJlDJJlJdFgXLRNIhadGIH7IoFgm6ZFUwKao48jy/dWuRYw9euPHFwx3TlxDIqcB1REowPXnvExWmimYXW24ZgqiR/8NK0Y5o5LbQvcl1bEoC/0zW80e5v5Nt9cqPXwhUKOPkXuh0svTbQT/6rwfR8LOVlNikT0M0hv/6xmF2hYMc/Yr7uA6xRSheeJtCwc85j8petN7iN3DOPi3n+k/rZogkLEEqWwyViqdTdz0mxnrCqZ59/b3BMBFOuLsFWUdVjh+s6bWtPRBOG/LTyszWIWhMNVgfNn95hL7pwfO6IwyZaKHdlQJsF7kON29XBnooIKhr6UyFNG+oL+Hv/jm+Stb8b1sO6IuzRTNZY/IEMC4v7/nJfASAQCtF+hS6CRahvw3ueYfX9O4fiQktplquUzYjvSIzBHbmpwHd8zpwfTYF30tme5NjJ9GicDoyo5sGKvSdNOSGH2VHPmxibqZNC6+qPXOiImwweX5WCwY/sz7/oHg2bFPlYWwS6WlFdTSZA4Ccs6CwATHi1f+1+kPCeqJVBK8ja+C3e6+zxZ+h/vcsqQXs4UWMAJM3M+LbFoGCvnFfe8Nr0z3adKYNs/LBwJt6yq2fx2ayVy7AX8RRJqN2rdbdT9YJ/L3G5UEwzPb5kwvb0sczJKMpbPKRPvsf1aX1O2iH5/wFp5qR71KZjmN3D1mTavw+BqKfN3qX0X9ns89Uqo7Ve5Yfb4WOz5Y9lNlcsnc/TMdHvLjgJvrFJv7AOfqTwEbeld9PEUxxFyU7CUVvlRoUL0U4C8yfc62S2ALJU5mLL8xcO47QpuLtXNnLkBijgNxhRoRTV2cCJuQ9KFUfF+NKuLpk/sCPj8j0oGaODZB/ohAUEyJFyv4tOh1Ujm9JTh8O9FEnQOCz9VqJD8P8LbXOPRUOmwww8ffYAACS2PxBRSFwSqvLbj2QUypevtK0Z4dfeQJ0IpTr0QAJexYCkKtkha3qnG5Yf4ybkSWRG/X6VV6gM3YbVoNmrnyVEeetmtnbNsRkCq+5byAT4wejBwZdnILmnsbz+6l/kZXYcQmyY0+GSPTAptSsVcrzrCZzdTUwz3VjlgboFYTn1PMbpzH3+A1muG3z3eR9nvaSzcKJyzLm+sFTWGHKfTtr9CpR80chuu5ey22eQhqKetdpMm+6VtwH9xHpGVZqOfkPy8lXpo+0TNpafxim5LWLsIr8J/IZ6+wtSHSMsXVdOH5JS/kyaUHNPUFbFXPGXsJxvqd/eYEsbBhUORWdk7Wqpy04j78mPd0P6hUy6oPvLR08Jh6bEmQ//3ywPJ6KjtTfp8LhBnk+/HP96zpTyNEx3+jy2KOGd1SXDwpq9aRguITyeWWl0a/BklOuXAiCCEwL8Jbr5Pv/0Vk2yrWtt1c0jG2edq66YpqSPq+0gnECstAVbagIgECERQ6nBp5CYEey3q31m6SsE4w0I94UzBSlVf9qxHxfRyeZQbj6rJmOyAEBV7f/5queoeJtikVf78D0GU1SEB7QgmcvS5Ky7b5KEfZ2/5VBDzyDani86k6ZylHfakLuQ1K2ZX/4jjllAmremn2bqZ3s8Hzx/iZR1L3P1S5oI+zxzp/z1HCqGDebR5gRJMFCKF1Pg3SXunp91xhTplgbqf6F+4wO5ohMWDQ2Opos3ZUqgaenaaPKjGkhIxm2KzoUEiYDGqrtXkzU48R14vMxsF+uoKitZikV8zq/KpkupUtijyTD4fOxgyeD6A27hP2wGyhaZ/ehXpR7UKqZzxs2dx4umUYxLf1ERJu7DyyaAHHmzp4uZLTr88WdyeLT/99UM5Ko3gLl/lL/4YkwheGdAFQ+GEQGHm+AYlkGA8h+TJXG5hK1YJbx6S+nnNI+vmlj0wsjcCLvd0zNGA1YgCDwHlrijzzYDw/PaxLSQ45Tx1IGfpd8hs5hp3bluNr+TBhDT+7sy8tp3Xpt8RkWlqmdWCj18giiJRJWtErRYW0cDu9+k1k9GC7SCkUUG92Z6mDP03bvvzdZZzOLJ5ZcHyhsErJGOuwvdpLMKhN6l55p6Hkw7GcnS9z1Xs8ym4CB2IUMSYmm0OMCCGf7jF0l7j1nC3heZyDh6NoZ11PMcGKZh1McBRy4/nKenG/svPftL8UC8KsZ0GQ43UFToQlJjwzEFOwPhm6fpFIU33v5GjnLfs9a578Llq71YmVrfbAGkSM3xEJK6krh+W1P4K3euCMz2umeJiv1ibHBPYb+F8aE1h+EOwZPmA/5dcJUSWivgFkWHvhbD70LLnw7OHdkRiAoeYaybcf68JGqhRboy6m2mW97pvBnt9D7WQT1whDmEzKZpL5TnIF6kD1d3+HOTRpIYtO7UOy4c+IqC2lQ0j+ht6kPMPFNdQGVlHn4CqgG4BM+1FDe3fw2bEpFFhoZlv8WVlU0dpN5FrpFnYmA/V0DgutR2qhbksQSd9k3vWI1sac8HhvZY6bcjo/MQVtauHKEEmfmTPqlwBYl00DCFNXBAq07xGJzvVFtbEmPM8JU6WzpTB7bdnHJ9KmEctZKzrbSwGNWDaNlFpcNV2jNrtqG5qqROSBhulP75EVurxR/N8mmBZYAim4c3ghARZXbOaOhMHo1g5TGpDpmiYBwDNx6xjaBMkBuvf0Q/Q5lkQcY89NP8ytLDISA+X8qwDq9ckXb2hF3pjqS0lGvyhzKDn0O/W45j2u5hArpBUHfeT4UuM8KLJPNxuXPxbHdbUbBdsnFMdOF+gt4VLh++SAbskzt6866KjiwP3konEzFGnWUhx1MCjIKBq0aKeAZMGSWYrBhciVGT4A0vPKYtoylS39fFPVRRY/Z5edRxi8blb/kfobaXVn0mi5oci7izfHFA9VXoSiLc7vkiWhkmemp2qS8aWddJgF6O67XRV3n6jLrF6O/+lr1dEZcphwzX7+zXAAGCOPPMnvdyHGjUau9C6h5eVnXg3FDqMapU8BkvkAb/InrATMcDS8PZTnEJ+0T6GOuY0sSOpUsAyxCYaRLSqyIW6Cv7tgdQynmfx2/HWZNgbrZC4oOkH2dtQd40nIJ/701IWifPFeYD7WFWKNMOz0sMbvhuKs9qDvSaqNgcTl3R+3f3VItATgd8sjta/jcShx4SN9O4YxBUpdE9LCbC3H8GhBW4ikUTL0RH4dAQsDIMljHBkIhZT96hFfrUWSZgWHKmtdT1LLc3J1yuT7qU7oRiLLfKn3ae0XRlL+31vgKtfW8dDVv1ridBBFhSedqHQiXz466p2dZrf1zHxIrlYl7uDuIZDmRtk4aOvpX2yNZL85k0NJVDtzSbSJY/TxGZate64faR1seyU0S4BBprby7mlbdi6Kf7ojjgQ4jQan+bl5ckL53PxCnPOztpUsUEVdNQP4oGU2OPd60UOtVjWW32iASmTKuA17qsMIT3kQ76SEo1vVK8nqlPigh8f+KMvvnyYzuQ9FusAEDU9yYuZPC9BBQOXXRuQX2jaEQ06qfH/laPbb8lfxSzxJhAQwhkFr+VR5lExFNwW6cksNqQVGxSMmOhrJzDSGXRDAgfCksD+RyyQaDsnOCVKB8wbf7mOGobM+xVEKG1qoQPv/6A8ZLZziN8bPcJSqbFjMXpJLiSUBxkvbqilPvK38BVVNjU9leDjnaIJqnzTuz29MUdUb3+li8xbsCvuHII0eX4/AgPyNYx+prES0MiIFDoRD3Vsa115mtY3H99JDUj/Pn34kNZYZ4xegfPOWgWkiAVWVa5/u4Bt5o9IhbjqI9LXrPbk05u/Cxf9qWZXbGEVhX1eYOtbcZ/ujOu78/uxTmJcl3FhhhEOsnBOwh8hWeXtYgs8gbL18Ab2WxL6l55xP7Aofioj4qnZE5SDSgFF74zXHztPzYpTxBWz7JmxNP/XOQ6CB8tqVtE6W7q+/8D7feoi3JPvKPuTA6OkULNPO+4dvArGX8M7yqpBO4u/i2cgnXoIOnLlHQVYRDJNKWqZ6LEYIwo2K047bBA/P67M4Q8xG8Armfuvq2EY8G89czPujMgmT+zINGzcKqMgz2l3lf1N2RaTQwUpVzl+Fb4fSQIfTb1HrTD+USifyi0zmgWmKXfm/fyHI9jw55QxmVu7kj93sRC04A5xaQ72oHEikAz1SRBDZp8g8n0N/v5meZqZhyhc+iVNTmTU303wetzYqMejHJ/n/R1K/eIH3KYpIvaBzv8YS8pt9fdI9w/n80HUffUCjSGkhVhKtk6F2B+Zktr/VGHtiBgXQemqPRBQh04AwoGz4YTTpCO7Dw/y7SDbNlgfM8eBBQxz7f6k8+0/W9femPvboNCslSyK8FKX+I/Zpq0derME+9RGsWnD+N2uhD6uY3unuocnkgzxnmb5kE0oH0/mDNTKepioyEjPc4Gyn1Ey5i4Yhjw2VQcQ+WEkihGv9anK/gtmQAULGoHWllzbzHEPVplqiWhLm+KAroeccvU/6dOofW+D5I+nM5/zYUKrJOxdChVIuYEfmKf6aNnmalmujzk+/PdVzxxCcjIuaAiPk5juOlMY0DqViLMfNAW/UG4jgBU8ovF7f8zLPIEkxPENj45j0/xsIMFVntCDR1WzwgRzTTGK2oFQVPmdsWJjJnDpHVhQrAO2ZLIAiNtI2HWI9/lvzfCgl/WHCInUGbZw6JLt+9flEU8Bn/k9QfR9R8Mp/itRWS0nw6I/+vnaadqxRKfhpgxaHCMDxEwRHHHwEh121GnJytLiQRr72AWKQW4UdDgbpCnVkHDtm/Eg8DhokPNLiC0DPkSNZ3FaMoQkFtPZc+PVEsLhS/ZpQIwQO6VgwL+G9iuGZIA1PCAR9+FOPBYIxxqieYt839HJSDB3fRDO1rRSglSI5vnr1kXXJkyndC4p8zU2+qJXiNXzX+pd4KiX/g6nXiLWHOdPV9njU/X1CArUOOKVdbtirFU13UT9lMCwIwCCfYt/V0uQTIHYEGHHDDfY6qyGtUk6ZjVAv/bxu7WZf8So4/aoHeZd150GHmiJFu5eErOtQM6Hi6kM7RlT3MZv91kFJFotqe7cHGw0NNjtIBP83W3FeqA7Y2hsCplo1pm9EKrEu3fcAXZUcGETvJjfD2nDCcO3X1n80jEdHrue+XvifxsbubCjL0MZ60EvQYSBoVb48BjL4TE9ifpHHWRu+M3YvexOG/qXNSx9fetZMG3HuUftMZ4+kjNQLyWuw35pieA7Hg/fFw8TqNUnJ35TyJ8ocjtNVKV73JIVCu3A0RkGI9PYdMeRnkewRgse2yj1fRzboe56k7nCH8bEDWLTIjxAjFZ+7hT28VC4PkbdsK/jWpb3W63l1klWGKdw968d4QhfHiViYDg+5exuW+7IhMpbTNWrgxcLXyi5zfm/vu0PzNb+mNeTWyZYIYo4zL66RjR/pRtaZhzpO/VcVEn7d2oN8kWy9yBCDPhXrp2DhRYqCZvHZA+xbkUi3QBMcF1wdVB5NsaX5wKZGs3LsEwu7Iro7I/UlmB60PkkgbpKDJZfkYhpbF8oRc0kmWOhgjLCB3e6CNQh9QIEFDBANKtz2yg+TbHvlS0yZyGJ2EKywwumX7s7Gk4N2ko/C5X6uITPB9OIj/rxYZ1cAtc/TDa28/qOrAumM+lbpqWQvv2lyJ/uaOUy8DqKLpfGgsgaMF05V9VWvLvOK6tipVZVJz8uiYi06rsIpTDpSiNaNWJA5Qb+t4bYqOF19Ms+OcYbDBObllZ7KoxdxWUd5qhPBSVBYwUudG1qjUwEgOC0lgMVTvbOFMPvnGz0nrQW8V+4c0Uy72qvLx95CM0JRLU+pA76LWzMfy/oGnV89BvS8ktbN/PY4JYfvDnul93VbUYqjWVJpXGIERp7Z6z4wd8gLgqZHF34FM7Gu1720lWhAgmJdG+dt47TR+bDZjXSNK9vVA9GyVuv8s4omaklDqEDtRJ9JObzSXRXrR11eXFpoOP2xuKyxKu6MGA1r7x94bvnqb2cVnEAK/insyeablLOLupV8WioNU6xZsJHGH3enPPATrDPc3QlVp7lVbZc2CBGBzcljpqT/J3GDGroTRYbDX7GTDXh9P8BL/MDTVBQbSXohEVArYiPOd627ihKRjwXuLJl3pQYYvifT7CBI1M77wQq7lgy14y7PjWomiPi683k3T4Lr2hPkKMANVJ/385sElB1jaE3TTdpJUK1tafHPX+iNCTeCKGyWeK/GEV2tyr/ZM5m05PbmLS326l0GJ4nNqiXS5HywOku9QJGkusvNpOOimoaLbelWL3Y0KXtDzoeMBtsLX43hMtyusKWpvux36i/tvPEKEaafrDBu+IGf2xYmff2eoz+AAA==';
-const aiAv = (cls = 'ai-av') => `<img class="${cls}" src="${AI_LOGO}" alt="Birga AI">`;
+const aiAv = (cls = 'ai-av') => `<img class="${cls}" src="${AI_LOGO}" alt="Birga yordamchi">`;
 const AI = {
   key: () => 'birga_ai_' + (S.me?.id || 0),
   hist: [], busy: false, img: null, rec: null, speaking: -1,
@@ -4834,7 +4834,7 @@ const AI = {
   ensure() {
     if ($('#ai-page')) return;
     document.body.insertAdjacentHTML('beforeend', `<div class="ai-page hidden" id="ai-page">
-      <header class="ai-head"><button class="icon-btn" id="ai-back">${icon('back')}</button>${aiAv()}<div class="ai-tt"><b>Birga AI</b><small id="ai-st"></small></div><button class="icon-btn" id="ai-clear" title="">${icon('trash')}</button></header>
+      <header class="ai-head"><button class="icon-btn" id="ai-back">${icon('back')}</button>${aiAv()}<div class="ai-tt"><b>Birga yordamchi</b><small id="ai-st"></small></div><button class="icon-btn" id="ai-clear" title="">${icon('trash')}</button></header>
       <div class="ai-msgs" id="ai-msgs"></div>
       <div class="ai-tools" id="ai-tools"></div>
       <div class="ai-prev hidden" id="ai-prev"></div>
@@ -4910,8 +4910,8 @@ const AI = {
     $('#modal-card .chat-pick').onclick = async (e) => {
       const b = e.target.closest('[data-cid]'); if (!b) return; closeModal();
       try {
-        if (m.gen) await emitSend({ chatId: +b.dataset.cid, type: 'image', file: m.gen, mime: m.mime || 'image/jpeg', size: m.size || 0, text: '🎨 Birga AI', meta: { w: 1024, h: 1024 } });
-        else await emitSend({ chatId: +b.dataset.cid, type: 'text', text: '✦ Birga AI:\n' + m.content.slice(0, 4000) });
+        if (m.gen) await emitSend({ chatId: +b.dataset.cid, type: 'image', file: m.gen, mime: m.mime || 'image/jpeg', size: m.size || 0, text: '🎨 Birga yordamchi', meta: { w: 1024, h: 1024 } });
+        else await emitSend({ chatId: +b.dataset.cid, type: 'text', text: '✦ Birga yordamchi:\n' + m.content.slice(0, 4000) });
         toast('✓');
       } catch (er) { toast(er.message || t('not_sent')); }
     };
@@ -4984,7 +4984,7 @@ const AI = {
     const q = $('#chat-search').value.trim().toLowerCase();
     if (S.archView || FILTER !== 'all' || (q && !'birga ai'.includes(q) && !q.includes('ai'))) return;
     const last = AI.hist.length ? AI.hist[AI.hist.length - 1] : null;
-    $('#chat-list').insertAdjacentHTML('afterbegin', `<li class="chat-item ai-row" data-ai="1">${aiAv('av ai-av2')}<div class="ci-body"><div class="ci-row"><span class="ci-name">Birga AI<span class="ai-tag">AI</span></span></div>
+    $('#chat-list').insertAdjacentHTML('afterbegin', `<li class="chat-item ai-row" data-ai="1">${aiAv('av ai-av2')}<div class="ci-body"><div class="ci-row"><span class="ci-name">Birga yordamchi<span class="ai-tag">AI</span></span></div>
       <div class="ci-row"><span class="ci-sub">${esc(last ? (last.gen ? '🎨 ' + last.content : last.content).slice(0, 80) : t('ai_sub'))}</span></div></div></li>`);
     $('#list-empty')?.classList.add('hidden');
   };
@@ -5216,7 +5216,7 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .gm-bsbar:empty { display: none; }
 .gm-bsbar button { height: 44px; padding: 0 18px; border-radius: 22px; font-weight: 800; color: #fff; }
 .gm-ghost { background: rgba(0,0,0,.3); } .gm-solid { background: #22C55E; }
-/* Birga AI */
+/* Birga yordamchi */
 .ai-row .ai-av2, .ai-av { width: 54px; height: 54px; border-radius: 50%; object-fit: cover; background: #fff; box-shadow: 0 0 0 1px rgba(31,107,255,.15); flex: none; }
 .ai-mav { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; background: #fff; flex: none; align-self: flex-start; box-shadow: 0 0 0 1px rgba(31,107,255,.15); }
 .ai-col { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
@@ -5271,7 +5271,7 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 /* ======================= v15: taklif havolasi, kontaktlar, PIN qulf, rejalashtirilgan xabar, so'rovnoma, chat foni, chatda AI ======================= */
 try {
   Object.assign(I18N.uz, {
-    inv_title: 'Do‘stlarni taklif qilish', inv_sub: 'Havolangiz orqali qo‘shilgan do‘stlar avtomatik sizga yozadi', inv_count: 'Siz taklif qilganlar: {n}', inv_text: 'Men Birga messenjeridan foydalanyapman — tezkor chat, qo‘ng‘iroqlar, o‘yinlar va Birga AI. Qo‘shil: ',
+    inv_title: 'Do‘stlarni taklif qilish', inv_sub: 'Havolangiz orqali qo‘shilgan do‘stlar avtomatik sizga yozadi', inv_count: 'Siz taklif qilganlar: {n}', inv_text: 'Men Birga messenjeridan foydalanyapman — tezkor chat, qo‘ng‘iroqlar, o‘yinlar va Birga yordamchi. Qo‘shil: ',
     inv_by: '{n} sizni Birga’ga taklif qildi 🎁', inv_none: 'Hali hech kim qo‘shilmagan — havolani do‘stlaringizga yuboring!',
     cs_title: 'Telefon kontaktlaridan topish', cs_sub: 'Kontaktlaringizdan kim Birga’da borligini ko‘ring', cs_found: 'Birga’da topildi: {n}', cs_checked: '{n} ta kontakt tekshirildi. Kontaktlar serverda saqlanmaydi.',
     cs_none: 'Tanlangan kontaktlardan hech kim hali Birga’da emas. Ularni taklif qiling!', cs_unsup: 'Bu brauzer telefon kontaktlarini ochishga ruxsat bermaydi. Android’da Birga ilovasi yoki Chrome orqali ishlaydi. Hozircha do‘stlaringizga taklif havolasini yuboring:', cs_write: 'Yozish',
@@ -5284,9 +5284,9 @@ try {
     poll: 'So‘rovnoma', poll_new: 'Yangi so‘rovnoma', poll_q: 'Savol', poll_opt: 'Variant {n}', poll_add: '+ Variant qo‘shish', poll_multi: 'Bir nechta javob tanlash mumkin', poll_quiz: 'Viktorina (to‘g‘ri javob bor)', poll_quiz_pick: 'To‘g‘ri javobni belgilang',
     poll_send: 'Yuborish', poll_votes: '{n} ovoz', poll_vote: 'Ovoz berish', poll_retract: 'Ovozni bekor qilish', poll_open: 'Ochiq so‘rovnoma', poll_quiz_l: 'Viktorina', poll_need: 'Savol va kamida 2 ta variant kiriting', poll_right: 'To‘g‘ri! 🎉', poll_wrong: 'Noto‘g‘ri 😔',
     bg_title: 'Chat foni', bg_all: 'Barcha chatlar uchun', bg_this: 'Faqat shu chat uchun', bg_upload: 'O‘z rasmingizni qo‘yish', bg_default: 'Standart', bg_saved: 'Fon o‘zgartirildi', bg_reset: 'Umumiy fonga qaytarish',
-    ai_chat: 'Birga AI’dan so‘rash', ai_chat_sub: 'Ikkalangizga ham javob beradi — “@ai savol”', ai_thinking: 'Birga AI javob yozmoqda…', att_sched: 'Keyinroq yuborish', att_sched_sub: 'Belgilangan vaqtda o‘zi yuboriladi', att_poll_sub: 'Ovoz berish, savol-javob, viktorina' });
+    ai_chat: 'Birga yordamchi’dan so‘rash', ai_chat_sub: 'Ikkalangizga ham javob beradi — “@ai savol”', ai_thinking: 'Birga yordamchi javob yozmoqda…', att_sched: 'Keyinroq yuborish', att_sched_sub: 'Belgilangan vaqtda o‘zi yuboriladi', att_poll_sub: 'Ovoz berish, savol-javob, viktorina' });
   Object.assign(I18N.ru, {
-    inv_title: 'Пригласить друзей', inv_sub: 'Друзья, пришедшие по вашей ссылке, сразу вам напишут', inv_count: 'Вы пригласили: {n}', inv_text: 'Я пользуюсь мессенджером Birga — быстрый чат, звонки, игры и Birga AI. Присоединяйся: ',
+    inv_title: 'Пригласить друзей', inv_sub: 'Друзья, пришедшие по вашей ссылке, сразу вам напишут', inv_count: 'Вы пригласили: {n}', inv_text: 'Я пользуюсь мессенджером Birga — быстрый чат, звонки, игры и Birga yordamchi. Присоединяйся: ',
     inv_by: '{n} приглашает вас в Birga 🎁', inv_none: 'Пока никто не присоединился — отправьте ссылку друзьям!',
     cs_title: 'Найти из контактов телефона', cs_sub: 'Узнайте, кто из ваших контактов уже в Birga', cs_found: 'Найдено в Birga: {n}', cs_checked: 'Проверено контактов: {n}. Контакты не сохраняются на сервере.',
     cs_none: 'Из выбранных контактов пока никого нет в Birga. Пригласите их!', cs_unsup: 'Этот браузер не даёт доступ к контактам телефона. Работает на Android в приложении Birga или Chrome. Пока отправьте друзьям ссылку-приглашение:', cs_write: 'Написать',
@@ -5299,9 +5299,9 @@ try {
     poll: 'Опрос', poll_new: 'Новый опрос', poll_q: 'Вопрос', poll_opt: 'Вариант {n}', poll_add: '+ Добавить вариант', poll_multi: 'Можно выбрать несколько', poll_quiz: 'Викторина (есть правильный ответ)', poll_quiz_pick: 'Отметьте правильный ответ',
     poll_send: 'Отправить', poll_votes: '{n} голосов', poll_vote: 'Голосовать', poll_retract: 'Отменить голос', poll_open: 'Открытый опрос', poll_quiz_l: 'Викторина', poll_need: 'Введите вопрос и минимум 2 варианта', poll_right: 'Верно! 🎉', poll_wrong: 'Неверно 😔',
     bg_title: 'Фон чата', bg_all: 'Для всех чатов', bg_this: 'Только для этого чата', bg_upload: 'Свой фон из фото', bg_default: 'Стандартный', bg_saved: 'Фон изменён', bg_reset: 'Вернуть общий фон',
-    ai_chat: 'Спросить Birga AI', ai_chat_sub: 'Ответит вам обоим — «@ai вопрос»', ai_thinking: 'Birga AI пишет ответ…', att_sched: 'Отправить позже', att_sched_sub: 'Отправится в выбранное время', att_poll_sub: 'Голосование, вопрос-ответ, викторина' });
+    ai_chat: 'Спросить Birga yordamchi', ai_chat_sub: 'Ответит вам обоим — «@ai вопрос»', ai_thinking: 'Birga yordamchi пишет ответ…', att_sched: 'Отправить позже', att_sched_sub: 'Отправится в выбранное время', att_poll_sub: 'Голосование, вопрос-ответ, викторина' });
   Object.assign(I18N.en, {
-    inv_title: 'Invite friends', inv_sub: 'Friends who join with your link message you automatically', inv_count: 'You invited: {n}', inv_text: 'I use the Birga messenger — fast chat, calls, games and Birga AI. Join me: ',
+    inv_title: 'Invite friends', inv_sub: 'Friends who join with your link message you automatically', inv_count: 'You invited: {n}', inv_text: 'I use the Birga messenger — fast chat, calls, games and Birga yordamchi. Join me: ',
     inv_by: '{n} invites you to Birga 🎁', inv_none: 'Nobody has joined yet — send the link to your friends!',
     cs_title: 'Find from phone contacts', cs_sub: 'See which of your contacts are on Birga', cs_found: 'Found on Birga: {n}', cs_checked: '{n} contacts checked. Contacts are not stored on the server.',
     cs_none: 'None of the selected contacts are on Birga yet. Invite them!', cs_unsup: 'This browser cannot open phone contacts. It works on Android in the Birga app or Chrome. For now, send friends your invite link:', cs_write: 'Message',
@@ -5314,7 +5314,7 @@ try {
     poll: 'Poll', poll_new: 'New poll', poll_q: 'Question', poll_opt: 'Option {n}', poll_add: '+ Add option', poll_multi: 'Allow multiple answers', poll_quiz: 'Quiz (has a correct answer)', poll_quiz_pick: 'Mark the correct answer',
     poll_send: 'Send', poll_votes: '{n} votes', poll_vote: 'Vote', poll_retract: 'Retract vote', poll_open: 'Poll', poll_quiz_l: 'Quiz', poll_need: 'Enter a question and at least 2 options', poll_right: 'Correct! 🎉', poll_wrong: 'Wrong 😔',
     bg_title: 'Chat background', bg_all: 'For all chats', bg_this: 'Only this chat', bg_upload: 'Use my photo', bg_default: 'Default', bg_saved: 'Background changed', bg_reset: 'Use the common background',
-    ai_chat: 'Ask Birga AI', ai_chat_sub: 'Answers both of you — “@ai question”', ai_thinking: 'Birga AI is typing…', att_sched: 'Send later', att_sched_sub: 'Sent automatically at the chosen time', att_poll_sub: 'Voting, Q&A, quiz' });
+    ai_chat: 'Ask Birga yordamchi', ai_chat_sub: 'Answers both of you — “@ai question”', ai_thinking: 'Birga yordamchi is typing…', att_sched: 'Send later', att_sched_sub: 'Sent automatically at the chosen time', att_poll_sub: 'Voting, Q&A, quiz' });
 } catch {}
 const tf = (k, o = {}) => Object.entries(o).reduce((s, [a, b]) => s.replaceAll('{' + a + '}', b), t(k));
 const emitAck = (ev, p) => new Promise((res, rej) => { if (!S.socket) return rej(new Error(t('net_err'))); S.socket.timeout(15000).emit(ev, p, (err, r) => (err ? rej(new Error(t('net_err'))) : r?.error ? rej(Object.assign(new Error(r.error), { code: r.error })) : res(r))); });
@@ -5593,7 +5593,7 @@ $('#messages').addEventListener('click', (e) => {
   const basePrev = preview;
   preview = function (m) {
     if (m && !m.deleted && m.type === 'poll') return `<span class="tag">📊 ${esc(t('poll'))}:</span> ${esc(m.meta?.poll?.q || m.text || '')}`;
-    if (m && !m.deleted && m.meta?.ai) return `<span class="tag">✦ Birga AI:</span> ${esc(String(m.text || '').replace(/[*#`_]/g, '').slice(0, 90))}`;
+    if (m && !m.deleted && m.meta?.ai) return `<span class="tag">✦ Birga yordamchi:</span> ${esc(String(m.text || '').replace(/[*#`_]/g, '').slice(0, 90))}`;
     return basePrev(m);
   };
 }
@@ -5640,13 +5640,13 @@ const BG = {
   chatMenu = function (chatId, x, y) { baseCM15(chatId, x, y); const el = $('#ctx'); el.insertAdjacentHTML('beforeend', `<button data-a15="bg">🖼 ${esc(t('bg_title'))}</button>`); el.querySelector('[data-a15]').onclick = (e) => { e.stopPropagation(); el.classList.add('hidden'); BG.pick(chatId); }; };
 }
 
-/* ---------- 7) Chat ichida Birga AI ---------- */
+/* ---------- 7) Chat ichida Birga yordamchi ---------- */
 const AIChat = {
   on: new Set(),
   paint() {
     $('#ai-typing')?.remove();
     if (!S.current || !this.on.has(S.current)) return;
-    $('#messages').insertAdjacentHTML('beforeend', `<div class="msg in ai-msg" id="ai-typing"><img class="ai-mav" src="${AI_LOGO}" alt=""><div class="bubble"><div class="ai-name">✦ Birga AI</div><div class="ai-dots"><i></i><i></i><i></i></div></div></div>`);
+    $('#messages').insertAdjacentHTML('beforeend', `<div class="msg in ai-msg" id="ai-typing"><img class="ai-mav" src="${AI_LOGO}" alt=""><div class="bubble"><div class="ai-name">✦ Birga yordamchi</div><div class="ai-dots"><i></i><i></i><i></i></div></div></div>`);
     const box = $('#messages'); if (box.scrollHeight - box.scrollTop - box.clientHeight < 300) box.scrollTop = box.scrollHeight;
   },
 };
@@ -5655,7 +5655,7 @@ const AIChat = {
   msgInner = function (m, c, tail, gap) {
     if (!m.meta?.ai || m.deleted) return baseMI(m, c, tail, gap);
     const meta = `<span class="meta">${fmtTime(m.created_at)}</span>`;
-    return `<div class="msg in ai-msg${gap ? ' gap' : ''}" data-id="${m.id || ''}"><img class="ai-mav" src="${AI_LOGO}" alt=""><div class="bubble"><div class="ai-name">✦ Birga AI</div><div class="txt ai-txt">${AI.md(m.text || '')}</div>${meta}</div></div>`;
+    return `<div class="msg in ai-msg${gap ? ' gap' : ''}" data-id="${m.id || ''}"><img class="ai-mav" src="${AI_LOGO}" alt=""><div class="bubble"><div class="ai-name">✦ Birga yordamchi</div><div class="txt ai-txt">${AI.md(m.text || '')}</div>${meta}</div></div>`;
   };
   const baseMH = msgHTML;
   msgHTML = function (m, c, tail, gap) {
@@ -5765,23 +5765,23 @@ html.pin-on body > *:not(#pin-lock):not(#toast):not(#modal) { visibility: hidden
 .row-btn:disabled { opacity: .55; }
 </style>`);
 
-/* ======================= v16: Birga AI o'zbekcha neyron ovozi, chat ichidagi ⋮ menyu ======================= */
+/* ======================= v16: Birga yordamchi o'zbekcha neyron ovozi, chat ichidagi ⋮ menyu ======================= */
 try {
-  Object.assign(I18N.uz, { ai_set: 'Birga AI sozlamalari', ai_voice: 'Ovoz', ai_v0: 'Madina (ayol ovozi)', ai_v1: 'Sardor (erkak ovozi)', ai_auto: 'Javoblarni avtomatik ovoz chiqarib o‘qish',
+  Object.assign(I18N.uz, { ai_set: 'Birga yordamchi sozlamalari', ai_voice: 'Ovoz', ai_v0: 'Madina (ayol ovozi)', ai_v1: 'Sardor (erkak ovozi)', ai_auto: 'Javoblarni avtomatik ovoz chiqarib o‘qish',
     ai_voice_basic: 'Hozir telefoningizning oddiy ovozi ishlatilmoqda. Tabiiy o‘zbekcha ovoz (Madina / Sardor) uchun administrator Azure Speech kalitini ulashi kerak.', ai_voice_neural: '✅ Tabiiy o‘zbekcha neyron ovoz ulangan',
     cm_search: 'Chatda qidirish', cm_bg: 'Chat foni', cm_mute: 'Ovozsiz qilish', cm_unmute: 'Ovozni yoqish', cm_pin: 'Tepaga qadash', cm_unpin: 'Qadashni olib tashlash', cm_sched: 'Rejalashtirilgan xabarlar', cm_poll: 'So‘rovnoma yaratish',
-    cm_sum: 'Birga AI: chat xulosasi', cm_media: 'Media, fayllar va havolalar', cm_info: 'Ma’lumot', cm_clear: 'Chat tarixini tozalash', cm_clear_q: 'Bu chatdagi barcha xabarlar faqat siz uchun o‘chiriladi. Suhbatdoshingizda qoladi. Davom etilsinmi?',
-    cm_cleared: 'Chat tarixi tozalandi', cm_export: 'Chatni saqlab olish (.txt)', cm_sum_t: 'Chat xulosasi', cm_sum_empty: 'Chatda hali xabar yo‘q', cm_sum_wait: 'Birga AI chatni o‘qimoqda…', cm_ai_ask: 'Birga AI’dan so‘rash' });
-  Object.assign(I18N.ru, { ai_set: 'Настройки Birga AI', ai_voice: 'Голос', ai_v0: 'Мадина (женский)', ai_v1: 'Сардор (мужской)', ai_auto: 'Автоматически озвучивать ответы',
+    cm_sum: 'Birga yordamchi: chat xulosasi', cm_media: 'Media, fayllar va havolalar', cm_info: 'Ma’lumot', cm_clear: 'Chat tarixini tozalash', cm_clear_q: 'Bu chatdagi barcha xabarlar faqat siz uchun o‘chiriladi. Suhbatdoshingizda qoladi. Davom etilsinmi?',
+    cm_cleared: 'Chat tarixi tozalandi', cm_export: 'Chatni saqlab olish (.txt)', cm_sum_t: 'Chat xulosasi', cm_sum_empty: 'Chatda hali xabar yo‘q', cm_sum_wait: 'Birga yordamchi chatni o‘qimoqda…', cm_ai_ask: 'Birga yordamchi’dan so‘rash' });
+  Object.assign(I18N.ru, { ai_set: 'Настройки Birga yordamchi', ai_voice: 'Голос', ai_v0: 'Мадина (женский)', ai_v1: 'Сардор (мужской)', ai_auto: 'Автоматически озвучивать ответы',
     ai_voice_basic: 'Сейчас используется стандартный голос телефона. Для естественного узбекского голоса (Мадина / Сардор) администратору нужно подключить ключ Azure Speech.', ai_voice_neural: '✅ Подключён естественный нейронный голос',
     cm_search: 'Поиск в чате', cm_bg: 'Фон чата', cm_mute: 'Без звука', cm_unmute: 'Включить звук', cm_pin: 'Закрепить', cm_unpin: 'Открепить', cm_sched: 'Запланированные сообщения', cm_poll: 'Создать опрос',
-    cm_sum: 'Birga AI: краткое содержание', cm_media: 'Медиа, файлы и ссылки', cm_info: 'Информация', cm_clear: 'Очистить историю', cm_clear_q: 'Все сообщения этого чата будут удалены только у вас. У собеседника они останутся. Продолжить?',
-    cm_cleared: 'История очищена', cm_export: 'Сохранить чат (.txt)', cm_sum_t: 'Краткое содержание чата', cm_sum_empty: 'В чате пока нет сообщений', cm_sum_wait: 'Birga AI читает чат…', cm_ai_ask: 'Спросить Birga AI' });
-  Object.assign(I18N.en, { ai_set: 'Birga AI settings', ai_voice: 'Voice', ai_v0: 'Madina (female)', ai_v1: 'Sardor (male)', ai_auto: 'Read answers aloud automatically',
+    cm_sum: 'Birga yordamchi: краткое содержание', cm_media: 'Медиа, файлы и ссылки', cm_info: 'Информация', cm_clear: 'Очистить историю', cm_clear_q: 'Все сообщения этого чата будут удалены только у вас. У собеседника они останутся. Продолжить?',
+    cm_cleared: 'История очищена', cm_export: 'Сохранить чат (.txt)', cm_sum_t: 'Краткое содержание чата', cm_sum_empty: 'В чате пока нет сообщений', cm_sum_wait: 'Birga yordamchi читает чат…', cm_ai_ask: 'Спросить Birga yordamchi' });
+  Object.assign(I18N.en, { ai_set: 'Birga yordamchi settings', ai_voice: 'Voice', ai_v0: 'Madina (female)', ai_v1: 'Sardor (male)', ai_auto: 'Read answers aloud automatically',
     ai_voice_basic: 'Your phone’s basic voice is used now. For a natural Uzbek voice (Madina / Sardor) the admin needs to connect an Azure Speech key.', ai_voice_neural: '✅ Natural neural voice is connected',
     cm_search: 'Search in chat', cm_bg: 'Chat background', cm_mute: 'Mute', cm_unmute: 'Unmute', cm_pin: 'Pin chat', cm_unpin: 'Unpin chat', cm_sched: 'Scheduled messages', cm_poll: 'Create poll',
-    cm_sum: 'Birga AI: chat summary', cm_media: 'Media, files and links', cm_info: 'Info', cm_clear: 'Clear chat history', cm_clear_q: 'All messages in this chat will be removed only for you. The other person keeps them. Continue?',
-    cm_cleared: 'Chat history cleared', cm_export: 'Save chat (.txt)', cm_sum_t: 'Chat summary', cm_sum_empty: 'No messages in this chat yet', cm_sum_wait: 'Birga AI is reading the chat…', cm_ai_ask: 'Ask Birga AI' });
+    cm_sum: 'Birga yordamchi: chat summary', cm_media: 'Media, files and links', cm_info: 'Info', cm_clear: 'Clear chat history', cm_clear_q: 'All messages in this chat will be removed only for you. The other person keeps them. Continue?',
+    cm_cleared: 'Chat history cleared', cm_export: 'Save chat (.txt)', cm_sum_t: 'Chat summary', cm_sum_empty: 'No messages in this chat yet', cm_sum_wait: 'Birga yordamchi is reading the chat…', cm_ai_ask: 'Ask Birga yordamchi' });
 } catch {}
 
 /* --- Ovoz: tabiiy o'zbekcha neyron ovoz (server orqali), bo'lmasa telefon ovozi --- */
@@ -5832,7 +5832,7 @@ AI.say = function (i) {
       <p class="${neural ? 'st-okk' : 'st-warn'}">${esc(t(neural ? 'ai_voice_neural' : 'ai_voice_basic'))}</p>
       <h4 class="inv-h">${esc(t('ai_voice'))}</h4><div class="pin-when vc">${[0, 1].map((v) => `<button data-v="${v}" class="${c.v === v ? 'on' : ''}">${v ? '👨' : '👩'} ${esc(t('ai_v' + v))}</button>`).join('')}</div>
       <button class="row-btn" id="ai-auto"><span class="ri c3">🔊</span><span>${esc(t('ai_auto'))}</span><i class="sw14${c.auto ? ' on' : ''}"></i></button>`);
-    $('#modal-card .vc').onclick = (e) => { const b = e.target.closest('[data-v]'); if (!b) return; c.v = +b.dataset.v; Voice.setCfg(c); $$('#modal-card .vc button').forEach((x) => x.classList.toggle('on', x === b)); Voice.speak(c.v ? 'Salom! Men Birga AI man, Sardor ovozidaman.' : 'Salom! Men Birga AI man, Madina ovozidaman.'); };
+    $('#modal-card .vc').onclick = (e) => { const b = e.target.closest('[data-v]'); if (!b) return; c.v = +b.dataset.v; Voice.setCfg(c); $$('#modal-card .vc button').forEach((x) => x.classList.toggle('on', x === b)); Voice.speak(c.v ? 'Salom! Men Birga yordamchi man, Sardor ovozidaman.' : 'Salom! Men Birga yordamchi man, Madina ovozidaman.'); };
     $('#ai-auto').onclick = () => { c.auto = !c.auto; Voice.setCfg(c); $('#ai-auto .sw14').classList.toggle('on', c.auto); };
   };
 }
@@ -5890,14 +5890,14 @@ const ChatMore = {
     try {
       const r = await api('/api/ai/summary', { body: { chatId: c.id } });
       const box = $('#sum-box'); if (!box) return;
-      box.innerHTML = r.text ? `<div class="sum-head">${aiAv('ai-mav')}<b>Birga AI</b><button class="icon-btn" id="sum-say">🔊</button><button class="icon-btn" id="sum-copy">${icon('copy')}</button></div><div class="ai-txt">${AI.md(r.text)}</div>` : `<p class="empty-note">${esc(t('cm_sum_empty'))}</p>`;
+      box.innerHTML = r.text ? `<div class="sum-head">${aiAv('ai-mav')}<b>Birga yordamchi</b><button class="icon-btn" id="sum-say">🔊</button><button class="icon-btn" id="sum-copy">${icon('copy')}</button></div><div class="ai-txt">${AI.md(r.text)}</div>` : `<p class="empty-note">${esc(t('cm_sum_empty'))}</p>`;
       $('#sum-copy')?.addEventListener('click', () => navigator.clipboard?.writeText(r.text).then(() => toast(t('ai_copy'))).catch(() => {}));
       $('#sum-say')?.addEventListener('click', () => Voice.speak(r.text));
     } catch (e) { const box = $('#sum-box'); if (box) box.innerHTML = `<p class="empty-note">${esc(e.status === 429 ? t('ai_limit') : t('ai_err'))}</p>`; }
   },
   exportTxt(c) {
     const list = (S.msgs.get(c.id) || []).filter((m) => m.id && !m.deleted);
-    const name = (m) => (m.meta?.ai ? 'Birga AI' : m.sender_id === S.me.id ? S.me.name : S.users.get(m.sender_id)?.name || '?');
+    const name = (m) => (m.meta?.ai ? 'Birga yordamchi' : m.sender_id === S.me.id ? S.me.name : S.users.get(m.sender_id)?.name || '?');
     const body = list.map((m) => `[${new Date(m.created_at).toLocaleString('ru-RU')}] ${name(m)}: ${m.type === 'text' ? m.text : stripTags(preview(m))}`).join('\n');
     const blob = new Blob([`Birga — ${chatTitle(c)}\n${'='.repeat(30)}\n${body}\n`], { type: 'text/plain;charset=utf-8' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `Birga-${chatTitle(c).replace(/[^\wЀ-ӿ‘ʼ -]/g, '').slice(0, 40) || 'chat'}.txt`; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
@@ -5916,6 +5916,1022 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 #ctx.chat-more button { display: flex; align-items: center; gap: 12px; } .cm-e { width: 22px; text-align: center; font-size: 17px; }
 .sum-box { min-height: 120px; max-height: 65vh; overflow: auto; } .sum-wait { display: flex; gap: 5px; justify-content: center; padding: 20px 0 6px; } .sum-wait i { width: 9px; height: 9px; border-radius: 50%; background: var(--blue, #1F6BFF); animation: aid 1s infinite; } .sum-wait i:nth-child(2) { animation-delay: .15s; } .sum-wait i:nth-child(3) { animation-delay: .3s; }
 .sum-box .muted { text-align: center; } .sum-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; } .sum-head b { flex: 1; } .sum-box .ai-txt { line-height: 1.5; font-size: 15px; }
+</style>`);
+
+/* ======================= v17: tarjima, ovozdan matn, qadash, papkalar, joylashuv, guruh qo'ng'irog'i, qo'ng'iroqlar tarixi, stikerlar, ob-havo ======================= */
+try {
+  // "Birga yordamchi" endi "Birga yordamchi"
+  for (const L of ['uz', 'ru', 'en']) for (const k of Object.keys(I18N[L] || {})) { const v = I18N[L][k]; if (typeof v === 'string' && v.includes('Birga yordamchi')) I18N[L][k] = v.replaceAll('Birga yordamchi', 'Birga yordamchi'); else if (Array.isArray(v)) I18N[L][k] = v.map((x) => (typeof x === 'string' ? x.replaceAll('Birga yordamchi', 'Birga yordamchi') : x)); }
+  Object.assign(I18N.uz, { tr: 'Tarjima qilish', tr_to: 'Qaysi tilga tarjima qilay?', tr_wait: 'Tarjima qilinmoqda…', tr_err: 'Tarjima qilib bo‘lmadi', tr_hide: 'Yopish', stt: 'Matnga aylantirish', stt_wait: 'Ovoz matnga aylantirilmoqda…', stt_err: 'Matnga aylantirib bo‘lmadi', stt_empty: 'Nutq aniqlanmadi', stt_no: 'Ovozni matnga aylantirish uchun administrator GEMINI_API_KEY yoki GROQ_API_KEY ulashi kerak',
+    pin_msg: 'Qadash', unpin_msg: 'Qadashni olib tashlash', pinned_msg: 'Qadalgan xabar', pin_admin: 'Guruhda faqat adminlar qadashi mumkin',
+    fld_all: 'Hammasi', fld_new: 'Yangi papka', fld_name: 'Papka nomi', fld_types: 'Avtomatik qo‘shilsin', fld_t_private: 'Shaxsiy chatlar', fld_t_group: 'Guruhlar', fld_t_channel: 'Kanallar', fld_t_unread: 'O‘qilmaganlar', fld_chats: 'Chatlarni tanlang', fld_save: 'Saqlash', fld_del: 'Papkani o‘chirish', fld_del_q: 'Papka o‘chirilsinmi? Chatlar o‘chmaydi.', fld_add: 'Papkaga qo‘shish', fld_sugg: 'Tayyor papkalar', fld_edit: 'Papkani tahrirlash', fld_empty: 'Bu papkada hali chat yo‘q',
+    loc_title: 'Joylashuv yuborish', loc_now: 'Hozirgi joylashuvim', loc_now_sub: 'Manzili bilan bir marta yuboriladi', loc_live: 'Jonli joylashuv', loc_live_sub: 'Harakatlansangiz ham xaritada yangilanib turadi', loc_map: 'Xaritadan tanlash', loc_min: '{n} daqiqa', loc_getting: 'Joylashuv aniqlanmoqda…', loc_denied: 'Joylashuvga ruxsat berilmadi',
+    loc_live_on: '🔴 Jonli · {n} daqiqa qoldi', loc_live_off: 'Jonli joylashuv tugadi', loc_stop: 'To‘xtatish', loc_upd: 'yangilandi {t}', loc_live_note: 'Birga ochiq turganda yangilanadi',
+    gc_start: 'Guruh qo‘ng‘irog‘ini boshlash', gc_ring: '{n} guruh qo‘ng‘irog‘ini boshladi', gc_join: 'Qo‘shilish', gc_decline: 'Rad etish', gc_live: 'Jonli qo‘ng‘iroq', gc_n: '{n} kishi', gc_ended: 'Guruh qo‘ng‘irog‘i', gc_full: 'Qo‘ng‘iroqda joy yo‘q (10 kishi)', gc_leave: 'Chiqish', gc_waiting: 'Boshqalar qo‘shilishini kutmoqda…', gc_banner: '🔴 Jonli qo‘ng‘iroq · {n} kishi', gc_q: 'Guruh qo‘ng‘irog‘i boshlansinmi? Barcha a’zolarga xabar boradi.',
+    calls: 'Qo‘ng‘iroqlar', calls_empty: 'Hali qo‘ng‘iroqlar yo‘q', calls_today: 'Bugun', calls_total: 'Jami suhbat', calls_top: 'Eng ko‘p gaplashganlar', calls_missed: 'O‘tkazib yuborilgan', calls_in: 'Kiruvchi', calls_out: 'Chiquvchi', calls_n: '{n} ta qo‘ng‘iroq',
+    stk_birga: 'Birga stikerlari', stk_mine: 'Mening stikerlarim', stk_make: 'Stiker yaratish', stk_from_photo: 'Rasmdan', stk_from_ai: 'Birga yordamchi chizsin', stk_prompt: 'Qanday stiker? Masalan: choy ichayotgan mushuk', stk_shape: 'Shakl', stk_circle: 'Doira', stk_round: 'Burchakli', stk_text: 'Yozuv (ixtiyoriy)', stk_save: 'Stikerni saqlash', stk_saved: 'Stiker saqlandi ✨', stk_drawing: 'Stiker chizilmoqda…', stk_del: 'O‘chirish', stk_err: 'Stiker yaratib bo‘lmadi',
+    wx_title: 'Ob-havo', wx_region: 'Hududingizni tanlang', wx_region_sub: 'Profilingizda va bosh sahifada shu hudud ob-havosi ko‘rsatiladi', wx_my: 'Joylashuvim bo‘yicha aniqlash', wx_search: 'Boshqa shahar qidirish', wx_later: 'Keyinroq', wx_feels: 'Sezilishi', wx_hum: 'Namlik', wx_wind: 'Shamol', wx_change: 'Hududni o‘zgartirish', wx_err: 'Ob-havo ma’lumotini olib bo‘lmadi', wx_rain: 'Yog‘ingarchilik', wx_ms: 'm/s',
+    att_loc: 'Joylashuv', att_loc_sub: 'Manzil yoki jonli joylashuv' });
+  Object.assign(I18N.ru, { tr: 'Перевести', tr_to: 'На какой язык перевести?', tr_wait: 'Перевожу…', tr_err: 'Не удалось перевести', tr_hide: 'Скрыть', stt: 'Расшифровать', stt_wait: 'Расшифровываю голосовое…', stt_err: 'Не удалось расшифровать', stt_empty: 'Речь не распознана', stt_no: 'Для расшифровки администратор должен подключить GEMINI_API_KEY или GROQ_API_KEY',
+    pin_msg: 'Закрепить', unpin_msg: 'Открепить', pinned_msg: 'Закреплённое сообщение', pin_admin: 'В группе закреплять могут только админы',
+    fld_all: 'Все', fld_new: 'Новая папка', fld_name: 'Название папки', fld_types: 'Добавлять автоматически', fld_t_private: 'Личные чаты', fld_t_group: 'Группы', fld_t_channel: 'Каналы', fld_t_unread: 'Непрочитанные', fld_chats: 'Выберите чаты', fld_save: 'Сохранить', fld_del: 'Удалить папку', fld_del_q: 'Удалить папку? Чаты не удалятся.', fld_add: 'Добавить в папку', fld_sugg: 'Готовые папки', fld_edit: 'Изменить папку', fld_empty: 'В этой папке пока нет чатов',
+    loc_title: 'Отправить геопозицию', loc_now: 'Моё местоположение', loc_now_sub: 'Отправится один раз с адресом', loc_live: 'Трансляция геопозиции', loc_live_sub: 'Обновляется на карте, пока вы двигаетесь', loc_map: 'Выбрать на карте', loc_min: '{n} минут', loc_getting: 'Определяю местоположение…', loc_denied: 'Нет доступа к геопозиции',
+    loc_live_on: '🔴 В эфире · осталось {n} мин', loc_live_off: 'Трансляция завершена', loc_stop: 'Остановить', loc_upd: 'обновлено {t}', loc_live_note: 'Обновляется, пока Birga открыт',
+    gc_start: 'Начать групповой звонок', gc_ring: '{n} начал(а) групповой звонок', gc_join: 'Присоединиться', gc_decline: 'Отклонить', gc_live: 'Идёт звонок', gc_n: '{n} чел.', gc_ended: 'Групповой звонок', gc_full: 'В звонке нет мест (10 чел.)', gc_leave: 'Выйти', gc_waiting: 'Ждём участников…', gc_banner: '🔴 Идёт звонок · {n} чел.', gc_q: 'Начать групповой звонок? Все участники получат уведомление.',
+    calls: 'Звонки', calls_empty: 'Звонков пока нет', calls_today: 'Сегодня', calls_total: 'Всего разговоров', calls_top: 'Чаще всего', calls_missed: 'Пропущенные', calls_in: 'Входящий', calls_out: 'Исходящий', calls_n: '{n} звонков',
+    stk_birga: 'Стикеры Birga', stk_mine: 'Мои стикеры', stk_make: 'Создать стикер', stk_from_photo: 'Из фото', stk_from_ai: 'Нарисует Birga yordamchi', stk_prompt: 'Какой стикер? Например: кот пьёт чай', stk_shape: 'Форма', stk_circle: 'Круг', stk_round: 'Скруглённый', stk_text: 'Надпись (необязательно)', stk_save: 'Сохранить стикер', stk_saved: 'Стикер сохранён ✨', stk_drawing: 'Рисую стикер…', stk_del: 'Удалить', stk_err: 'Не удалось создать стикер',
+    wx_title: 'Погода', wx_region: 'Выберите ваш регион', wx_region_sub: 'В профиле и на главной будет погода этого региона', wx_my: 'Определить по геопозиции', wx_search: 'Найти другой город', wx_later: 'Позже', wx_feels: 'Ощущается', wx_hum: 'Влажность', wx_wind: 'Ветер', wx_change: 'Сменить регион', wx_err: 'Не удалось получить погоду', wx_rain: 'Осадки', wx_ms: 'м/с',
+    att_loc: 'Геопозиция', att_loc_sub: 'Адрес или трансляция' });
+  Object.assign(I18N.en, { tr: 'Translate', tr_to: 'Translate into…', tr_wait: 'Translating…', tr_err: 'Could not translate', tr_hide: 'Hide', stt: 'Transcribe', stt_wait: 'Transcribing voice message…', stt_err: 'Could not transcribe', stt_empty: 'No speech detected', stt_no: 'The admin needs to connect GEMINI_API_KEY or GROQ_API_KEY for transcription',
+    pin_msg: 'Pin', unpin_msg: 'Unpin', pinned_msg: 'Pinned message', pin_admin: 'Only admins can pin in groups',
+    fld_all: 'All', fld_new: 'New folder', fld_name: 'Folder name', fld_types: 'Include automatically', fld_t_private: 'Private chats', fld_t_group: 'Groups', fld_t_channel: 'Channels', fld_t_unread: 'Unread', fld_chats: 'Choose chats', fld_save: 'Save', fld_del: 'Delete folder', fld_del_q: 'Delete this folder? Chats are kept.', fld_add: 'Add to folder', fld_sugg: 'Suggested folders', fld_edit: 'Edit folder', fld_empty: 'No chats in this folder yet',
+    loc_title: 'Send location', loc_now: 'My current location', loc_now_sub: 'Sent once, with the address', loc_live: 'Live location', loc_live_sub: 'Keeps updating on the map while you move', loc_map: 'Pick on the map', loc_min: '{n} minutes', loc_getting: 'Getting your location…', loc_denied: 'Location permission denied',
+    loc_live_on: '🔴 Live · {n} min left', loc_live_off: 'Live location ended', loc_stop: 'Stop', loc_upd: 'updated {t}', loc_live_note: 'Updates while Birga is open',
+    gc_start: 'Start group call', gc_ring: '{n} started a group call', gc_join: 'Join', gc_decline: 'Decline', gc_live: 'Call in progress', gc_n: '{n} people', gc_ended: 'Group call', gc_full: 'The call is full (10 people)', gc_leave: 'Leave', gc_waiting: 'Waiting for others to join…', gc_banner: '🔴 Live call · {n} people', gc_q: 'Start a group call? All members will be notified.',
+    calls: 'Calls', calls_empty: 'No calls yet', calls_today: 'Today', calls_total: 'Total talk time', calls_top: 'Most talked with', calls_missed: 'Missed', calls_in: 'Incoming', calls_out: 'Outgoing', calls_n: '{n} calls',
+    stk_birga: 'Birga stickers', stk_mine: 'My stickers', stk_make: 'Create sticker', stk_from_photo: 'From photo', stk_from_ai: 'Let Birga yordamchi draw', stk_prompt: 'What sticker? E.g. a cat drinking tea', stk_shape: 'Shape', stk_circle: 'Circle', stk_round: 'Rounded', stk_text: 'Caption (optional)', stk_save: 'Save sticker', stk_saved: 'Sticker saved ✨', stk_drawing: 'Drawing the sticker…', stk_del: 'Delete', stk_err: 'Could not create the sticker',
+    wx_title: 'Weather', wx_region: 'Choose your region', wx_region_sub: 'Its weather is shown in your profile and on the home screen', wx_my: 'Use my location', wx_search: 'Search another city', wx_later: 'Later', wx_feels: 'Feels like', wx_hum: 'Humidity', wx_wind: 'Wind', wx_change: 'Change region', wx_err: 'Could not load the weather', wx_rain: 'Precipitation', wx_ms: 'm/s',
+    att_loc: 'Location', att_loc_sub: 'Address or live location' });
+} catch {}
+
+/* ---------- xabar ostidagi qo'shimchalar (tarjima, ovozdan matn) — qayta chizilganda ham saqlanadi ---------- */
+const Extra = {
+  map: new Map(), // id -> {tr:{to,text}|'…', stt:text|'…'}
+  get(id) { if (!this.map.has(id)) this.map.set(id, {}); return this.map.get(id); },
+  paint() {
+    const box = $('#messages'); if (!box) return;
+    for (const el of box.querySelectorAll('.msg[data-id]')) {
+      const id = +el.dataset.id; const m = this.map.get(id);
+      const vb = el.querySelector('.voice .vbody, .round-msg');
+      if (vb && !el.querySelector('.stt-btn') && !m?.stt) vb.insertAdjacentHTML(vb.classList.contains('round-msg') ? 'afterend' : 'beforeend', `<button class="stt-btn" data-stt="${id}" title="${esc(t('stt'))}">Aa</button>`);
+      el.querySelector('.x-box')?.remove();
+      if (!m || (!m.tr && !m.stt)) continue;
+      const parts = [];
+      if (m.stt) parts.push(`<div class="x-stt">${m.stt === '…' ? `<i class="x-wait">${esc(t('stt_wait'))}</i>` : esc(m.stt).replace(/\n/g, '<br>')}</div>`);
+      if (m.tr) parts.push(`<div class="x-tr"><small>🌐 ${esc(TR_L[m.tr.to]?.[1] || '')}</small>${m.tr.text === '…' ? `<i class="x-wait">${esc(t('tr_wait'))}</i>` : esc(m.tr.text).replace(/\n/g, '<br>')}<button class="x-close" data-xclose="${id}">✕</button></div>`);
+      const bub = el.querySelector('.bubble') || el.querySelector('.round-msg') || el;
+      bub.insertAdjacentHTML('beforeend', `<div class="x-box">${parts.join('')}</div>`);
+    }
+  },
+};
+new MutationObserver(() => { clearTimeout(Extra.t); Extra.t = setTimeout(() => Extra.paint(), 30); }).observe($('#messages'), { childList: true });
+const TR_L = { uz: ['🇺🇿', 'O‘zbekcha'], ru: ['🇷🇺', 'Русский'], en: ['🇬🇧', 'English'], tr: ['🇹🇷', 'Türkçe'] };
+async function translateMsg(m, to) {
+  const x = Extra.get(m.id); x.tr = { to, text: '…' }; Extra.paint(); store.set('birga_tr_last', to);
+  try { const r = await api('/api/ai/translate', { body: { id: m.id, to } }); x.tr = { to, text: r.text }; } catch (e) { delete x.tr; toast(e.status === 400 ? t('tr_err') : e.status === 429 ? t('ai_limit') : t('tr_err')); }
+  Extra.paint();
+}
+function pickLang(m) {
+  modal(`<h3>🌐 ${esc(t('tr_to'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><div class="tr-langs">${Object.entries(TR_L).map(([k, [f, n]]) => `<button data-to="${k}" class="${store.get('birga_tr_last') === k ? 'on' : ''}"><span>${f}</span><b>${n}</b></button>`).join('')}</div>`);
+  $('#modal-card .tr-langs').onclick = (e) => { const b = e.target.closest('[data-to]'); if (!b) return; closeModal(); translateMsg(m, b.dataset.to); };
+}
+async function transcribeMsg(id) {
+  const x = Extra.get(id); if (x.stt && x.stt !== '…') { delete x.stt; Extra.paint(); return; }
+  x.stt = '…'; Extra.paint();
+  try { const r = await api('/api/ai/transcribe', { body: { id } }); x.stt = r.text || '🔇 ' + t('stt_empty'); }
+  catch (e) { delete x.stt; toast(e.data?.error === 'no_stt' ? t('stt_no') : e.status === 429 ? t('ai_limit') : t('stt_err'), 4000); }
+  Extra.paint();
+}
+$('#messages').addEventListener('click', (e) => {
+  const s = e.target.closest('[data-stt]'); if (s) { e.stopImmediatePropagation(); return transcribeMsg(+s.dataset.stt); }
+  const c = e.target.closest('[data-xclose]'); if (c) { e.stopImmediatePropagation(); const x = Extra.get(+c.dataset.xclose); delete x.tr; Extra.paint(); }
+}, true);
+
+/* ---------- xabar menyusi: tarjima, matnga aylantirish, qadash ---------- */
+{
+  const baseOpenCtx = openCtx;
+  openCtx = function (x, y, m) {
+    baseOpenCtx(x, y, m);
+    if (!m.id || m.deleted || m.type === 'call') return;
+    const el = $('#ctx'); const c = S.chats.get(m.chat_id);
+    const pinned = (Pins.list.get(m.chat_id) || []).some((p) => p.id === m.id);
+    const canPin = c && (c.type === 'private' || ['owner', 'admin'].includes(c.role));
+    const hasText = (m.type === 'text' && m.text) || m.type === 'poll' || (['voice', 'round'].includes(m.type) && Extra.get(m.id).stt && Extra.get(m.id).stt !== '…');
+    const add = `${hasText ? `<button data-a17="tr">🌐 ${esc(t('tr'))}</button>` : ''}${['voice', 'round'].includes(m.type) ? `<button data-a17="stt">📝 ${esc(t('stt'))}</button>` : ''}${canPin ? `<button data-a17="pin">📌 ${esc(t(pinned ? 'unpin_msg' : 'pin_msg'))}</button>` : ''}`;
+    const ref = el.querySelector('[data-a="fwd"]'); if (ref) ref.insertAdjacentHTML('afterend', add); else el.insertAdjacentHTML('beforeend', add);
+    el.querySelectorAll('[data-a17]').forEach((b) => b.addEventListener('click', (ev) => {
+      ev.stopPropagation(); el.classList.add('hidden'); const k = b.dataset.a17;
+      if (k === 'tr') { const last = store.get('birga_tr_last'); if (last && ev.detail !== 0 && false) return translateMsg(m, last); pickLang(m); }
+      if (k === 'stt') transcribeMsg(m.id);
+      if (k === 'pin') Pins.toggle(m, !pinned);
+    }));
+    const r = el.getBoundingClientRect(); if (r.bottom > innerHeight - 8) el.style.top = Math.max(8, innerHeight - r.height - 8) + 'px';
+  };
+}
+
+/* ---------- qadalgan xabarlar ---------- */
+const Pins = {
+  list: new Map(), idx: 0,
+  async load(chatId) { try { const r = await emitAck('chat:pins', { chatId }); this.list.set(chatId, r.pins || []); } catch {} if (chatId === S.current) this.paint(); },
+  async toggle(m, on) { try { const r = await emitAck('msg:pin', { id: m.id, on }); this.list.set(m.chat_id, r.pins); this.idx = 0; this.paint(); toast(on ? '📌' : '✓'); } catch (e) { toast(e.code === 'admin_only' ? t('pin_admin') : e.message); } },
+  paint() {
+    let bar = $('#pin-bar');
+    if (!bar) { $('#chat-head').insertAdjacentHTML('afterend', `<div class="pin-bar hidden" id="pin-bar"></div>`); bar = $('#pin-bar'); bar.onclick = (e) => this.click(e); }
+    const l = this.list.get(S.current) || [];
+    if (!l.length || !S.current) { bar.classList.add('hidden'); return; }
+    if (this.idx >= l.length) this.idx = 0;
+    const p = l[this.idx]; const c = S.chats.get(S.current); const canPin = c && (c.type === 'private' || ['owner', 'admin'].includes(c.role));
+    bar.innerHTML = `<div class="pb-lines">${l.length > 1 ? l.map((_, i) => `<i class="${i === this.idx ? 'on' : ''}"></i>`).join('') : '<i class="on"></i>'}</div><div class="pb-t"><b>📌 ${esc(t('pinned_msg'))}${l.length > 1 ? ` ${this.idx + 1}/${l.length}` : ''}</b><span>${p.type === 'text' ? esc(p.text) : stripTags(preview(p))}</span></div>${canPin ? `<button class="pb-x" data-unpin="${p.id}">✕</button>` : ''}`;
+    bar.classList.remove('hidden');
+  },
+  click(e) {
+    const x = e.target.closest('[data-unpin]'); const l = this.list.get(S.current) || [];
+    if (x) { const m = (S.msgs.get(S.current) || []).find((y) => y.id === +x.dataset.unpin) || { id: +x.dataset.unpin, chat_id: S.current }; return this.toggle(m, false); }
+    const p = l[this.idx]; if (p) jumpTo(p.id);
+    if (l.length > 1) { this.idx = (this.idx + 1) % l.length; setTimeout(() => this.paint(), 300); }
+  },
+};
+
+/* ---------- chat papkalari ---------- */
+const Folders = {
+  list: [], cur: null,
+  async load() { try { this.list = (await api('/api/folders')).folders || []; } catch {} this.chips(); },
+  async save() { try { this.list = (await api('/api/folders', { body: { folders: this.list } })).folders; } catch (e) { toast(e.message); } this.chips(); renderChatList(); },
+  has(f, c) { if (f.chats.includes(c.id)) return true; const ty = f.types || []; if (ty.includes('unread') && c.unread) return true; return (ty.includes('private') && c.type === 'private' && !c.self) || (ty.includes('group') && c.type === 'group') || (ty.includes('channel') && c.type === 'channel'); },
+  chips() {
+    const f = $('#filters'); if (!f) return;
+    f.querySelectorAll('.fld-chip, .fld-add').forEach((x) => x.remove());
+    f.insertAdjacentHTML('beforeend', this.list.map((x) => `<button class="chip fld-chip${this.cur === x.id ? ' on' : ''}" data-fld="${x.id}">${esc(x.emoji)} ${esc(x.name)}</button>`).join('') + `<button class="chip fld-add" title="${esc(t('fld_new'))}">＋</button>`);
+    if (this.cur) f.querySelectorAll('[data-f]').forEach((x) => x.classList.remove('on'));
+  },
+  apply() {
+    const f = this.list.find((x) => x.id === this.cur); const box = $('#chat-list'); if (!box) return;
+    box.querySelector('.fld-empty')?.remove();
+    if (!f) return;
+    let shown = 0;
+    box.querySelectorAll('li').forEach((li) => { if (!li.dataset.id) { li.style.display = 'none'; return; } const c = S.chats.get(+li.dataset.id); const ok = c && this.has(f, c); li.style.display = ok ? '' : 'none'; if (ok) shown++; });
+    if (!shown) box.insertAdjacentHTML('beforeend', `<li class="fld-empty">${esc(t('fld_empty'))}<button class="link-btn" data-fedit="${f.id}">${esc(t('fld_edit'))}</button></li>`);
+  },
+  edit(id) {
+    const f = id ? JSON.parse(JSON.stringify(this.list.find((x) => x.id === id))) : { id: 'f' + Date.now().toString(36), name: '', emoji: '📁', chats: [], types: [] };
+    const chats = [...S.chats.values()].filter((c) => c.last || c.self).sort((a, b) => (b.last?.created_at || 0) - (a.last?.created_at || 0));
+    const EMO = ['📁', '💼', '👨‍👩‍👧', '🏪', '🎓', '👥', '⭐', '❤️', '🏠', '⚽', '🛒', '📚'];
+    const SUG = [['💼', { uz: 'Ish', ru: 'Работа', en: 'Work' }], ['👨‍👩‍👧', { uz: 'Oila', ru: 'Семья', en: 'Family' }], ['🏪', { uz: 'Biznes', ru: 'Бизнес', en: 'Business' }], ['👥', { uz: 'Do‘stlar', ru: 'Друзья', en: 'Friends' }], ['🎓', { uz: 'O‘qish', ru: 'Учёба', en: 'Study' }]];
+    modal(`<h3>📁 ${esc(t(id ? 'fld_edit' : 'fld_new'))} <button class="icon-btn" data-close>${icon('close')}</button></h3>
+      ${id ? '' : `<p class="muted fld-h">${esc(t('fld_sugg'))}</p><div class="fld-sugg">${SUG.map(([e, n]) => `<button data-sg="${e}|${esc(n[LANG] || n.uz)}">${e} ${esc(n[LANG] || n.uz)}</button>`).join('')}</div>`}
+      <div class="fld-name"><button id="fld-emo">${esc(f.emoji)}</button><input class="pl-in" id="fld-n" maxlength="24" placeholder="${esc(t('fld_name'))}" value="${esc(f.name)}"></div>
+      <div class="fld-emos hidden" id="fld-emos">${EMO.map((e) => `<button data-e="${e}">${e}</button>`).join('')}</div>
+      <p class="muted fld-h">${esc(t('fld_types'))}</p><div class="fld-types">${['private', 'group', 'channel', 'unread'].map((k) => `<label><input type="checkbox" value="${k}"${f.types.includes(k) ? ' checked' : ''}> ${esc(t('fld_t_' + k))}</label>`).join('')}</div>
+      <p class="muted fld-h">${esc(t('fld_chats'))}</p><div class="fld-chats">${chats.map((c) => `<label>${chatAvatar(c, 'sm')}<b>${esc(chatTitle(c))}</b><input type="checkbox" value="${c.id}"${f.chats.includes(c.id) ? ' checked' : ''}></label>`).join('')}</div>
+      <button class="btn-primary" id="fld-save">${esc(t('fld_save'))}</button>${id ? `<button class="link-btn danger fld-del" id="fld-del">${esc(t('fld_del'))}</button>` : ''}`);
+    const card = $('#modal-card');
+    card.querySelector('.fld-sugg')?.addEventListener('click', (e) => { const b = e.target.closest('[data-sg]'); if (!b) return; const [em, nm] = b.dataset.sg.split('|'); f.emoji = em; $('#fld-emo').textContent = em; $('#fld-n').value = nm; });
+    $('#fld-emo').onclick = () => $('#fld-emos').classList.toggle('hidden');
+    $('#fld-emos').onclick = (e) => { const b = e.target.closest('[data-e]'); if (!b) return; f.emoji = b.dataset.e; $('#fld-emo').textContent = f.emoji; $('#fld-emos').classList.add('hidden'); };
+    $('#fld-save').onclick = () => {
+      f.name = $('#fld-n').value.trim(); if (!f.name) return $('#fld-n').focus();
+      f.types = $$('#modal-card .fld-types input:checked').map((x) => x.value); f.chats = $$('#modal-card .fld-chats input:checked').map((x) => +x.value);
+      const i = this.list.findIndex((x) => x.id === f.id); if (i >= 0) this.list[i] = f; else this.list.push(f);
+      closeModal(); this.cur = f.id; this.save();
+    };
+    $('#fld-del')?.addEventListener('click', () => { if (!confirm(t('fld_del_q'))) return; this.list = this.list.filter((x) => x.id !== f.id); if (this.cur === f.id) this.cur = null; closeModal(); $$('#filters [data-f]')[0]?.classList.add('on'); this.save(); });
+  },
+  addChat(chatId) {
+    if (!this.list.length) return this.edit();
+    modal(`<h3>📁 ${esc(t('fld_add'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><div class="fld-pick">${this.list.map((f) => `<button data-fid="${f.id}" class="${f.chats.includes(chatId) ? 'on' : ''}">${esc(f.emoji)} ${esc(f.name)}${f.chats.includes(chatId) ? ' ✓' : ''}</button>`).join('')}<button data-fid="">＋ ${esc(t('fld_new'))}</button></div>`);
+    $('#modal-card .fld-pick').onclick = (e) => { const b = e.target.closest('[data-fid]'); if (!b) return; closeModal(); if (!b.dataset.fid) return this.edit(); const f = this.list.find((x) => x.id === b.dataset.fid); f.chats = f.chats.includes(chatId) ? f.chats.filter((x) => x !== chatId) : [...f.chats, chatId]; this.save(); };
+  },
+};
+$('#filters').addEventListener('click', (e) => {
+  const fc = e.target.closest('[data-fld]'), add = e.target.closest('.fld-add');
+  if (add) { e.stopImmediatePropagation(); return Folders.edit(); }
+  if (fc) { e.stopImmediatePropagation(); Folders.cur = fc.dataset.fld; FILTER = 'all'; $$('#filters .chip').forEach((x) => x.classList.toggle('on', x === fc)); renderChatList(); return; }
+  if (e.target.closest('[data-f]')) { Folders.cur = null; $$('#filters .fld-chip').forEach((x) => x.classList.remove('on')); }
+}, true);
+{
+  let lp; // papka chipini bosib turish — tahrirlash
+  $('#filters').addEventListener('pointerdown', (e) => { const fc = e.target.closest('[data-fld]'); if (!fc) return; lp = setTimeout(() => { navigator.vibrate?.(15); Folders.edit(fc.dataset.fld); }, 600); });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) => $('#filters').addEventListener(ev, () => clearTimeout(lp)));
+  $('#filters').addEventListener('contextmenu', (e) => { const fc = e.target.closest('[data-fld]'); if (fc) { e.preventDefault(); Folders.edit(fc.dataset.fld); } });
+  $('#chat-list').addEventListener('click', (e) => { const b = e.target.closest('[data-fedit]'); if (b) { e.stopImmediatePropagation(); Folders.edit(b.dataset.fedit); } }, true);
+  const baseRCL17 = renderChatList;
+  renderChatList = function () { baseRCL17(); Folders.apply(); };
+  const baseCM17 = chatMenu;
+  chatMenu = function (chatId, x, y) { baseCM17(chatId, x, y); const el = $('#ctx'); el.insertAdjacentHTML('beforeend', `<button data-a17f="1">📁 ${esc(t('fld_add'))}</button>`); el.querySelector('[data-a17f]').onclick = (ev) => { ev.stopPropagation(); el.classList.add('hidden'); Folders.addChat(chatId); }; };
+}
+
+/* ---------- joylashuv: manzil bilan va jonli (15/30/50 daqiqa) ---------- */
+const LiveLoc = {
+  act: new Map(), // msgId -> {until, watch, lastSent, last}
+  key: () => 'birga_live_' + (S.me?.id || 0),
+  persist() { try { store.set(this.key(), JSON.stringify([...this.act.entries()].map(([id, a]) => [id, a.until]))); } catch {} },
+  resume() { try { for (const [id, until] of JSON.parse(store.get(this.key()) || '[]')) if (until > Date.now()) this.track(id, until); } catch {} },
+  pos(opts = {}) { return new Promise((res, rej) => { if (!navigator.geolocation) return rej(new Error('no')); navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000, ...opts }); }); },
+  async addr(lat, lng) { try { const r = await api(`/api/map/reverse?lat=${lat}&lon=${lng}`); return r; } catch { return { name: '', addr: '' }; } },
+  sheet(chatId = S.current) {
+    modal(`<h3>📍 ${esc(t('loc_title'))} <button class="icon-btn" data-close>${icon('close')}</button></h3>
+      <div class="att-sheet"><button class="row-btn" data-lc="now"><span class="ri c2">📍</span><span>${esc(t('loc_now'))}<small>${esc(t('loc_now_sub'))}</small></span></button>
+      <div class="loc-live"><div class="ll-h"><span class="ri c7">🔴</span><span><b>${esc(t('loc_live'))}</b><small>${esc(t('loc_live_sub'))}</small></span></div><div class="ll-btns">${[15, 30, 50].map((n) => `<button data-lc="${n}">${esc(tf('loc_min', { n }))}</button>`).join('')}</div></div>
+      <button class="row-btn" data-lc="map"><span class="ri c3">🗺</span><span>${esc(t('loc_map'))}</span></button></div><p class="muted loc-note" id="loc-note"></p>`);
+    $('#modal-card').onclick = async (e) => {
+      const b = e.target.closest('[data-lc]'); if (!b) return; const k = b.dataset.lc;
+      if (k === 'map') { closeModal(); return MapView.open(); }
+      $('#loc-note').textContent = t('loc_getting'); b.disabled = true;
+      let p; try { p = await this.pos(); } catch { $('#loc-note').textContent = t('loc_denied'); b.disabled = false; return; }
+      const { latitude: lat, longitude: lng, accuracy } = p.coords; const a = await this.addr(lat, lng);
+      const loc = { lat, lng, name: a.name || '', addr: a.addr || '', acc: Math.round(accuracy || 0) };
+      if (k !== 'now') loc.liveMin = +k;
+      try { const m = await emitSend({ chatId, type: 'location', meta: { loc } }); closeModal(); if (k !== 'now' && m?.meta?.loc?.live) { this.track(m.id, m.meta.loc.live); toast('🔴 ' + t('loc_live'), 2500); } }
+      catch (er) { $('#loc-note').textContent = er.message; b.disabled = false; }
+    };
+  },
+  track(id, until) {
+    if (this.act.has(id)) return;
+    const a = { until, lastSent: 0, last: null, watch: null };
+    this.act.set(id, a); this.persist();
+    const send = async (p, force) => {
+      if (Date.now() > a.until) return this.stop(id, true);
+      const { latitude: lat, longitude: lng, accuracy } = p.coords;
+      const moved = !a.last || Math.hypot((lat - a.last[0]) * 111e3, (lng - a.last[1]) * 111e3 * Math.cos(lat * Math.PI / 180)) > 15;
+      if (!force && Date.now() - a.lastSent < (moved ? 8000 : 30000)) return;
+      a.lastSent = Date.now(); a.last = [lat, lng];
+      let addr; if (moved && (!a.addrAt || Date.now() - a.addrAt > 60e3)) { a.addrAt = Date.now(); addr = (await this.addr(lat, lng)).addr; }
+      emitAck('loc:update', { id, lat, lng, acc: accuracy, ...(addr ? { addr } : {}) }).catch((e) => { if (e.code === 'ended' || e.code === 'forbidden') this.stop(id, true); });
+    };
+    if (navigator.geolocation) a.watch = navigator.geolocation.watchPosition((p) => send(p), () => {}, { enableHighAccuracy: true, maximumAge: 5000, timeout: 30000 });
+    a.timer = setInterval(() => { if (Date.now() > a.until) return this.stop(id, true); this.pos({ maximumAge: 10000 }).then((p) => send(p, true)).catch(() => {}); }, 45000);
+  },
+  stop(id, silent) {
+    const a = this.act.get(id); if (a) { if (a.watch != null) navigator.geolocation.clearWatch(a.watch); clearInterval(a.timer); this.act.delete(id); this.persist(); }
+    if (!silent) emitAck('loc:update', { id, lat: 0, lng: 0, stop: 1 }).catch(() => {});
+  },
+};
+{
+  const baseLoc = locMsgHTML;
+  locMsgHTML = function (m, attrs, reply, metaHtml) {
+    const l = m.meta?.loc || {};
+    if (!l.live) return baseLoc(m, attrs, reply, metaHtml);
+    const left = Math.ceil((l.live - Date.now()) / 60e3); const on = left > 0;
+    const mine = m.sender_id === S.me.id;
+    const st = on ? tf('loc_live_on', { n: left }) : t('loc_live_off');
+    const tm = l.upd ? tf('loc_upd', { t: fmtTime(l.upd) }) : '';
+    return `<div ${attrs}><div class="bubble">${reply}<div class="locbox live${on ? ' on' : ''}" data-loc="${l.lat},${l.lng}"><div class="lic">${on ? '<span class="pulse"></span>' : ''}${icon('pinpt')}</div>
+      <div style="min-width:0"><b class="ll-st">${esc(st)}</b>${l.addr ? `<small>${esc(l.addr)}</small>` : ''}<small class="ll-t">${esc(tm)}${on ? ' · ' + esc(t('loc_live_note')) : ''}</small><u>${esc(t('open_map'))} ›</u></div></div>
+      ${mine && on ? `<button class="ll-stop" data-llstop="${m.id}">⏹ ${esc(t('loc_stop'))}</button>` : ''}${metaHtml}</div></div>`;
+  };
+}
+$('#messages').addEventListener('click', (e) => { const b = e.target.closest('[data-llstop]'); if (!b) return; e.stopImmediatePropagation(); LiveLoc.stop(+b.dataset.llstop); }, true);
+setInterval(() => { if (S.current && (S.msgs.get(S.current) || []).some((m) => m.meta?.loc?.live && m.meta.loc.live > Date.now() - 70e3)) renderMessages(); }, 60e3);
+
+/* ---------- Guruh qo'ng'irog'i (jonli, 10 kishigacha) ---------- */
+const GCall = {
+  chatId: null, pcs: new Map(), local: null, mic: true, cam: false, facing: 'user', ice: null, live: new Map(), started: 0, timer: null,
+  async iceServers() { if (this.ice) return this.ice; try { this.ice = (await api('/api/ice')).iceServers; } catch { this.ice = [{ urls: 'stun:stun.l.google.com:19302' }]; } setTimeout(() => (this.ice = null), 30 * 60e3); return this.ice; },
+  async start(chatId, video) {
+    if (this.chatId || Call.active) return;
+    const st = this.live.get(chatId);
+    if (!st?.active && !confirm(t('gc_q'))) return;
+    try { const r = await emitAck('gcall:start', { chatId, video }); } catch (e) { return toast(e.message); }
+    this.join(chatId, video);
+  },
+  async join(chatId, video) {
+    if (this.chatId) return; this.ring(null);
+    if (!navigator.mediaDevices?.getUserMedia) return toast(t('need_https'), 3500);
+    try { this.local = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: video ? { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 20, max: 24 } } : false }); }
+    catch { try { this.local = await navigator.mediaDevices.getUserMedia({ audio: true }); video = false; } catch { return toast(t('call_failed'), 3500); } }
+    this.cam = !!video; this.mic = true; this.chatId = chatId;
+    let r; try { r = await emitAck('gcall:join', { chatId }); } catch (e) { this.cleanup(); return toast(e.code === 'full' ? t('gc_full') : e.code === 'ended' ? t('gc_ended') : e.message); }
+    this.started = r.started || Date.now(); this.ui(); this.tile(S.me.id, this.local, true);
+    for (const peer of r.peers) this.connect(peer, true);
+    this.timer = setInterval(() => this.tick(), 1000); this.tick();
+    Speaker?.attach?.();
+  },
+  async connect(peer, initiator) {
+    if (this.pcs.has(peer)) return this.pcs.get(peer);
+    const pc = new RTCPeerConnection({ iceServers: await this.iceServers(), bundlePolicy: 'max-bundle' });
+    const st = { pc, polite: S.me.id > peer, making: false, ignore: false, q: [] }; this.pcs.set(peer, st);
+    this.local.getTracks().forEach((tr) => pc.addTrack(tr, this.local));
+    pc.onicecandidate = (e) => e.candidate && S.socket.emit('gcall:signal', { chatId: this.chatId, to: peer, data: { cand: e.candidate } });
+    pc.ontrack = (e) => this.tile(peer, e.streams[0] || new MediaStream([e.track]));
+    pc.onnegotiationneeded = async () => { try { st.making = true; await pc.setLocalDescription(); S.socket.emit('gcall:signal', { chatId: this.chatId, to: peer, data: { desc: pc.localDescription } }); } catch {} finally { st.making = false; } };
+    pc.onconnectionstatechange = () => {
+      const s = pc.connectionState; this.tileState(peer, s);
+      if (s === 'failed') { try { pc.setConfiguration({ iceServers: this.ice || [], iceTransportPolicy: 'relay' }); pc.restartIce(); } catch {} }
+      if (s === 'disconnected') setTimeout(() => { if (pc.connectionState === 'disconnected') try { pc.restartIce(); } catch {} }, 3000);
+    };
+    return st;
+  },
+  async onSignal({ chatId, from, data }) {
+    if (chatId !== this.chatId) return;
+    const st = this.pcs.get(from) || (await this.connect(from, false)); const pc = st.pc;
+    try {
+      if (data.desc) {
+        const collision = data.desc.type === 'offer' && (st.making || pc.signalingState !== 'stable');
+        st.ignore = !st.polite && collision; if (st.ignore) return;
+        await pc.setRemoteDescription(data.desc);
+        if (data.desc.type === 'offer') { await pc.setLocalDescription(); S.socket.emit('gcall:signal', { chatId, to: from, data: { desc: pc.localDescription } }); }
+        st.q.forEach((c) => pc.addIceCandidate(c).catch(() => {})); st.q = [];
+      } else if (data.cand) { if (pc.remoteDescription) await pc.addIceCandidate(data.cand).catch(() => {}); else st.q.push(data.cand); }
+    } catch (e) { console.warn('gcall', e); }
+  },
+  drop(uid) { const st = this.pcs.get(uid); if (st) { try { st.pc.close(); } catch {} this.pcs.delete(uid); } $(`#gc-grid [data-gu="${uid}"]`)?.remove(); this.layout(); },
+  leave() { if (!this.chatId) return; S.socket?.emit('gcall:leave', { chatId: this.chatId }); this.cleanup(); },
+  cleanup() {
+    this.pcs.forEach((st) => { try { st.pc.close(); } catch {} }); this.pcs.clear();
+    this.local?.getTracks().forEach((tr) => tr.stop()); this.local = null; this.chatId = null; clearInterval(this.timer);
+    $('#gcall')?.remove(); document.documentElement.classList.remove('in-gcall');
+  },
+  ui() {
+    const c = S.chats.get(this.chatId);
+    $('#gcall')?.remove();
+    document.body.insertAdjacentHTML('beforeend', `<div class="gcall" id="gcall"><header><div><b>${esc(chatTitle(c))}</b><small id="gc-time">00:00</small></div><span class="gc-n" id="gc-n"></span></header>
+      <div class="gc-grid" id="gc-grid"></div>
+      <footer><button data-g="mic" class="on">${icon('mic')}</button><button data-g="cam" class="${this.cam ? 'on' : ''}">${icon('video')}</button><button data-g="flip">🔄</button><button data-g="spk">🔊</button><button data-g="leave" class="end">${icon('phone')}</button></footer></div>`);
+    document.documentElement.classList.add('in-gcall');
+    $('#gcall footer').onclick = async (e) => {
+      const b = e.target.closest('[data-g]'); if (!b) return; const k = b.dataset.g;
+      if (k === 'leave') return this.leave();
+      if (k === 'mic') { this.mic = !this.mic; this.local.getAudioTracks().forEach((x) => (x.enabled = this.mic)); b.classList.toggle('on', this.mic); }
+      if (k === 'cam') await this.toggleCam(b);
+      if (k === 'flip') await this.flip();
+      if (k === 'spk') { try { Speaker.toggle?.(); } catch {} b.classList.toggle('on'); }
+      S.socket.emit('gcall:media', { chatId: this.chatId, mic: this.mic, cam: this.cam });
+    };
+  },
+  async toggleCam(b) {
+    let vt = this.local.getVideoTracks()[0];
+    if (!vt) {
+      try { const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: this.facing, width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 20, max: 24 } } }); vt = s.getVideoTracks()[0]; this.local.addTrack(vt); this.pcs.forEach((st) => st.pc.addTrack(vt, this.local)); }
+      catch { return toast(t('call_failed')); }
+      this.cam = true;
+    } else { this.cam = !vt.enabled; vt.enabled = this.cam; }
+    b.classList.toggle('on', this.cam); this.tile(S.me.id, this.local, true);
+  },
+  async flip() {
+    const vt = this.local.getVideoTracks()[0]; if (!vt) return;
+    this.facing = this.facing === 'user' ? 'environment' : 'user';
+    try { const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: this.facing, width: { ideal: 640 }, height: { ideal: 360 } } }); const nt = s.getVideoTracks()[0];
+      this.pcs.forEach((st) => st.pc.getSenders().find((x) => x.track?.kind === 'video')?.replaceTrack(nt)); this.local.removeTrack(vt); vt.stop(); this.local.addTrack(nt); this.tile(S.me.id, this.local, true); } catch {}
+  },
+  tile(uid, stream, me) {
+    const grid = $('#gc-grid'); if (!grid) return;
+    let el = grid.querySelector(`[data-gu="${uid}"]`);
+    const u = uid === S.me.id ? S.me : S.users.get(uid) || { id: uid, name: '…' };
+    if (!el) { grid.insertAdjacentHTML('beforeend', `<div class="gc-tile" data-gu="${uid}"><video autoplay playsinline ${me ? 'muted' : ''}></video><div class="gc-av">${avatar({ ...u, online: false }, 'xl')}</div><span class="gc-name">${esc(me ? t('you') : u.name || '')}<i class="gc-st"></i></span></div>`); el = grid.querySelector(`[data-gu="${uid}"]`); }
+    const v = el.querySelector('video'); if (v.srcObject !== stream) { v.srcObject = stream; v.play().catch(() => {}); }
+    const hasV = stream.getVideoTracks().some((x) => x.enabled && x.readyState === 'live' && !x.muted);
+    el.classList.toggle('vid', hasV); stream.getVideoTracks().forEach((x) => { x.onunmute = x.onmute = () => this.tile(uid, stream, me); });
+    if (!me) { let a = el.querySelector('audio'); if (!a) { a = document.createElement('audio'); a.autoplay = true; el.appendChild(a); } if (a.srcObject !== stream) { a.srcObject = stream; a.play().catch(() => {}); } }
+    this.layout();
+  },
+  tileState(uid, s) { const el = $(`#gc-grid [data-gu="${uid}"] .gc-st`); if (el) el.textContent = s === 'connected' ? '' : ' · …'; },
+  layout() { const g = $('#gc-grid'); if (!g) return; const n = g.children.length; g.dataset.n = Math.min(n, 10); const nEl = $('#gc-n'); if (nEl) nEl.textContent = tf('gc_n', { n }); if (n === 1) { if (!g.querySelector('.gc-wait')) g.insertAdjacentHTML('beforeend', `<p class="gc-wait">${esc(t('gc_waiting'))}</p>`); } else g.querySelector('.gc-wait')?.remove(); },
+  tick() { const s = Math.floor((Date.now() - this.started) / 1000); const el = $('#gc-time'); if (el) el.textContent = `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; },
+  ring(ev) {
+    $('#gc-ring')?.remove(); Ring.stop?.();
+    if (!ev) return;
+    if (this.chatId || Call.active) return;
+    const c = S.chats.get(ev.chatId);
+    document.body.insertAdjacentHTML('beforeend', `<div class="gc-ring" id="gc-ring">${chatAvatar(c || { type: 'group', title: ev.title }, 'sm')}<div><b>${esc(ev.title || chatTitle(c))}</b><small>${esc(tf('gc_ring', { n: ev.name || '' }))}</small></div><button class="gr-no">${esc(t('gc_decline'))}</button><button class="gr-yes">${icon(ev.video ? 'video' : 'phone')} ${esc(t('gc_join'))}</button></div>`);
+    Ring.play?.('in').catch?.(() => {});
+    const done = () => { $('#gc-ring')?.remove(); Ring.stop?.(); };
+    $('#gc-ring .gr-no').onclick = done;
+    $('#gc-ring .gr-yes').onclick = () => { done(); this.join(ev.chatId, ev.video); };
+    setTimeout(done, 40000);
+  },
+  banner() {
+    const c = S.chats.get(S.current); let b = $('#gc-banner');
+    const st = c?.type === 'group' && this.live.get(c.id);
+    if (!st?.active || this.chatId === c.id) { b?.remove(); return; }
+    if (!b) { $('#chat-head').insertAdjacentHTML('afterend', `<button class="gc-banner" id="gc-banner"></button>`); b = $('#gc-banner'); }
+    b.innerHTML = `<span>${esc(tf('gc_banner', { n: st.count }))}</span><b>${esc(t('gc_join'))}</b>`;
+    b.onclick = () => this.join(c.id, st.video);
+  },
+};
+{
+  // guruhda qo'ng'iroq tugmalari — guruh qo'ng'irog'i
+  const wrapBtn = (sel, video) => { const b = $(sel); const base = b.onclick; b.onclick = (e) => { const c = S.chats.get(S.current); if (c?.type === 'group') return GCall.start(c.id, video); return base?.call(b, e); }; };
+  wrapBtn('#btn-audio-call', false); wrapBtn('#btn-video-call', true);
+  const baseOC17 = openChat;
+  openChat = async function (id, ...rest) {
+    const r = await baseOC17(id, ...rest); const c = S.chats.get(id);
+    if (c?.type === 'group') { $('#btn-audio-call').classList.remove('hidden'); $('#btn-video-call').classList.remove('hidden'); emitAck('gcall:state', { chatId: id }).then((st) => { GCall.live.set(id, st); GCall.banner(); }).catch(() => {}); }
+    else $('#gc-banner')?.remove();
+    Pins.idx = 0; Pins.load(id);
+    return r;
+  };
+  // guruh qo'ng'irog'i xabari
+  const baseMI17 = msgInner;
+  msgInner = function (m, c, tail, gap) {
+    if (m.type !== 'call' || !m.meta?.group || m.deleted) {
+      if (m.type === 'sticker' && (m.meta?.sk || m.meta?.su) && !m.deleted) {
+        const src = m.meta.su || Stk.src(m.meta.sk); const out = m.sender_id === S.me.id;
+        return `<div class="msg ${out ? 'out' : 'in'}${gap ? ' gap' : ''}" data-id="${m.id || ''}"${m.tempId && !m.id ? ` data-tmp="${m.tempId}"` : ''}><div class="sticker-wrap"><img class="sticker bstk" src="${esc(src)}" alt="${esc(m.meta.e || '')}" loading="lazy"><span class="meta stk">${fmtTime(m.created_at)}<span class="tk">${ticksFor(m, c)}</span></span></div></div>`;
+      }
+      return baseMI17(m, c, tail, gap);
+    }
+    const live = m.meta.status === 'live'; const out = m.sender_id === S.me.id;
+    const who = out ? t('you') : S.users.get(m.sender_id)?.name || '';
+    return `<div class="msg ${out ? 'out' : 'in'}${gap ? ' gap' : ''}" data-id="${m.id}"><div class="bubble"><div class="callbox gcb"><div class="ci">${icon(m.meta.video ? 'video' : 'phone')}</div>
+      <div><b>${esc(live ? t('gc_live') : t('gc_ended'))}</b><span>${esc(who)}${live ? '' : ' · ' + fmtDur(m.duration || 0)}</span></div>${live ? `<button class="gcb-join" data-gjoin="${m.chat_id}" data-gv="${m.meta.video ? 1 : 0}">${esc(t('gc_join'))}</button>` : ''}</div><span class="meta">${fmtTime(m.created_at)}</span></div></div>`;
+  };
+}
+$('#messages').addEventListener('click', (e) => { const b = e.target.closest('[data-gjoin]'); if (!b) return; e.stopImmediatePropagation(); GCall.join(+b.dataset.gjoin, b.dataset.gv === '1'); }, true);
+
+/* ---------- Qo'ng'iroqlar tarixi ---------- */
+const Calls = {
+  async render() {
+    const box = $('#calls-body'); if (!box) return;
+    box.innerHTML = `<p class="empty-note">…</p>`;
+    let r; try { r = await api('/api/calls'); } catch (e) { box.innerHTML = `<p class="empty-note">${esc(e.message)}</p>`; return; }
+    const L = r.calls; if (!L.length) { box.innerHTML = `<p class="empty-note">📞<br>${esc(t('calls_empty'))}</p>`; return; }
+    const day = new Date().toDateString();
+    const today = L.filter((c) => new Date(c.at).toDateString() === day);
+    const total = L.reduce((s, c) => s + (c.status === 'answered' || c.group ? c.duration : 0), 0);
+    const per = new Map(); for (const c of L) { if (!c.peer || c.status !== 'answered') continue; const p = per.get(c.peer.id) || { u: c.peer, s: 0, n: 0 }; p.s += c.duration; p.n++; per.set(c.peer.id, p); }
+    const top = [...per.values()].sort((a, b) => b.s - a.s).slice(0, 5);
+    const hm = (s) => (s >= 3600 ? `${Math.floor(s / 3600)} soat ${Math.floor((s % 3600) / 60)} daq` : s >= 60 ? `${Math.floor(s / 60)} daq ${s % 60} s` : `${s} s`);
+    const row = (c) => {
+      const missed = !c.out && !c.group && c.status !== 'answered'; const name = c.peer ? S.users.get(c.peer.id)?.name || c.peer.name : c.chat?.title;
+      const sub = c.group ? `${t('gc_ended')} · ${fmtDur(c.duration)}` : c.status === 'answered' ? `${t(c.out ? 'calls_out' : 'calls_in')} · ${fmtDur(c.duration)}` : c.out ? (c.status === 'rejected' ? t('rejected') : t('no_answer')) : t('missed');
+      const d = new Date(c.at); const when = d.toDateString() === day ? fmtTime(c.at) : d.toLocaleDateString(LANG === 'en' ? 'en-GB' : 'ru-RU', { day: 'numeric', month: 'short' }) + ' ' + fmtTime(c.at);
+      return `<div class="cl-row" data-chat="${c.chatId}">${c.peer ? avatar({ ...c.peer, online: false }, 'sm') : chatAvatar({ ...c.chat }, 'sm')}<div class="cl-t"><b class="${missed ? 'missed' : ''}">${esc(name || '')}</b><small><span class="cl-dir ${missed ? 'missed' : c.out ? 'out' : 'in'}">${c.out ? '↗' : '↙'}</span> ${esc(sub)}</small></div><span class="cl-when">${esc(when)}</span>${c.peer ? `<button class="cl-call" data-cpeer="${c.peer.id}" data-cv="${c.video ? 1 : 0}">${icon(c.video ? 'video' : 'phone')}</button>` : ''}</div>`;
+    };
+    box.innerHTML = `<div class="cl-sum"><div><b>${today.length}</b><small>${esc(t('calls_today'))}</small></div><div><b>${esc(hm(total))}</b><small>${esc(t('calls_total'))}</small></div><div><b>${L.filter((c) => !c.out && !c.group && c.status !== 'answered').length}</b><small>${esc(t('calls_missed'))}</small></div></div>
+      ${top.length ? `<h4 class="cl-h">${esc(t('calls_top'))}</h4><div class="cl-top">${top.map((p) => `<button data-cpeer="${p.u.id}" data-cv="0" class="cl-tp">${avatar({ ...p.u, online: false }, 'sm')}<b>${esc((S.users.get(p.u.id)?.name || p.u.name || '').split(' ')[0])}</b><small>${esc(hm(p.s))}</small></button>`).join('')}</div>` : ''}
+      <h4 class="cl-h">${esc(tf('calls_n', { n: L.length }))}</h4>${L.map(row).join('')}`;
+  },
+};
+{
+  $('.sidebar #pane-settings')?.insertAdjacentHTML('beforebegin', `<section class="pane hidden" id="pane-calls"><header class="pane-head"><h2 data-t17="calls"></h2></header><div class="scroll" id="calls-body"></div></section>`);
+  $('#bottom-nav [data-tab="chats"]')?.insertAdjacentHTML('afterend', `<button data-tab="calls"><span class="nb">${icon('phone')}</span><span data-t17="calls"></span></button>`);
+  const show = () => { $$('.sidebar .pane').forEach((p) => p.classList.toggle('hidden', p.id !== 'pane-calls')); $$('#bottom-nav [data-tab]').forEach((b) => b.classList.toggle('on', b.dataset.tab === 'calls')); TAB = 'calls'; try { Reels.pause?.(); } catch {} Calls.render(); };
+  const inner = setTab, innerRaw = setTab.raw;
+  setTab = function (name) { if (name === 'calls') { if (TAB !== 'calls') pushOverlay('tab:' + TAB); show(); return; } $('#pane-calls')?.classList.add('hidden'); return inner(name); };
+  setTab.raw = (name) => { if (name === 'calls') return show(); $('#pane-calls')?.classList.add('hidden'); return innerRaw ? innerRaw(name) : inner(name); };
+  $('#calls-body').addEventListener('click', async (e) => {
+    const cb = e.target.closest('[data-cpeer]');
+    if (cb) { const u = S.users.get(+cb.dataset.cpeer) || { id: +cb.dataset.cpeer }; return Call.start(u, cb.dataset.cv === '1'); }
+    const r = e.target.closest('[data-chat]'); if (r) { setTab('chats'); openChat(+r.dataset.chat); }
+  });
+}
+
+/* ---------- Stikerlar: Birga to'plami (o'z personajimiz) + o'zim yasagan stikerlar ---------- */
+const Stk = {
+  pack: [
+    ['salom', 'Salom!', '#22C55E', 'wave'], ['rahmat', 'Rahmat!', '#EC4899', 'heart'], ['zor', 'Zo‘r!', '#F59E0B', 'thumb'], ['kulgi', 'Ha-ha-ha!', '#F97316', 'laugh'],
+    ['sevaman', 'Sevaman', '#EF4444', 'love'], ['xafa', 'Xafa bo‘ldim', '#3B82F6', 'sad'], ['jahl', 'Jahlim chiqdi!', '#DC2626', 'angry'], ['uyqu', 'Uxlayman…', '#6366F1', 'sleep'],
+    ['choy', 'Choy ichamizmi?', '#14B8A6', 'tea'], ['tabrik', 'Tabriklayman!', '#A855F7', 'party'], ['xayr', 'Xayr!', '#0EA5E9', 'wave2'], ['mayli', 'Mayli', '#10B981', 'ok'],
+    ['nima', 'Nima?!', '#F59E0B', 'shock'], ['kutyapman', 'Kutyapman…', '#64748B', 'wait'], ['kechir', 'Kechirasiz', '#8B5CF6', 'sorry'], ['qoyil', 'Qoyil!', '#EAB308', 'star'],
+  ],
+  cache: new Map(),
+  svg([id, text, col, kind]) {
+    const eyes = { laugh: '<path d="M88 112q12-12 24 0M144 112q12-12 24 0" stroke="#1E1B4B" stroke-width="7" fill="none" stroke-linecap="round"/>', love: '<path d="M100 104c-8-12-26-2-14 12l14 12 14-12c12-14-6-24-14-12zM156 104c-8-12-26-2-14 12l14 12 14-12c12-14-6-24-14-12z" fill="#EF4444"/>',
+      sleep: '<path d="M86 112h28M142 112h28" stroke="#1E1B4B" stroke-width="7" stroke-linecap="round"/>', angry: '<path d="M84 96l26 10M172 96l-26 10" stroke="#1E1B4B" stroke-width="7" stroke-linecap="round"/><circle cx="100" cy="116" r="9" fill="#1E1B4B"/><circle cx="156" cy="116" r="9" fill="#1E1B4B"/>',
+      shock: '<circle cx="100" cy="110" r="16" fill="#fff"/><circle cx="156" cy="110" r="16" fill="#fff"/><circle cx="100" cy="112" r="7" fill="#1E1B4B"/><circle cx="156" cy="112" r="7" fill="#1E1B4B"/>', star: '<path d="M100 98l4 9 10 1-8 6 3 10-9-6-9 6 3-10-8-6 10-1z M156 98l4 9 10 1-8 6 3 10-9-6-9 6 3-10-8-6 10-1z" fill="#FDE047" stroke="#B45309" stroke-width="2"/>' }[kind]
+      || '<ellipse cx="100" cy="112" rx="13" ry="16" fill="#fff"/><ellipse cx="156" cy="112" rx="13" ry="16" fill="#fff"/><circle cx="103" cy="115" r="7" fill="#1E1B4B"/><circle cx="159" cy="115" r="7" fill="#1E1B4B"/><circle cx="106" cy="111" r="2.5" fill="#fff"/><circle cx="162" cy="111" r="2.5" fill="#fff"/>';
+    const mouth = { sad: '<path d="M110 152q18-14 36 0" stroke="#1E1B4B" stroke-width="7" fill="none" stroke-linecap="round"/>', angry: '<path d="M108 154q20-10 40 0" stroke="#1E1B4B" stroke-width="7" fill="none" stroke-linecap="round"/>', shock: '<ellipse cx="128" cy="152" rx="11" ry="14" fill="#1E1B4B"/>',
+      sleep: '<ellipse cx="128" cy="150" rx="8" ry="6" fill="#1E1B4B"/>', laugh: '<path d="M104 138h48q-4 28-24 28t-24-28z" fill="#1E1B4B"/><path d="M114 154q14 10 28 0" fill="#F472B6"/>', wait: '<path d="M114 148h28" stroke="#1E1B4B" stroke-width="7" stroke-linecap="round"/>' }[kind]
+      || '<path d="M106 140q22 22 44 0" stroke="#1E1B4B" stroke-width="7" fill="none" stroke-linecap="round"/>';
+    const extra = { wave: '<g transform="rotate(-20 200 90)"><rect x="186" y="60" width="26" height="46" rx="13" fill="url(#g)"/><circle cx="199" cy="58" r="15" fill="url(#g)"/></g><path d="M222 40q8 8 4 18M232 30q12 12 6 28" stroke="#fff" stroke-width="5" fill="none" stroke-linecap="round"/>', wave2: '<g transform="rotate(20 56 90)"><circle cx="56" cy="58" r="15" fill="url(#g)"/><rect x="43" y="60" width="26" height="46" rx="13" fill="url(#g)"/></g>',
+      heart: '<path d="M200 70c-10-16-36-4-20 16l20 18 20-18c16-20-10-32-20-16z" fill="#EF4444" stroke="#fff" stroke-width="5"/>', thumb: '<g transform="translate(184 64)"><rect x="0" y="18" width="40" height="34" rx="10" fill="#FCD34D" stroke="#fff" stroke-width="4"/><rect x="10" y="-6" width="16" height="30" rx="8" fill="#FCD34D" stroke="#fff" stroke-width="4"/></g>',
+      sad: '<path d="M88 132q-4 12 4 16q8-4 4-16l-4-8z" fill="#60A5FA"/>', angry: '<path d="M196 50l10 10M206 50l-10 10M214 64l10 10M224 64l-10 10" stroke="#EF4444" stroke-width="6" stroke-linecap="round"/>',
+      sleep: '<text x="188" y="70" font-size="30" font-weight="900" fill="#fff" stroke="#6366F1" stroke-width="3" paint-order="stroke" font-family="Arial Black, Arial">Z</text><text x="212" y="44" font-size="22" font-weight="900" fill="#fff" stroke="#6366F1" stroke-width="3" paint-order="stroke" font-family="Arial Black, Arial">z</text>',
+      tea: '<g transform="translate(176 120)"><path d="M0 0h44v26q0 18-22 18t-22-18z" fill="#fff" stroke="#14B8A6" stroke-width="5"/><path d="M44 8q16 0 12 14t-12 6" fill="none" stroke="#14B8A6" stroke-width="5"/><path d="M12-10q4-8 0-14M28-10q4-8 0-14" stroke="#94A3B8" stroke-width="4" fill="none" stroke-linecap="round"/></g>',
+      party: '<path d="M96 52l32-44 32 44z" fill="#F472B6" stroke="#fff" stroke-width="5"/><circle cx="128" cy="8" r="9" fill="#FDE047"/><circle cx="58" cy="54" r="6" fill="#22C55E"/><circle cx="206" cy="40" r="6" fill="#3B82F6"/><rect x="214" y="80" width="10" height="10" fill="#F59E0B" transform="rotate(30 219 85)"/>',
+      ok: '<circle cx="206" cy="86" r="20" fill="none" stroke="#FCD34D" stroke-width="9"/>', love: '<path d="M206 46c-6-10-22-2-12 10l12 10 12-10c10-12-6-20-12-10z" fill="#EF4444"/>', shock: '<path d="M206 40v30M206 82v4" stroke="#F59E0B" stroke-width="9" stroke-linecap="round"/>',
+      wait: '<g transform="translate(186 50)"><circle cx="20" cy="20" r="22" fill="#fff" stroke="#64748B" stroke-width="5"/><path d="M20 8v13l9 6" stroke="#64748B" stroke-width="5" fill="none" stroke-linecap="round"/></g>', sorry: '<path d="M60 118q-14-6-10-20M196 118q14-6 10-20" stroke="#fff" stroke-width="6" fill="none" stroke-linecap="round"/>',
+      star: '<path d="M206 36l7 15 17 2-12 11 3 17-15-8-15 8 3-17-12-11 17-2z" fill="#FDE047" stroke="#fff" stroke-width="4"/>' }[kind] || '';
+    const blush = kind === 'angry' || kind === 'sad' ? '' : '<ellipse cx="80" cy="136" rx="11" ry="7" fill="#F9A8D4" opacity=".75"/><ellipse cx="176" cy="136" rx="11" ry="7" fill="#F9A8D4" opacity=".75"/>';
+    const fs = text.length > 11 ? 24 : text.length > 8 ? 28 : 34;
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#22D3EE"/><stop offset=".55" stop-color="#3B82F6"/><stop offset="1" stop-color="#8B5CF6"/></linearGradient></defs>
+      <path d="M128 30c62 0 92 40 92 88s-34 86-92 86-92-38-92-86 30-88 92-88z" fill="url(#g)" stroke="#fff" stroke-width="10"/><path d="M78 56q30-18 70-10" stroke="#fff" stroke-opacity=".45" stroke-width="10" fill="none" stroke-linecap="round"/>
+      ${eyes}${blush}${mouth}${extra}
+      <text x="128" y="236" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="${fs}" fill="${col}" stroke="#fff" stroke-width="9" paint-order="stroke" stroke-linejoin="round">${text.replace(/&/g, '&amp;')}</text></svg>`;
+  },
+  src(sk) { const id = String(sk || '').split('/')[1]; if (this.cache.has(id)) return this.cache.get(id); const s = this.pack.find((x) => x[0] === id); if (!s) return ''; const u = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(this.svg(s)); this.cache.set(id, u); return u; },
+  mine: [],
+  async loadMine() { try { this.mine = (await api('/api/stickers/mine')).list || []; } catch {} },
+  send(meta) {
+    if (!S.current) return;
+    const replyTo = S.replyTo?.id; if (replyTo) $('#reply-cancel').click();
+    const temp = { tempId: 't' + Date.now(), pending: true, chat_id: S.current, sender_id: S.me.id, type: 'sticker', meta, reply_to: replyTo, created_at: Date.now() };
+    pushPending(temp);
+    emitSend({ chatId: S.current, type: 'sticker', meta, replyTo }).then((m) => resolvePending(temp, m)).catch(() => { toast(t('not_sent')); dropPending(temp); });
+  },
+  panelHTML() {
+    return `<div class="ep-sec">${esc(t('stk_mine'))}</div><div class="st-grid"><button class="stk-make" data-stkmake="1">＋<small>${esc(t('stk_make'))}</small></button>${this.mine.map((u) => `<button data-su="${esc(u)}"><img class="st-img" src="${esc(u)}" loading="lazy" alt=""></button>`).join('')}</div>
+      <div class="ep-sec">${esc(t('stk_birga'))}</div><div class="st-grid">${this.pack.map((s) => `<button data-sk="birga/${s[0]}"><img class="st-img" src="${this.src('birga/' + s[0])}" alt="${esc(s[1])}"></button>`).join('')}</div>`;
+  },
+  // oq fonni olib tashlash (chetlaridan to'ldirish) + oq kontur
+  async cutout(dataUrl) {
+    const img = await new Promise((r, j) => { const i = new Image(); i.onload = () => r(i); i.onerror = j; i.src = dataUrl; });
+    const N = 512, c = document.createElement('canvas'); c.width = c.height = N; const g = c.getContext('2d'); g.drawImage(img, 0, 0, N, N);
+    const d = g.getImageData(0, 0, N, N), px = d.data, seen = new Uint8Array(N * N), q = [];
+    const white = (i) => px[i * 4] > 232 && px[i * 4 + 1] > 232 && px[i * 4 + 2] > 232;
+    for (let x = 0; x < N; x++) { q.push(x, (N - 1) * N + x); } for (let y = 0; y < N; y++) { q.push(y * N, y * N + N - 1); }
+    while (q.length) { const i = q.pop(); if (seen[i] || !white(i)) continue; seen[i] = 1; px[i * 4 + 3] = 0; const x = i % N, y = (i / N) | 0; if (x > 0) q.push(i - 1); if (x < N - 1) q.push(i + 1); if (y > 0) q.push(i - N); if (y < N - 1) q.push(i + N); }
+    g.putImageData(d, 0, 0);
+    return this.outline(c);
+  },
+  outline(src, pad = 10) {
+    const N = src.width, o = document.createElement('canvas'); o.width = o.height = N; const g = o.getContext('2d');
+    const m = document.createElement('canvas'); m.width = m.height = N; const mg = m.getContext('2d'); mg.drawImage(src, 0, 0); mg.globalCompositeOperation = 'source-in'; mg.fillStyle = '#fff'; mg.fillRect(0, 0, N, N);
+    g.shadowColor = 'rgba(0,0,0,.25)'; g.shadowBlur = 8;
+    for (let a = 0; a < 360; a += 30) g.drawImage(m, Math.cos(a * Math.PI / 180) * pad, Math.sin(a * Math.PI / 180) * pad);
+    g.shadowBlur = 0; g.drawImage(src, 0, 0);
+    return o;
+  },
+  fromPhoto(file, shape, caption) {
+    return new Promise((res, rej) => {
+      const u = URL.createObjectURL(file); const img = new Image();
+      img.onload = () => {
+        const N = 512, P = 26, c = document.createElement('canvas'); c.width = c.height = N; const g = c.getContext('2d');
+        const s = Math.min(img.width, img.height), sx = (img.width - s) / 2, sy = (img.height - s) / 2;
+        g.save(); g.beginPath(); if (shape === 'circle') g.arc(N / 2, N / 2, N / 2 - P, 0, 7); else { const x = P, y = P, w = N - 2 * P, h = w, r = 70; g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); } g.clip(); g.drawImage(img, sx, sy, s, s, P, P, N - 2 * P, N - 2 * P); g.restore();
+        const out = this.outline(c, 12);
+        if (caption) { const og = out.getContext('2d'); og.font = '900 54px Arial Black, Arial, sans-serif'; og.textAlign = 'center'; og.lineJoin = 'round'; og.lineWidth = 14; og.strokeStyle = '#fff'; og.fillStyle = '#1F6BFF'; og.strokeText(caption, N / 2, N - 40); og.fillText(caption, N / 2, N - 40); }
+        URL.revokeObjectURL(u); res(out);
+      };
+      img.onerror = rej; img.src = u;
+    });
+  },
+  async saveCanvas(cv) {
+    const blob = await new Promise((r) => cv.toBlob(r, 'image/png')); const file = new File([blob], 'sticker.png', { type: 'image/png' });
+    const r = await uploadFile(file, null, 'sticker'); await api('/api/stickers/mine', { body: { url: r.url } }); this.mine.unshift(r.url); return r.url;
+  },
+  maker() {
+    modal(`<h3>✨ ${esc(t('stk_make'))} <button class="icon-btn" data-close>${icon('close')}</button></h3>
+      <div class="stk-tabs"><button data-mk="photo" class="on">📷 ${esc(t('stk_from_photo'))}</button><button data-mk="ai">🎨 ${esc(t('stk_from_ai'))}</button></div>
+      <div class="stk-pane" data-pane="photo"><input type="file" id="stk-file" accept="image/*" hidden><div class="stk-prev" id="stk-prev"><span>📷</span></div>
+        <div class="pin-when stk-shape"><button data-sh="circle" class="on">${esc(t('stk_circle'))}</button><button data-sh="round">${esc(t('stk_round'))}</button></div><input class="pl-in" id="stk-cap" maxlength="18" placeholder="${esc(t('stk_text'))}"></div>
+      <div class="stk-pane hidden" data-pane="ai"><input class="pl-in" id="stk-q" maxlength="200" placeholder="${esc(t('stk_prompt'))}"><div class="stk-prev" id="stk-prev2"><span>🎨</span></div></div>
+      <p class="pin-err" id="stk-err"></p><button class="btn-primary" id="stk-go">${esc(t('stk_save'))}</button>`);
+    let mode = 'photo', shape = 'circle', file = null, aiCanvas = null;
+    const prev = async () => { if (!file) return; const cv = await this.fromPhoto(file, shape, $('#stk-cap').value.trim()); $('#stk-prev').innerHTML = ''; cv.className = 'stk-cv'; $('#stk-prev').appendChild(cv); return cv; };
+    $('#modal-card .stk-tabs').onclick = (e) => { const b = e.target.closest('[data-mk]'); if (!b) return; mode = b.dataset.mk; $$('#modal-card .stk-tabs button').forEach((x) => x.classList.toggle('on', x === b)); $$('#modal-card .stk-pane').forEach((p) => p.classList.toggle('hidden', p.dataset.pane !== mode)); $('#stk-go').textContent = mode === 'ai' && !aiCanvas ? '🎨 ' + t('ai_t_img') : t('stk_save'); };
+    $('#stk-prev').onclick = () => $('#stk-file').click();
+    $('#stk-file').onchange = (e) => { file = e.target.files[0]; prev(); };
+    $('#modal-card .stk-shape').onclick = (e) => { const b = e.target.closest('[data-sh]'); if (!b) return; shape = b.dataset.sh; $$('#modal-card .stk-shape button').forEach((x) => x.classList.toggle('on', x === b)); prev(); };
+    $('#stk-cap').oninput = () => { clearTimeout(this.ct); this.ct = setTimeout(prev, 250); };
+    $('#stk-go').onclick = async () => {
+      const btn = $('#stk-go'); $('#stk-err').textContent = '';
+      try {
+        if (mode === 'photo') { if (!file) return $('#stk-file').click(); btn.disabled = true; const cv = await prev(); await this.saveCanvas(cv); }
+        else {
+          if (!aiCanvas) { const q = $('#stk-q').value.trim(); if (!q) return $('#stk-q').focus(); btn.disabled = true; $('#stk-prev2').innerHTML = `<span class="ai-drawing">🎨 ${esc(t('stk_drawing'))}</span>`;
+            const r = await api('/api/ai/sticker', { body: { prompt: q } }); aiCanvas = await this.cutout(r.data); aiCanvas.className = 'stk-cv'; $('#stk-prev2').innerHTML = ''; $('#stk-prev2').appendChild(aiCanvas); btn.disabled = false; btn.textContent = t('stk_save'); return; }
+          btn.disabled = true; await this.saveCanvas(aiCanvas);
+        }
+        closeModal(); toast(t('stk_saved')); if (P.open) openPanel('stickers');
+      } catch (e) { $('#stk-err').textContent = e.status === 429 ? t('ai_limit') : t('stk_err'); btn.disabled = false; if (mode === 'ai' && !aiCanvas) $('#stk-prev2').innerHTML = '<span>🎨</span>'; }
+    };
+  },
+};
+{
+  const baseOP = openPanel;
+  openPanel = async function (tab) {
+    await baseOP(tab);
+    if (P.tab === 'stickers') { if (!Stk.loaded) { Stk.loaded = true; await Stk.loadMine(); } $('#ep-body').insertAdjacentHTML('afterbegin', Stk.panelHTML()); }
+  };
+  $('#ep-body').addEventListener('click', (e) => {
+    const mk = e.target.closest('[data-stkmake]'), sk = e.target.closest('[data-sk]'), su = e.target.closest('[data-su]');
+    if (!mk && !sk && !su) return; e.stopImmediatePropagation();
+    if (mk) return Stk.maker();
+    if (sk) { Stk.send({ e: '🙂', sk: sk.dataset.sk }); closePanel(); }
+    if (su) { Stk.send({ e: '🖼', su: su.dataset.su }); closePanel(); }
+  }, true);
+  // o'z stikerini bosib turish — o'chirish
+  let lp; $('#ep-body').addEventListener('pointerdown', (e) => { const su = e.target.closest('[data-su]'); if (!su) return; lp = setTimeout(async () => { if (!confirm(t('stk_del') + '?')) return; await api('/api/stickers/mine', { body: { url: su.dataset.su, remove: 1 } }).catch(() => {}); Stk.mine = Stk.mine.filter((x) => x !== su.dataset.su); openPanel('stickers'); }, 650); });
+  ['pointerup', 'pointerleave'].forEach((ev) => $('#ep-body').addEventListener(ev, () => clearTimeout(lp)));
+}
+
+/* ---------- Hudud va ob-havo ---------- */
+const WX = {
+  data: null,
+  CITIES: [['Toshkent', 41.311, 69.279], ['Andijon', 40.783, 72.344], ['Namangan', 40.998, 71.672], ['Farg‘ona', 40.389, 71.783], ['Samarqand', 39.654, 66.976], ['Buxoro', 39.768, 64.455], ['Navoiy', 40.103, 65.374],
+    ['Qarshi', 38.861, 65.789], ['Termiz', 37.224, 67.278], ['Jizzax', 40.116, 67.842], ['Guliston', 40.49, 68.785], ['Nukus', 42.46, 59.61], ['Urganch', 41.55, 60.631], ['Nurafshon', 41.04, 69.36], ['Qo‘qon', 40.529, 70.943], ['Chirchiq', 41.469, 69.582]],
+  ico(code, day = true) { const c = Number(code); return c === 0 ? (day ? '☀️' : '🌙') : c <= 2 ? (day ? '🌤' : '☁️') : c === 3 ? '☁️' : c <= 48 ? '🌫' : c <= 57 ? '🌦' : c <= 67 ? '🌧' : c <= 77 ? '🌨' : c <= 82 ? '🌧' : c <= 86 ? '🌨' : '⛈'; },
+  desc(code) {
+    const c = Number(code); const L = LANG === 'ru' ? 1 : LANG === 'en' ? 2 : 0;
+    const d = [[0, 'Ochiq osmon', 'Ясно', 'Clear'], [2, 'Qisman bulutli', 'Переменная облачность', 'Partly cloudy'], [3, 'Bulutli', 'Пасмурно', 'Overcast'], [48, 'Tuman', 'Туман', 'Fog'], [57, 'Mayda yomg‘ir', 'Морось', 'Drizzle'], [67, 'Yomg‘ir', 'Дождь', 'Rain'], [77, 'Qor', 'Снег', 'Snow'], [82, 'Jala', 'Ливень', 'Showers'], [86, 'Qor yog‘ishi', 'Снегопад', 'Snow showers'], [99, 'Momaqaldiroq', 'Гроза', 'Thunderstorm']];
+    return (d.find((x) => c <= x[0]) || d[d.length - 1])[1 + L];
+  },
+  chip() {
+    let b = $('#wx-chip'); const top = $('#btn-new-top'); if (!top) return;
+    if (!b) { top.insertAdjacentHTML('beforebegin', `<button class="wx-chip" id="wx-chip"></button>`); b = $('#wx-chip'); b.onclick = () => (S.me?.region ? this.open() : this.pick()); }
+    const d = this.data;
+    b.innerHTML = d?.cur ? `<span>${this.ico(d.cur.code, d.cur.day)}</span><b>${Math.round(d.cur.t)}°</b>` : `<span>🌤</span>`;
+    b.title = d?.region?.name || t('wx_title');
+  },
+  async load() { if (!S.me?.region) { this.chip(); return; } try { this.data = await api('/api/weather'); } catch { this.data = null; } this.chip(); this.settingsRow(); },
+  async set(name, lat, lon) { try { const r = await api('/api/profile/region', { body: { name, lat, lon } }); S.me = { ...S.me, region: r.region }; closeModal(); await this.load(); this.open(); } catch (e) { toast(e.message); } },
+  pick() {
+    store.set('birga_wx_asked', '1');
+    modal(`<h3>📍 ${esc(t('wx_region'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><p class="muted">${esc(t('wx_region_sub'))}</p>
+      <button class="btn-ghost14" id="wx-my">📍 ${esc(t('wx_my'))}</button>
+      <div class="wx-cities">${this.CITIES.map(([n, la, lo]) => `<button data-c="${esc(n)}|${la}|${lo}" class="${S.me?.region?.name === n ? 'on' : ''}">${esc(n)}</button>`).join('')}</div>
+      <input class="pl-in" id="wx-q" placeholder="🔍 ${esc(t('wx_search'))}"><div class="wx-res" id="wx-res"></div>`);
+    $('#modal-card .wx-cities').onclick = (e) => { const b = e.target.closest('[data-c]'); if (!b) return; const [n, la, lo] = b.dataset.c.split('|'); this.set(n, +la, +lo); };
+    $('#wx-my').onclick = async () => { $('#wx-my').disabled = true; try { const p = await LiveLoc.pos({ enableHighAccuracy: false }); const a = await LiveLoc.addr(p.coords.latitude, p.coords.longitude); const nm = (a.addr || '').split(',').map((x) => x.trim()).filter(Boolean).slice(-3, -2)[0] || a.name || 'Mening hududim'; this.set(nm, p.coords.latitude, p.coords.longitude); } catch { toast(t('loc_denied')); $('#wx-my').disabled = false; } };
+    let tm; $('#wx-q').oninput = (e) => { clearTimeout(tm); const q = e.target.value.trim(); if (q.length < 2) { $('#wx-res').innerHTML = ''; return; } tm = setTimeout(async () => { const l = await api('/api/map/search?q=' + encodeURIComponent(q)).catch(() => []); $('#wx-res').innerHTML = (l || []).slice(0, 6).map((p) => `<button data-c="${esc(p.name || q)}|${p.lat}|${p.lng}"><b>${esc(p.name || q)}</b><small>${esc(p.addr || '')}</small></button>`).join(''); }, 400); };
+    $('#wx-res').onclick = (e) => { const b = e.target.closest('[data-c]'); if (!b) return; const [n, la, lo] = b.dataset.c.split('|'); this.set(n, +la, +lo); };
+  },
+  async open() {
+    if (!S.me?.region) return this.pick();
+    if (!this.data || Date.now() - (this.data.at || 0) > 15 * 60e3) await this.load();
+    const d = this.data;
+    if (!d?.cur) { modal(`<h3>🌤 ${esc(t('wx_title'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><p class="empty-note">${esc(t('wx_err'))}</p><button class="btn-ghost14" id="wx-ch">📍 ${esc(t('wx_change'))}</button>`); $('#wx-ch').onclick = () => this.pick(); return; }
+    const dn = (s) => new Date(s).toLocaleDateString(LANG === 'en' ? 'en-GB' : LANG === 'ru' ? 'ru-RU' : 'uz-UZ', { weekday: 'short' });
+    modal(`<h3>🌤 ${esc(d.region.name)} <button class="icon-btn" data-close>${icon('close')}</button></h3>
+      <div class="wx-now"><span class="wx-big">${this.ico(d.cur.code, d.cur.day)}</span><div><b>${Math.round(d.cur.t)}°C</b><span>${esc(this.desc(d.cur.code))}</span></div></div>
+      <div class="wx-grid"><div><small>${esc(t('wx_feels'))}</small><b>${Math.round(d.cur.feels)}°</b></div><div><small>${esc(t('wx_hum'))}</small><b>${d.cur.hum}%</b></div><div><small>${esc(t('wx_wind'))}</small><b>${Math.round(d.cur.wind)} ${esc(t('wx_ms'))}</b></div></div>
+      <div class="wx-days">${d.days.map((x, i) => `<div><small>${i ? esc(dn(x.d)) : esc(t('calls_today'))}</small><span>${this.ico(x.code)}</span><b>${Math.round(x.max)}° <i>${Math.round(x.min)}°</i></b>${x.rain != null ? `<small>💧${x.rain}%</small>` : ''}</div>`).join('')}</div>
+      <button class="btn-ghost14" id="wx-ch">📍 ${esc(t('wx_change'))}</button><p class="tiny muted" style="text-align:center">Open-Meteo</p>`);
+    $('#wx-ch').onclick = () => this.pick();
+  },
+  settingsRow() {
+    let r = $('#set-wx'); const g = $('#set-pin')?.parentElement; if (!g) return;
+    if (!r) { g.insertAdjacentHTML('afterbegin', `<button class="row-btn" id="set-wx"><span class="ri c2">🌤</span><span><span>${esc(t('wx_title'))}</span><small id="set-wx-v"></small></span></button>`); r = $('#set-wx'); r.onclick = () => this.open(); }
+    const d = this.data; $('#set-wx-v').textContent = S.me?.region ? `${S.me.region.name}${d?.cur ? ` · ${this.ico(d.cur.code, d.cur.day)} ${Math.round(d.cur.t)}°C, ${this.desc(d.cur.code)}` : ''}` : t('wx_region');
+  },
+};
+{
+  const baseUC = UserCount.set.bind(UserCount);
+  UserCount.set = function (n) { baseUC(n); WX.chip(); };
+  const baseRS17 = renderSettings; renderSettings = function () { baseRS17(); WX.settingsRow(); $$('[data-t17]').forEach((x) => (x.textContent = t(x.dataset.t17))); };
+  setInterval(() => { if (S.me?.region && !document.hidden) WX.load(); }, 20 * 60e3);
+}
+
+/* ---------- Qo'ng'iroq sifati: xorijiy aloqalar uchun ---------- */
+{
+  Call.getMedia = function (video) {
+    return navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
+      video: video ? { facingMode: this.facing || 'user', width: { ideal: 960 }, height: { ideal: 540 }, frameRate: { ideal: 24, max: 30 } } : false,
+    });
+  };
+  const baseRestart = Call.iceRestart.bind(Call);
+  Call.iceRestart = function () {
+    // 2-urinishdan keyin faqat TURN (relay) orqali — xorijiy operatorlar va qattiq NAT orqasida ham ulanadi
+    if ((this.restarts || 0) >= 1 && this.pc && !this.relayOnly) { try { const cfg = this.pc.getConfiguration(); this.pc.setConfiguration({ ...cfg, iceTransportPolicy: 'relay' }); this.relayOnly = true; } catch {} }
+    return baseRestart();
+  };
+  const baseReset = Call.reset?.bind(Call); if (baseReset) Call.reset = function () { this.relayOnly = false; return baseReset(); };
+  // ulanish bo'lgach — tarmoqqa mos bitreyt (sekin xalqaro kanallarda qotib qolmasligi uchun)
+  setInterval(async () => {
+    const pc = Call.pc; if (!pc || pc.connectionState !== 'connected' || Call._tuned === pc) return; Call._tuned = pc;
+    for (const s of pc.getSenders()) { if (!s.track) continue; try { const p = s.getParameters(); p.encodings = p.encodings?.length ? p.encodings : [{}]; if (s.track.kind === 'video') { p.encodings[0].maxBitrate = 900000; p.degradationPreference = 'balanced'; } else p.encodings[0].maxBitrate = 48000; await s.setParameters(p); } catch {} }
+  }, 3000);
+}
+
+/* ---------- biriktirish menyusiga joylashuv ---------- */
+{
+  const base = $('#btn-attach').onclick;
+  $('#btn-attach').onclick = (e) => {
+    base(e);
+    const sheet = $('#modal-card .att-sheet'); if (!sheet) return;
+    sheet.querySelector('[data-at="poll"]')?.insertAdjacentHTML('afterend', `<button class="row-btn" data-at17="loc"><span class="ri c7">📍</span><span>${esc(t('att_loc'))}<small>${esc(t('att_loc_sub'))}</small></span></button>`);
+    sheet.querySelector('[data-at17="loc"]').addEventListener('click', (ev) => { ev.stopPropagation(); closeModal(); setTimeout(() => LiveLoc.sheet(), 60); });
+  };
+}
+
+/* ---------- socket hodisalari va ishga tushirish ---------- */
+{
+  const baseCS17 = connectSocket;
+  connectSocket = async function () {
+    await baseCS17();
+    const s = S.socket; if (!s) return;
+    s.on('chat:pins', ({ chatId, pins }) => { Pins.list.set(chatId, pins); if (chatId === S.current) Pins.paint(); });
+    s.on('loc:moved', ({ id, chatId, loc }) => { const m = findMsg(id, chatId); if (m) { m.meta = { ...(m.meta || {}), loc }; if (chatId === S.current) renderMessages(); } });
+    s.on('gcall:ring', (ev) => GCall.ring(ev));
+    s.on('gcall:update', (st) => { GCall.live.set(st.chatId, st); if (st.chatId === S.current) GCall.banner(); if (!st.active && $('#gc-ring')) GCall.ring(null); });
+    s.on('gcall:joined', ({ chatId, uid }) => { if (chatId === GCall.chatId) GCall.tile(uid, new MediaStream()); });
+    s.on('gcall:left', ({ chatId, uid }) => { if (chatId === GCall.chatId) GCall.drop(uid); });
+    s.on('gcall:signal', (p) => GCall.onSignal(p));
+    s.on('connect', () => { if (GCall.chatId) emitAck('gcall:join', { chatId: GCall.chatId }).catch(() => GCall.cleanup()); });
+  };
+  const baseLA17 = loadAliases; let started = false;
+  loadAliases = async function () {
+    await baseLA17();
+    if (started) return; started = true;
+    Folders.load(); LiveLoc.resume(); WX.load();
+    if (!S.me?.region && !store.get('birga_wx_asked') && !navigator.webdriver) setTimeout(() => { if (!$('#modal').classList.contains('hidden') || Lock.locked) return; WX.pick(); }, 4000);
+  };
+  $$('[data-t17]').forEach((x) => (x.textContent = t(x.dataset.t17)));
+}
+
+document.head.insertAdjacentHTML('beforeend', `<style>
+.stt-btn { margin-left: 6px; height: 26px; min-width: 30px; padding: 0 6px; border-radius: 13px; background: rgba(127,127,127,.18); font-weight: 800; font-size: 12px; color: inherit; flex: none; }
+.round-msg + .stt-btn { display: block; margin: 4px auto 0; }
+.x-box { margin-top: 6px; display: flex; flex-direction: column; gap: 6px; } .x-stt, .x-tr { position: relative; font-size: 14px; line-height: 1.45; padding: 7px 10px; border-radius: 10px; background: rgba(127,127,127,.12); word-break: break-word; }
+.msg.out .x-stt, .msg.out .x-tr { background: rgba(255,255,255,.18); } .x-tr small { display: block; font-size: 11px; font-weight: 800; opacity: .75; margin-bottom: 2px; } .x-wait { opacity: .7; } .x-close { position: absolute; right: 4px; top: 2px; font-size: 12px; opacity: .6; padding: 2px 4px; }
+.tr-langs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; } .tr-langs button { display: flex; align-items: center; gap: 10px; padding: 14px; border-radius: 14px; background: var(--panel-2, rgba(127,127,127,.1)); font-size: 15px; } .tr-langs button span { font-size: 24px; } .tr-langs button.on { box-shadow: inset 0 0 0 2px var(--blue, #1F6BFF); }
+.pin-bar { display: flex; align-items: center; gap: 10px; padding: 6px 12px; background: var(--panel, #fff); border-bottom: 1px solid var(--line, rgba(127,127,127,.15)); cursor: pointer; position: relative; z-index: 2; }
+.pb-lines { display: flex; flex-direction: column; gap: 2px; height: 34px; justify-content: center; } .pb-lines i { width: 3px; flex: 1; max-height: 34px; border-radius: 2px; background: rgba(31,107,255,.3); } .pb-lines i.on { background: var(--blue, #1F6BFF); }
+.pb-t { flex: 1; min-width: 0; display: flex; flex-direction: column; } .pb-t b { font-size: 13px; color: var(--blue, #1F6BFF); } .pb-t span { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .pb-x { width: 30px; height: 30px; color: var(--muted); }
+#filters { overflow-x: auto; scrollbar-width: none; flex-wrap: nowrap; } #filters::-webkit-scrollbar { display: none; } #filters .chip { flex: none; white-space: nowrap; } .fld-add { font-weight: 800; }
+.fld-empty { list-style: none; text-align: center; padding: 30px 16px; color: var(--muted); display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.fld-h { margin: 12px 0 6px; font-size: 13px; } .fld-sugg { display: flex; flex-wrap: wrap; gap: 6px; } .fld-sugg button, .fld-pick button { padding: 8px 12px; border-radius: 16px; background: var(--panel-2, rgba(127,127,127,.1)); font-weight: 600; font-size: 13.5px; }
+.fld-name { display: flex; gap: 8px; margin-top: 12px; } .fld-name button { width: 44px; height: 44px; border-radius: 12px; font-size: 22px; background: var(--panel-2, rgba(127,127,127,.1)); flex: none; } .fld-name .pl-in { margin: 0; }
+.fld-emos { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-top: 8px; } .fld-emos button { height: 40px; font-size: 22px; border-radius: 10px; background: var(--panel-2, rgba(127,127,127,.1)); }
+.fld-types { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; } .fld-types label { display: flex; align-items: center; gap: 6px; font-size: 14px; }
+.fld-chats { max-height: 32vh; overflow: auto; display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; } .fld-chats label { display: flex; align-items: center; gap: 10px; padding: 6px; border-radius: 10px; } .fld-chats b { flex: 1; font-size: 14px; } .fld-chats input { width: 20px; height: 20px; }
+.fld-del { display: block; width: 100%; margin-top: 10px; text-align: center; color: #EF4444; } .fld-pick { display: flex; flex-direction: column; gap: 6px; } .fld-pick button { text-align: left; padding: 12px; border-radius: 12px; } .fld-pick button.on { box-shadow: inset 0 0 0 2px var(--blue, #1F6BFF); }
+.loc-live { padding: 10px; border-radius: 14px; background: rgba(239,68,68,.08); } .ll-h { display: flex; align-items: center; gap: 12px; } .ll-h span:last-child { display: flex; flex-direction: column; } .ll-h small { color: var(--muted); font-size: 12.5px; }
+.ll-btns { display: flex; gap: 8px; margin-top: 10px; } .ll-btns button { flex: 1; padding: 10px 0; border-radius: 12px; background: #EF4444; color: #fff; font-weight: 800; font-size: 13.5px; } .ll-btns button:disabled { opacity: .5; } .loc-note { text-align: center; font-size: 13px; min-height: 18px; }
+.locbox.live .lic { position: relative; } .locbox.live.on .lic { background: #EF4444; } .pulse { position: absolute; inset: -4px; border-radius: 50%; border: 3px solid #EF4444; animation: llp 1.6s infinite; } @keyframes llp { 0% { transform: scale(.8); opacity: 1; } 100% { transform: scale(1.6); opacity: 0; } }
+.ll-st { color: #EF4444; } .locbox:not(.on) .ll-st { color: var(--muted); } .ll-t { opacity: .75; font-size: 11.5px !important; } .ll-stop { margin-top: 6px; width: 100%; padding: 7px; border-radius: 10px; background: rgba(239,68,68,.15); color: #EF4444; font-weight: 800; font-size: 13px; }
+.gcall { position: fixed; inset: 0; z-index: 60; background: #0B1220; color: #fff; display: flex; flex-direction: column; }
+.gcall header { display: flex; align-items: center; justify-content: space-between; padding: calc(12px + env(safe-area-inset-top)) 16px 8px; } .gcall header div { display: flex; flex-direction: column; } .gcall header small { opacity: .7; } .gc-n { font-size: 13px; opacity: .8; }
+.gc-grid { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 6px; overflow-y: auto; align-content: center; } .gc-grid[data-n="1"], .gc-grid[data-n="2"] { grid-template-columns: 1fr; }
+.gc-tile { position: relative; aspect-ratio: 3 / 4; border-radius: 16px; overflow: hidden; background: #1E293B; display: grid; place-items: center; } .gc-grid[data-n="2"] .gc-tile { aspect-ratio: 16 / 10; }
+.gc-tile video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; } .gc-tile.vid video { opacity: 1; } .gc-tile.vid .gc-av { display: none; } .gc-tile audio { display: none; }
+.gc-name { position: absolute; left: 8px; bottom: 8px; font-size: 12.5px; font-weight: 700; background: rgba(0,0,0,.45); padding: 3px 8px; border-radius: 10px; } .gc-wait { grid-column: 1 / -1; text-align: center; opacity: .7; }
+.gcall footer { display: flex; justify-content: center; gap: 14px; padding: 12px 12px calc(16px + env(safe-area-inset-bottom)); } .gcall footer button { width: 56px; height: 56px; border-radius: 50%; background: rgba(255,255,255,.12); color: #fff; display: grid; place-items: center; font-size: 22px; }
+.gcall footer button.on { background: rgba(255,255,255,.3); } .gcall footer button svg { width: 24px; height: 24px; } .gcall footer .end { background: #EF4444; } .gcall footer .end svg { transform: rotate(135deg); }
+.gc-ring { position: fixed; left: 10px; right: 10px; top: calc(10px + env(safe-area-inset-top)); z-index: 61; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 18px; background: #0B1220; color: #fff; box-shadow: 0 10px 30px rgba(0,0,0,.35); animation: pop .25s; }
+.gc-ring > div { flex: 1; min-width: 0; display: flex; flex-direction: column; } .gc-ring small { opacity: .8; } .gc-ring button { padding: 9px 12px; border-radius: 14px; font-weight: 800; font-size: 13px; display: flex; gap: 6px; align-items: center; } .gr-no { background: rgba(255,255,255,.15); color: #fff; } .gr-yes { background: #22C55E; color: #fff; } .gr-yes svg { width: 16px; height: 16px; }
+.gc-banner { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 9px 14px; background: #22C55E; color: #fff; font-weight: 700; font-size: 13.5px; position: relative; z-index: 2; } .gc-banner b { background: rgba(255,255,255,.25); padding: 4px 12px; border-radius: 12px; }
+.gcb { align-items: center; } .gcb-join { margin-left: auto; padding: 7px 14px; border-radius: 14px; background: #22C55E; color: #fff; font-weight: 800; font-size: 13px; }
+.cl-sum { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 8px 12px; } .cl-sum div { padding: 12px 8px; border-radius: 14px; background: var(--panel-2, rgba(127,127,127,.08)); text-align: center; display: flex; flex-direction: column; } .cl-sum b { font-size: 17px; } .cl-sum small { color: var(--muted); font-size: 12px; }
+.cl-h { margin: 14px 16px 6px; font-size: 14px; color: var(--muted); } .cl-top { display: flex; gap: 8px; overflow-x: auto; padding: 0 12px 4px; } .cl-tp { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 76px; padding: 8px 4px; border-radius: 14px; background: var(--panel-2, rgba(127,127,127,.08)); } .cl-tp b { font-size: 13px; } .cl-tp small { font-size: 11px; color: var(--muted); }
+.cl-row { display: flex; align-items: center; gap: 10px; padding: 8px 14px; cursor: pointer; } .cl-row:active { background: rgba(127,127,127,.08); } .cl-t { flex: 1; min-width: 0; display: flex; flex-direction: column; } .cl-t b.missed { color: #EF4444; } .cl-t small { color: var(--muted); font-size: 12.5px; }
+.cl-dir { font-weight: 900; } .cl-dir.in { color: #22C55E; } .cl-dir.out { color: var(--blue, #1F6BFF); } .cl-dir.missed { color: #EF4444; } .cl-when { font-size: 12px; color: var(--muted); } .cl-call { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; color: var(--blue, #1F6BFF); background: rgba(31,107,255,.1); } .cl-call svg { width: 18px; height: 18px; }
+.stk-make { display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 26px; font-weight: 800; color: var(--blue, #1F6BFF); border: 2px dashed rgba(31,107,255,.4) !important; border-radius: 14px; } .stk-make small { font-size: 10px; text-align: center; }
+img.sticker.bstk { width: 160px; height: 160px; object-fit: contain; }
+.stk-tabs { display: flex; gap: 6px; margin-bottom: 10px; } .stk-tabs button { flex: 1; padding: 10px 6px; border-radius: 12px; background: var(--panel-2, rgba(127,127,127,.1)); font-weight: 700; font-size: 13px; } .stk-tabs button.on { background: var(--grad, #1F6BFF); color: #fff; }
+.stk-prev { width: 200px; height: 200px; margin: 0 auto 10px; border-radius: 20px; display: grid; place-items: center; background: repeating-conic-gradient(rgba(127,127,127,.12) 0 25%, transparent 0 50%) 0 0/20px 20px; cursor: pointer; font-size: 40px; overflow: hidden; } .stk-cv { width: 100%; height: 100%; }
+.wx-chip { display: flex; align-items: center; gap: 4px; height: 36px; padding: 0 10px; border-radius: 18px; background: rgba(31,107,255,.1); color: var(--text); font-weight: 800; font-size: 14px; margin-right: 6px; } .wx-chip span { font-size: 17px; }
+.wx-cities { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 10px 0; } .wx-cities button { padding: 9px 4px; border-radius: 12px; background: var(--panel-2, rgba(127,127,127,.1)); font-weight: 600; font-size: 13px; } .wx-cities button.on { background: var(--grad, #1F6BFF); color: #fff; }
+.wx-res { display: flex; flex-direction: column; gap: 4px; } .wx-res button { text-align: left; padding: 8px 10px; border-radius: 10px; background: var(--panel-2, rgba(127,127,127,.08)); display: flex; flex-direction: column; } .wx-res small { color: var(--muted); font-size: 12px; }
+.wx-now { display: flex; align-items: center; gap: 16px; margin: 6px 0 12px; } .wx-big { font-size: 64px; } .wx-now div { display: flex; flex-direction: column; } .wx-now b { font-size: 40px; line-height: 1; } .wx-now span { color: var(--muted); }
+.wx-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; } .wx-grid div, .wx-days div { padding: 10px 6px; border-radius: 14px; background: var(--panel-2, rgba(127,127,127,.08)); text-align: center; display: flex; flex-direction: column; gap: 2px; }
+.wx-grid small, .wx-days small { color: var(--muted); font-size: 12px; } .wx-days { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; } .wx-days span { font-size: 24px; } .wx-days b { font-size: 14px; } .wx-days i { color: var(--muted); font-style: normal; font-weight: 500; }
+</style>`);
+
+
+/* ======================= v18: haqiqiy email kodi + majburiy xavfsizlik kodi, qurilmalar, shriftlar, ovozlar, Birga ilovasi (brauzersiz) ======================= */
+const IS_NATIVE = !!window.BirgaNative || /BirgaApp\//.test(navigator.userAgent);
+if (IS_NATIVE) { try { store.set('birga_in_app', '1'); } catch {} document.documentElement.classList.add('native-app'); }
+try {
+  Object.assign(I18N.uz, { dev_code_email: 'Email xizmati hozir band — kod shu yerda:', auth_how: 'Kirish 2 bosqichdan iborat:', auth_s1: 'Emailingizga 5 xonali kod yuboriladi (Spam / Promotions papkasini ham tekshiring).', auth_s2: 'Keyin o‘zingiz o‘ylab topgan xavfsizlik kodini kiritasiz — bu emailni kim yozsa ham, shu kodni bilmasdan akkauntga kira olmaydi.',
+    code_how: 'Emailingizga kelgan 5 xonali kodni kiriting. Xat kelmasa — Spam papkasini tekshiring yoki 1 daqiqadan keyin qayta yuboring.', tf_must_t: 'Xavfsizlik kodini o‘rnating', tf_must: 'Akkauntingizni himoyalash uchun o‘zingiz uchun xavfsizlik kodi o‘ylab toping. Har safar yangi qurilmadan kirishda emaildagi koddan keyin shu kod so‘raladi — emailingizni bilgan begona odam ham kira olmaydi. Kodni hech kimga aytmang!',
+    dv_title: 'Qurilmalar', dv_sub: 'Akkauntingiz ochiq turgan qurilmalar', dv_this: 'Shu qurilma', dv_online: 'onlayn', dv_last: 'oxirgi faollik {t}', dv_out: 'Chiqarish', dv_out_q: 'Shu qurilmadan akkauntdan chiqarilsinmi?', dv_out_all: 'Boshqa barcha qurilmalardan chiqish', dv_out_all_q: 'Boshqa barcha qurilmalardagi kirishlar yopilsinmi?', dv_done: 'Qurilma chiqarildi', dv_reg: 'Ro‘yxatdan o‘tilgan', dv_reg_unknown: 'Ro‘yxatdan o‘tish joyi ma’lum emas', dv_n: '{n} ta qurilma', dv_unknown_place: 'Joylashuv aniqlanmadi', dv_since: 'kirgan: {t}',
+    fn_title: 'Yozishma shrifti', fn_sub: 'Tanlagan shriftingizda yozasiz — xabarlaringiz suhbatdoshingizga ham shu shriftda ko‘rinadi', fn_default: 'Standart', fn_sample: 'Salom! Birga’da yozishamiz 😊', fn_saved: 'Shrift tanlandi',
+    snd_title: 'Ovozlar', snd_sub: 'Qo‘ng‘iroq va xabar ovozlari', snd_in: 'Kiruvchi qo‘ng‘iroq', snd_out: 'Chiquvchi qo‘ng‘iroq signali', snd_msg: 'Xabar ovozi', snd_off: 'Ovozsiz', snd_saved: 'Saqlandi', snd_stop: 'To‘xtatish',
+    nat_bg: 'Ilova yopiq bo‘lsa ham xabarlar', nat_bg_sub: 'Birga ilovasi fonda ulanib turadi va yangi xabar hamda qo‘ng‘iroqlar haqida darhol xabar beradi' });
+  Object.assign(I18N.ru, { dev_code_email: 'Почтовый сервис сейчас занят — код здесь:', auth_how: 'Вход в 2 шага:', auth_s1: 'На вашу почту придёт 5-значный код (проверьте и папку «Спам»).', auth_s2: 'Затем вы вводите свой код безопасности — даже зная ваш email, без этого кода никто не войдёт в аккаунт.',
+    code_how: 'Введите 5-значный код из письма. Если письма нет — проверьте «Спам» или отправьте код снова через минуту.', tf_must_t: 'Установите код безопасности', tf_must: 'Придумайте личный код безопасности. При каждом входе с нового устройства после кода из email будет запрашиваться этот код — посторонний, знающий ваш email, не войдёт. Никому его не сообщайте!',
+    dv_title: 'Устройства', dv_sub: 'Устройства, на которых открыт ваш аккаунт', dv_this: 'Это устройство', dv_online: 'в сети', dv_last: 'был(а) {t}', dv_out: 'Завершить', dv_out_q: 'Выйти из аккаунта на этом устройстве?', dv_out_all: 'Выйти на всех других устройствах', dv_out_all_q: 'Завершить все другие сеансы?', dv_done: 'Сеанс завершён', dv_reg: 'Регистрация', dv_reg_unknown: 'Место регистрации неизвестно', dv_n: 'Устройств: {n}', dv_unknown_place: 'Место не определено', dv_since: 'вход: {t}',
+    fn_title: 'Шрифт переписки', fn_sub: 'Вы пишете выбранным шрифтом — собеседник тоже видит ваши сообщения этим шрифтом', fn_default: 'Стандартный', fn_sample: 'Привет! Пишем в Birga 😊', fn_saved: 'Шрифт выбран',
+    snd_title: 'Звуки', snd_sub: 'Звуки звонков и сообщений', snd_in: 'Входящий звонок', snd_out: 'Сигнал исходящего звонка', snd_msg: 'Звук сообщения', snd_off: 'Без звука', snd_saved: 'Сохранено', snd_stop: 'Стоп',
+    nat_bg: 'Сообщения при закрытом приложении', nat_bg_sub: 'Приложение Birga остаётся на связи в фоне и сразу сообщает о новых сообщениях и звонках' });
+  Object.assign(I18N.en, { dev_code_email: 'The email service is busy — your code:', auth_how: 'Sign-in takes 2 steps:', auth_s1: 'A 5-digit code is sent to your email (check Spam too).', auth_s2: 'Then you enter your own security code — even someone who knows your email can’t get in without it.',
+    code_how: 'Enter the 5-digit code from the email. No email? Check Spam or resend in a minute.', tf_must_t: 'Set your security code', tf_must: 'Create a personal security code. Each time you sign in on a new device it is asked after the email code — a stranger who knows your email can’t get in. Never share it!',
+    dv_title: 'Devices', dv_sub: 'Devices where your account is signed in', dv_this: 'This device', dv_online: 'online', dv_last: 'last active {t}', dv_out: 'Sign out', dv_out_q: 'Sign out of this device?', dv_out_all: 'Sign out all other devices', dv_out_all_q: 'End all other sessions?', dv_done: 'Device signed out', dv_reg: 'Registered', dv_reg_unknown: 'Registration place unknown', dv_n: '{n} devices', dv_unknown_place: 'Location unknown', dv_since: 'signed in {t}',
+    fn_title: 'Chat font', fn_sub: 'You write in the chosen font — your messages appear in it for others too', fn_default: 'Default', fn_sample: 'Hi! Let’s chat on Birga 😊', fn_saved: 'Font selected',
+    snd_title: 'Sounds', snd_sub: 'Call and message sounds', snd_in: 'Incoming call', snd_out: 'Outgoing call tone', snd_msg: 'Message sound', snd_off: 'Silent', snd_saved: 'Saved', snd_stop: 'Stop',
+    nat_bg: 'Messages while the app is closed', nat_bg_sub: 'The Birga app stays connected in the background and instantly notifies about new messages and calls' });
+} catch {}
+const fmtWhen = (ts) => { if (!ts) return '—'; const d = new Date(ts), n = new Date(); return d.toDateString() === n.toDateString() ? fmtTime(ts) : d.toLocaleDateString(LANG === 'en' ? 'en-GB' : 'ru-RU', { day: 'numeric', month: 'short', year: d.getFullYear() !== n.getFullYear() ? 'numeric' : undefined }) + ' ' + fmtTime(ts); };
+
+/* ---------- 1) Kirish: tushuntirish va majburiy xavfsizlik kodi ---------- */
+{
+  const how = () => `<div class="auth-how"><b>🔐 ${esc(t('auth_how'))}</b><ol><li>${esc(t('auth_s1'))}</li><li>${esc(t('auth_s2'))}</li></ol></div>`;
+  const put = () => {
+    $('#step-email .auth-how')?.remove(); $('#btn-send-code')?.insertAdjacentHTML('beforebegin', how());
+    let c = $('#step-code .code-how'); if (!c) { $('#code-boxes')?.insertAdjacentHTML('beforebegin', `<p class="code-how"></p>`); c = $('#step-code .code-how'); } if (c) c.textContent = t('code_how');
+  };
+  put(); setTimeout(put, 600);
+  const baseCL18 = changeLang; changeLang = function (...a) { const r = baseCL18(...a); put(); return r; };
+}
+const Must2FA = {
+  check() {
+    if (!S.me || S.me.has2fa || $('#tf-must')) return;
+    if (navigator.webdriver && !store.get('birga_test_2fa')) return; // avtotestlar uchun
+    if (Lock.locked) return setTimeout(() => this.check(), 1500);
+    document.body.insertAdjacentHTML('beforeend', `<div class="tf-must" id="tf-must"><div class="tf-card"><div class="tf-ic">🔐</div><h3>${esc(t('tf_must_t'))}</h3><p>${esc(t('tf_must'))}</p>
+      <input class="field" id="tfm-new" type="password" maxlength="64" autocomplete="new-password" placeholder="${esc(t('tf_new'))}"><input class="field" id="tfm-rep" type="password" maxlength="64" autocomplete="new-password" placeholder="${esc(t('tf_repeat'))}">
+      <input class="field" id="tfm-hint" maxlength="64" autocomplete="off" placeholder="${esc(t('tf_hint'))}"><p class="err" id="tfm-err"></p><button class="btn-primary" id="tfm-go">${esc(t('save'))}</button><p class="tiny muted">${esc(t('tf_forgot'))}</p></div></div>`);
+    setTimeout(() => $('#tfm-new')?.focus(), 100);
+    $('#tfm-go').onclick = async () => {
+      const a = $('#tfm-new').value, b = $('#tfm-rep').value;
+      if (a.length < 4) { $('#tfm-err').textContent = t('tf_new'); return; }
+      if (a !== b) { $('#tfm-err').textContent = t('tf_mismatch'); return; }
+      try { const u = await api('/api/me/2fa', { body: { password: a, hint: $('#tfm-hint').value.trim() } }); S.me = { ...S.me, ...u }; $('#tf-must').remove(); toast(t('tf_set_ok'), 2500); try { renderSettings(); } catch {} }
+      catch (e) { $('#tfm-err').textContent = e.message; }
+    };
+  },
+};
+
+/* ---------- 2) Qurilmalar ---------- */
+const Devices = {
+  async open() {
+    modal(`<h3>📱 ${esc(t('dv_title'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><p class="muted">${esc(t('dv_sub'))}</p><div id="dv-body"><p class="empty-note">…</p></div>`);
+    let r; try { r = await api('/api/sessions'); } catch (e) { $('#dv-body').innerHTML = `<p class="empty-note">${esc(e.message)}</p>`; return; }
+    const ico = (d) => (/ilovasi/.test(d.app) ? '📲' : /Android|iOS|iPadOS/.test(d.os) ? '📱' : '💻');
+    const place = (d) => [d.city, d.country].filter(Boolean).join(', ') || t('dv_unknown_place');
+    const row = (d) => { const me = d.id === r.current;
+      return `<div class="dv-row${me ? ' me' : ''}"><span class="dv-ic">${ico(d)}</span><div class="dv-t"><b>${esc([d.model, d.os].filter(Boolean).join(' · ') || d.app)}</b><small>${esc(d.app)} · 📍 ${esc(place(d))}</small>
+        <small>${me ? `<i class="dv-me">● ${esc(t('dv_this'))}</i>` : d.online ? `<i class="dv-on">● ${esc(t('dv_online'))}</i>` : esc(tf('dv_last', { t: fmtWhen(d.last) }))} · ${esc(tf('dv_since', { t: fmtWhen(d.created) }))}</small></div>${me ? '' : `<button class="dv-out" data-out="${d.id}">${esc(t('dv_out'))}</button>`}</div>`; };
+    const reg = r.reg ? `${esc(fmtWhen(r.reg.at))} · ${esc([r.reg.model, r.reg.os].filter(Boolean).join(' · ') || r.reg.app || '')} · 📍 ${esc([r.reg.city, r.reg.country].filter(Boolean).join(', ') || t('dv_unknown_place'))}` : r.created ? `${esc(fmtWhen(r.created))} · ${esc(t('dv_reg_unknown'))}` : esc(t('dv_reg_unknown'));
+    $('#dv-body').innerHTML = `<div class="dv-reg"><b>📝 ${esc(t('dv_reg'))}</b><small>${reg}</small></div><h4 class="inv-h">${esc(tf('dv_n', { n: r.list.length }))}</h4>${r.list.map(row).join('')}
+      ${r.list.length > 1 ? `<button class="btn-ghost14 dv-all" id="dv-all">🚪 ${esc(t('dv_out_all'))}</button>` : ''}`;
+    $('#dv-body').onclick = async (e) => {
+      const o = e.target.closest('[data-out]'); const all = e.target.closest('#dv-all');
+      if (o && confirm(t('dv_out_q'))) { await api('/api/sessions/revoke', { body: { id: o.dataset.out } }).catch(() => {}); toast(t('dv_done')); this.open(); }
+      if (all && confirm(t('dv_out_all_q'))) { await api('/api/sessions/revoke', { body: { others: 1 } }).catch(() => {}); toast(t('dv_done')); this.open(); }
+    };
+  },
+};
+
+/* ---------- 3) Yozishma shriftlari (20 ta) ---------- */
+const Fonts = {
+  list: [['', 'fn_default', ''], ['inter', 'Inter', 'Inter'], ['roboto', 'Roboto', 'Roboto'], ['montserrat', 'Montserrat', 'Montserrat'], ['nunito', 'Nunito', 'Nunito'], ['rubik', 'Rubik', 'Rubik'], ['exo2', 'Exo 2', 'Exo 2'],
+    ['comfortaa', 'Comfortaa', 'Comfortaa'], ['ubuntu', 'Ubuntu', 'Ubuntu'], ['oswald', 'Oswald', 'Oswald'], ['ptserif', 'PT Serif', 'PT Serif'], ['lora', 'Lora', 'Lora'], ['playfair', 'Playfair Display', 'Playfair Display'],
+    ['philosopher', 'Philosopher', 'Philosopher'], ['caveat', 'Caveat', 'Caveat'], ['marck', 'Marck Script', 'Marck Script'], ['pacifico', 'Pacifico', 'Pacifico'], ['lobster', 'Lobster', 'Lobster'], ['neucha', 'Neucha', 'Neucha'],
+    ['amatic', 'Amatic SC', 'Amatic SC'], ['pixel', 'Press Start 2P', 'Press Start 2P']],
+  loaded: new Set(),
+  fam(id) { return this.list.find((x) => x[0] === id)?.[2] || ''; },
+  load(id) { const f = this.fam(id); if (!f || this.loaded.has(f)) return; this.loaded.add(f); const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(f).replace(/%20/g, '+')}:wght@400;700&display=swap`; if (/Press Start|Pacifico|Lobster|Marck|Neucha|Amatic|Philosopher/.test(f)) l.href = `https://fonts.googleapis.com/css2?family=${f.replace(/ /g, '+')}&display=swap`; document.head.appendChild(l); },
+  css(id) { const f = this.fam(id); return f ? `font-family:'${f}',system-ui,sans-serif;${id === 'pixel' ? 'font-size:.78em;line-height:1.7;' : id === 'amatic' ? 'font-size:1.35em;' : id === 'caveat' || id === 'marck' ? 'font-size:1.15em;' : ''}` : ''; },
+  mine() { return store.get('birga_font') || ''; },
+  apply() { const id = this.mine(); this.load(id); const ta = $('#text'); if (ta) ta.style.cssText = ta.style.cssText.replace(/font-family:[^;]+;?/g, '') + (id ? `font-family:'${this.fam(id)}',system-ui,sans-serif;` : ''); },
+  open() {
+    this.list.forEach(([id]) => this.load(id));
+    const cur = this.mine();
+    modal(`<h3>🔤 ${esc(t('fn_title'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><p class="muted">${esc(t('fn_sub'))}</p>
+      <div class="fn-list">${this.list.map(([id, name]) => `<button data-fn="${id}" class="${cur === id ? 'on' : ''}"><small>${esc(id ? name : t(name))}</small><span style="${this.css(id)}">${esc(t('fn_sample'))}</span></button>`).join('')}</div>`);
+    $('#modal-card .fn-list').onclick = (e) => { const b = e.target.closest('[data-fn]'); if (!b) return; store.set('birga_font', b.dataset.fn); $$('#modal-card .fn-list button').forEach((x) => x.classList.toggle('on', x === b)); this.apply(); toast(t('fn_saved')); setTimeout(closeModal, 350); };
+  },
+};
+{
+  // matnli xabarlarga tanlangan shrift qo'shiladi
+  const baseES = emitSend;
+  emitSend = function (payload) { const f = Fonts.mine(); if (f && payload?.type === 'text' && !AI_TRIGGER_RE.test(payload.text || '')) payload = { ...payload, meta: { ...(payload.meta || {}), font: f } }; return baseES(payload); };
+  const baseMI18 = msgInner;
+  msgInner = function (m, c, tail, gap) {
+    const h = baseMI18(m, c, tail, gap);
+    const f = m.meta?.font || (m.tempId && !m.id && m.type === 'text' ? Fonts.mine() : '');
+    if (!f || m.type !== 'text' || m.deleted || m.meta?.ai) return h;
+    Fonts.load(f); return h.replace('<span class="txt">', `<span class="txt" style="${Fonts.css(f)}">`).replace(/class="big-emoji/, `style="${Fonts.css(f)}" class="big-emoji`);
+  };
+}
+const AI_TRIGGER_RE = /^\s*(@ai\b|@yordamchi\b|@birga\s*(ai|yordamchi)\b|\/ai\b)/i;
+
+/* ---------- 4) Ovozlar: qo'ng'iroq va xabar ovozlari (har biridan 10–15 ta) ---------- */
+const Sounds = {
+  N: { C4: 261.63, D4: 293.66, E4: 329.63, F4: 349.23, G4: 392, A4: 440, B4: 493.88, C5: 523.25, D5: 587.33, E5: 659.25, F5: 698.46, G5: 783.99, A5: 880, B5: 987.77, C6: 1046.5, D6: 1174.66, E6: 1318.5, G6: 1568 },
+  // asboblar: ovoz rangi
+  inst: {
+    bell: (f, x) => Math.exp(-x * 4) * (Math.sin(2 * Math.PI * f * x) + 0.6 * Math.sin(2 * Math.PI * f * 2.76 * x) * Math.exp(-x * 6) + 0.3 * Math.sin(2 * Math.PI * f * 5.4 * x) * Math.exp(-x * 9)),
+    marimba: (f, x) => Math.exp(-x * 9) * (Math.sin(2 * Math.PI * f * x) + 0.25 * Math.sin(2 * Math.PI * f * 4 * x) * Math.exp(-x * 25)),
+    piano: (f, x) => Math.exp(-x * 3) * (Math.sin(2 * Math.PI * f * x) + 0.45 * Math.sin(4 * Math.PI * f * x) + 0.2 * Math.sin(6 * Math.PI * f * x)) * Math.min(1, x / 0.005),
+    retro: (f, x) => (Math.sin(2 * Math.PI * f * x) > 0 ? 0.55 : -0.55) * Math.min(1, x / 0.005) * Math.exp(-x * 1.5),
+    flute: (f, x) => Math.min(1, x / 0.06) * (Math.sin(2 * Math.PI * f * x + 0.3 * Math.sin(2 * Math.PI * 5 * x)) + 0.1 * Math.sin(4 * Math.PI * f * x)),
+    pluck: (f, x) => Math.exp(-x * 5) * (Math.sin(2 * Math.PI * f * x) + 0.5 * Math.sin(2 * Math.PI * f * 2.01 * x) + 0.3 * Math.sin(2 * Math.PI * f * 3 * x)) * Math.min(1, x / 0.003),
+    synth: (f, x) => Math.min(1, x / 0.01) * Math.exp(-x * 2) * Math.tanh(2.2 * (Math.sin(2 * Math.PI * f * x) + 0.5 * Math.sin(2 * Math.PI * f * 1.005 * x))),
+    soft: (f, x) => Math.min(1, x / 0.03) * Math.exp(-x * 2.5) * Math.sin(2 * Math.PI * f * x),
+  },
+  // ohang: [nota, boshlanish (s), davomiylik (s)]
+  seq(notes, inst, total, gain = 0.85) {
+    const N = this.N, I = this.inst[inst];
+    return Ring.wav((x) => { let v = 0; for (const [n, st, d] of notes) { if (x >= st && x < st + d + 0.6) { const f = typeof n === 'number' ? n : N[n]; v += I(f, x - st) * (x < st + d ? 1 : Math.max(0, 1 - (x - st - d) / 0.6)); } } return Math.tanh(v * gain); }, total);
+  },
+  arp(ns, step, inst, rep = 1, gap = 0.6) { const out = []; let t0 = 0; for (let r = 0; r < rep; r++) { ns.forEach((n, i) => out.push([n, t0 + i * step, step * 1.6])); t0 += ns.length * step + gap; } return [out, inst, t0 + 0.4]; },
+  RINGS: null, OUTS: null, MSGS: null,
+  defs() {
+    if (this.RINGS) return;
+    const S2 = this;
+    this.RINGS = [
+      ['classic', 'Klassik trel', () => Ring.urls.in_base],
+      ['marimba', 'Marimba', () => S2.seq(...S2.arp(['E5', 'G5', 'C6', 'G5', 'E5', 'C6'], 0.15, 'marimba', 2, 0.5))],
+      ['bells', 'Qo‘ng‘iroqchalar', () => S2.seq(...S2.arp(['C6', 'G5', 'E5', 'G5'], 0.28, 'bell', 2, 0.4))],
+      ['piano', 'Pianino', () => S2.seq(...S2.arp(['C5', 'E5', 'G5', 'C6', 'B5', 'G5'], 0.22, 'piano', 2, 0.5))],
+      ['retro', 'Retro telefon', () => S2.seq([...[0, 0.08, 0.16, 0.24, 0.32, 0.4, 0.48, 0.56].map((s, i) => [i % 2 ? 'A5' : 'E5', s, 0.07]), ...[1.2, 1.28, 1.36, 1.44, 1.52, 1.6, 1.68, 1.76].map((s, i) => [i % 2 ? 'A5' : 'E5', s, 0.07])], 'retro', 3.2, 0.6)],
+      ['flute', 'Nay', () => S2.seq([['G5', 0, 0.35], ['A5', 0.35, 0.2], ['C6', 0.55, 0.5], ['A5', 1.1, 0.3], ['G5', 1.4, 0.6]], 'flute', 2.8, 0.7)],
+      ['rise', 'Ko‘tarilish', () => S2.seq(...S2.arp(['C5', 'D5', 'E5', 'G5', 'A5', 'C6', 'E6'], 0.11, 'pluck', 2, 0.5))],
+      ['dutor', 'Dutor ohangi', () => S2.seq([['D5', 0, 0.2], ['D5', 0.22, 0.1], ['F5', 0.34, 0.2], ['E5', 0.56, 0.2], ['D5', 0.78, 0.2], ['A4', 1.0, 0.4], ['D5', 1.5, 0.2], ['F5', 1.72, 0.2], ['G5', 1.94, 0.2], ['A5', 2.16, 0.5]], 'pluck', 3.2)],
+      ['morning', 'Tong', () => S2.seq([['G4', 0, 0.4], ['C5', 0.4, 0.4], ['E5', 0.8, 0.4], ['G5', 1.2, 0.8], ['E5', 2.1, 0.3], ['G5', 2.4, 0.9]], 'soft', 3.8, 1)],
+      ['electro', 'Elektron', () => S2.seq(...S2.arp(['A4', 'A5', 'E5', 'A5', 'C6', 'A5'], 0.12, 'synth', 2, 0.4), 0.7)],
+      ['urgent', 'Shoshilinch', () => S2.seq(...S2.arp(['A5', 'E6', 'A5', 'E6'], 0.1, 'retro', 3, 0.25), 0.6)],
+      ['harp', 'Arfa', () => S2.seq(...S2.arp(['C5', 'E5', 'G5', 'B5', 'D6', 'G6'], 0.09, 'pluck', 2, 0.7))],
+      ['lullaby', 'Mayin ohang', () => S2.seq([['E5', 0, 0.5], ['D5', 0.5, 0.5], ['C5', 1.0, 0.5], ['D5', 1.5, 0.5], ['E5', 2.0, 0.4], ['E5', 2.4, 0.4], ['E5', 2.8, 0.8]], 'bell', 4.2, 0.8)],
+      ['cosmic', 'Kosmik', () => S2.seq(...S2.arp(['C6', 'G5', 'D6', 'A5', 'E6', 'B5'], 0.14, 'synth', 2, 0.6), 0.6)],
+      ['birga', 'Birga', () => S2.seq([['C5', 0, 0.15], ['E5', 0.15, 0.15], ['G5', 0.3, 0.3], ['E5', 0.7, 0.15], ['G5', 0.85, 0.15], ['C6', 1.0, 0.5], ['G5', 1.7, 0.15], ['C6', 1.85, 0.15], ['E6', 2.0, 0.6]], 'marimba', 3.2)],
+    ];
+    const pulse = (f, on, off, n, inst = 'soft') => { const out = []; for (let i = 0; i < n; i++) out.push([f, i * (on + off), on]); return [out, inst, n * (on + off) + 0.5]; };
+    this.OUTS = [
+      ['classic', 'Klassik (tu-tu)', () => Ring.urls.out_base],
+      ['euro', 'Yevropa', () => S2.seq(...pulse(425, 0.4, 0.2, 2), 0.5)],
+      ['double', 'Ikki karra', () => S2.seq([[400, 0, 0.4], [450, 0, 0.4], [400, 0.6, 0.4], [450, 0.6, 0.4]], 'soft', 3.4, 0.5)],
+      ['soft', 'Yumshoq', () => S2.seq([['E5', 0, 0.6], ['C5', 0.7, 0.8]], 'soft', 3.2, 0.5)],
+      ['bell', 'Qo‘ng‘iroqcha', () => S2.seq([['G5', 0, 0.3], ['E5', 0.4, 0.4]], 'bell', 3, 0.6)],
+      ['marimba', 'Marimba', () => S2.seq(...S2.arp(['C5', 'G5'], 0.2, 'marimba', 1, 2.4))],
+      ['beep', 'Qisqa signal', () => S2.seq(...pulse('A5', 0.12, 0.12, 3, 'retro'), 0.4)],
+      ['wave', 'To‘lqin', () => Ring.wav((x) => (x < 1.4 ? 0.45 * Math.sin(Math.PI * x / 1.4) * Math.sin(2 * Math.PI * (380 + 60 * Math.sin(2 * Math.PI * 1.5 * x)) * x) : 0), 3.4)],
+      ['piano', 'Pianino', () => S2.seq([['C5', 0, 0.3], ['E5', 0.3, 0.3], ['G5', 0.6, 0.6]], 'piano', 3.2, 0.6)],
+      ['pluck', 'Tor', () => S2.seq(...S2.arp(['D5', 'A5', 'D6'], 0.15, 'pluck', 1, 2.5))],
+    ];
+    this.MSGS = [
+      ['pop', 'Pop', () => S2.seq([['G5', 0, 0.05], ['C6', 0.06, 0.08]], 'marimba', 0.5)],
+      ['ding', 'Ding', () => S2.seq([['E6', 0, 0.2]], 'bell', 0.9)],
+      ['chime', 'Chime', () => S2.seq([['C6', 0, 0.1], ['G6', 0.1, 0.25]], 'bell', 0.9)],
+      ['note', 'Nota', () => S2.seq([['A5', 0, 0.1], ['E6', 0.12, 0.15]], 'pluck', 0.7)],
+      ['bubble', 'Pufak', () => Ring.wav((x) => (x < 0.18 ? 0.6 * Math.sin(2 * Math.PI * (300 + 2200 * x) * x) * Math.exp(-x * 14) : 0), 0.3)],
+      ['glass', 'Shisha', () => S2.seq([['G6', 0, 0.3]], 'bell', 1.1, 0.6)],
+      ['tik', 'Tik', () => Ring.wav((x) => (x < 0.03 ? Math.sin(2 * Math.PI * 1800 * x) * (1 - x / 0.03) : 0), 0.1)],
+      ['twinkle', 'Yulduzcha', () => S2.seq(...S2.arp(['C6', 'E6', 'G6'], 0.07, 'bell', 1, 0.2))],
+      ['knock', 'Taqillatish', () => Ring.wav((x) => { const k = (s) => (x >= s && x < s + 0.05 ? Math.sin(2 * Math.PI * 180 * (x - s)) * Math.exp(-(x - s) * 60) : 0); return 0.9 * (k(0) + k(0.14)); }, 0.35)],
+      ['duet', 'Duet', () => S2.seq([['E5', 0, 0.12], ['G5', 0.12, 0.12], ['C6', 0.24, 0.2]], 'marimba', 0.8)],
+      ['retro', 'Retro', () => S2.seq([['A5', 0, 0.06], ['E6', 0.08, 0.08]], 'retro', 0.4, 0.4)],
+      ['soft', 'Mayin', () => S2.seq([['C5', 0, 0.2], ['G5', 0.15, 0.3]], 'soft', 0.9, 0.7)],
+      ['harp', 'Arfa', () => S2.seq(...S2.arp(['G5', 'B5', 'D6', 'G6'], 0.05, 'pluck', 1, 0.3))],
+      ['classic', 'Klassik', () => 'beep'],
+    ];
+  },
+  cache: new Map(),
+  url(kind, id) { this.defs(); const L = kind === 'in' ? this.RINGS : kind === 'out' ? this.OUTS : this.MSGS; const d = L.find((x) => x[0] === id) || L[0]; const k = kind + ':' + d[0]; if (!this.cache.has(k)) this.cache.set(k, d[2]()); return this.cache.get(k); },
+  cfg() { try { return { in: 'classic', out: 'classic', msg: 'classic', ...JSON.parse(store.get('birga_sounds') || '{}') }; } catch { return { in: 'classic', out: 'classic', msg: 'classic' }; } },
+  set(k, v) { const c = this.cfg(); c[k] = v; store.set('birga_sounds', JSON.stringify(c)); this.applyRing(); },
+  applyRing() { Ring.build(); const c = this.cfg(); if (!Ring.urls.in_base) { Ring.urls.in_base = Ring.urls.in; Ring.urls.out_base = Ring.urls.out; } Ring.urls.in = c.in === 'off' ? Ring.wav(() => 0, 1) : this.url('in', c.in); Ring.urls.out = c.out === 'off' ? Ring.wav(() => 0, 1) : this.url('out', c.out); },
+  msgEl: null,
+  playMsg() {
+    const c = this.cfg(); if (c.msg === 'off') return false;
+    const u = this.url('msg', c.msg); if (u === 'beep') return false;
+    try { this.msgEl = this.msgEl || new Audio(); this.msgEl.src = u; this.msgEl.volume = 0.8; this.msgEl.play().catch(() => {}); } catch {}
+    return true;
+  },
+  prev: null,
+  preview(kind, id) {
+    try { this.prev?.pause(); } catch {}
+    if (id === 'off') return;
+    const u = this.url(kind, id); if (u === 'beep') return baseBeep();
+    this.prev = new Audio(u); this.prev.play().catch(() => {}); setTimeout(() => { try { this.prev?.pause(); } catch {} }, kind === 'msg' ? 1500 : 4200);
+  },
+  open() {
+    this.defs(); const c = this.cfg();
+    const sec = (kind, L, title) => `<h4 class="inv-h">${esc(t(title))}</h4><div class="snd-list" data-kind="${kind}">${L.map(([id, name]) => `<button data-snd="${id}" class="${c[kind] === id ? 'on' : ''}"><span class="snd-pl">▶</span>${esc(name)}</button>`).join('')}<button data-snd="off" class="${c[kind] === 'off' ? 'on' : ''}"><span class="snd-pl">🔇</span>${esc(t('snd_off'))}</button></div>`;
+    modal(`<h3>🔊 ${esc(t('snd_title'))} <button class="icon-btn" data-close>${icon('close')}</button></h3>${sec('in', this.RINGS, 'snd_in')}${sec('out', this.OUTS, 'snd_out')}${sec('msg', this.MSGS, 'snd_msg')}`);
+    $('#modal-card').addEventListener('click', (e) => { const b = e.target.closest('[data-snd]'); if (!b) return; const kind = b.closest('[data-kind]').dataset.kind; this.set(kind, b.dataset.snd); b.parentElement.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); this.preview(kind, b.dataset.snd); });
+    const mo = new MutationObserver(() => { if ($('#modal').classList.contains('hidden')) { try { this.prev?.pause(); } catch {} mo.disconnect(); } }); mo.observe($('#modal'), { attributes: true, attributeFilter: ['class'] });
+  },
+};
+const baseBeep = beep;
+beep = function (...a) { if (!a.length && Sounds.playMsg()) return; if (!a.length && Sounds.cfg().msg === 'off') return; return baseBeep(...a); };
+{ const baseBuild = Ring.build.bind(Ring); let busy = false; Ring.build = function () { baseBuild(); if (busy) return; busy = true; try { if (!Ring.urls.in_base) { Ring.urls.in_base = Ring.urls.in; Ring.urls.out_base = Ring.urls.out; const c = Sounds.cfg(); if (c.in !== 'classic' || c.out !== 'classic') Sounds.applyRing(); } } finally { busy = false; } }; }
+
+/* ---------- 5) Birga ilovasi (brauzersiz, WebView) bilan bog'lanish ---------- */
+const Native = {
+  async register() {
+    if (!window.BirgaNative || !S.me) return;
+    try { const r = await api('/api/native/register', { body: { model: navigator.userAgent.match(/Android [\d.]+; ([^;)]+)/)?.[1] || '' } }); window.BirgaNative.setToken?.(r.token); } catch {}
+  },
+  async save(href, name, mime) {
+    try {
+      if (/^https?:/.test(href) && !href.startsWith(location.origin)) { window.BirgaNative.download?.(href, name || '', mime || ''); return; }
+      const blob = await fetch(href).then((r) => r.blob());
+      const b64 = await new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1] || ''); fr.readAsDataURL(blob); });
+      window.BirgaNative.saveFile?.(name || 'Birga-file', mime || blob.type || 'application/octet-stream', b64);
+    } catch (e) { toast(t('net_err')); }
+  },
+};
+if (window.BirgaNative) {
+  // yuklab olish: WebView "download" havolalarini o'zi saqlay olmaydi — ilovaga uzatamiz
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest?.('a[download], a[href^="blob:"]'); if (!a) return;
+    e.preventDefault(); e.stopPropagation(); Native.save(a.href, a.getAttribute('download') || '', a.type || '');
+  }, true);
+  const baseClick = HTMLAnchorElement.prototype.click;
+  HTMLAnchorElement.prototype.click = function () { if (this.hasAttribute('download') || /^blob:/.test(this.href)) return Native.save(this.href, this.getAttribute('download') || '', this.type || ''); return baseClick.call(this); };
+  const baseLogout18 = logout;
+  logout = async function (silent) { try { window.BirgaNative.clearToken?.(); } catch {} return baseLogout18(silent); };
+}
+window.birgaOpenChat = (id) => { id = +id; if (S.me && S.chats.has(id)) openChat(id); };
+if (IS_NATIVE) document.head.insertAdjacentHTML('beforeend', `<style>#inst-bar, [data-install], #notif-bar { display: none !important; }</style>`);
+
+/* ---------- sozlamalar qatorlari ---------- */
+{
+  const g = $('#set-pin')?.parentElement || $('#set-privacy')?.parentElement;
+  g?.insertAdjacentHTML('beforeend', `<button class="row-btn" id="set-dev"><span class="ri c3">📱</span><span><span data-t18="dv_title"></span><small data-t18="dv_sub"></small></span></button>
+    <button class="row-btn" id="set-snd"><span class="ri c6">🔊</span><span><span data-t18="snd_title"></span><small data-t18="snd_sub"></small></span></button>
+    <button class="row-btn" id="set-font"><span class="ri c5">🔤</span><span><span data-t18="fn_title"></span><small id="set-font-v"></small></span></button>`);
+  $('#set-dev')?.addEventListener('click', () => Devices.open());
+  $('#set-snd')?.addEventListener('click', () => Sounds.open());
+  $('#set-font')?.addEventListener('click', () => Fonts.open());
+  const paint = () => { $$('[data-t18]').forEach((x) => (x.textContent = t(x.dataset.t18))); const v = $('#set-font-v'); if (v) { const id = Fonts.mine(); v.textContent = id ? Fonts.fam(id) : t('fn_default'); } };
+  const baseRS18 = renderSettings; renderSettings = function () { baseRS18(); paint(); };
+  setTimeout(paint, 0);
+}
+{
+  const baseLA18 = loadAliases; let started = false;
+  loadAliases = async function () { await baseLA18(); if (started) return; started = true; Fonts.apply(); Native.register(); setTimeout(() => Must2FA.check(), 1200); };
+}
+document.head.insertAdjacentHTML('beforeend', `<style>
+.auth-how { text-align: left; background: rgba(31,107,255,.08); border-radius: 14px; padding: 10px 12px; margin: 10px 0 12px; font-size: 13px; line-height: 1.45; } .auth-how ol { margin: 6px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.code-how { font-size: 13px; color: var(--muted); margin: 4px 0 10px; line-height: 1.4; }
+.tf-must { position: fixed; inset: 0; z-index: 2147482000; background: rgba(2,6,23,.6); display: grid; place-items: center; padding: 16px; backdrop-filter: blur(4px); }
+.tf-card { width: min(420px, 100%); background: var(--panel, #fff); color: var(--text); border-radius: 22px; padding: 20px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,.35); max-height: 92vh; overflow: auto; }
+.tf-card .tf-ic { font-size: 44px; } .tf-card h3 { margin: 6px 0; } .tf-card p { font-size: 14px; line-height: 1.45; color: var(--muted); } .tf-card .field { width: 100%; margin: 6px 0; box-sizing: border-box; }
+.dv-reg { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 14px; background: rgba(31,107,255,.08); margin: 8px 0; } .dv-reg small { color: var(--muted); }
+.dv-row { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 14px; margin-bottom: 6px; background: var(--panel-2, rgba(127,127,127,.08)); } .dv-row.me { box-shadow: inset 0 0 0 2px rgba(34,197,94,.5); }
+.dv-ic { font-size: 26px; } .dv-t { flex: 1; min-width: 0; display: flex; flex-direction: column; } .dv-t small { color: var(--muted); font-size: 12px; } .dv-me, .dv-on { color: #16A34A; font-style: normal; font-weight: 700; }
+.dv-out { padding: 7px 12px; border-radius: 12px; background: rgba(239,68,68,.12); color: #EF4444; font-weight: 700; font-size: 12.5px; } .dv-all { margin-top: 8px; color: #EF4444 !important; background: rgba(239,68,68,.1) !important; }
+.fn-list { display: flex; flex-direction: column; gap: 6px; max-height: 62vh; overflow: auto; } .fn-list button { text-align: left; padding: 10px 12px; border-radius: 14px; background: var(--panel-2, rgba(127,127,127,.08)); display: flex; flex-direction: column; gap: 2px; }
+.fn-list button.on { box-shadow: inset 0 0 0 2px var(--blue, #1F6BFF); } .fn-list small { color: var(--muted); font-size: 11.5px; } .fn-list span { font-size: 17px; }
+.snd-list { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; } .snd-list button { display: flex; align-items: center; gap: 8px; padding: 9px 10px; border-radius: 12px; background: var(--panel-2, rgba(127,127,127,.08)); text-align: left; font-size: 13.5px; font-weight: 600; }
+.snd-list button.on { background: var(--grad, #1F6BFF); color: #fff; } .snd-pl { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: rgba(127,127,127,.15); font-size: 10px; flex: none; }
 </style>`);
 
 boot();

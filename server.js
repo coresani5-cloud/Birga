@@ -126,6 +126,10 @@ function sendIndex(req, res) {
   if (!INDEX_CACHE) INDEX_CACHE = fs.readFileSync(INDEX_HTML, 'utf8').replace('__APP_VERSION__', APP_VERSION);
   res.set('Cache-Control', 'no-cache').type('html').send(INDEX_CACHE);
 }
+app.get('/manifest.webmanifest', (req, res, next) => {
+  const f = [path.join(__dirname, 'public', 'manifest.webmanifest'), path.join(__dirname, 'manifest.webmanifest')].find((x) => fs.existsSync(x)); if (!f) return next();
+  try { const m = JSON.parse(fs.readFileSync(f, 'utf8')); m.prefer_related_applications = true; m.related_applications = [{ platform: 'play', id: 'uz.birga.app' }]; res.set('Cache-Control', 'no-cache').type('application/manifest+json').send(JSON.stringify(m)); } catch { next(); }
+});
 app.get(['/', '/index.html'], sendIndex);
 if (PUBLIC_DIR) app.use(express.static(PUBLIC_DIR, { setHeaders: (res, p) => { if (p.endsWith('sw.js')) res.set('Cache-Control', 'no-cache'); } }));
 else {
@@ -442,8 +446,20 @@ async function mailCode(email, code, lang, extra = '') {
   await mailer.sendMail({ from: process.env.MAIL_FROM || `Birga <${process.env.SMTP_USER}>`, to: email, subject: `${subj}: ${code}`, text: body,
     html: `<div style="font-family:Arial,sans-serif;max-width:420px;margin:auto;padding:24px;border-radius:18px;background:#f4f7ff;color:#0F1C3A"><h2 style="margin:0 0 6px;color:#1F6BFF;letter-spacing:2px">BIRGA</h2><p>${subj}:</p><p style="font-size:36px;font-weight:800;letter-spacing:8px;margin:10px 0">${code}</p><p style="color:#6A7895;font-size:13px">${tr(lang, 'Kod 10 daqiqa amal qiladi. Uni hech kimga bermang.', 'Код действует 10 минут. Никому его не сообщайте.', 'Valid for 10 minutes. Do not share it.')}</p></div>` });
 }
+const mxCache = new Map();
+async function emailDomainReal(email) {
+  const d = String(email).split('@')[1] || '';
+  if (!d || !d.includes('.') || /^(example\.(com|org|net)|test\.com|localhost|mailinator\.com|10minutemail\.com|guerrillamail\.com|tempmail\.com|yopmail\.com)$/i.test(d)) return false;
+  const c = mxCache.get(d); if (c && now() - c.at < 6 * 3600e3) return c.ok;
+  const dns = require('dns').promises; let ok;
+  const lim = (pr) => Promise.race([pr, new Promise((_, rej) => setTimeout(() => rej(Object.assign(new Error('timeout'), { code: 'ETIMEOUT' })), 4000))]);
+  try { ok = (await lim(dns.resolveMx(d))).length > 0; }
+  catch (e) { if (e.code === 'ENOTFOUND' || e.code === 'ENODATA') { try { ok = (await lim(dns.resolve4(d))).length > 0; } catch { ok = false; } } else ok = true; }
+  mxCache.set(d, { ok, at: now() }); return ok;
+}
 async function issueEmailCode(req, res, key, email) {
   const lang = req.body.lang;
+  if (!(await emailDomainReal(email))) return res.status(400).json({ error: tr(lang, 'Bunday email manzil topilmadi. Haqiqiy emailingizni kiriting', 'Такой email не найден. Введите настоящий email', 'This email address was not found. Enter your real email') });
   const prev = await db.get('SELECT * FROM codes WHERE phone=?', [key]);
   if (prev && now() - prev.sent_at < 60_000) return res.status(429).json({ email, error: tr(lang, 'Kod yuborilgan. Biroz kuting', 'Код уже отправлен. Подождите', 'Code already sent. Please wait'), wait: Math.ceil((60_000 - (now() - prev.sent_at)) / 1000) });
   const day = now() - 24 * 3600e3;
@@ -457,8 +473,8 @@ async function issueEmailCode(req, res, key, email) {
       console.error('Email:', e.message);
       // email xizmati yo'q yoki barcha xizmatlar limitga yetgan — avvalgi holat: kod ekranda (faqat xavfsizlik kodi bor yoki yangi akkauntlar uchun; ular baribir xavfsizlik kodi bilan himoyalangan)
       const u = key.startsWith('mail:') ? await db.get('SELECT pass_hash FROM users WHERE email=? ORDER BY id LIMIT 1', [email]) : null;
-      if (process.env.DEV_CODES !== '0' && !ADMIN_EMAILS.includes(email) && (!u || u.pass_hash)) fallback = 'down';
-      else return res.status(502).json({ error: tr(lang, 'Email yuborib bo‘lmadi. Keyinroq urinib ko‘ring', 'Не удалось отправить письмо. Попробуйте позже', 'Could not send the email. Try again later') });
+      if (process.env.DEV_CODES !== '0' && (!u || u.pass_hash)) fallback = 'down';
+      else return res.status(502).json({ error: (u && !u.pass_hash) ? tr(lang, 'Bu akkauntda xavfsizlik kodi yo‘q, shuning uchun kod ekranda ko‘rsatilmaydi. Avval ilovaga kirgan qurilmangizda Sozlamalar → Xavfsizlik kodini o‘rnating.', 'В этом аккаунте нет кода безопасности, поэтому код не показывается на экране. Сначала задайте код безопасности в настройках на устройстве, где вы уже вошли.', 'This account has no security code yet, so the code is not shown on screen. Set a security code in Settings on a device where you are already signed in.') : tr(lang, 'Email yuborib bo‘lmadi. Keyinroq urinib ko‘ring', 'Не удалось отправить письмо. Попробуйте позже', 'Could not send the email. Try again later') });
   }
   if (fallback) console.log(`📧 [TEST EMAIL] ${email} → ${code}`);
   await db.run('INSERT INTO codes(phone,code_hash,expires,attempts,sent_at,email) VALUES(?,?,?,?,?,?) ON CONFLICT(phone) DO UPDATE SET code_hash=excluded.code_hash, expires=excluded.expires, attempts=0, sent_at=excluded.sent_at, email=excluded.email',
@@ -466,7 +482,7 @@ async function issueEmailCode(req, res, key, email) {
   await db.run('INSERT INTO sms_log(phone,ip,country,at) VALUES(?,?,?,?)', [key, req.ip, 'EMAIL', now()]);
   const out = { ok: true, email, timeout: 60, sent: !fallback };
   // email xizmati ulanmagan yoki limit tugagan — kod ekranda. Admin akkauntlari uchun kod hech qachon ekranda ko'rsatilmaydi.
-  if (fallback && !ADMIN_EMAILS.includes(email) && process.env.DEV_CODES !== '0') { out.devCode = code; out.mailDown = fallback === 'down'; }
+  if (fallback && process.env.DEV_CODES !== '0') { out.devCode = code; out.mailDown = fallback === 'down'; out.needSecurity = true; }
   res.json(out);
 }
 async function checkEmailCode(req, res, key) {
@@ -690,6 +706,23 @@ app.post('/api/profile/region', auth, wrap(async (req, res) => {
   res.json({ region });
 }));
 const wxCache = new Map();
+const MET_CODE = (s) => { s = String(s || '').replace(/_(day|night|polartwilight)$/, ''); if (/thunder/.test(s)) return 95; if (/snow/.test(s)) return /heavy/.test(s) ? 75 : 73; if (/sleet/.test(s)) return 67; if (/heavyrain/.test(s)) return 65; if (/rainshowers/.test(s)) return 80; if (/lightrain/.test(s)) return 61; if (/rain/.test(s)) return 63; if (s === 'fog') return 45; if (s === 'clearsky') return 0; if (s === 'fair') return 1; if (s === 'partlycloudy') return 2; if (s === 'cloudy') return 3; return 2; };
+async function metNoWeather(reg) {
+  const r = await fetch(`https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${reg.lat.toFixed(3)}&lon=${reg.lon.toFixed(3)}`, { headers: { 'User-Agent': 'Birga/1.0 github.com/coresani5-cloud/Birga' }, signal: AbortSignal.timeout(8000) });
+  if (!r.ok) throw new Error('met ' + r.status);
+  const ts = (await r.json()).properties.timeseries; const c0 = ts[0].data; const det = c0.instant.details;
+  const sym = c0.next_1_hours?.summary?.symbol_code || c0.next_6_hours?.summary?.symbol_code || '';
+  const byDay = new Map();
+  for (const t of ts) {
+    const d = t.time.slice(0, 10), v = t.data.instant.details.air_temperature, o = byDay.get(d) || { d, max: -99, min: 99, code: null, rain: 0 };
+    o.max = Math.max(o.max, v); o.min = Math.min(o.min, v);
+    const s6 = t.data.next_6_hours?.summary?.symbol_code; if (s6 && (!o.code || t.time.slice(11, 13) === '12')) o.code = s6;
+    const pr = t.data.next_6_hours?.details?.precipitation_amount; if (pr) o.rain = Math.max(o.rain, pr > 0.2 ? 60 : 20);
+    byDay.set(d, o);
+  }
+  const days = [...byDay.values()].slice(0, 4).map((o) => ({ d: o.d, code: MET_CODE(o.code || sym), max: o.max, min: o.min, rain: o.rain }));
+  return { cur: { t: det.air_temperature, feels: det.air_temperature, hum: Math.round(det.relative_humidity ?? 0), code: MET_CODE(sym), wind: det.wind_speed ?? 0, day: !/_night$/.test(sym) }, days, sun: {}, at: now() };
+}
 app.get('/api/weather', auth, wrap(async (req, res) => {
   let reg = null; try { reg = JSON.parse(req.user.region || 'null'); } catch {}
   if (!reg) return res.json({ region: null });
@@ -697,13 +730,17 @@ app.get('/api/weather', auth, wrap(async (req, res) => {
   const c = wxCache.get(key); if (c && now() - c.at < 15 * 60e3) return res.json({ region: reg, ...c.data });
   try {
     const u = `${process.env.WEATHER_API || 'https://api.open-meteo.com'}/v1/forecast?latitude=${reg.lat}&longitude=${reg.lon}&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset&timezone=auto&forecast_days=4&wind_speed_unit=ms`;
-    const r = await fetch(u); if (!r.ok) throw new Error('wx ' + r.status); const j = await r.json();
+    const r = await fetch(u, { signal: AbortSignal.timeout(8000) }); if (!r.ok) throw new Error('wx ' + r.status); const j = await r.json();
     const data = { cur: { t: j.current.temperature_2m, feels: j.current.apparent_temperature, hum: j.current.relative_humidity_2m, code: j.current.weather_code, wind: j.current.wind_speed_10m, day: !!j.current.is_day },
       days: j.daily.time.map((d, i) => ({ d, code: j.daily.weather_code[i], max: j.daily.temperature_2m_max[i], min: j.daily.temperature_2m_min[i], rain: j.daily.precipitation_probability_max?.[i] ?? null })),
       sun: { rise: j.daily.sunrise?.[0], set: j.daily.sunset?.[0] }, at: now() };
     wxCache.set(key, { at: now(), data }); if (wxCache.size > 500) wxCache.delete(wxCache.keys().next().value);
     res.json({ region: reg, ...data });
-  } catch (e) { if (c) return res.json({ region: reg, ...c.data, stale: true }); res.status(503).json({ region: reg, error: 'weather_unavailable' }); }
+  } catch (e) {
+    console.error('weather:', e.message);
+    try { const d2 = await metNoWeather(reg); wxCache.set(key, { at: now(), data: d2 }); return res.json({ region: reg, ...d2 }); } catch (e2) { console.error('weather met.no:', e2.message); }
+    if (c) return res.json({ region: reg, ...c.data, stale: true }); res.status(503).json({ region: reg, error: 'weather_unavailable' });
+  }
 }));
 
 // ===== Do'stlarni taklif qilish =====
@@ -1585,8 +1622,46 @@ app.delete('/api/stories/:id', auth, wrap(async (req, res) => {
 // ===== Reels: foydalanuvchilar O'ZLARI joylagan qisqa videolar (yoki o'z Instagram havolasi) =====
 // Lentaga faqat shu yerda ataylab joylangan narsa tushadi — chat xabarlaridan hech narsa olinmaydi.
 const IG_RX = /^https?:\/\/(?:www\.|m\.)?(?:instagram\.com|instagr\.am)\/(?:[\w.]+\/)?(reels?|p|tv)\/([\w-]{5,})/i;
-const reelOut = async (r, me) => ({ id: r.id, kind: r.kind, file: r.file, mime: r.mime, igKind: r.ig_kind, igCode: r.ig_code, caption: r.caption, duration: r.duration,
+const reelOutBase = async (r, me) => ({ id: r.id, kind: r.kind, file: r.file, mime: r.mime, igKind: r.ig_kind, igCode: r.ig_code, caption: r.caption, duration: r.duration,
   created_at: r.created_at, user: publicUser(await getUser(r.user_id), r.user_id === me), mine: r.user_id === me });
+const reelOut = async (r, me) => {
+  const o = await reelOutBase(r, me);
+  try {
+    o.likes = Number((await db.get('SELECT COUNT(*) AS c FROM reel_likes WHERE reel_id=?', [r.id])).c) || 0;
+    o.liked = !!(await db.get('SELECT 1 AS x FROM reel_likes WHERE reel_id=? AND user_id=?', [r.id, me]));
+    o.comments = Number((await db.get('SELECT COUNT(*) AS c FROM reel_comments WHERE reel_id=?', [r.id])).c) || 0;
+  } catch { o.likes = 0; o.liked = false; o.comments = 0; }
+  return o;
+};
+app.post('/api/reels/:id/like', auth, rateLimit('reellike', 600, 3600e3), wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!(await db.get('SELECT id FROM reels WHERE id=?', [id]))) return res.status(404).json({ error: 'not found' });
+  const had = await db.get('SELECT 1 AS x FROM reel_likes WHERE reel_id=? AND user_id=?', [id, req.user.id]);
+  if (had) await db.run('DELETE FROM reel_likes WHERE reel_id=? AND user_id=?', [id, req.user.id]);
+  else await db.run('INSERT INTO reel_likes(reel_id,user_id,at) VALUES(?,?,?) ON CONFLICT(reel_id,user_id) DO NOTHING', [id, req.user.id, now()]);
+  res.json({ liked: !had, likes: Number((await db.get('SELECT COUNT(*) AS c FROM reel_likes WHERE reel_id=?', [id])).c) || 0 });
+}));
+app.get('/api/reels/:id/comments', auth, wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  const reel = await db.get('SELECT user_id FROM reels WHERE id=?', [id]); if (!reel) return res.status(404).json({ error: 'not found' });
+  const rows = await db.all('SELECT * FROM reel_comments WHERE reel_id=? ORDER BY id DESC LIMIT 100', [id]);
+  const items = await Promise.all(rows.map(async (c) => { const u = await getUser(c.user_id); return { id: c.id, text: c.text, at: Number(c.at), mine: c.user_id === req.user.id, canDelete: c.user_id === req.user.id || reel.user_id === req.user.id, user: u ? publicUser(u, c.user_id === req.user.id) : { id: c.user_id, name: '?' } }; }));
+  res.json({ items });
+}));
+app.post('/api/reels/:id/comments', auth, rateLimit('reelcmt', 120, 3600e3), wrap(async (req, res) => {
+  const id = Number(req.params.id); const text = String(req.body.text || '').trim().slice(0, 500);
+  if (!text) return res.status(400).json({ error: 'empty' });
+  if (!(await db.get('SELECT id FROM reels WHERE id=?', [id]))) return res.status(404).json({ error: 'not found' });
+  await db.insert('INSERT INTO reel_comments(reel_id,user_id,text,at) VALUES(?,?,?,?)', [id, req.user.id, text, now()]);
+  res.json({ ok: true, comments: Number((await db.get('SELECT COUNT(*) AS c FROM reel_comments WHERE reel_id=?', [id])).c) || 0 });
+}));
+app.delete('/api/reels/:id/comments/:cid', auth, wrap(async (req, res) => {
+  const c = await db.get('SELECT * FROM reel_comments WHERE id=? AND reel_id=?', [Number(req.params.cid), Number(req.params.id)]);
+  if (!c) return res.json({ ok: true });
+  const reel = await db.get('SELECT user_id FROM reels WHERE id=?', [c.reel_id]);
+  if (c.user_id !== req.user.id && reel?.user_id !== req.user.id) return res.status(403).json({ error: 'forbidden' });
+  await db.run('DELETE FROM reel_comments WHERE id=?', [c.id]); res.json({ ok: true });
+}));
 app.get('/api/reels', auth, wrap(async (req, res) => {
   const before = Number(req.query.before) || 1e15;
   const rows = await db.all('SELECT r.* FROM reels r JOIN users u ON u.id=r.user_id WHERE r.id<? AND u.name IS NOT NULL ORDER BY r.id DESC LIMIT 20', [before]);
@@ -1611,6 +1686,7 @@ app.delete('/api/reels/:id', auth, wrap(async (req, res) => {
   const r = await db.get('SELECT * FROM reels WHERE id=?', [Number(req.params.id)]);
   if (!r || r.user_id !== req.user.id) return res.status(403).json({ error: 'forbidden' });
   await db.run('DELETE FROM reels WHERE id=?', [r.id]);
+  await db.run('DELETE FROM reel_likes WHERE reel_id=?', [r.id]).catch(() => {}); await db.run('DELETE FROM reel_comments WHERE reel_id=?', [r.id]).catch(() => {});
   if (r.file) safeRemove(r.file);
   res.json({ ok: true });
 }));
@@ -2494,6 +2570,9 @@ async function extraSchema() {
   await db.run('CREATE INDEX IF NOT EXISTS idx_react_msg ON reactions(message_id)');
   await db.run('CREATE TABLE IF NOT EXISTS hidden_messages(user_id BIGINT, message_id BIGINT, at BIGINT, PRIMARY KEY(user_id, message_id))');
   await db.run('CREATE TABLE IF NOT EXISTS blocks(owner_id BIGINT, user_id BIGINT, at BIGINT, PRIMARY KEY(owner_id, user_id))');
+  await db.run('CREATE TABLE IF NOT EXISTS reel_likes(reel_id BIGINT, user_id BIGINT, at BIGINT, PRIMARY KEY(reel_id, user_id))');
+  await db.run(`CREATE TABLE IF NOT EXISTS reel_comments(id ${db.kind === 'postgres' ? 'BIGSERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'}, reel_id BIGINT, user_id BIGINT, text TEXT, at BIGINT)`);
+  await db.run('CREATE INDEX IF NOT EXISTS idx_reel_cmt ON reel_comments(reel_id)');
   await db.run('CREATE TABLE IF NOT EXISTS uploads(url TEXT PRIMARY KEY, user_id BIGINT, at BIGINT)');
   await db.run(`CREATE TABLE IF NOT EXISTS reports(id ${db.kind === 'postgres' ? 'BIGSERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'}, reporter_id BIGINT, user_id BIGINT, message_id BIGINT, chat_id BIGINT,
     reason TEXT, details TEXT, snapshot TEXT, status TEXT DEFAULT 'open', created_at BIGINT, resolved_at BIGINT)`);

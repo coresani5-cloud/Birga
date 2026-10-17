@@ -1256,7 +1256,7 @@ function freeAI(call) {
   };
   const p = freeQ.then(run, run); freeQ = p.catch(() => {}); return p;
 }
-async function aiAnswer(msgs, { web = true, fast = false, sys = '' } = {}) {
+async function aiAnswer(msgs, { web = true, fast = false, sys = '', rawSys = '' } = {}) {
   const errs = [];
   const hasImg = msgs.some((m) => m.image);
   const split = (d) => { const m = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(d || ''); return m ? { mime: m[1], data: m[2] } : null; };
@@ -1267,7 +1267,7 @@ async function aiAnswer(msgs, { web = true, fast = false, sys = '' } = {}) {
       try {
         const j = await aiFetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
           method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
-          body: JSON.stringify({ systemInstruction: { parts: [{ text: aiSys() + sys }] }, contents, ...(grounding ? { tools: [{ google_search: {} }] } : {}), generationConfig: { maxOutputTokens: 3000, temperature: fast ? 0.3 : 0.6, ...(/2\.5-flash/.test(model) ? { thinkingConfig: { thinkingBudget: fast ? 0 : Number(process.env.AI_THINK ?? 384) } } : {}) } }),
+          body: JSON.stringify({ systemInstruction: { parts: [{ text: (rawSys || aiSys() + sys) }] }, contents, ...(grounding ? { tools: [{ google_search: {} }] } : {}), generationConfig: { maxOutputTokens: 3000, temperature: fast ? 0.3 : 0.6, ...(/2\.5-flash/.test(model) ? { thinkingConfig: { thinkingBudget: fast ? 0 : Number(process.env.AI_THINK ?? 384) } } : {}) } }),
         });
         const c = j?.candidates?.[0]; const out = c?.content?.parts?.map((p) => p.text || '').join('').trim();
         if (out) {
@@ -1287,7 +1287,7 @@ async function aiAnswer(msgs, { web = true, fast = false, sys = '' } = {}) {
     try {
       const free = !key && /pollinations/.test(url);
       const call = () => aiFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(key ? { Authorization: 'Bearer ' + key } : {}) },
-        body: JSON.stringify({ model, messages: [{ role: 'system', content: aiSys() + sys }, ...oaMsgs], max_tokens: 3000, temperature: fast ? 0.3 : 0.6 }) });
+        body: JSON.stringify({ model, messages: [{ role: 'system', content: (rawSys || aiSys() + sys) }, ...oaMsgs], max_tokens: 3000, temperature: fast ? 0.3 : 0.6 }) });
       const j = free ? await freeAI(call) : await call();
       const out = String(j?.choices?.[0]?.message?.content || '').trim(); if (out) return { text: out, sources: [] };
       errs.push(url + ': empty');
@@ -1471,28 +1471,74 @@ app.post('/api/chats/:id/clear', auth, wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
-// Birga AI — rasm chizish (bepul: Pollinations), natija Birga omboriga saqlanadi va chatga yuborish mumkin
-app.post('/api/ai/image', auth, rateLimit('aiimg', 25, 3600e3), wrap(async (req, res) => {
-  const prompt = String(req.body?.prompt || '').trim().slice(0, 600); if (!prompt) return res.status(400).json({ error: 'empty' });
-  let en = prompt;
-  if (process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY) { // tasvir modeli inglizchani yaxshiroq tushunadi
-    try { const r = await aiAnswer([{ role: 'user', content: 'Translate this image description into a detailed English prompt for an image generator. Reply with the prompt only, no quotes:\n' + prompt }], { web: false }); if (r?.text && r.text.length < 900) en = r.text.replace(/^["'`]+|["'`]+$/g, ''); } catch {}
+// Birga AI — rasm chizish. Eng sifatlisidan boshlab: OpenAI (gpt-image-1) → Google Gemini → Cloudflare FLUX → Pollinations (bepul).
+// So'rov avval aqlli tarjima qilinadi: o'zbekcha tilakni rasm modeli aniq tushunadigan batafsil inglizcha tavsifga aylantiradi.
+const IMG_SYS = `You turn a user's picture request (often in Uzbek, sometimes Russian/English) into ONE excellent English prompt for a text-to-image model.
+Rules: keep EXACTLY what the user asked for (subjects, count, colors, actions, text) — never add unrelated things; then add concrete details: setting, composition, camera angle, lighting, style (photorealistic unless the user asked for cartoon/anime/logo/drawing etc.), high detail, sharp focus, correct anatomy, natural hands and faces.
+Understand Uzbek culture correctly: osh/palov = Uzbek plov (rice pilaf with carrots and lamb in a kazan), non/lepyoshka = round Uzbek tandoor bread with stamped pattern, choyxona = Uzbek tea house, do'ppi = Uzbek skullcap, atlas/adras = ikat silk fabric, Registon = Registan square Samarkand, etc.
+If the user wants text written in the image, put it in quotes exactly. Reply with the prompt only (max 120 words), no quotes around it, no explanations.`;
+async function imgPrompt(prompt) {
+  if (/^[\x00-\x7F]+$/.test(prompt) && prompt.split(/\s+/).length > 12) return prompt; // allaqachon batafsil inglizcha
+  try { const r = await aiAnswer([{ role: 'user', content: prompt }], { web: false, fast: true, rawSys: IMG_SYS }); const t2 = String(r?.text || '').replace(/^["'`]+|["'`]+$/g, '').trim(); if (t2 && t2.length < 1200) return t2; } catch {}
+  return prompt;
+}
+const imgSources = [
+  ['OpenAI', async (en) => {
+    const k = process.env.OPENAI_API_KEY; if (!k) return null;
+    const r = await fetch('https://api.openai.com/v1/images/generations', { method: 'POST', headers: { Authorization: 'Bearer ' + k, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1', prompt: en, size: '1024x1024', quality: process.env.OPENAI_IMAGE_QUALITY || 'medium', n: 1 }), signal: AbortSignal.timeout(120000) });
+    const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(r.status + ' ' + JSON.stringify(j).slice(0, 160));
+    const b = j.data?.[0]?.b64_json; if (b) return { buf: Buffer.from(b, 'base64'), type: 'image/png' };
+    if (j.data?.[0]?.url) { const x = await fetch(j.data[0].url); return { buf: Buffer.from(await x.arrayBuffer()), type: x.headers.get('content-type') || 'image/png' }; }
+    throw new Error('empty');
+  }],
+  ['Gemini', async (en) => {
+    const k = process.env.GEMINI_API_KEY; if (!k || process.env.GEMINI_IMAGE === '0') return null;
+    const model = process.env.GEMINI_IMAGE_MODEL || 'gemini-2.5-flash-image';
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': k },
+      body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: en }] }], generationConfig: { responseModalities: ['IMAGE'], imageConfig: { aspectRatio: '1:1' } } }), signal: AbortSignal.timeout(120000) });
+    const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(r.status + ' ' + JSON.stringify(j).slice(0, 160));
+    const part = (j.candidates?.[0]?.content?.parts || []).find((x) => x.inlineData || x.inline_data); const d = part?.inlineData || part?.inline_data;
+    if (!d?.data) throw new Error('rasm qaytmadi');
+    return { buf: Buffer.from(d.data, 'base64'), type: d.mimeType || d.mime_type || 'image/png' };
+  }],
+  ['Cloudflare', async (en) => {
+    const acc = process.env.CF_ACCOUNT_ID, tok = process.env.CF_AI_TOKEN; if (!acc || !tok) return null;
+    const model = process.env.CF_IMAGE_MODEL || '@cf/black-forest-labs/flux-1-schnell';
+    const r = await fetch(`${process.env.CF_API_BASE || 'https://api.cloudflare.com'}/client/v4/accounts/${acc}/ai/run/${model}`, { method: 'POST', headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: en, steps: 8 }), signal: AbortSignal.timeout(90000) });
+    const ct = r.headers.get('content-type') || '';
+    if (/^image\//.test(ct) && r.ok) return { buf: Buffer.from(await r.arrayBuffer()), type: ct.split(';')[0] };
+    const j = await r.json().catch(() => ({})); if (!r.ok || !j.result?.image) throw new Error(r.status + ' ' + JSON.stringify(j.errors || j).slice(0, 160));
+    return { buf: Buffer.from(j.result.image, 'base64'), type: 'image/jpeg' };
+  }],
+  ['Pollinations', async (en) => {
+    const seed = crypto.randomInt(1, 1e9);
+    const url = `${process.env.AI_IMAGE_URL || 'https://image.pollinations.ai/prompt/'}${encodeURIComponent(en)}?width=1024&height=1024&nologo=true&model=${process.env.POLLINATIONS_MODEL || 'flux'}&seed=${seed}`;
+    const r = await fetch(url, { signal: AbortSignal.timeout(90000), headers: process.env.POLLINATIONS_TOKEN ? { Authorization: 'Bearer ' + process.env.POLLINATIONS_TOKEN } : {} });
+    const type = r.headers.get('content-type') || ''; if (!r.ok || !/^image\//.test(type)) throw new Error('status ' + r.status);
+    return { buf: Buffer.from(await r.arrayBuffer()), type: type.split(';')[0] };
+  }],
+];
+const imgDown = new Map();
+async function imageGen(en) {
+  const errs = [];
+  for (const [name, fn] of imgSources) {
+    if ((imgDown.get(name) || 0) > now()) continue;
+    try { const out = await fn(en); if (!out) continue; if (out.buf.length < 2000) throw new Error('small'); out.src = name; return out; }
+    catch (e) { errs.push(name + ': ' + e.message); if (/\b(429|402|403|quota|limit|billing)/i.test(e.message)) imgDown.set(name, now() + 30 * 60e3); }
   }
-  const seed = crypto.randomInt(1, 1e9);
-  const url = `${process.env.AI_IMAGE_URL || 'https://image.pollinations.ai/prompt/'}${encodeURIComponent(en)}?width=1024&height=1024&nologo=true&enhance=true&seed=${seed}`;
-  const ac = new AbortController(); const tm = setTimeout(() => ac.abort(), 90000);
+  throw new Error(errs.join(' | ') || 'manba yo‘q');
+}
+app.post('/api/ai/image', auth, rateLimit('aiimg', 25, 3600e3), wrap(async (req, res) => {
+  const prompt = String(req.body?.prompt || '').trim().slice(0, 800); if (!prompt) return res.status(400).json({ error: 'empty' });
   try {
-    const r = await fetch(url, { signal: ac.signal, headers: process.env.POLLINATIONS_TOKEN ? { Authorization: 'Bearer ' + process.env.POLLINATIONS_TOKEN } : {} });
-    const type = r.headers.get('content-type') || '';
-    if (!r.ok || !/^image\//.test(type)) throw new Error('status ' + r.status);
-    const buf = Buffer.from(await r.arrayBuffer()); if (buf.length < 2000) throw new Error('small');
-    const f = path.join(UPLOAD_DIR, 'ai-' + crypto.randomBytes(8).toString('hex') + (type.includes('png') ? '.png' : '.jpg'));
+    const en = await imgPrompt(prompt);
+    const { buf, type, src } = await imageGen(en);
+    const f = path.join(UPLOAD_DIR, 'ai-' + crypto.randomBytes(8).toString('hex') + (type.includes('png') ? '.png' : type.includes('webp') ? '.webp' : '.jpg'));
     fs.writeFileSync(f, buf);
-    const saved = await storage.save(f, type.split(';')[0]);
+    const saved = await storage.save(f, type);
     await db.run('INSERT INTO uploads(url,user_id,at) VALUES(?,?,?) ON CONFLICT(url) DO NOTHING', [saved, req.user.id, now()]).catch(() => {});
-    res.json({ url: saved, mime: type.split(';')[0], size: buf.length });
+    res.json({ url: saved, mime: type, size: buf.length, src });
   } catch (e) { console.error('Birga AI rasm:', e.message); res.status(503).json({ error: 'image_unavailable' }); }
-  finally { clearTimeout(tm); }
 }));
 
 

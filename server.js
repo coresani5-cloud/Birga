@@ -682,6 +682,19 @@ app.get('/api/native/poll', wrap(async (req, res) => {
   res.set('Cache-Control', 'no-store'); res.json({ events: evs, now: evs.length ? Math.max(...evs.map((x) => x.at)) : since });
 }));
 
+// ===== Hamyon: pul o'tkazmalari tarixi (chatlardagi "o'tkazildi / so'raldi" kartochkalari) =====
+app.get('/api/pay/history', auth, wrap(async (req, res) => {
+  const rows = await db.all(`SELECT m.id, m.chat_id, m.sender_id, m.meta, m.created_at FROM messages m JOIN chat_members cm ON cm.chat_id=m.chat_id AND cm.user_id=?
+    WHERE m.deleted=0 AND m.meta LIKE '%"pay":%' ORDER BY m.id DESC LIMIT 100`, [req.user.id]);
+  const out = [];
+  for (const r of rows) {
+    let meta = {}; try { meta = JSON.parse(r.meta || '{}'); } catch {} if (!meta.pay) continue;
+    const mine = Number(r.sender_id) === req.user.id; const pid = await privatePeer(r.chat_id, req.user.id); const peer = pid ? await getUser(pid) : null; const chat = peer ? null : await getChat(r.chat_id);
+    out.push({ id: Number(r.id), chatId: Number(r.chat_id), at: Number(r.created_at), mine, pay: meta.pay, who: peer ? publicUser(peer) : { name: chat?.title || '' } });
+  }
+  res.json({ list: out });
+}));
+
 // ===== Hayot lentasi: do'stlar qayerda (faqat o'zi rozilik bergan foydalanuvchilar, faqat do'stlariga) =====
 // "Do'st" — shaxsiy chati bor odam. Joylashuv faqat oxirgisi saqlanadi; o'chirsa — darhol o'chiriladi.
 const LOC_TTL = 12 * 3600e3;

@@ -2030,5 +2030,171 @@
     return { apply: () => false, rt: (s, d) => link.recv(d), stop, resize: fit };
   };
 
+
+  /* ================= Yana 3 ta jonli 2 kishilik o'yin: Ping-pong, Tank jangi, Sumo ================= */
+  MPL.push(
+    { id: 'pong', e: '🏓', c: ['#0EA5E9', '#7C3AED'], rt: 1, n: { uz: 'Ping-pong (jonli)', ru: 'Пинг-понг (онлайн)', en: 'Ping-pong (live)' } },
+    { id: 'tanks', e: '🪖', c: ['#4D7C0F', '#78350F'], rt: 1, big: 1, n: { uz: 'Tank jangi (jonli)', ru: 'Танковый бой (онлайн)', en: 'Tank battle (live)' } },
+    { id: 'sumo', e: '🤼', c: ['#F59E0B', '#DC2626'], rt: 1, n: { uz: 'Sumo (jonli)', ru: 'Сумо (онлайн)', en: 'Sumo (live)' } },
+  );
+  // umumiy: uy egasi (0) hisoblaydi, mehmon (1) boshqaruvini yuboradi; ekranda har kim o'zini pastda ko'radi
+  function hostGame(ctx, { onInput, onSnap }) {
+    const HOST = ctx.me === 0; let snap = null, prev = null, snapT = 0, over = false;
+    const link = rtLink(ctx, (d) => {
+      if (HOST && d.t === 'i') onInput(d);
+      if (!HOST && d.t === 's') { prev = snap; snap = d; snapT = performance.now(); onSnap?.(d); }
+      if (d.t === 'end' && !over) { over = true; setTimeout(() => ctx.over(d.w), 700); }
+    });
+    return {
+      HOST, link, get snap() { return snap; },
+      k(ms) { return prev ? Math.min(1.2, (performance.now() - snapT) / ms) : 1; },
+      lerp(a, b, ms) { return prev ? a + (b - a) * this.k(ms) : b; }, prevS: () => prev,
+      end(w) { if (over) return; over = true; ctx.rt?.send({ t: 'end', w }); setTimeout(() => ctx.over(w), 700); }, get over() { return over; },
+    };
+  }
+
+  // ---- Ping-pong ----
+  MPI.pong = (stage, ctx) => {
+    const { c, g, fit } = canvasIn(stage, 0.6);
+    const TW = 1, TH = 1.7, PW = 0.24, PH = 0.035, BR = 0.022, WIN = 7, flip = ctx.me === 1, ME = Math.max(0, ctx.me);
+    const pd = [{ x: 0.5, vx: 0 }, { x: 0.5, vx: 0 }]; let ball = { x: 0.5, y: TH / 2, vx: 0, vy: 0 }, sc = [0, 0], serve = 1.2, server = 0, msg = '', msgT = 0, hits = 0, trail = [];
+    let target = null, sendT = 0;
+    const toX = (px) => { const s = Math.min(c.W / TW, c.H / TH), ox = (c.W - TW * s) / 2; let x = (px - ox) / s; return flip ? TW - x : x; };
+    const onPt = (e) => { if (ctx.me >= 0) target = toX(pos(c, e)[0]); };
+    c.addEventListener('pointerdown', onPt); c.addEventListener('pointermove', (e) => { if (e.buttons || e.pointerType === 'touch') onPt(e); });
+    const H = hostGame(ctx, { onInput: (d) => { const nx = +d.x; pd[1].vx = (nx - pd[1].x) * 25; pd[1].x = nx; }, onSnap: (d) => { if (d.sc[0] + d.sc[1] > sc[0] + sc[1]) { snd(880, 0.25, 0.07); msg = '🏓'; msgT = 0.9; } if (d.h > hits) snd(520, 0.04, 0.05, 'square'); hits = d.h; sc = d.sc; pd[0].x = d.p0; } });
+    const doServe = () => { const dir = server === 0 ? -1 : 1; ball = { x: 0.5, y: TH / 2, vx: (Math.random() - 0.5) * 0.5, vy: dir * 0.85 }; };
+    ctx.turn(-1, rt('first').replace('{n}', WIN));
+    const stop = loop((dt) => {
+      const mine = pd[ME]; const kd = keysDown;
+      if (kd.has('arrowleft') || kd.has('a')) target = Math.max(0, (target ?? mine.x) - dt * 1.6); if (kd.has('arrowright') || kd.has('d')) target = Math.min(1, (target ?? mine.x) + dt * 1.6);
+      if (target != null && ctx.me >= 0) { const nx = mine.x + (target - mine.x) * Math.min(1, dt * 18); mine.vx = (nx - mine.x) / dt; mine.x = Math.max(PW / 2, Math.min(TW - PW / 2, nx)); }
+      sendT += dt; const live = H.link.st.alive;
+      if (H.HOST && live && !H.over) {
+        if (serve > 0) { serve -= dt; if (serve <= 0) doServe(); }
+        else for (let st = 0; st < 4; st++) {
+          const h = dt / 4; ball.x += ball.vx * h; ball.y += ball.vy * h; trail.push([ball.x, ball.y]); if (trail.length > 14) trail.shift();
+          if (ball.x < BR) { ball.x = BR; ball.vx = Math.abs(ball.vx); } if (ball.x > TW - BR) { ball.x = TW - BR; ball.vx = -Math.abs(ball.vx); }
+          for (const s of [0, 1]) { const py = s === 0 ? TH - 0.09 : 0.09, p = pd[s];
+            if (Math.abs(ball.y - py) < PH / 2 + BR && Math.abs(ball.x - p.x) < PW / 2 + BR && (s === 0 ? ball.vy > 0 : ball.vy < 0)) {
+              const off = (ball.x - p.x) / (PW / 2); const sp = Math.min(2.4, Math.hypot(ball.vx, ball.vy) * 1.06 + 0.02);
+              ball.vy = (s === 0 ? -1 : 1) * sp * Math.cos(off * 0.9); ball.vx = sp * Math.sin(off * 0.9) + p.vx * 0.25; ball.y = py + (s === 0 ? -1 : 1) * (PH / 2 + BR); hits++; snd(520, 0.04, 0.05, 'square'); } }
+          if (ball.y > TH + 0.05 || ball.y < -0.05) { const w = ball.y < 0 ? 0 : 1; sc[w]++; server = 1 - w; serve = 1; msg = '🏓'; msgT = 0.9; snd(880, 0.25, 0.07); trail = []; ball = { x: 0.5, y: TH / 2, vx: 0, vy: 0 }; if (sc[w] >= WIN) H.end(w); break; }
+        }
+        if (sendT > 0.033) { sendT = 0; ctx.rt?.send({ t: 's', b: [Math.round(ball.x * 1000) / 1000, Math.round(ball.y * 1000) / 1000], p0: Math.round(pd[0].x * 1000) / 1000, sc, h: hits }); }
+      } else if (!H.HOST && ctx.me >= 0 && sendT > 0.033) { sendT = 0; ctx.rt?.send({ t: 'i', x: Math.round(pd[1].x * 1000) / 1000 }); }
+      if (!H.HOST && H.snap) { const pv = H.prevS(); ball.x = H.lerp(pv?.b[0] ?? H.snap.b[0], H.snap.b[0], 33); ball.y = H.lerp(pv?.b[1] ?? H.snap.b[1], H.snap.b[1], 33); trail.push([ball.x, ball.y]); if (trail.length > 14) trail.shift(); }
+      const s = Math.min(c.W / TW, c.H / TH), ox = (c.W - TW * s) / 2, oy = (c.H - TH * s) / 2, X = (x) => ox + (flip ? TW - x : x) * s, Y = (y) => oy + (flip ? TH - y : y) * s;
+      const gr = g.createLinearGradient(0, oy, 0, oy + TH * s); gr.addColorStop(0, '#1E3A8A'); gr.addColorStop(1, '#1D4ED8'); g.fillStyle = '#0B1022'; g.fillRect(0, 0, c.W, c.H); g.fillStyle = gr; rr(g, ox, oy, TW * s, TH * s, 14); g.fill();
+      g.strokeStyle = 'rgba(255,255,255,.85)'; g.lineWidth = 3; g.strokeRect(ox + 4, oy + 4, TW * s - 8, TH * s - 8); g.setLineDash([10, 10]); g.beginPath(); g.moveTo(ox, oy + TH * s / 2); g.lineTo(ox + TW * s, oy + TH * s / 2); g.stroke(); g.setLineDash([]);
+      trail.forEach((q, i) => { g.fillStyle = `rgba(253,224,71,${i / trail.length * 0.4})`; g.beginPath(); g.arc(X(q[0]), Y(q[1]), BR * s * (i / trail.length), 0, 7); g.fill(); });
+      g.fillStyle = '#FDE047'; g.beginPath(); g.arc(X(ball.x), Y(ball.y), BR * s, 0, 7); g.fill();
+      [[0, TH - 0.09, '#22D3EE'], [1, 0.09, '#F472B6']].forEach(([i, y, col]) => { g.fillStyle = col; rr(g, X(pd[i].x) - (PW / 2) * s, Y(y) - (PH / 2) * s, PW * s, PH * s, 8); g.fill(); });
+      text(g, String(sc[ME]), c.W - 26, c.H / 2 + 30, 28, '#fff'); text(g, String(sc[1 - ME]), c.W - 26, c.H / 2 - 30, 28, 'rgba(255,255,255,.5)');
+      if (!H.link.st.alive) text(g, rt('wait_rt'), c.W / 2, c.H / 2 - 50, 16);
+      if (msgT > 0) { msgT -= dt; text(g, msg, c.W / 2, c.H / 2, 46); }
+      if (H.link.lost() && !H.over) text(g, rt('lost'), c.W / 2, c.H * 0.7, 14, '#FCA5A5');
+    });
+    return { apply: () => false, rt: (sd, d) => H.link.recv(d), stop, resize: fit };
+  };
+
+  // ---- Tank jangi: devorli maydon, o'q devordan bir marta qaytadi. 5 ta g'alaba ----
+  MPI.tanks = (stage, ctx) => {
+    stage.classList.add('gm-stage-pad');
+    const { c, g, fit } = canvasIn(stage, 0.75);
+    const pad = padUI(stage, [{ id: 'fire', t: '💥', cls: 'big' }]);
+    const AW = 20, AH = 15, WIN = 5, ME = Math.max(0, ctx.me), COL = ['#22C55E', '#F97316'];
+    const WALLS = [[4, 3, 1, 4], [15, 8, 1, 4], [8, 7, 4, 1], [9, 2, 2, 1], [9, 12, 2, 1], [3, 11, 3, 1], [14, 3, 3, 1]];
+    const wallHit = (x, y, r) => x < r || y < r || x > AW - r || y > AH - r || WALLS.some(([wx, wy, ww, wh]) => x > wx - r && x < wx + ww + r && y > wy - r && y < wy + wh + r);
+    const spawn = (i) => (i === 0 ? { x: 2, y: AH - 2, a: -Math.PI / 4 } : { x: AW - 2, y: 2, a: (3 * Math.PI) / 4 });
+    let T = [0, 1].map((i) => ({ ...spawn(i), hp: 3, dead: 0, cd: 0 })), B = [], sc = [0, 0], fx = [], sendT = 0;
+    const gin = { x: 0, y: 0, f: 0 }; let seenF = 0, myF = 0, seenF0 = 0;
+    const H = hostGame(ctx, { onInput: (d) => { gin.x = +d.x || 0; gin.y = +d.y || 0; gin.f = d.f | 0; }, onSnap: (d) => { if (d.sc[0] + d.sc[1] > sc[0] + sc[1]) snd(120, 0.5, 0.1, 'sawtooth'); sc = d.sc; (d.fx || []).forEach((e) => fx.push({ x: e[0], y: e[1], t: 0.5 })); } });
+    ctx.turn(-1, rt('first').replace('{n}', WIN));
+    const stop = loop((dt) => {
+      const kd = keysDown; let jx = pad.x, jy = pad.y; if (kd.has('arrowleft') || kd.has('a')) jx = -1; if (kd.has('arrowright') || kd.has('d')) jx = 1; if (kd.has('arrowup') || kd.has('w')) jy = -1; if (kd.has('arrowdown') || kd.has('s')) jy = 1;
+      if (pad.take('fire') || kd.has(' ')) myF++;
+      sendT += dt; const newFx = [];
+      if (H.HOST && H.link.st.alive && !H.over) {
+        const inputs = [{ x: jx, y: jy, f: myF }, { x: -gin.x, y: -gin.y, f: gin.f }]; // mehmon ekrani 180° burilgan
+        const fire = [inputs[0].f > seenF0, inputs[1].f > seenF]; seenF0 = inputs[0].f; seenF = inputs[1].f;
+        T.forEach((t, i) => {
+          t.cd = Math.max(0, t.cd - dt);
+          if (t.dead > 0) { t.dead -= dt; if (t.dead <= 0) Object.assign(t, spawn(i), { hp: 3 }); return; }
+          const inp = inputs[i], m = Math.hypot(inp.x, inp.y);
+          if (m > 0.2) { const want = Math.atan2(inp.y, inp.x); let da = ((want - t.a + Math.PI * 3) % (Math.PI * 2)) - Math.PI; t.a += Math.max(-4 * dt, Math.min(4 * dt, da)); const sp = 4.2 * Math.min(1, m) * (Math.abs(da) < 1.2 ? 1 : 0.3); const nx = t.x + Math.cos(t.a) * sp * dt, ny = t.y + Math.sin(t.a) * sp * dt; if (!wallHit(nx, t.y, 0.55)) t.x = nx; if (!wallHit(t.x, ny, 0.55)) t.y = ny; }
+          if (fire[i] && t.cd <= 0) { t.cd = 0.6; B.push({ x: t.x + Math.cos(t.a) * 0.8, y: t.y + Math.sin(t.a) * 0.8, vx: Math.cos(t.a) * 11, vy: Math.sin(t.a) * 11, o: i, b: 1, life: 2.2 }); snd(200, 0.08, 0.06, 'square'); }
+        });
+        for (const b of B) {
+          b.life -= dt; const nx = b.x + b.vx * dt, ny = b.y + b.vy * dt;
+          if (wallHit(nx, b.y, 0.1)) { if (b.b-- > 0) b.vx = -b.vx; else b.life = 0; } else b.x = nx;
+          if (wallHit(b.x, ny, 0.1)) { if (b.b-- > 0) b.vy = -b.vy; else b.life = 0; } else b.y = ny;
+          T.forEach((t, i) => { if (b.life > 0 && t.dead <= 0 && (i !== b.o || b.b < 1) && Math.hypot(t.x - b.x, t.y - b.y) < 0.6) { b.life = 0; t.hp--; newFx.push([b.x, b.y]); snd(90, 0.15, 0.08, 'sawtooth'); if (t.hp <= 0) { t.dead = 2; const w = i === b.o ? 1 - i : b.o; sc[w]++; newFx.push([t.x, t.y]); if (sc[w] >= WIN) H.end(w); } } });
+        }
+        B = B.filter((b) => b.life > 0); newFx.forEach((e) => fx.push({ x: e[0], y: e[1], t: 0.5 }));
+        if (sendT > 0.05) { sendT = 0; ctx.rt?.send({ t: 's', T: T.map((t) => [Math.round(t.x * 100) / 100, Math.round(t.y * 100) / 100, Math.round(t.a * 100) / 100, t.hp, t.dead > 0 ? 1 : 0]), B: B.map((b) => [Math.round(b.x * 10) / 10, Math.round(b.y * 10) / 10]), sc, fx: newFx }); }
+      } else if (!H.HOST && ctx.me >= 0 && sendT > 0.05) { sendT = 0; ctx.rt?.send({ t: 'i', x: Math.round(jx * 100) / 100, y: Math.round(jy * 100) / 100, f: myF }); }
+      let TV = T.map((t) => [t.x, t.y, t.a, t.hp, t.dead > 0 ? 1 : 0]), BV = B.map((b) => [b.x, b.y]);
+      if (!H.HOST && H.snap) { const pv = H.prevS(); TV = H.snap.T.map((q, i) => [H.lerp(pv?.T[i][0] ?? q[0], q[0], 50), H.lerp(pv?.T[i][1] ?? q[1], q[1], 50), q[2], q[3], q[4]]); BV = H.snap.B; }
+      // chizish (mehmon uchun 180° burilgan)
+      const flip = ctx.me === 1, s = Math.min(c.W / AW, c.H / AH), ox = (c.W - AW * s) / 2, oy = (c.H - AH * s) / 2, X = (x) => ox + (flip ? AW - x : x) * s, Y = (y) => oy + (flip ? AH - y : y) * s;
+      g.fillStyle = '#1A2E05'; g.fillRect(0, 0, c.W, c.H); g.fillStyle = '#3F6212'; g.fillRect(ox, oy, AW * s, AH * s);
+      g.fillStyle = 'rgba(0,0,0,.08)'; for (let i = 0; i < AW; i += 2) for (let j = (i / 2) % 2; j < AH; j += 2) g.fillRect(ox + i * s, oy + j * s, s, s);
+      WALLS.forEach(([wx, wy, ww, wh]) => { const x0 = Math.min(X(wx), X(wx + ww)), y0 = Math.min(Y(wy), Y(wy + wh)); g.fillStyle = '#57534E'; g.fillRect(x0, y0, ww * s, wh * s); g.fillStyle = '#78716C'; g.fillRect(x0 + 2, y0 + 2, ww * s - 4, wh * s / 2 - 2); });
+      TV.forEach((q, i) => { if (q[4]) return; g.save(); g.translate(X(q[0]), Y(q[1])); g.rotate(q[2] + (flip ? Math.PI : 0)); g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(-0.55 * s + 3, -0.45 * s + 3, 1.1 * s, 0.9 * s); g.fillStyle = '#1C1917'; g.fillRect(-0.6 * s, -0.5 * s, 1.2 * s, 0.22 * s); g.fillRect(-0.6 * s, 0.28 * s, 1.2 * s, 0.22 * s); g.fillStyle = COL[i]; rr(g, -0.5 * s, -0.36 * s, 1 * s, 0.72 * s, 5); g.fill(); g.fillStyle = 'rgba(0,0,0,.35)'; g.beginPath(); g.arc(0, 0, 0.26 * s, 0, 7); g.fill(); g.fillStyle = '#0C0A09'; g.fillRect(0, -0.07 * s, 0.75 * s, 0.14 * s); g.restore();
+        for (let k = 0; k < 3; k++) { g.fillStyle = k < q[3] ? '#22C55E' : 'rgba(255,255,255,.25)'; g.fillRect(X(q[0]) - 0.45 * s + k * 0.32 * s, Y(q[1]) - 0.85 * s, 0.26 * s, 0.1 * s); } });
+      g.fillStyle = '#FDE047'; BV.forEach((b) => { g.beginPath(); g.arc(X(b[0]), Y(b[1]), 0.13 * s, 0, 7); g.fill(); });
+      fx = fx.filter((e) => (e.t -= dt) > 0); fx.forEach((e) => { g.fillStyle = `rgba(251,146,60,${e.t * 2})`; g.beginPath(); g.arc(X(e.x), Y(e.y), (0.5 - e.t) * 3 * s + 0.3 * s, 0, 7); g.fill(); });
+      g.fillStyle = 'rgba(0,0,0,.5)'; rr(g, c.W / 2 - 70, 6, 140, 28, 14); g.fill(); text(g, `${ME ? '🟠' : '🟢'} ${sc[ME]} : ${sc[1 - ME]} ${ME ? '🟢' : '🟠'}`, c.W / 2, 20, 15);
+      if (!H.link.st.alive) text(g, rt('wait_rt'), c.W / 2, c.H / 2, 16); else if (TV[ME]?.[4]) text(g, rt('respawn'), c.W / 2, c.H / 2, 18, '#FCA5A5');
+      if (H.link.lost() && !H.over) text(g, rt('lost'), c.W / 2, c.H * 0.7, 14, '#FCA5A5');
+    });
+    return { apply: () => false, rt: (sd, d) => H.link.recv(d), stop, resize: fit };
+  };
+
+  // ---- Sumo: raqibni doiradan itarib chiqaring. 3 raund yutgan g'olib ----
+  MPI.sumo = (stage, ctx) => {
+    stage.classList.add('gm-stage-pad');
+    const { c, g, fit } = canvasIn(stage, 0.8);
+    const pad = padUI(stage, [{ id: 'dash', t: '💨', cls: 'big' }]);
+    const R = 1, PR = 0.13, WIN = 3, ME = Math.max(0, ctx.me), COL = ['#2563EB', '#DC2626'];
+    const start = () => [{ x: 0, y: 0.45, vx: 0, vy: 0, dash: 0, cd: 0 }, { x: 0, y: -0.45, vx: 0, vy: 0, dash: 0, cd: 0 }];
+    let P = start(), sc = [0, 0], pause = 1.5, msg = '', msgT = 0, sendT = 0;
+    const gin = { x: 0, y: 0, d: 0 }; let seenD = 0, myD = 0, seenD0 = 0;
+    const H = hostGame(ctx, { onInput: (d) => { gin.x = +d.x || 0; gin.y = +d.y || 0; gin.d = d.d | 0; }, onSnap: (d) => { if (d.sc[0] + d.sc[1] > sc[0] + sc[1]) { snd(300, 0.4, 0.08, 'triangle'); msg = '💥'; msgT = 1; } sc = d.sc; } });
+    ctx.turn(-1, rt('first').replace('{n}', WIN));
+    const stop = loop((dt) => {
+      const kd = keysDown; let jx = pad.x, jy = pad.y; if (kd.has('arrowleft') || kd.has('a')) jx = -1; if (kd.has('arrowright') || kd.has('d')) jx = 1; if (kd.has('arrowup') || kd.has('w')) jy = -1; if (kd.has('arrowdown') || kd.has('s')) jy = 1;
+      if (pad.take('dash') || kd.has(' ')) myD++;
+      sendT += dt;
+      if (H.HOST && H.link.st.alive && !H.over) {
+        const inputs = [{ x: jx, y: jy, d: myD }, { x: -gin.x, y: -gin.y, d: gin.d }]; const dsh = [inputs[0].d > seenD0, inputs[1].d > seenD]; seenD0 = inputs[0].d; seenD = inputs[1].d;
+        if (pause > 0) { pause -= dt; if (pause <= 0) P = start(); }
+        else {
+          P.forEach((p, i) => { const inp = inputs[i]; p.cd = Math.max(0, p.cd - dt); p.dash = Math.max(0, p.dash - dt); p.vx += inp.x * 3.2 * dt; p.vy += inp.y * 3.2 * dt;
+            if (dsh[i] && p.cd <= 0) { const m = Math.hypot(inp.x, inp.y) || 1; p.vx += (inp.x / m) * 1.6; p.vy += (inp.y / m) * 1.6; p.cd = 1.4; p.dash = 0.25; snd(240, 0.08, 0.06); }
+            p.vx *= Math.pow(0.35, dt); p.vy *= Math.pow(0.35, dt); p.x += p.vx * dt; p.y += p.vy * dt; });
+          const [a, b] = P, dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy);
+          if (d < PR * 2 && d > 0) { const nx = dx / d, ny = dy / d, rv = (a.vx - b.vx) * nx + (a.vy - b.vy) * ny; if (rv > 0) { const ka = a.dash > 0 ? 0.6 : 1, kb = b.dash > 0 ? 0.6 : 1; const j = rv * 1.25; a.vx -= j * nx * ka; a.vy -= j * ny * ka; b.vx += j * nx * kb; b.vy += j * ny * kb; snd(160, 0.05, 0.06); } const o = (PR * 2 - d) / 2; a.x -= nx * o; a.y -= ny * o; b.x += nx * o; b.y += ny * o; }
+          const out = P.map((p) => Math.hypot(p.x, p.y) > R + PR * 0.3);
+          if (out[0] || out[1]) { const w = out[0] && out[1] ? -1 : out[0] ? 1 : 0; if (w >= 0) { sc[w]++; msg = '💥'; msgT = 1; snd(300, 0.4, 0.08, 'triangle'); if (sc[w] >= WIN) H.end(w); } pause = 1.4; }
+        }
+        if (sendT > 0.04) { sendT = 0; ctx.rt?.send({ t: 's', P: P.map((p) => [Math.round(p.x * 1000) / 1000, Math.round(p.y * 1000) / 1000, p.dash > 0 ? 1 : 0, Math.round(p.cd * 10) / 10]), sc }); }
+      } else if (!H.HOST && ctx.me >= 0 && sendT > 0.04) { sendT = 0; ctx.rt?.send({ t: 'i', x: Math.round(jx * 100) / 100, y: Math.round(jy * 100) / 100, d: myD }); }
+      let PV = P.map((p) => [p.x, p.y, p.dash > 0 ? 1 : 0, p.cd]);
+      if (!H.HOST && H.snap) { const pv = H.prevS(); PV = H.snap.P.map((q, i) => [H.lerp(pv?.P[i][0] ?? q[0], q[0], 40), H.lerp(pv?.P[i][1] ?? q[1], q[1], 40), q[2], q[3]]); }
+      const flip = ctx.me === 1, s = Math.min(c.W, c.H) / 2.6, cx = c.W / 2, cy = c.H / 2, X = (x) => cx + (flip ? -x : x) * s, Y = (y) => cy + (flip ? -y : y) * s;
+      g.fillStyle = '#1C1917'; g.fillRect(0, 0, c.W, c.H);
+      g.fillStyle = '#D6B98C'; g.beginPath(); g.arc(cx, cy, (R + 0.12) * s, 0, 7); g.fill(); g.fillStyle = '#E7CFA4'; g.beginPath(); g.arc(cx, cy, R * s, 0, 7); g.fill();
+      g.strokeStyle = '#F8FAFC'; g.lineWidth = 4; g.beginPath(); g.arc(cx, cy, R * s, 0, 7); g.stroke(); g.lineWidth = 3; [[-0.12, 0.2], [0.12, 0.2]].forEach(([x]) => { g.beginPath(); g.moveTo(cx + x * s, cy - 0.12 * s); g.lineTo(cx + x * s, cy + 0.12 * s); g.stroke(); });
+      PV.forEach((q, i) => { const x = X(q[0]), y = Y(q[1]); g.fillStyle = 'rgba(0,0,0,.25)'; g.beginPath(); g.ellipse(x + 3, y + 5, PR * s, PR * s * 0.7, 0, 0, 7); g.fill(); g.fillStyle = COL[i]; g.beginPath(); g.arc(x, y, PR * s, 0, 7); g.fill(); g.fillStyle = '#FCD9B6'; g.beginPath(); g.arc(x, y, PR * s * 0.55, 0, 7); g.fill(); if (q[2]) { g.strokeStyle = '#FDE047'; g.lineWidth = 3; g.beginPath(); g.arc(x, y, PR * s + 5, 0, 7); g.stroke(); } if (i === ME && q[3] > 0) { g.strokeStyle = 'rgba(255,255,255,.6)'; g.lineWidth = 3; g.beginPath(); g.arc(x, y, PR * s + 9, -Math.PI / 2, -Math.PI / 2 + (1 - q[3] / 1.4) * Math.PI * 2); g.stroke(); } });
+      text(g, `${sc[ME]} : ${sc[1 - ME]}`, cx, 24, 22);
+      if (!H.link.st.alive) text(g, rt('wait_rt'), cx, cy, 16, '#111');
+      if (msgT > 0) { msgT -= dt; text(g, msg, cx, cy, 54); }
+      if (H.link.lost() && !H.over) text(g, rt('lost'), cx, c.H * 0.9, 14, '#FCA5A5');
+    });
+    return { apply: () => false, rt: (sd, d) => H.link.recv(d), stop, resize: fit };
+  };
+
   window.BirgaGames = { list: GAMES, start: startGame, renderLobby, tg, openRoom, invite, cardHTML, GameCards, mt, mp: MPL, _room: () => Room };
 })();

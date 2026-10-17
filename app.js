@@ -7872,4 +7872,218 @@ if (window.BirgaNative?.speak) {
   };
 }
 
+
+/* ======================= v21: Hayot lentasi (yangi dizayn, pastki menyuda), Hamyon va pul o'tkazmalari hamma joyda ======================= */
+try {
+  Object.assign(I18N.uz, { tab_life: 'Hayot', lf_title: 'Hayot lentasi', lf_n: '{n} do‘st xaritada', lf_none: 'Hozircha hech kim', lf_vis: 'Ko‘rinaman', lf_hid: 'Yashirin', lf_far: '{d} uzoqda', lf_here: 'yoningizda', lf_write: 'Yozish', lf_go: 'Yo‘l', lf_off_t: 'Do‘stlaringiz qayerda?', lf_off: 'Joylashuvingizni do‘stlaringizga ko‘rsatishni yoqing — ular ham sizni ko‘radi. Faqat shaxsiy chatingiz bor odamlar ko‘radi, istalgan payt o‘chirasiz.', lf_on_btn: '📍 Yoqish', lf_empty_t: 'Do‘stlaringiz hali ko‘rinmayapti', lf_empty: 'Ular ham Birga’da “Hayot lentasi”ni yoqishi kerak. Do‘stingizni taklif qiling!', lf_invite: '🎁 Do‘stni taklif qilish', lf_me: 'Siz',
+    pay_menu: 'Pul o‘tkazish', w_title: 'Hamyon', w_sub: 'Kartalaringiz va pul o‘tkazmalari', w_cards: 'Mening kartalarim', w_hist: 'O‘tkazmalar tarixi', w_none: 'Hali o‘tkazma yo‘q', w_send: '💸 Pul yuborish', w_req: '🧾 Pul so‘rash', w_pick: 'Kimga?', w_def: 'Asosiy', w_out: 'Yuborildi', w_in: 'Keldi', w_rq_out: 'So‘radingiz', w_rq_in: 'Sizdan so‘radi', w_how: 'Qanday ishlaydi: kartangizni qo‘shasiz → do‘stingizga yuborasiz yoki undan so‘raysiz → pul Click / Payme / Uzum ilovangizda o‘tadi, Birga chatida kvitansiya qoladi.', w_profile: '💸 Pul yuborish' });
+  Object.assign(I18N.ru, { tab_life: 'Жизнь', lf_title: 'Лента жизни', lf_n: '{n} друзей на карте', lf_none: 'Пока никого', lf_vis: 'Видно', lf_hid: 'Скрыто', lf_far: '{d} от вас', lf_here: 'рядом', lf_write: 'Написать', lf_go: 'Маршрут', lf_off_t: 'Где ваши друзья?', lf_off: 'Включите показ местоположения друзьям — и вы увидите их. Видят только люди, с кем у вас личный чат. Отключить можно в любой момент.', lf_on_btn: '📍 Включить', lf_empty_t: 'Друзей пока не видно', lf_empty: 'Им тоже нужно включить «Ленту жизни». Пригласите друга!', lf_invite: '🎁 Пригласить друга', lf_me: 'Вы',
+    pay_menu: 'Денежный перевод', w_title: 'Кошелёк', w_sub: 'Ваши карты и переводы', w_cards: 'Мои карты', w_hist: 'История переводов', w_none: 'Переводов пока нет', w_send: '💸 Отправить деньги', w_req: '🧾 Запросить деньги', w_pick: 'Кому?', w_def: 'Основная', w_out: 'Отправлено', w_in: 'Получено', w_rq_out: 'Вы запросили', w_rq_in: 'Запрос к вам', w_how: 'Как это работает: добавьте карту → отправьте другу или запросите → деньги переводятся в Click / Payme / Uzum, а в чате Birga остаётся квитанция.', w_profile: '💸 Отправить деньги' });
+  Object.assign(I18N.en, { tab_life: 'Life', lf_title: 'Life feed', lf_n: '{n} friends on the map', lf_none: 'Nobody yet', lf_vis: 'Visible', lf_hid: 'Hidden', lf_far: '{d} away', lf_here: 'nearby', lf_write: 'Message', lf_go: 'Route', lf_off_t: 'Where are your friends?', lf_off: 'Turn on sharing your location with friends — and see theirs. Only people you have a private chat with can see it. Turn off anytime.', lf_on_btn: '📍 Turn on', lf_empty_t: 'No friends visible yet', lf_empty: 'They also need to turn on “Life feed”. Invite a friend!', lf_invite: '🎁 Invite a friend', lf_me: 'You',
+    pay_menu: 'Money transfer', w_title: 'Wallet', w_sub: 'Your cards and transfers', w_cards: 'My cards', w_hist: 'Transfer history', w_none: 'No transfers yet', w_send: '💸 Send money', w_req: '🧾 Request money', w_pick: 'To whom?', w_def: 'Main', w_out: 'Sent', w_in: 'Received', w_rq_out: 'You requested', w_rq_in: 'Requested from you', w_how: 'How it works: add your card → send to a friend or request → money moves in Click / Payme / Uzum, a receipt stays in the Birga chat.', w_profile: '💸 Send money' });
+} catch {}
+document.head.insertAdjacentHTML('beforeend', `<style id="v21-css">
+.life-page { position: fixed; inset: 0; z-index: 60; background: #0B1022; color: #fff; overflow: hidden; }
+#life-map { position: absolute; inset: 0; }
+#life-map .maplibregl-canvas { filter: invert(.93) hue-rotate(195deg) saturate(.75) brightness(1.05) contrast(.95); }
+.life-page .maplibregl-ctrl-attrib { background: rgba(0,0,0,.35) !important; } .life-page .maplibregl-ctrl-attrib a { color: #aab; }
+.lf-top { position: absolute; left: 12px; right: 12px; top: calc(10px + env(safe-area-inset-top)); display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 22px; background: rgba(15,23,42,.62); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 10px 30px rgba(0,0,0,.35); z-index: 2; }
+.lf-top .lf-x { width: 38px; height: 38px; border-radius: 50%; background: rgba(255,255,255,.1); color: #fff; display: grid; place-items: center; flex: none; } .lf-top .lf-x svg { width: 20px; height: 20px; }
+.lf-tt { flex: 1; min-width: 0; } .lf-tt b { display: block; font-size: 17px; background: linear-gradient(90deg, #67E8F9, #A78BFA, #F472B6); -webkit-background-clip: text; background-clip: text; color: transparent; } .lf-tt small { color: #CBD5E1; font-size: 12.5px; }
+.lf-pill { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 17px; font-weight: 800; font-size: 12.5px; background: rgba(255,255,255,.1); color: #E2E8F0; flex: none; }
+.lf-pill i { width: 9px; height: 9px; border-radius: 50%; background: #64748B; } .lf-pill.on { background: rgba(34,197,94,.18); color: #86EFAC; } .lf-pill.on i { background: #22C55E; box-shadow: 0 0 0 4px rgba(34,197,94,.25); animation: lfBlink 1.6s infinite; }
+@keyframes lfBlink { 50% { box-shadow: 0 0 0 8px rgba(34,197,94,0); } }
+.lf-me-btn { position: absolute; right: 14px; bottom: calc(196px + env(safe-area-inset-bottom)); width: 48px; height: 48px; border-radius: 50%; background: rgba(15,23,42,.7); backdrop-filter: blur(10px); color: #fff; display: grid; place-items: center; font-size: 20px; z-index: 2; box-shadow: 0 6px 18px rgba(0,0,0,.35); }
+.lf-cards { position: absolute; left: 0; right: 0; bottom: calc(12px + env(safe-area-inset-bottom)); display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 4px 16px 8px; z-index: 2; scrollbar-width: none; } .lf-cards::-webkit-scrollbar { display: none; }
+.lf-card { flex: 0 0 min(300px, 82vw); scroll-snap-align: center; border-radius: 24px; padding: 14px; background: linear-gradient(160deg, rgba(30,41,59,.88), rgba(15,23,42,.92)); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 14px 36px rgba(0,0,0,.45); border: 1px solid rgba(255,255,255,.08); color: #fff; text-align: left; }
+.lf-card.sel { border-color: rgba(103,232,249,.7); box-shadow: 0 0 0 2px rgba(103,232,249,.35), 0 14px 36px rgba(0,0,0,.45); }
+.lf-ch { display: flex; align-items: center; gap: 12px; } .lf-ch .av { width: 52px; height: 52px; flex: none; box-shadow: 0 0 0 3px var(--fr, #22C55E); }
+.lf-cn { flex: 1; min-width: 0; } .lf-cn b { display: block; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .lf-cn small { display: block; color: #94A3B8; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lf-meta { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0; } .lf-meta span { font-size: 12px; font-weight: 700; padding: 4px 9px; border-radius: 12px; background: rgba(255,255,255,.08); color: #E2E8F0; }
+.lf-acts { display: flex; gap: 8px; } .lf-acts button { flex: 1; height: 38px; border-radius: 19px; font-weight: 800; font-size: 13px; color: #fff; background: rgba(255,255,255,.1); } .lf-acts button.pr { background: linear-gradient(90deg, #06B6D4, #8B5CF6); }
+.lf-empty { flex: 0 0 min(340px, 90vw); margin: 0 auto; border-radius: 26px; padding: 18px; text-align: center; background: linear-gradient(160deg, rgba(30,41,59,.9), rgba(49,46,129,.9)); box-shadow: 0 14px 36px rgba(0,0,0,.45); }
+.lf-empty .lf-ill { font-size: 46px; margin-bottom: 6px; } .lf-empty b { font-size: 17px; } .lf-empty p { color: #CBD5E1; font-size: 13.5px; line-height: 1.45; margin: 6px 0 12px; }
+.lf-empty button { height: 44px; padding: 0 22px; border-radius: 22px; font-weight: 800; color: #fff; background: linear-gradient(90deg, #06B6D4, #8B5CF6); }
+.lf-mk { position: relative; width: 56px; height: 56px; cursor: pointer; }
+.lf-mk .r { position: absolute; inset: 0; border-radius: 50%; padding: 3px; background: conic-gradient(var(--fr, #22C55E), #A78BFA, var(--fr, #22C55E)); box-shadow: 0 8px 22px rgba(0,0,0,.5); }
+.lf-mk .a { width: 100%; height: 100%; border-radius: 50%; background: #1E293B center/cover; display: grid; place-items: center; font: 900 20px system-ui; color: #fff; border: 2px solid #0B1022; box-sizing: border-box; }
+.lf-mk .p { position: absolute; inset: -10px; border-radius: 50%; border: 2px solid var(--fr, #22C55E); opacity: 0; animation: lfPulse 2.2s infinite; } .lf-mk.old .p { display: none; }
+@keyframes lfPulse { 0% { transform: scale(.7); opacity: .8; } 100% { transform: scale(1.4); opacity: 0; } }
+.lf-mk .t { position: absolute; left: 50%; top: 62px; transform: translateX(-50%); white-space: nowrap; font: 800 11.5px system-ui; color: #fff; background: rgba(15,23,42,.8); padding: 3px 8px; border-radius: 10px; }
+.lf-mk .t em { font-style: normal; color: #94A3B8; font-weight: 600; margin-left: 4px; }
+.lf-mk.sel .r { transform: scale(1.12); } .lf-me { width: 22px; height: 22px; border-radius: 50%; background: #38BDF8; border: 3px solid #fff; box-shadow: 0 0 0 8px rgba(56,189,248,.25), 0 4px 12px rgba(0,0,0,.4); }
+/* Hamyon */
+.w-cards { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 4px 2px 10px; margin: 0 -2px; }
+.w-card { flex: 0 0 260px; height: 156px; scroll-snap-align: start; border-radius: 20px; padding: 16px; color: #fff; position: relative; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 10px 24px rgba(0,0,0,.25); }
+.w-card::after { content: ''; position: absolute; right: -40px; top: -40px; width: 160px; height: 160px; border-radius: 50%; background: rgba(255,255,255,.12); }
+.w-card.uzcard { background: linear-gradient(135deg, #0EA5E9, #1E3A8A); } .w-card.humo { background: linear-gradient(135deg, #F97316, #B91C1C); } .w-card.visa { background: linear-gradient(135deg, #1E40AF, #0F172A); } .w-card.mc { background: linear-gradient(135deg, #DC2626, #F59E0B); } .w-card.other { background: linear-gradient(135deg, #475569, #0F172A); }
+.w-card .wb { font-weight: 900; font-size: 15px; display: flex; justify-content: space-between; } .w-card .wc { width: 38px; height: 28px; border-radius: 6px; background: linear-gradient(135deg, #FDE68A, #D97706); margin: 12px 0 8px; }
+.w-card .wn { font: 800 18px/1.2 ui-monospace, Menlo, monospace; letter-spacing: 1.5px; } .w-card .wh { margin-top: auto; font-size: 12.5px; opacity: .9; text-transform: uppercase; display: flex; justify-content: space-between; align-items: center; }
+.w-card .wx { position: relative; z-index: 1; background: rgba(0,0,0,.2); color: #fff; border-radius: 12px; padding: 2px 8px; font-size: 12px; }
+.w-add { flex: 0 0 140px; height: 156px; border-radius: 20px; border: 2px dashed var(--line, rgba(127,127,127,.4)); display: grid; place-items: center; color: var(--muted); font-weight: 800; background: none; }
+.w-btns { display: flex; gap: 8px; margin: 4px 0 8px; } .w-btns button { flex: 1; height: 46px; border-radius: 16px; font-weight: 800; background: var(--active); color: inherit; } .w-btns button.pr { background: var(--grad); color: #fff; }
+.w-hist { display: flex; flex-direction: column; gap: 6px; max-height: 34vh; overflow-y: auto; }
+.w-row { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 14px; background: var(--active); width: 100%; text-align: left; color: inherit; font: inherit; } .w-row .av { width: 38px; height: 38px; flex: none; }
+.w-row .wt { flex: 1; min-width: 0; } .w-row .wt b { display: block; font-size: 14px; } .w-row .wt small { color: var(--muted); font-size: 12px; }
+.w-row .wa { font-weight: 900; font-size: 15px; } .w-row .wa.in { color: #16A34A; } .w-row .wa.out { color: #DC2626; }
+.pp-pay { background: linear-gradient(90deg, #059669, #0D9488) !important; color: #fff !important; }
+</style>`);
+
+/* ---------- Hamyon ---------- */
+const Wallet = {
+  async open() {
+    const cards = Pay.cards();
+    modal(`<h3>💳 ${esc(t('w_title'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><p class="muted small">${esc(t('w_sub'))}</p>
+      <h4 class="inv-h">${esc(t('w_cards'))}</h4><div class="w-cards" id="w-cards">${cards.map((c, i) => { const [bn, cls] = Pay.bank(c.n); return `<div class="w-card ${cls}"><div class="wb"><span>${esc(bn)}</span><span>Birga</span></div><div class="wc"></div><div class="wn">${esc(Pay.fmt(c.n))}</div><div class="wh"><span>${esc(c.h || '')}${i === 0 ? ` · ${esc(t('w_def'))}` : ''}</span><button class="wx" data-wx="${i}">✕</button></div></div>`; }).join('')}<button class="w-add" id="w-add">➕ ${esc(t('pay_add_card'))}</button></div>
+      <div class="w-btns"><button class="pr" id="w-send">${esc(t('w_send'))}</button><button id="w-req">${esc(t('w_req'))}</button></div>
+      <p class="pay-safe">🔒 ${esc(t('w_how'))}</p>
+      <h4 class="inv-h">${esc(t('w_hist'))}</h4><div class="w-hist" id="w-hist"><p class="empty-note">…</p></div>`);
+    $('#w-add').onclick = () => Pay.cardForm(() => this.open());
+    $('#w-cards').onclick = (e) => { const x = e.target.closest('[data-wx]'); if (!x) return; if (!confirm(t('delete') + '?')) return; const l = Pay.cards(); l.splice(+x.dataset.wx, 1); Pay.setCards(l); this.open(); };
+    $('#w-send').onclick = () => this.pickChat((id) => Pay.send());
+    $('#w-req').onclick = () => this.pickChat((id) => Pay.request());
+    try {
+      const { list } = await api('/api/pay/history');
+      $('#w-hist').innerHTML = list.length ? list.map((x) => { const p = x.pay; const out = (p.k === 'sent') === x.mine; const lbl = p.k === 'req' ? (x.mine ? 'w_rq_out' : 'w_rq_in') : (x.mine ? 'w_out' : 'w_in');
+        return `<button class="w-row" data-wc="${x.chatId}">${avatar(x.who)}<span class="wt"><b>${esc(x.who?.name || '')}</b><small>${esc(t(lbl))} · ${esc(fmtWhen(x.at))}${p.note ? ' · ' + esc(p.note) : ''}</small></span><span class="wa ${p.k === 'req' ? '' : out ? 'out' : 'in'}">${p.k === 'req' ? '' : out ? '−' : '+'}${fmtSum(p.amt)}</span></button>`; }).join('') : `<p class="empty-note">${esc(t('w_none'))}</p>`;
+      $('#w-hist').onclick = (e) => { const b = e.target.closest('[data-wc]'); if (b) { closeModal(); openChat(+b.dataset.wc); } };
+    } catch { $('#w-hist').innerHTML = `<p class="empty-note">${esc(t('w_none'))}</p>`; }
+  },
+  pickChat(cb) {
+    const chats = [...S.chats.values()].filter((c) => c.type === 'private' && !c.self).sort((a, b) => (b.last?.created_at || 0) - (a.last?.created_at || 0));
+    modal(`<h3>${esc(t('w_pick'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><div class="pick1">${chats.map((c) => `<button data-c="${c.id}">${chatAvatar(c)}<b>${esc(chatTitle(c))}</b></button>`).join('') || `<p class="empty-note">—</p>`}</div>`);
+    $('#modal-card .pick1').onclick = async (e) => { const id = +e.target.closest('[data-c]')?.dataset.c; if (!id) return; closeModal(); await openChat(id); setTimeout(() => cb(id), 250); };
+  },
+};
+{
+  // ⋮ menyu (chat ichida) — birinchi qatorda "Pul o'tkazish"
+  const baseOpen = ChatMore.open.bind(ChatMore);
+  ChatMore.open = function () {
+    baseOpen(); const c = S.chats.get(S.current); const el = $('#ctx');
+    if (!c || c.type === 'channel' || c.self || !el.classList.contains('chat-more')) return;
+    el.insertAdjacentHTML('afterbegin', `<button data-cm="pay21"><span class="cm-e">💳</span>${esc(t('pay_menu'))}</button>`);
+    el.querySelector('[data-cm="pay21"]').addEventListener('click', (e) => { e.stopPropagation(); el.classList.add('hidden'); el.classList.remove('chat-more'); Pay.sheet(); }, true);
+  };
+  // Sozlamalar — "Hamyon"
+  const baseRS21 = renderSettings;
+  renderSettings = function () {
+    baseRS21();
+    if (!$('#set-wallet')) { const g = $('#set-privacy')?.parentElement || $('#set-pin')?.parentElement; g?.insertAdjacentHTML('afterbegin', `<button class="row-btn" id="set-wallet"><span class="ri c3">💳</span><span><span data-t21="w_title"></span><small data-t21="w_sub"></small></span></button>`); $('#set-wallet')?.addEventListener('click', () => Wallet.open()); }
+    $$('[data-t21]').forEach((x) => (x.textContent = t(x.dataset.t21)));
+  };
+  // Profil — "Pul yuborish" tugmasi
+  const baseOP21 = openProfile;
+  openProfile = async function (uid) {
+    const r = await baseOP21(uid);
+    if (uid && uid !== S.me?.id) setTimeout(() => {
+      const acts = [...document.querySelectorAll('[data-pa="msg"]')].pop()?.parentElement; if (!acts || acts.querySelector('[data-pa="pay21"]')) return;
+      acts.insertAdjacentHTML('beforeend', `<button data-pa="pay21" class="pp-pay">💸 ${esc(t('pay_send'))}</button>`);
+      acts.querySelector('[data-pa="pay21"]').addEventListener('click', async (e) => { e.stopPropagation(); try { const c = await api('/api/chats', { body: { userId: uid } }); await loadChats(); closeProfilePage(); await openChat(c.id); setTimeout(() => Pay.send(), 250); } catch (er) { toast(er.message); } }, true);
+    }, 60);
+    return r;
+  };
+}
+
+/* ---------- Hayot lentasi: alohida sahifa, pastki menyuda "Xarita" oldida ---------- */
+const LifeFeed = {
+  map: null, mk: new Map(), meMk: null, sel: 0, me: null,
+  build() {
+    if ($('#life-page')) return;
+    document.body.insertAdjacentHTML('beforeend', `<div class="life-page hidden" id="life-page"><div id="life-map"></div>
+      <div class="lf-top"><button class="lf-x" id="lf-back">${icon('back')}</button><div class="lf-tt"><b id="lf-t"></b><small id="lf-n"></small></div><button class="lf-pill" id="lf-pill"><i></i><span></span></button></div>
+      <button class="lf-me-btn" id="lf-me">🎯</button><div class="lf-cards" id="lf-cards"></div></div>`);
+    $('#lf-back').onclick = () => this.close();
+    $('#lf-pill').onclick = async () => { await FriendsLoc.toggle(!FriendsLoc.on()); this.refresh(); };
+    $('#lf-me').onclick = () => this.locate(true);
+    $('#lf-cards').addEventListener('click', (e) => {
+      const a = e.target.closest('[data-lf]'); const card = e.target.closest('[data-u]');
+      if (a?.dataset.lf === 'on') { FriendsLoc.toggle(true).then(() => this.refresh()); return; }
+      if (a?.dataset.lf === 'inv') { this.close(); typeof Invite !== 'undefined' ? Invite.open?.() : null; return; }
+      if (!card) return; const f = FriendsLoc.list.find((x) => x.user.id === +card.dataset.u); if (!f) return;
+      if (a?.dataset.lf === 'chat') { this.close(); api('/api/chats', { body: { userId: f.user.id } }).then(async (c) => { await loadChats(); openChat(c.id); }); return; }
+      if (a?.dataset.lf === 'go') { this.close(); MapView.open({ place: { lat: f.lat, lng: f.lon, name: f.user.name, addr: f.place || '' } }); return; }
+      this.focus(f.user.id, true);
+    });
+    let st; $('#lf-cards').addEventListener('scroll', () => { clearTimeout(st); st = setTimeout(() => { const box = $('#lf-cards'); const cs = [...box.querySelectorAll('[data-u]')]; const mid = box.scrollLeft + box.clientWidth / 2; const best = cs.sort((a, b) => Math.abs(a.offsetLeft + a.offsetWidth / 2 - mid) - Math.abs(b.offsetLeft + b.offsetWidth / 2 - mid))[0]; if (best && +best.dataset.u !== this.sel) this.focus(+best.dataset.u, false); }, 160); });
+  },
+  async open() {
+    this.build(); $('#life-page').classList.remove('hidden'); pushOverlay('life'); this.paintTop(); this.cards();
+    try { await MapView.lib(); } catch { toast(t('map_fail'), 3000); }
+    if (!this.map && window.maplibregl) {
+      this.map = new maplibregl.Map({ container: 'life-map', style: 'https://tiles.openfreemap.org/styles/positron', center: [71.6726, 40.9983], zoom: 11, pitch: 30, attributionControl: { compact: true } });
+      await new Promise((r) => { this.map.once('load', r); setTimeout(r, 3000); });
+    } else this.map?.resize();
+    this.locate(false); this.refresh(true);
+  },
+  close(fromPop) { $('#life-page')?.classList.add('hidden'); if (!fromPop) popOverlay('life'); },
+  async refresh(fit) { try { const r = await api('/api/friends/loc'); FriendsLoc.list = r.friends; } catch {} this.paint(); this.cards(); if (fit) this.fit(); },
+  paintTop() {
+    if (!$('#lf-t')) return;
+    $('#lf-t').textContent = '✨ ' + t('lf_title'); const n = FriendsLoc.list.length; $('#lf-n').textContent = n ? tf('lf_n', { n }) : t('lf_none');
+    const on = FriendsLoc.on(); $('#lf-pill').classList.toggle('on', on); $('#lf-pill span').textContent = t(on ? 'lf_vis' : 'lf_hid');
+  },
+  fresh(at) { const m = (Date.now() - at) / 60000; return m < 5 ? '#22C55E' : m < 60 ? '#F59E0B' : '#94A3B8'; },
+  dist(f) { if (!this.me) return null; const d = Math.hypot((f.lat - this.me[1]) * 111.2, (f.lon - this.me[0]) * 111.2 * Math.cos((f.lat * Math.PI) / 180)); return d < 0.15 ? t('lf_here') : tf('lf_far', { d: d < 1 ? Math.round(d * 1000) + ' m' : d < 20 ? d.toFixed(1).replace('.', ',') + ' km' : Math.round(d) + ' km' }); },
+  locate(fly) {
+    navigator.geolocation?.getCurrentPosition((p) => {
+      this.me = [p.coords.longitude, p.coords.latitude]; if (!this.map) return;
+      if (!this.meMk) { const el = document.createElement('div'); el.className = 'lf-me'; this.meMk = new maplibregl.Marker({ element: el }).setLngLat(this.me).addTo(this.map); } else this.meMk.setLngLat(this.me);
+      if (fly) this.map.flyTo({ center: this.me, zoom: 15 }); this.cards();
+    }, () => {}, { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 });
+  },
+  paint() {
+    this.paintTop(); if (!this.map || !window.maplibregl) return;
+    const L = FriendsLoc.list, ids = new Set(L.map((f) => f.user.id));
+    for (const [id, m] of this.mk) if (!ids.has(id)) { m.remove(); this.mk.delete(id); }
+    for (const f of L) {
+      const u = S.users.get(f.user.id) || f.user; let m = this.mk.get(f.user.id); const col = this.fresh(f.at);
+      if (!m) {
+        const el = document.createElement('div'); el.className = 'lf-mk';
+        el.innerHTML = `<i class="p"></i><div class="r"><div class="a"></div></div><span class="t"></span>`;
+        el.onclick = (e) => { e.stopPropagation(); this.focus(f.user.id, true, true); };
+        m = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([f.lon, f.lat]).addTo(this.map); this.mk.set(f.user.id, m);
+      } else m.setLngLat([f.lon, f.lat]);
+      const el = m.getElement(); el.style.setProperty('--fr', col); el.classList.toggle('old', col === '#94A3B8'); el.classList.toggle('sel', this.sel === f.user.id);
+      const a = el.querySelector('.a'); if (u.avatar) { a.style.backgroundImage = `url('${u.avatar}')`; a.textContent = ''; } else { a.style.background = 'linear-gradient(135deg,#06B6D4,#8B5CF6)'; a.textContent = (u.name || '?').trim()[0]?.toUpperCase() || '?'; }
+      el.querySelector('.t').innerHTML = `${esc((u.name || '').split(' ')[0])}<em>${esc(agoTxt(f.at))}</em>`;
+    }
+  },
+  cards() {
+    const box = $('#lf-cards'); if (!box) return;
+    const L = FriendsLoc.list.slice().sort((a, b) => b.at - a.at);
+    const offCard = `<div class="lf-empty"><div class="lf-ill">🗺️✨</div><b>${esc(t('lf_off_t'))}</b><p>${esc(t('lf_off'))}</p><button data-lf="on">${esc(t('lf_on_btn'))}</button></div>`;
+    if (!FriendsLoc.on() && !L.length) { box.innerHTML = offCard; return; }
+    if (!L.length) { box.innerHTML = `<div class="lf-empty"><div class="lf-ill">👋🌍</div><b>${esc(t('lf_empty_t'))}</b><p>${esc(t('lf_empty'))}</p><button data-lf="inv">${esc(t('lf_invite'))}</button></div>`; return; }
+    box.innerHTML = L.map((f) => { const u = S.users.get(f.user.id) || f.user; const d = this.dist(f);
+      return `<div class="lf-card${this.sel === f.user.id ? ' sel' : ''}" data-u="${f.user.id}" style="--fr:${this.fresh(f.at)}"><div class="lf-ch">${avatar({ ...u, online: false })}<div class="lf-cn"><b>${esc(u.name || '')}</b><small>📍 ${esc(f.place || `${f.lat.toFixed(4)}, ${f.lon.toFixed(4)}`)}</small></div></div>
+        <div class="lf-meta"><span>🕒 ${esc(agoTxt(f.at))}</span>${d ? `<span>🧭 ${esc(d)}</span>` : ''}${f.bat != null ? `<span>${f.bat < 20 ? '🪫' : '🔋'} ${f.bat}%</span>` : ''}${f.acc ? `<span>± ${f.acc} m</span>` : ''}</div>
+        <div class="lf-acts"><button class="pr" data-lf="chat">💬 ${esc(t('lf_write'))}</button><button data-lf="go">🧭 ${esc(t('lf_go'))}</button></div></div>`; }).join('') + (FriendsLoc.on() ? '' : offCard);
+  },
+  focus(uid, fly, scroll) {
+    this.sel = uid; const f = FriendsLoc.list.find((x) => x.user.id === uid); if (!f) return;
+    if (fly && this.map) this.map.flyTo({ center: [f.lon, f.lat], zoom: 15.5, speed: 1.4 });
+    this.paint(); $$('#lf-cards [data-u]').forEach((c) => c.classList.toggle('sel', +c.dataset.u === uid));
+    if (scroll) $(`#lf-cards [data-u="${uid}"]`)?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  },
+  fit() {
+    const L = FriendsLoc.list; if (!this.map || !L.length) return;
+    const b = new maplibregl.LngLatBounds(); L.forEach((f) => b.extend([f.lon, f.lat])); if (this.me) b.extend(this.me);
+    this.map.fitBounds(b, { padding: { top: 110, bottom: 230, left: 50, right: 50 }, maxZoom: 15, duration: 900 });
+  },
+};
+{
+  // pastki menyu: "Hayot" — "Xarita" dan oldin
+  const mapBtn = $('#bottom-nav [data-tab="map"]');
+  (mapBtn || $('#bottom-nav [data-tab="settings"]'))?.insertAdjacentHTML('beforebegin', `<button data-tab="life"><span class="nb"><svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a7 7 0 0 1 7 7c0 4.6-5.1 10.7-6.2 12a1 1 0 0 1-1.6 0C10.1 19.7 5 13.6 5 9a7 7 0 0 1 7-7Zm0 4a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/><circle cx="19" cy="4.5" r="2.5" fill="#22C55E"/></svg></span><span data-t21="tab_life"></span></button>`);
+  $$('[data-t21]').forEach((x) => (x.textContent = t(x.dataset.t21)));
+  const baseTab21 = setTab, baseRaw21 = setTab.raw; setTab = function (name) { if (name === 'life') { LifeFeed.open(); return; } return baseTab21(name); }; setTab.raw = baseRaw21;
+  $('#bottom-nav [data-tab="life"]')?.addEventListener('click', (e) => { e.stopPropagation(); LifeFeed.open(); }, true);
+  // orqaga tugmasi
+  OV_CLOSE.life = () => LifeFeed.close(true);
+  // jonli yangilanish, xaritadagi 👥 tugmasi ham shu sahifani ochadi
+  const baseUpd = FriendsLoc.upd.bind(FriendsLoc);
+  FriendsLoc.upd = function (d) { baseUpd(d); const lp = $('#life-page'); if (lp && !lp.classList.contains('hidden')) { LifeFeed.paint(); LifeFeed.cards(); } };
+  FriendsLoc.open = () => LifeFeed.open();
+}
+
 boot();

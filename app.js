@@ -3695,7 +3695,7 @@ const Admin = {
   $('#bottom-nav [data-tab="chats"]')?.insertAdjacentHTML('afterend', `<button data-tab="games"><span class="nb">${icon('game')}</span><span data-t12="games"></span></button>`);
   $$('[data-t12]').forEach((x) => (x.textContent = t(x.dataset.t12)));
   let gamesLib = null;
-  const loadGames = () => (window.BirgaGames ? Promise.resolve() : (gamesLib ||= loadScript('/games.js').catch((e) => { gamesLib = null; throw e; })));
+  const loadGames = () => (window.BirgaGames ? Promise.resolve() : (gamesLib ||= loadScript('/games.js?v=' + (S.config?.v || Date.now().toString(36))).catch((e) => { gamesLib = null; throw e; })));
   const showGames = () => {
     $$('.sidebar .pane').forEach((p) => p.classList.toggle('hidden', p.id !== 'pane-games'));
     $$('#bottom-nav [data-tab]').forEach((b) => b.classList.toggle('on', b.dataset.tab === 'games'));
@@ -4770,7 +4770,7 @@ const MPN = { chess: ['♟️', 'Shaxmat', 'Шахматы', 'Chess'], checkers:
 const MPC = { chess: ['#78350F', '#1C1917'], checkers: ['#B91C1C', '#7F1D1D'], battleship: ['#0369A1', '#1E3A8A'], connect4: ['#2563EB', '#7C3AED'], gomoku: ['#A16207', '#713F12'] };
 const mpName = (g) => (MPN[g] || ['🎮', g])[1 + Math.max(0, ['uz', 'ru', 'en'].indexOf(LANG))] || g;
 let gamesLib14 = null;
-const loadGames14 = () => (window.BirgaGames ? Promise.resolve() : (gamesLib14 ||= loadScript('/games.js').catch((e) => { gamesLib14 = null; throw e; })));
+const loadGames14 = () => (window.BirgaGames ? Promise.resolve() : (gamesLib14 ||= loadScript('/games.js?v=' + (S.config?.v || Date.now().toString(36))).catch((e) => { gamesLib14 = null; throw e; })));
 function gameMsgHTML(m, attrs, reply, metaHtml) {
   const gm = m.meta?.game || {}; const e = (MPN[gm.g] || ['🎮'])[0], c = MPC[gm.g] || ['#1F6BFF', '#8A2BE2'];
   if (gm.room) loadGames14().then(() => { BirgaGames.GameCards.want(gm.room); BirgaGames.GameCards.paint(gm.room); }).catch(() => {});

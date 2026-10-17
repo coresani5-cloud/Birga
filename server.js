@@ -21,6 +21,7 @@ const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const now = () => Date.now();
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const hash = (s) => crypto.createHmac('sha256', JWT_SECRET).update(String(s)).digest('hex');
 const online = new Map(); // userId -> sockets soni
 const getUser = (id) => db.get('SELECT * FROM users WHERE id=?', [Number(id) || 0]);
@@ -36,7 +37,7 @@ function publicUser(u, self = false) {
   if (u.deleted) return { id: u.id, name: null, deleted: true, username: null, bio: '', avatar: null, last_seen: null, online: false };
   const hide = !!u.hide_seen && !self; // "oxirgi faollik" yashirilgan — boshqalarga "yaqinda" ko'rinadi
   const o = { id: u.id, name: u.name, username: u.username, bio: u.bio, avatar: u.avatar, last_seen: hide ? null : u.last_seen, online: hide ? false : online.has(u.id), country: u.country, birthday: u.birthday || null };
-  if (self) { o.phone = String(u.phone || '').startsWith('mail:') ? null : u.phone; o.email = u.email || null; o.lang = u.lang; o.hide_seen = !!u.hide_seen; o.has2fa = !!u.pass_hash; o.pass_hint = u.pass_hint || ''; o.isAdmin = isAdminUser(u); try { o.region = JSON.parse(u.region || 'null'); } catch { o.region = null; } }
+  if (self) { o.phone = String(u.phone || '').startsWith('mail:') ? null : u.phone; o.email = u.email || null; o.lang = u.lang; o.hide_seen = !!u.hide_seen; o.has2fa = !!u.pass_hash; o.locShare = !!Number(u.loc_share); o.pass_hint = u.pass_hint || ''; o.isAdmin = isAdminUser(u); try { o.region = JSON.parse(u.region || 'null'); } catch { o.region = null; } }
   return o;
 }
 
@@ -124,13 +125,12 @@ const INDEX_HTML = PUBLIC_DIR ? path.join(PUBLIC_DIR, 'index.html') : path.join(
 let INDEX_CACHE = null;
 function sendIndex(req, res) {
   if (!INDEX_CACHE) INDEX_CACHE = fs.readFileSync(INDEX_HTML, 'utf8').replace('__APP_VERSION__', APP_VERSION);
-  res.set('Cache-Control', 'no-cache').type('html').send(INDEX_CACHE);
+  // Android'da brauzer orqali "bosh ekranga qo'shish" (brauzer belgili yorliq) taklif qilinmaydi — haqiqiy Birga ilovasi (APK) o'rnatiladi
+  const andr = /Android/i.test(req.get('user-agent') || '') && process.env.ANDROID_PWA !== '1';
+  res.set('Cache-Control', 'no-cache').set('Vary', 'User-Agent').type('html').send(andr ? INDEX_CACHE.replace(/<link rel="manifest"[^>]*>/, '') : INDEX_CACHE);
 }
-app.get('/manifest.webmanifest', (req, res, next) => {
-  const f = [path.join(__dirname, 'public', 'manifest.webmanifest'), path.join(__dirname, 'manifest.webmanifest')].find((x) => fs.existsSync(x)); if (!f) return next();
-  try { const m = JSON.parse(fs.readFileSync(f, 'utf8')); m.prefer_related_applications = true; m.related_applications = [{ platform: 'play', id: 'uz.birga.app' }]; res.set('Cache-Control', 'no-cache').type('application/manifest+json').send(JSON.stringify(m)); } catch { next(); }
-});
 app.get(['/', '/index.html'], sendIndex);
+app.get('/manifest.webmanifest', (req, res, next) => (/Android/i.test(req.get('user-agent') || '') && process.env.ANDROID_PWA !== '1' ? res.status(404).set('Vary', 'User-Agent').end() : next()));
 if (PUBLIC_DIR) app.use(express.static(PUBLIC_DIR, { setHeaders: (res, p) => { if (p.endsWith('sw.js')) res.set('Cache-Control', 'no-cache'); } }));
 else {
   const FLAT = {
@@ -201,6 +201,11 @@ async function createSession(req, user) {
     await db.run('UPDATE sessions SET city=?, country=? WHERE id=?', [g.city, g.country, id]);
     const u = await getUser(user.id);
     if (u && !u.reg_info) await db.run('UPDATE users SET reg_info=? WHERE id=?', [JSON.stringify({ at: u.created_at || now(), app: d.app, os: d.os, model: d.model, city: g.city, country: g.country, first: !user.name }), user.id]);
+    if (u && u.name) { // xavfsizlik: boshqa qurilmalarga "yangi kirish" xabari
+      const where = [d.model, d.os].filter(Boolean).join(' · ') || d.app; const place = [g.city, g.country].filter(Boolean).join(', ');
+      for (const so of io.sockets.sockets.values()) if (Number(so.uid) === Number(user.id) && so.sid !== id) so.emit('security:login', { device: where, app: d.app, place, at: now() });
+      push?.send(user.id, { type: 'security', title: 'Birga', body: tr(u.lang, '🔐 Akkauntingizga yangi qurilmadan kirildi: ', '🔐 Вход в аккаунт с нового устройства: ', '🔐 New sign-in to your account: ') + where + (place ? ' (' + place + ')' : ''), tag: 'security' }).catch(() => {});
+    }
   }).catch(() => {});
   sessCache.set(id, { revoked: 0, last: now() });
   return id;
@@ -278,7 +283,7 @@ const upload = multer({
   limits: { fileSize: (Number(process.env.MAX_UPLOAD_MB) || storage.maxMb) * 1024 * 1024 },
 });
 
-app.get('/api/config', (req, res) => res.json({ v: APP_VERSION, pushKey: push?.publicKey, devSms: !sms.anyReal, maxUploadMb: Number(process.env.MAX_UPLOAD_MB) || storage.maxMb, email: !!mailer, gifs: !!process.env.TENOR_API_KEY }));
+app.get('/api/config', (req, res) => res.json({ v: APP_VERSION, pushKey: push?.publicKey, devSms: !sms.anyReal, maxUploadMb: Number(process.env.MAX_UPLOAD_MB) || storage.maxMb, email: !!mailer, gifs: !!process.env.TENOR_API_KEY, stt: !!(process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY), tts: !!(process.env.AZURE_SPEECH_KEY && process.env.AZURE_SPEECH_REGION) }));
 // Server va bazani "uyg'oq" ushlab turish uchun (cron-job.org shu manzilni chaqiradi)
 // ===== /holat — oddiy odam uchun bitta sahifada tekshiruv (✅ / ⚠️ / ❌) =====
 const STARTED = Date.now();
@@ -446,20 +451,8 @@ async function mailCode(email, code, lang, extra = '') {
   await mailer.sendMail({ from: process.env.MAIL_FROM || `Birga <${process.env.SMTP_USER}>`, to: email, subject: `${subj}: ${code}`, text: body,
     html: `<div style="font-family:Arial,sans-serif;max-width:420px;margin:auto;padding:24px;border-radius:18px;background:#f4f7ff;color:#0F1C3A"><h2 style="margin:0 0 6px;color:#1F6BFF;letter-spacing:2px">BIRGA</h2><p>${subj}:</p><p style="font-size:36px;font-weight:800;letter-spacing:8px;margin:10px 0">${code}</p><p style="color:#6A7895;font-size:13px">${tr(lang, 'Kod 10 daqiqa amal qiladi. Uni hech kimga bermang.', 'Код действует 10 минут. Никому его не сообщайте.', 'Valid for 10 minutes. Do not share it.')}</p></div>` });
 }
-const mxCache = new Map();
-async function emailDomainReal(email) {
-  const d = String(email).split('@')[1] || '';
-  if (!d || !d.includes('.') || /^(example\.(com|org|net)|test\.com|localhost|mailinator\.com|10minutemail\.com|guerrillamail\.com|tempmail\.com|yopmail\.com)$/i.test(d)) return false;
-  const c = mxCache.get(d); if (c && now() - c.at < 6 * 3600e3) return c.ok;
-  const dns = require('dns').promises; let ok;
-  const lim = (pr) => Promise.race([pr, new Promise((_, rej) => setTimeout(() => rej(Object.assign(new Error('timeout'), { code: 'ETIMEOUT' })), 4000))]);
-  try { ok = (await lim(dns.resolveMx(d))).length > 0; }
-  catch (e) { if (e.code === 'ENOTFOUND' || e.code === 'ENODATA') { try { ok = (await lim(dns.resolve4(d))).length > 0; } catch { ok = false; } } else ok = true; }
-  mxCache.set(d, { ok, at: now() }); return ok;
-}
 async function issueEmailCode(req, res, key, email) {
   const lang = req.body.lang;
-  if (!(await emailDomainReal(email))) return res.status(400).json({ error: tr(lang, 'Bunday email manzil topilmadi. Haqiqiy emailingizni kiriting', 'Такой email не найден. Введите настоящий email', 'This email address was not found. Enter your real email') });
   const prev = await db.get('SELECT * FROM codes WHERE phone=?', [key]);
   if (prev && now() - prev.sent_at < 60_000) return res.status(429).json({ email, error: tr(lang, 'Kod yuborilgan. Biroz kuting', 'Код уже отправлен. Подождите', 'Code already sent. Please wait'), wait: Math.ceil((60_000 - (now() - prev.sent_at)) / 1000) });
   const day = now() - 24 * 3600e3;
@@ -467,22 +460,37 @@ async function issueEmailCode(req, res, key, email) {
   const byIp = (await db.get("SELECT COUNT(*) AS c FROM sms_log WHERE ip=? AND country='EMAIL' AND at>?", [req.ip, day])).c;
   if (byMail >= EMAIL_PER_DAY || byIp >= EMAIL_PER_IP_DAY) return res.status(429).json({ error: tr(lang, 'Bugun juda ko‘p kod so‘raldi. Keyinroq urinib ko‘ring', 'Слишком много запросов. Попробуйте позже', 'Too many requests. Try again later') });
   const code = String(crypto.randomInt(10000, 100000));
-  let fallback = false;
-  try { if (!mailer) throw new Error('email xizmati ulanmagan'); await mailCode(email, code, lang); }
-  catch (e) {
-      console.error('Email:', e.message);
-      // email xizmati yo'q yoki barcha xizmatlar limitga yetgan — avvalgi holat: kod ekranda (faqat xavfsizlik kodi bor yoki yangi akkauntlar uchun; ular baribir xavfsizlik kodi bilan himoyalangan)
-      const u = key.startsWith('mail:') ? await db.get('SELECT pass_hash FROM users WHERE email=? ORDER BY id LIMIT 1', [email]) : null;
-      if (process.env.DEV_CODES !== '0' && (!u || u.pass_hash)) fallback = 'down';
-      else return res.status(502).json({ error: (u && !u.pass_hash) ? tr(lang, 'Bu akkauntda xavfsizlik kodi yo‘q, shuning uchun kod ekranda ko‘rsatilmaydi. Avval ilovaga kirgan qurilmangizda Sozlamalar → Xavfsizlik kodini o‘rnating.', 'В этом аккаунте нет кода безопасности, поэтому код не показывается на экране. Сначала задайте код безопасности в настройках на устройстве, где вы уже вошли.', 'This account has no security code yet, so the code is not shown on screen. Set a security code in Settings on a device where you are already signed in.') : tr(lang, 'Email yuborib bo‘lmadi. Keyinroq urinib ko‘ring', 'Не удалось отправить письмо. Попробуйте позже', 'Could not send the email. Try again later') });
+  // Kod ekranda avtomatik beriladi (EMAIL_STRICT=1 bo'lsa — faqat emailga). Email xizmati ulangan bo'lsa, nusxasi emailga ham yuboriladi.
+  // Akkaunt himoyasi: kod kiritilgach, o'zi o'rnatgan xavfsizlik kodi so'raladi; boshqa qurilmalariga "yangi kirish" xabari boradi.
+  const strict = process.env.EMAIL_STRICT === '1' || process.env.DEV_CODES === '0';
+  const owner = await db.get('SELECT id, pass_hash FROM users WHERE email=? ORDER BY id LIMIT 1', [email]);
+  const adminLocked = ADMIN_EMAILS.includes(email) && !(owner && owner.pass_hash);
+  let sent = false;
+  if (mailer && (strict || adminLocked)) {
+    try { await mailCode(email, code, lang); sent = true; }
+    catch (e) { console.error('Email:', e.message); if (strict) return res.status(502).json({ error: tr(lang, 'Email yuborib bo‘lmadi. Keyinroq urinib ko‘ring', 'Не удалось отправить письмо. Попробуйте позже', 'Could not send the email. Try again later') }); }
+  } else if (mailer) mailCode(email, code, lang).catch((e) => console.error('Email:', e.message));
+  else if (strict) return res.status(502).json({ error: tr(lang, 'Email xizmati ulanmagan', 'Почтовый сервис не подключён', 'Email service is not configured') });
+  // Xavfsizlik kodi hali o'rnatilmagan akkaunt boshqa qurilmada ochiq bo'lsa — kod ekranga emas, o'sha qurilmaga (Birga ichiga) yuboriladi (Telegram kabi)
+  let toDev = false;
+  if (!strict && !sent && owner && !owner.pass_hash) {
+    // faqat hozir yetkaza oladigan qurilma bo'lsa (ochiq Birga yoki fonda ulangan Birga ilovasi) — aks holda egasi kirolmay qolmasin
+    toDev = [...io.sockets.sockets.values()].some((so) => Number(so.uid) === Number(owner.id)) || (nativeQ.get(Number(owner.id))?.seen || 0) > now() - 120e3;
   }
-  if (fallback) console.log(`📧 [TEST EMAIL] ${email} → ${code}`);
+  if (adminLocked && !sent && !toDev) { // admin akkaunti: kod hech qachon ekranda ko'rsatilmaydi
+    if (process.env.LOG_CODES === '1') console.log(`📧 [TEST EMAIL] ${email} → ${code}`);
+    else return res.status(502).json({ error: tr(lang, 'Email xizmati ulanmagan', 'Почтовый сервис не подключён', 'Email service is not configured') });
+  }
   await db.run('INSERT INTO codes(phone,code_hash,expires,attempts,sent_at,email) VALUES(?,?,?,?,?,?) ON CONFLICT(phone) DO UPDATE SET code_hash=excluded.code_hash, expires=excluded.expires, attempts=0, sent_at=excluded.sent_at, email=excluded.email',
     [key, hash(key + code), now() + 10 * 60_000, 0, now(), email]);
   await db.run('INSERT INTO sms_log(phone,ip,country,at) VALUES(?,?,?,?)', [key, req.ip, 'EMAIL', now()]);
-  const out = { ok: true, email, timeout: 60, sent: !fallback };
-  // email xizmati ulanmagan yoki limit tugagan — kod ekranda. Admin akkauntlari uchun kod hech qachon ekranda ko'rsatilmaydi.
-  if (fallback && process.env.DEV_CODES !== '0') { out.devCode = code; out.mailDown = fallback === 'down'; out.needSecurity = true; }
+  const out = { ok: true, email, timeout: 60, sent, has2fa: !!owner?.pass_hash, isNew: !owner };
+  if (toDev) {
+    io.to('u' + owner.id).emit('security:code', { code, at: now() });
+    push.send(owner.id, { type: 'security', title: 'Birga', body: tr(lang, `🔐 Kirish kodi: ${code}. Hech kimga bermang! Siz so‘ramagan bo‘lsangiz — e’tibor bermang.`, `🔐 Код входа: ${code}. Никому не сообщайте!`, `🔐 Sign-in code: ${code}. Do not share it!`), tag: 'security' }).catch(() => {});
+  }
+  out.toDevices = toDev;
+  if (!strict && !adminLocked && !toDev) out.devCode = code;
   res.json(out);
 }
 async function checkEmailCode(req, res, key) {
@@ -664,7 +672,7 @@ app.get('/api/native/poll', wrap(async (req, res) => {
   if (!d || now() - d.at > 10 * 60e3) { const r = await db.get('SELECT user_id, sid FROM native_devices WHERE token=?', [t]); if (!r) { nativeTok.delete(t); return res.status(401).json({ error: 'token' }); } d = { uid: Number(r.user_id), sid: r.sid, at: now() }; nativeTok.set(t, d); db.run('UPDATE native_devices SET last=? WHERE token=?', [now(), t]).catch(() => {}); }
   if (d.sid && !(await sessionOk(d.sid))) { nativeTok.delete(t); return res.status(401).json({ error: 'revoked' }); }
   const since = Number(req.query.since) || now() - 60e3;
-  const q = nativeQ.get(d.uid) || { list: [], waiters: new Set() }; nativeQ.set(d.uid, q);
+  const q = nativeQ.get(d.uid) || { list: [], waiters: new Set() }; nativeQ.set(d.uid, q); q.seen = now();
   const pick = () => q.list.filter((x) => x.at > since);
   let evs = pick();
   if (!evs.length) {
@@ -672,6 +680,34 @@ app.get('/api/native/poll', wrap(async (req, res) => {
     evs = pick();
   }
   res.set('Cache-Control', 'no-store'); res.json({ events: evs, now: evs.length ? Math.max(...evs.map((x) => x.at)) : since });
+}));
+
+// ===== Hayot lentasi: do'stlar qayerda (faqat o'zi rozilik bergan foydalanuvchilar, faqat do'stlariga) =====
+// "Do'st" — shaxsiy chati bor odam. Joylashuv faqat oxirgisi saqlanadi; o'chirsa — darhol o'chiriladi.
+const LOC_TTL = 12 * 3600e3;
+async function locShareOn(uid) { const u = await getUser(uid); return !!Number(u?.loc_share); }
+app.post('/api/friends/share', auth, wrap(async (req, res) => {
+  const on = !!req.body?.on;
+  await db.run('UPDATE users SET loc_share=? WHERE id=?', [on ? 1 : 0, req.user.id]);
+  if (!on) { await db.run('DELETE FROM user_loc WHERE user_id=?', [req.user.id]); for (const f of await peersOf(req.user.id)) io.to('u' + f).emit('friend:loc', { id: req.user.id, off: true }); }
+  res.json({ on });
+}));
+app.post('/api/friends/loc', auth, rateLimit('floc', 400, 3600e3), wrap(async (req, res) => {
+  if (!(await locShareOn(req.user.id))) return res.status(403).json({ error: 'off' });
+  const lat = Number(req.body?.lat), lon = Number(req.body?.lon); if (!(Math.abs(lat) <= 90 && Math.abs(lon) <= 180) || !isFinite(lat + lon)) return res.status(400).json({ error: 'bad' });
+  const acc = Math.min(5000, Math.max(0, Math.round(Number(req.body?.acc) || 0))), bat = Math.round(Number(req.body?.bat)); const place = String(req.body?.place || '').slice(0, 80);
+  const row = { lat: Math.round(lat * 1e5) / 1e5, lon: Math.round(lon * 1e5) / 1e5, acc, bat: bat >= 0 && bat <= 100 ? bat : null, place, at: now() };
+  await db.run('INSERT INTO user_loc(user_id,lat,lon,acc,bat,place,at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET lat=excluded.lat, lon=excluded.lon, acc=excluded.acc, bat=excluded.bat, place=excluded.place, at=excluded.at', [req.user.id, row.lat, row.lon, row.acc, row.bat, row.place, row.at]);
+  for (const f of await peersOf(req.user.id)) if (online.has(f)) io.to('u' + f).emit('friend:loc', { id: req.user.id, ...row });
+  res.json({ ok: true });
+}));
+app.get('/api/friends/loc', auth, wrap(async (req, res) => {
+  const peers = await peersOf(req.user.id); const out = [];
+  if (peers.length) {
+    const rows = await db.all(`SELECT l.* FROM user_loc l JOIN users u ON u.id=l.user_id WHERE l.user_id IN (${peers.map(() => '?').join(',')}) AND u.loc_share=1 AND l.at>?`, [...peers, now() - LOC_TTL]);
+    for (const r of rows) { if (await isBlocked(Number(r.user_id), req.user.id)) continue; const u = await getUser(r.user_id); if (u) out.push({ user: publicUser(u), lat: Number(r.lat), lon: Number(r.lon), acc: Number(r.acc) || 0, bat: r.bat == null ? null : Number(r.bat), place: r.place || '', at: Number(r.at) }); }
+  }
+  res.json({ on: await locShareOn(req.user.id), friends: out });
 }));
 
 // ===== Qo'ng'iroqlar tarixi =====
@@ -705,42 +741,72 @@ app.post('/api/profile/region', auth, wrap(async (req, res) => {
   await db.run('UPDATE users SET region=? WHERE id=?', [JSON.stringify(region), req.user.id]);
   res.json({ region });
 }));
-const wxCache = new Map();
-const MET_CODE = (s) => { s = String(s || '').replace(/_(day|night|polartwilight)$/, ''); if (/thunder/.test(s)) return 95; if (/snow/.test(s)) return /heavy/.test(s) ? 75 : 73; if (/sleet/.test(s)) return 67; if (/heavyrain/.test(s)) return 65; if (/rainshowers/.test(s)) return 80; if (/lightrain/.test(s)) return 61; if (/rain/.test(s)) return 63; if (s === 'fog') return 45; if (s === 'clearsky') return 0; if (s === 'fair') return 1; if (s === 'partlycloudy') return 2; if (s === 'cloudy') return 3; return 2; };
-async function metNoWeather(reg) {
-  const r = await fetch(`https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${reg.lat.toFixed(3)}&lon=${reg.lon.toFixed(3)}`, { headers: { 'User-Agent': 'Birga/1.0 github.com/coresani5-cloud/Birga' }, signal: AbortSignal.timeout(8000) });
-  if (!r.ok) throw new Error('met ' + r.status);
-  const ts = (await r.json()).properties.timeseries; const c0 = ts[0].data; const det = c0.instant.details;
-  const sym = c0.next_1_hours?.summary?.symbol_code || c0.next_6_hours?.summary?.symbol_code || '';
-  const byDay = new Map();
-  for (const t of ts) {
-    const d = t.time.slice(0, 10), v = t.data.instant.details.air_temperature, o = byDay.get(d) || { d, max: -99, min: 99, code: null, rain: 0 };
-    o.max = Math.max(o.max, v); o.min = Math.min(o.min, v);
-    const s6 = t.data.next_6_hours?.summary?.symbol_code; if (s6 && (!o.code || t.time.slice(11, 13) === '12')) o.code = s6;
-    const pr = t.data.next_6_hours?.details?.precipitation_amount; if (pr) o.rain = Math.max(o.rain, pr > 0.2 ? 60 : 20);
-    byDay.set(d, o);
-  }
-  const days = [...byDay.values()].slice(0, 4).map((o) => ({ d: o.d, code: MET_CODE(o.code || sym), max: o.max, min: o.min, rain: o.rain }));
-  return { cur: { t: det.air_temperature, feels: det.air_temperature, hum: Math.round(det.relative_humidity ?? 0), code: MET_CODE(sym), wind: det.wind_speed ?? 0, day: !/_night$/.test(sym) }, days, sun: {}, at: now() };
+// Ob-havo: bir nechta bepul manba ketma-ket (biri ishlamasa yoki limitga yetsa — keyingisi). Kalit shart emas.
+// 1) Open-Meteo 2) MET Norway (yr.no) 3) wttr.in. Ixtiyoriy: OPENWEATHER_API_KEY (openweathermap.org) — eng birinchi sinab ko'riladi.
+const wxFetch = async (u, headers = {}) => { const r = await fetch(u, { headers: { 'User-Agent': 'Birga/1.0 (https://birga.onrender.com)', ...headers }, signal: AbortSignal.timeout(8000) }); if (!r.ok) throw new Error(u.split('/')[2] + ' ' + r.status); return r.json(); };
+const tzOffH = (lon) => Math.round(lon / 15); // mahalliy sana uchun taxminiy vaqt mintaqasi
+const localDay = (ms, lon) => new Date(ms + tzOffH(lon) * 3600e3).toISOString().slice(0, 10);
+function daysFromHours(hours, lon) { // [{t, temp, code, rain}] -> 4 kunlik
+  const by = new Map();
+  for (const h of hours) { const d = localDay(h.t, lon); const x = by.get(d) || { d, max: -99, min: 99, codes: [], rain: 0 }; x.max = Math.max(x.max, h.temp); x.min = Math.min(x.min, h.temp); if (h.code != null) x.codes.push(h.code); x.rain = Math.max(x.rain, h.rain || 0); by.set(d, x); }
+  return [...by.values()].slice(0, 4).map((x) => ({ d: x.d, code: x.codes.length ? x.codes.sort((a, b) => b - a)[Math.floor(x.codes.length / 3)] : 0, max: Math.round(x.max), min: Math.round(x.min), rain: Math.round(x.rain) }));
 }
+const MET_CODE = { clearsky: 0, fair: 1, partlycloudy: 2, cloudy: 3, fog: 45, lightrain: 61, rain: 63, heavyrain: 65, lightrainshowers: 80, rainshowers: 81, heavyrainshowers: 82, lightsleet: 66, sleet: 67, heavysleet: 67, lightsleetshowers: 85, sleetshowers: 85, lightsnow: 71, snow: 73, heavysnow: 75, lightsnowshowers: 85, snowshowers: 86, heavysnowshowers: 86 };
+const metCode = (s) => { if (!s) return null; const b = s.replace(/_(day|night|polartwilight)$/, ''); if (/thunder/.test(b)) return 95; return MET_CODE[b] ?? 3; };
+const WWO = (c) => { c = Number(c); if (c === 113) return 0; if (c === 116) return 2; if (c === 119 || c === 122) return 3; if ([143, 248, 260].includes(c)) return 45; if ([200, 386, 389, 392, 395].includes(c)) return 95;
+  if ([179, 182, 185, 227, 230, 317, 320, 323, 326, 329, 332, 335, 338, 350, 362, 365, 368, 371, 374, 377].includes(c)) return 73; if ([299, 302, 305, 308, 356, 359].includes(c)) return 65; return 61; };
+const wxSources = [
+  ['OpenWeather', async (reg) => {
+    const k = process.env.OPENWEATHER_API_KEY; if (!k) throw new Error('kalit yo‘q');
+    const base = `https://api.openweathermap.org/data/2.5`, q = `lat=${reg.lat}&lon=${reg.lon}&units=metric&appid=${k}`;
+    const [c, f] = await Promise.all([wxFetch(`${base}/weather?${q}`), wxFetch(`${base}/forecast?${q}`)]);
+    const owc = (id) => (id >= 200 && id < 300 ? 95 : id < 400 ? 51 : id < 600 ? (id >= 502 ? 65 : 61) : id < 700 ? 73 : id < 800 ? 45 : id === 800 ? 0 : id === 801 ? 1 : id === 802 ? 2 : 3);
+    const hours = f.list.map((h) => ({ t: h.dt * 1000, temp: h.main.temp, code: owc(h.weather?.[0]?.id), rain: Math.round((h.pop || 0) * 100) }));
+    return { cur: { t: c.main.temp, feels: c.main.feels_like, hum: c.main.humidity, code: owc(c.weather?.[0]?.id), wind: c.wind?.speed, day: /d$/.test(c.weather?.[0]?.icon || 'd') }, days: daysFromHours(hours, reg.lon),
+      sun: { rise: c.sys?.sunrise ? new Date((c.sys.sunrise + tzOffH(reg.lon) * 3600) * 1000).toISOString().slice(0, 16) : null, set: c.sys?.sunset ? new Date((c.sys.sunset + tzOffH(reg.lon) * 3600) * 1000).toISOString().slice(0, 16) : null } };
+  }],
+  ['Open-Meteo', async (reg) => {
+    const j = await wxFetch(`${process.env.WEATHER_API || 'https://api.open-meteo.com'}/v1/forecast?latitude=${reg.lat}&longitude=${reg.lon}&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset&timezone=auto&forecast_days=4&wind_speed_unit=ms`);
+    return { cur: { t: j.current.temperature_2m, feels: j.current.apparent_temperature, hum: j.current.relative_humidity_2m, code: j.current.weather_code, wind: j.current.wind_speed_10m, day: !!j.current.is_day },
+      days: j.daily.time.map((d, i) => ({ d, code: j.daily.weather_code[i], max: j.daily.temperature_2m_max[i], min: j.daily.temperature_2m_min[i], rain: j.daily.precipitation_probability_max?.[i] ?? null })),
+      sun: { rise: j.daily.sunrise?.[0], set: j.daily.sunset?.[0] } };
+  }],
+  ['MET Norway', async (reg) => {
+    const j = await wxFetch(`${process.env.WEATHER_API_MET || 'https://api.met.no'}/weatherapi/locationforecast/2.0/compact?lat=${reg.lat.toFixed(3)}&lon=${reg.lon.toFixed(3)}`);
+    const ts = j.properties.timeseries; const c0 = ts[0].data; const det = c0.instant.details;
+    const sym = c0.next_1_hours?.summary?.symbol_code || c0.next_6_hours?.summary?.symbol_code;
+    const hours = ts.slice(0, 96).map((x) => ({ t: Date.parse(x.time), temp: x.data.instant.details.air_temperature, code: metCode(x.data.next_1_hours?.summary?.symbol_code || x.data.next_6_hours?.summary?.symbol_code), rain: (x.data.next_1_hours?.details?.precipitation_amount || x.data.next_6_hours?.details?.precipitation_amount || 0) > 0.2 ? 70 : 0 }));
+    const lh = new Date(Date.now() + tzOffH(reg.lon) * 3600e3).getUTCHours();
+    return { cur: { t: det.air_temperature, feels: det.air_temperature, hum: det.relative_humidity, code: metCode(sym), wind: det.wind_speed, day: !/_night$/.test(sym || '') && lh >= 6 && lh < 19 }, days: daysFromHours(hours, reg.lon), sun: {} };
+  }],
+  ['wttr.in', async (reg) => {
+    const j = await wxFetch(`${process.env.WEATHER_API_WTTR || 'https://wttr.in'}/${reg.lat},${reg.lon}?format=j1`);
+    const c = j.current_condition[0];
+    return { cur: { t: +c.temp_C, feels: +c.FeelsLikeC, hum: +c.humidity, code: WWO(c.weatherCode), wind: Math.round((+c.windspeedKmph / 3.6) * 10) / 10, day: true },
+      days: j.weather.slice(0, 4).map((d) => ({ d: d.date, code: WWO(d.hourly?.[4]?.weatherCode ?? d.hourly?.[0]?.weatherCode), max: +d.maxtempC, min: +d.mintempC, rain: Math.max(...(d.hourly || []).map((h) => +h.chanceofrain || 0)) })), sun: {} };
+  }],
+];
+const wxDown = new Map();
+async function weatherFor(reg) {
+  const errs = [];
+  for (const [name, fn] of wxSources) {
+    if ((wxDown.get(name) || 0) > now()) continue;
+    try { const d = await fn(reg); if (!d?.cur || !Number.isFinite(Number(d.cur.t))) throw new Error('bo‘sh javob'); d.src = name; d.at = now(); return d; }
+    catch (e) { if (name !== 'OpenWeather' || process.env.OPENWEATHER_API_KEY) { errs.push(name + ': ' + e.message); wxDown.set(name, now() + 5 * 60e3); } }
+  }
+  throw new Error(errs.join(' | ') || 'manba yo‘q');
+}
+const wxCache = new Map();
 app.get('/api/weather', auth, wrap(async (req, res) => {
   let reg = null; try { reg = JSON.parse(req.user.region || 'null'); } catch {}
   if (!reg) return res.json({ region: null });
   const key = reg.lat.toFixed(2) + ',' + reg.lon.toFixed(2);
   const c = wxCache.get(key); if (c && now() - c.at < 15 * 60e3) return res.json({ region: reg, ...c.data });
   try {
-    const u = `${process.env.WEATHER_API || 'https://api.open-meteo.com'}/v1/forecast?latitude=${reg.lat}&longitude=${reg.lon}&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset&timezone=auto&forecast_days=4&wind_speed_unit=ms`;
-    const r = await fetch(u, { signal: AbortSignal.timeout(8000) }); if (!r.ok) throw new Error('wx ' + r.status); const j = await r.json();
-    const data = { cur: { t: j.current.temperature_2m, feels: j.current.apparent_temperature, hum: j.current.relative_humidity_2m, code: j.current.weather_code, wind: j.current.wind_speed_10m, day: !!j.current.is_day },
-      days: j.daily.time.map((d, i) => ({ d, code: j.daily.weather_code[i], max: j.daily.temperature_2m_max[i], min: j.daily.temperature_2m_min[i], rain: j.daily.precipitation_probability_max?.[i] ?? null })),
-      sun: { rise: j.daily.sunrise?.[0], set: j.daily.sunset?.[0] }, at: now() };
+    const data = await weatherFor(reg);
     wxCache.set(key, { at: now(), data }); if (wxCache.size > 500) wxCache.delete(wxCache.keys().next().value);
     res.json({ region: reg, ...data });
-  } catch (e) {
-    console.error('weather:', e.message);
-    try { const d2 = await metNoWeather(reg); wxCache.set(key, { at: now(), data: d2 }); return res.json({ region: reg, ...d2 }); } catch (e2) { console.error('weather met.no:', e2.message); }
-    if (c) return res.json({ region: reg, ...c.data, stale: true }); res.status(503).json({ region: reg, error: 'weather_unavailable' });
-  }
+  } catch (e) { console.error('Ob-havo:', e.message); if (c) return res.json({ region: reg, ...c.data, stale: true }); res.status(503).json({ region: reg, error: 'weather_unavailable' }); }
 }));
 
 // ===== Do'stlarni taklif qilish =====
@@ -1178,6 +1244,18 @@ const aiNow = () => new Date().toLocaleString('uz-UZ', { timeZone: 'Asia/Tashken
 const aiSys = () => AI_SYSTEM + `\nHozirgi sana va vaqt (Toshkent): ${aiNow()}. Foydalanuvchi rasm yuborsa — uni diqqat bilan tahlil qil (matnni o'qi, narsalarni tanib ber, masalani yech).
 Javobni Markdown'da yoz: **qalin**, ro'yxatlar, kod uchun \`\`\` bloklar. Juda uzun bo'lmasin, lekin to'liq va foydali bo'lsin.`;
 // msgs: [{role, content, image?: 'data:image/jpeg;base64,...'}] — rasm faqat oxirgi savolda bo'ladi
+// Bepul (kalitsiz) zaxira: "har 30 soniyada 1 javob" cheklovi — so'rovlar navbatga qo'yiladi, limit xatosida aytilgan vaqt kutib qayta uriniladi
+let freeQ = Promise.resolve(), freeLast = 0;
+function freeAI(call) {
+  const run = async () => {
+    for (let k = 0; k < 3; k++) {
+      const gap = 31e3 - (Date.now() - freeLast); if (freeLast && gap > 0) await sleep(gap);
+      try { const j = await call(); freeLast = Date.now(); return j; }
+      catch (e) { freeLast = Date.now(); const m = /retry after (\d+)\s*s/i.exec(e.message); if (!/402|429|FREE_LIMIT/i.test(e.message) || k === 2) throw e; await sleep(((m ? Number(m[1]) : 30) + 1) * 1000); freeLast = 0; }
+    }
+  };
+  const p = freeQ.then(run, run); freeQ = p.catch(() => {}); return p;
+}
 async function aiAnswer(msgs, { web = true, fast = false, sys = '' } = {}) {
   const errs = [];
   const hasImg = msgs.some((m) => m.image);
@@ -1207,8 +1285,10 @@ async function aiAnswer(msgs, { web = true, fast = false, sys = '' } = {}) {
   const oaMsgs = msgs.map((m) => (m.image ? { role: m.role, content: [{ type: 'text', text: m.content || ' ' }, { type: 'image_url', image_url: { url: m.image } }] } : { role: m.role, content: m.content }));
   for (const [url, key, model] of compat) {
     try {
-      const j = await aiFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(key ? { Authorization: 'Bearer ' + key } : {}) },
+      const free = !key && /pollinations/.test(url);
+      const call = () => aiFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(key ? { Authorization: 'Bearer ' + key } : {}) },
         body: JSON.stringify({ model, messages: [{ role: 'system', content: aiSys() + sys }, ...oaMsgs], max_tokens: 3000, temperature: fast ? 0.3 : 0.6 }) });
+      const j = free ? await freeAI(call) : await call();
       const out = String(j?.choices?.[0]?.message?.content || '').trim(); if (out) return { text: out, sources: [] };
       errs.push(url + ': empty');
     } catch (e) { errs.push(url.split('/')[2] + ': ' + e.message); }
@@ -1218,7 +1298,7 @@ async function aiAnswer(msgs, { web = true, fast = false, sys = '' } = {}) {
 }
 app.post('/api/ai', auth, rateLimit('ai', 80, 3600e3), wrap(async (req, res) => {
   const raw = Array.isArray(req.body?.messages) ? req.body.messages : [];
-  const msgs = raw.slice(-16).map((m, i, a) => ({ role: m?.role === 'assistant' ? 'assistant' : 'user', content: String(m?.content || '').slice(0, 6000),
+  const msgs = raw.slice(-48).map((m, i, a) => ({ role: m?.role === 'assistant' ? 'assistant' : 'user', content: String(m?.content || '').slice(0, i === 0 ? 14000 : 6000),
     image: i === a.length - 1 && typeof m?.image === 'string' && m.image.length < 7e6 && /^data:image\/(jpeg|png|webp);base64,/.test(m.image) ? m.image : undefined }))
     .filter((m) => m.content.trim() || m.image);
   if (!msgs.length || msgs[msgs.length - 1].role !== 'user') return res.status(400).json({ error: 'empty' });
@@ -1262,6 +1342,38 @@ async function fileBytes(url) {
   if (/^https?:\/\//.test(url)) { const r = await fetch(url); if (!r.ok) throw new Error('file ' + r.status); return Buffer.from(await r.arrayBuffer()); }
   return fs.readFileSync(path.join(UPLOAD_DIR, path.basename(url)));
 }
+async function sttAudio(buf, mime) {
+  const errs = []; let text = null;
+  if (process.env.GEMINI_API_KEY) {
+    try {
+      const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+      const j = await aiFetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
+        body: JSON.stringify({ contents: [{ role: 'user', parts: [{ inline_data: { mime_type: mime, data: buf.toString('base64') } }, { text: "Bu ovozli xabarni so'zma-so'z, aynan aytilgan tilda matnga aylantir. O'zbekcha bo'lsa — to'g'ri imlo bilan lotin yozuvida (o‘, g‘). Tinish belgilarini qo'y. Faqat matnning o'zini yoz, izohsiz. Nutq bo'lmasa — bo'sh qoldir." }] }],
+          generationConfig: { temperature: 0, maxOutputTokens: 4000, ...(/2\.5-flash/.test(model) ? { thinkingConfig: { thinkingBudget: 0 } } : {}) } }) }, 90000);
+      text = j?.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('').trim() ?? null;
+    } catch (e) { errs.push('gemini: ' + e.message); }
+  }
+  if (text == null && process.env.GROQ_API_KEY) {
+    try {
+      const fd = new FormData(); fd.append('file', new Blob([buf], { type: mime }), 'audio.' + (mime.split('/')[1] || 'ogg').replace('mpeg', 'mp3')); fd.append('model', process.env.GROQ_STT_MODEL || 'whisper-large-v3'); fd.append('temperature', '0');
+      const r = await fetch((process.env.GROQ_API_BASE || 'https://api.groq.com') + '/openai/v1/audio/transcriptions', { method: 'POST', headers: { Authorization: 'Bearer ' + process.env.GROQ_API_KEY }, body: fd });
+      const j = await r.json(); if (!r.ok) throw new Error(r.status + ' ' + JSON.stringify(j).slice(0, 150)); text = String(j.text || '').trim();
+    } catch (e) { errs.push('groq: ' + e.message); }
+  }
+  if (text == null && errs.length) console.error('STT:', errs.join(' | '));
+  return text;
+}
+// Birga yordamchi uchun ovozli savol (katta mikrofon): yozilgan ovoz → matn
+app.post('/api/ai/stt', auth, rateLimit('aistt2', 200, 3600e3), upload.single('file'), wrap(async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'no file' });
+  try {
+    if (req.file.size > 9e6) return res.status(413).json({ error: 'too_big' });
+    const buf = fs.readFileSync(req.file.path);
+    const text = await sttAudio(buf, String(req.file.mimetype || 'audio/webm').split(';')[0]);
+    if (text == null) return res.status(503).json({ error: process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY ? 'stt_failed' : 'no_stt' });
+    res.json({ text });
+  } finally { fs.unlink(req.file.path, () => {}); }
+}));
 app.post('/api/ai/transcribe', auth, rateLimit('aistt', 120, 3600e3), wrap(async (req, res) => {
   const m = await msgVisible(req.body?.id, req.user.id); if (!m || !['voice', 'round', 'video'].includes(m.type) || !m.file) return res.status(403).json({ error: 'forbidden' });
   const have = await db.get('SELECT text FROM transcripts WHERE message_id=?', [m.id]); if (have) return res.json({ text: have.text });
@@ -1388,7 +1500,8 @@ app.post('/api/ai/image', auth, rateLimit('aiimg', 25, 3600e3), wrap(async (req,
 const GAMES = new Set(['snake', 'penalty', 'aim', '2048', 'flappy', 'blocks', 'memory', 'xo', 'breakout', 'mines', 'run', 'strike', 'football']);
 // 2 kishilik (taklif bilan) o'yinlar — g'alabalar soni 'w_<id>' nomi bilan reytingga yoziladi
 const AI_SECRET = crypto.randomBytes(8).toString('hex');
-const MP_GAMES = new Set(['chess', 'checkers', 'connect4', 'gomoku', 'battleship']);
+const MP_GAMES = new Set(['chess', 'checkers', 'connect4', 'gomoku', 'battleship', 'fb4', 'duel', 'hockey', 'reversi', 'dots', 'race']);
+const RT_GAMES = new Set(['fb4', 'duel', 'hockey', 'race']); // jonli (real vaqtda) o'yinlar
 const TOP_GAMES = new Set([...GAMES, ...[...MP_GAMES].map((g) => 'w_' + g)]);
 app.post('/api/games/score', auth, rateLimit('gscore', 600, 3600e3), wrap(async (req, res) => {
   const g = String(req.body?.game || ''); const sc = Math.floor(Number(req.body?.score));
@@ -1546,6 +1659,19 @@ async function sweepMedia() {
   } finally { sweeping = false; }
 }
 
+// To'g'ridan-to'g'ri yuklash uchun imzolangan manzil (video, rasm, fayl) — fayl Render serveri orqali o'tmaydi
+const EXT_OK = /^[a-z0-9]{1,8}$/;
+app.post('/api/upload/sign', auth, rateLimit('upsign', 300, 3600e3), wrap(async (req, res) => {
+  if (!storage.remote || process.env.DIRECT_UPLOAD === '0') return res.json({ direct: false });
+  const size = Number(req.body?.size) || 0; const max = (Number(process.env.MAX_UPLOAD_MB) || storage.maxMb) * 1048576;
+  if (size > max) return res.status(413).json({ error: `Fayl juda katta (eng ko'pi ${Math.round(max / 1048576)} MB)` });
+  let ext = String(req.body?.name || '').split('.').pop().toLowerCase(); if (!EXT_OK.test(ext)) ext = (String(req.body?.mime || '').split('/')[1] || 'bin').replace(/[^a-z0-9]/g, '').slice(0, 8) || 'bin';
+  const name = crypto.randomBytes(16).toString('hex') + '.' + ext;
+  const s = await storage.signUpload(name);
+  await db.run('INSERT INTO uploads(url,user_id,at) VALUES(?,?,?) ON CONFLICT(url) DO NOTHING', [s.url, req.user.id, now()]).catch(() => {});
+  res.json({ direct: true, upload: s.upload, url: s.url });
+}));
+
 // Fayl yuklash: ovozli/video xabarlar universal formatga o'tkaziladi va doimiy joyga saqlanadi
 app.post('/api/upload', auth, upload.single('file'), wrap(async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'no file' });
@@ -1622,45 +1748,48 @@ app.delete('/api/stories/:id', auth, wrap(async (req, res) => {
 // ===== Reels: foydalanuvchilar O'ZLARI joylagan qisqa videolar (yoki o'z Instagram havolasi) =====
 // Lentaga faqat shu yerda ataylab joylangan narsa tushadi — chat xabarlaridan hech narsa olinmaydi.
 const IG_RX = /^https?:\/\/(?:www\.|m\.)?(?:instagram\.com|instagr\.am)\/(?:[\w.]+\/)?(reels?|p|tv)\/([\w-]{5,})/i;
-const reelOutBase = async (r, me) => ({ id: r.id, kind: r.kind, file: r.file, mime: r.mime, igKind: r.ig_kind, igCode: r.ig_code, caption: r.caption, duration: r.duration,
-  created_at: r.created_at, user: publicUser(await getUser(r.user_id), r.user_id === me), mine: r.user_id === me });
 const reelOut = async (r, me) => {
-  const o = await reelOutBase(r, me);
-  try {
-    o.likes = Number((await db.get('SELECT COUNT(*) AS c FROM reel_likes WHERE reel_id=?', [r.id])).c) || 0;
-    o.liked = !!(await db.get('SELECT 1 AS x FROM reel_likes WHERE reel_id=? AND user_id=?', [r.id, me]));
-    o.comments = Number((await db.get('SELECT COUNT(*) AS c FROM reel_comments WHERE reel_id=?', [r.id])).c) || 0;
-  } catch { o.likes = 0; o.liked = false; o.comments = 0; }
-  return o;
+  const likes = Number((await db.get('SELECT COUNT(*) AS c FROM reel_likes WHERE reel_id=?', [r.id]))?.c || 0);
+  const comments = Number((await db.get('SELECT COUNT(*) AS c FROM reel_comments WHERE reel_id=?', [r.id]))?.c || 0);
+  const liked = !!(await db.get('SELECT 1 AS x FROM reel_likes WHERE reel_id=? AND user_id=?', [r.id, me]));
+  return { id: Number(r.id), kind: r.kind, file: r.file, mime: r.mime, igKind: r.ig_kind, igCode: r.ig_code, caption: r.caption, duration: r.duration,
+    created_at: r.created_at, user: publicUser(await getUser(r.user_id), r.user_id === me), mine: r.user_id === me, likes, comments, liked };
 };
-app.post('/api/reels/:id/like', auth, rateLimit('reellike', 600, 3600e3), wrap(async (req, res) => {
-  const id = Number(req.params.id);
-  if (!(await db.get('SELECT id FROM reels WHERE id=?', [id]))) return res.status(404).json({ error: 'not found' });
-  const had = await db.get('SELECT 1 AS x FROM reel_likes WHERE reel_id=? AND user_id=?', [id, req.user.id]);
-  if (had) await db.run('DELETE FROM reel_likes WHERE reel_id=? AND user_id=?', [id, req.user.id]);
-  else await db.run('INSERT INTO reel_likes(reel_id,user_id,at) VALUES(?,?,?) ON CONFLICT(reel_id,user_id) DO NOTHING', [id, req.user.id, now()]);
-  res.json({ liked: !had, likes: Number((await db.get('SELECT COUNT(*) AS c FROM reel_likes WHERE reel_id=?', [id])).c) || 0 });
+app.get('/api/reels/:id', auth, wrap(async (req, res) => {
+  const r = await db.get('SELECT * FROM reels WHERE id=?', [Number(req.params.id)]); if (!r) return res.status(404).json({ error: 'not found' });
+  res.json(await reelOut(r, req.user.id));
+}));
+app.post('/api/reels/:id/like', auth, rateLimit('reellike', 300, 3600e3), wrap(async (req, res) => {
+  const id = Number(req.params.id); const r = await db.get('SELECT id, user_id FROM reels WHERE id=?', [id]); if (!r) return res.status(404).json({ error: 'not found' });
+  const has = await db.get('SELECT 1 AS x FROM reel_likes WHERE reel_id=? AND user_id=?', [id, req.user.id]);
+  const want = req.body?.on === undefined ? !has : !!req.body.on;
+  if (want && !has) await db.run('INSERT INTO reel_likes(reel_id,user_id,at) VALUES(?,?,?) ON CONFLICT DO NOTHING', [id, req.user.id, now()]);
+  if (!want && has) await db.run('DELETE FROM reel_likes WHERE reel_id=? AND user_id=?', [id, req.user.id]);
+  const likes = Number((await db.get('SELECT COUNT(*) AS c FROM reel_likes WHERE reel_id=?', [id])).c);
+  io.emit('reel:stat', { id, likes });
+  res.json({ liked: want, likes });
 }));
 app.get('/api/reels/:id/comments', auth, wrap(async (req, res) => {
-  const id = Number(req.params.id);
-  const reel = await db.get('SELECT user_id FROM reels WHERE id=?', [id]); if (!reel) return res.status(404).json({ error: 'not found' });
-  const rows = await db.all('SELECT * FROM reel_comments WHERE reel_id=? ORDER BY id DESC LIMIT 100', [id]);
-  const items = await Promise.all(rows.map(async (c) => { const u = await getUser(c.user_id); return { id: c.id, text: c.text, at: Number(c.at), mine: c.user_id === req.user.id, canDelete: c.user_id === req.user.id || reel.user_id === req.user.id, user: u ? publicUser(u, c.user_id === req.user.id) : { id: c.user_id, name: '?' } }; }));
-  res.json({ items });
+  const id = Number(req.params.id); const r = await db.get('SELECT user_id FROM reels WHERE id=?', [id]); if (!r) return res.status(404).json({ error: 'not found' });
+  const rows = await db.all('SELECT * FROM reel_comments WHERE reel_id=? ORDER BY id DESC LIMIT 200', [id]);
+  const out = []; for (const c of rows.reverse()) { const u = await getUser(c.user_id); if (u) out.push({ id: Number(c.id), text: c.text, at: Number(c.at), user: publicUser(u), mine: Number(c.user_id) === req.user.id, canDel: Number(c.user_id) === req.user.id || Number(r.user_id) === req.user.id }); }
+  res.json({ comments: out });
 }));
-app.post('/api/reels/:id/comments', auth, rateLimit('reelcmt', 120, 3600e3), wrap(async (req, res) => {
-  const id = Number(req.params.id); const text = String(req.body.text || '').trim().slice(0, 500);
-  if (!text) return res.status(400).json({ error: 'empty' });
-  if (!(await db.get('SELECT id FROM reels WHERE id=?', [id]))) return res.status(404).json({ error: 'not found' });
-  await db.insert('INSERT INTO reel_comments(reel_id,user_id,text,at) VALUES(?,?,?,?)', [id, req.user.id, text, now()]);
-  res.json({ ok: true, comments: Number((await db.get('SELECT COUNT(*) AS c FROM reel_comments WHERE reel_id=?', [id])).c) || 0 });
+app.post('/api/reels/:id/comments', auth, rateLimit('reelcom', 60, 3600e3), wrap(async (req, res) => {
+  const id = Number(req.params.id); const r = await db.get('SELECT user_id FROM reels WHERE id=?', [id]); if (!r) return res.status(404).json({ error: 'not found' });
+  const text = String(req.body?.text || '').trim().slice(0, 500); if (!text) return res.status(400).json({ error: 'empty' });
+  const cid = await db.insert('INSERT INTO reel_comments(reel_id,user_id,text,at) VALUES(?,?,?,?)', [id, req.user.id, text, now()]);
+  const comments = Number((await db.get('SELECT COUNT(*) AS c FROM reel_comments WHERE reel_id=?', [id])).c);
+  io.emit('reel:stat', { id, comments });
+  if (Number(r.user_id) !== req.user.id) push.send(Number(r.user_id), { type: 'reel', title: req.user.name || 'Birga', body: '💬 Reels: ' + text.slice(0, 80), tag: 'reel' + id }).catch(() => {});
+  res.json({ comment: { id: Number(cid), text, at: now(), user: publicUser(req.user), mine: true, canDel: true }, comments });
 }));
 app.delete('/api/reels/:id/comments/:cid', auth, wrap(async (req, res) => {
-  const c = await db.get('SELECT * FROM reel_comments WHERE id=? AND reel_id=?', [Number(req.params.cid), Number(req.params.id)]);
-  if (!c) return res.json({ ok: true });
-  const reel = await db.get('SELECT user_id FROM reels WHERE id=?', [c.reel_id]);
-  if (c.user_id !== req.user.id && reel?.user_id !== req.user.id) return res.status(403).json({ error: 'forbidden' });
-  await db.run('DELETE FROM reel_comments WHERE id=?', [c.id]); res.json({ ok: true });
+  const c = await db.get('SELECT c.*, r.user_id AS owner FROM reel_comments c JOIN reels r ON r.id=c.reel_id WHERE c.id=?', [Number(req.params.cid)]);
+  if (!c || (Number(c.user_id) !== req.user.id && Number(c.owner) !== req.user.id)) return res.status(403).json({ error: 'forbidden' });
+  await db.run('DELETE FROM reel_comments WHERE id=?', [c.id]);
+  const comments = Number((await db.get('SELECT COUNT(*) AS c FROM reel_comments WHERE reel_id=?', [c.reel_id])).c);
+  io.emit('reel:stat', { id: Number(c.reel_id), comments }); res.json({ ok: true, comments });
 }));
 app.get('/api/reels', auth, wrap(async (req, res) => {
   const before = Number(req.query.before) || 1e15;
@@ -1685,8 +1814,7 @@ app.post('/api/reels', auth, rateLimit('reelpost', 30, 3600e3), wrap(async (req,
 app.delete('/api/reels/:id', auth, wrap(async (req, res) => {
   const r = await db.get('SELECT * FROM reels WHERE id=?', [Number(req.params.id)]);
   if (!r || r.user_id !== req.user.id) return res.status(403).json({ error: 'forbidden' });
-  await db.run('DELETE FROM reels WHERE id=?', [r.id]);
-  await db.run('DELETE FROM reel_likes WHERE reel_id=?', [r.id]).catch(() => {}); await db.run('DELETE FROM reel_comments WHERE reel_id=?', [r.id]).catch(() => {});
+  await db.run('DELETE FROM reels WHERE id=?', [r.id]); await db.run('DELETE FROM reel_likes WHERE reel_id=?', [r.id]); await db.run('DELETE FROM reel_comments WHERE reel_id=?', [r.id]);
   if (r.file) safeRemove(r.file);
   res.json({ ok: true });
 }));
@@ -1910,6 +2038,7 @@ function previewFor(m, lang) {
   if (m.type === 'sticker') { let e = ''; try { e = (typeof m.meta === 'string' ? JSON.parse(m.meta || '{}') : m.meta || {}).e || ''; } catch {} return (e + ' ' + PREVIEW.sticker[i]).trim(); }
   return (PREVIEW[m.type]?.[i] || '') + (m.text ? ': ' + m.text.slice(0, 80) : '');
 }
+function luhn(n) { let sum = 0; for (let i = 0; i < n.length; i++) { let d = +n[n.length - 1 - i]; if (i % 2) { d *= 2; if (d > 9) d -= 9; } sum += d; } return sum % 10 === 0; }
 function cleanMeta(meta) {
   if (!meta || typeof meta !== 'object') return null;
   const o = {};
@@ -1932,6 +2061,15 @@ function cleanMeta(meta) {
     const q = String(meta.poll.q || '').trim().slice(0, 300);
     const opts = (Array.isArray(meta.poll.opts) ? meta.poll.opts : []).map((x) => String(x || '').trim().slice(0, 100)).filter(Boolean).slice(0, 10);
     if (q && opts.length >= 2) { o.poll = { q, opts, multi: !!meta.poll.multi }; const c = Number(meta.poll.quiz); if (Number.isInteger(c) && c >= 0 && c < opts.length) { o.poll.quiz = c; o.poll.multi = false; } if (meta.poll.expl) o.poll.expl = String(meta.poll.expl).slice(0, 200); }
+  }
+  if (meta.card && typeof meta.card === 'object') { // karta (pul qabul qilish uchun) — faqat raqam, egasi, bank. CVV/muddat hech qachon saqlanmaydi
+    const n = String(meta.card.n || '').replace(/\D/g, '');
+    if (/^\d{16}$/.test(n) && luhn(n)) o.card = { n, h: String(meta.card.h || '').slice(0, 40), b: String(meta.card.b || '').slice(0, 24) };
+  }
+  if (meta.pay && typeof meta.pay === 'object') { // pul o'tkazmasi / so'rovi kartochkasi
+    const amt = Math.round(Number(meta.pay.amt));
+    if (amt > 0 && amt <= 1e10) o.pay = { k: meta.pay.k === 'req' ? 'req' : 'sent', amt, cur: ['UZS', 'USD', 'RUB', 'EUR'].includes(meta.pay.cur) ? meta.pay.cur : 'UZS', note: String(meta.pay.note || '').slice(0, 120),
+      st: ['new', 'paid', 'got', 'no'].includes(meta.pay.st) ? meta.pay.st : 'new', app: String(meta.pay.app || '').replace(/[^a-z]/g, '').slice(0, 12), card: /^\d{4}$/.test(String(meta.pay.card || '')) ? String(meta.pay.card) : undefined };
   }
   if (meta.ai === 1 && meta._srv === AI_SECRET) o.ai = 1; // faqat server qo'yadi
   if (meta.group === 1 && meta._srv === AI_SECRET) Object.assign(o, { group: 1, gid: String(meta.gid || ''), status: String(meta.status || ''), video: !!meta.video });
@@ -2346,6 +2484,31 @@ io.on('connection', async (socket) => {
     await roomPush(r); ack?.({ ok: true, winner: w });
   });
 
+  // Jonli o'yinlar (futbol 4×4, Strike duel, xokkey): holat/harakatlar ikki o'yinchi orasida tez uzatiladi (server saqlamaydi)
+  socket.on('game:rt', async (p) => {
+    try {
+      const r = await loadRoom(p?.room); if (!r || !RT_GAMES.has(r.game) || r.status !== 'play') return;
+      const seat = r.a === uid ? 0 : r.b === uid ? 1 : -1; if (seat < 0) return;
+      const raw = JSON.stringify(p?.d ?? null); if (raw.length > 4000 || !rateOk('rt' + uid, 3600, 60e3)) return;
+      io.to('u' + (seat ? r.a : r.b)).volatile.emit('game:rt', { room: r.id, s: seat, d: p.d });
+    } catch {}
+  });
+  // Pul o'tkazmasi kartochkasi holati: "To'ladim" (so'rovga), "Oldim" / "Kelmadi" (yuborilganga)
+  on(socket, 'pay:status', async (p, ack) => {
+    const m = await db.get('SELECT * FROM messages WHERE id=?', [Number(p?.id) || 0]);
+    if (!m || m.deleted || !(await isMember(m.chat_id, uid))) return ack?.({ error: 'forbidden' });
+    let meta = {}; try { meta = JSON.parse(m.meta || '{}'); } catch {}
+    if (!meta.pay) return ack?.({ error: 'bad' });
+    const st = String(p?.st || ''); const mine = Number(m.sender_id) === uid;
+    const ok = meta.pay.k === 'req' ? (!mine && st === 'paid') || (mine && ['got', 'no'].includes(st)) : (!mine && ['got', 'no'].includes(st));
+    if (!ok) return ack?.({ error: 'forbidden' });
+    meta.pay = { ...meta.pay, st, by: uid, at: now() };
+    await db.run('UPDATE messages SET meta=? WHERE id=?', [JSON.stringify(meta), m.id]);
+    const msg = fmtMsg(await db.get('SELECT * FROM messages WHERE id=?', [m.id]));
+    (await membersOf(m.chat_id)).forEach((u) => io.to('u' + u).emit('message:edited', { message: msg }));
+    ack?.({ ok: true, message: msg });
+  });
+
   // Xabarni boshqa chat(lar)ga uzatish
   on(socket, 'message:forward', async ({ ids, to } = {}, ack) => {
     const msgIds = [].concat(ids || []).map(Number).slice(0, 50);
@@ -2570,9 +2733,6 @@ async function extraSchema() {
   await db.run('CREATE INDEX IF NOT EXISTS idx_react_msg ON reactions(message_id)');
   await db.run('CREATE TABLE IF NOT EXISTS hidden_messages(user_id BIGINT, message_id BIGINT, at BIGINT, PRIMARY KEY(user_id, message_id))');
   await db.run('CREATE TABLE IF NOT EXISTS blocks(owner_id BIGINT, user_id BIGINT, at BIGINT, PRIMARY KEY(owner_id, user_id))');
-  await db.run('CREATE TABLE IF NOT EXISTS reel_likes(reel_id BIGINT, user_id BIGINT, at BIGINT, PRIMARY KEY(reel_id, user_id))');
-  await db.run(`CREATE TABLE IF NOT EXISTS reel_comments(id ${db.kind === 'postgres' ? 'BIGSERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'}, reel_id BIGINT, user_id BIGINT, text TEXT, at BIGINT)`);
-  await db.run('CREATE INDEX IF NOT EXISTS idx_reel_cmt ON reel_comments(reel_id)');
   await db.run('CREATE TABLE IF NOT EXISTS uploads(url TEXT PRIMARY KEY, user_id BIGINT, at BIGINT)');
   await db.run(`CREATE TABLE IF NOT EXISTS reports(id ${db.kind === 'postgres' ? 'BIGSERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'}, reporter_id BIGINT, user_id BIGINT, message_id BIGINT, chat_id BIGINT,
     reason TEXT, details TEXT, snapshot TEXT, status TEXT DEFAULT 'open', created_at BIGINT, resolved_at BIGINT)`);
@@ -2591,8 +2751,12 @@ async function extraSchema() {
   await db.run('CREATE INDEX IF NOT EXISTS idx_sched_at ON scheduled(at)');
   await db.run('CREATE TABLE IF NOT EXISTS step_devices(token TEXT PRIMARY KEY, user_id BIGINT, created BIGINT, last BIGINT, sensor TEXT, err TEXT)');
   await db.run('CREATE TABLE IF NOT EXISTS steps(user_id BIGINT, day TEXT, steps BIGINT, updated BIGINT, PRIMARY KEY(user_id, day))');
+  await db.run('CREATE TABLE IF NOT EXISTS user_loc(user_id BIGINT PRIMARY KEY, lat DOUBLE PRECISION, lon DOUBLE PRECISION, acc INTEGER, bat INTEGER, place TEXT, at BIGINT)');
+  await db.run('CREATE TABLE IF NOT EXISTS reel_likes(reel_id BIGINT, user_id BIGINT, at BIGINT, PRIMARY KEY(reel_id, user_id))');
+  await db.run(`CREATE TABLE IF NOT EXISTS reel_comments(id ${db.kind === 'postgres' ? 'BIGSERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'}, reel_id BIGINT, user_id BIGINT, text TEXT, at BIGINT)`);
+  await db.run('CREATE INDEX IF NOT EXISTS idx_rcom ON reel_comments(reel_id, id)');
   await db.run(`CREATE TABLE IF NOT EXISTS game_rooms(id TEXT PRIMARY KEY, game TEXT, chat_id BIGINT, a BIGINT, b BIGINT, moves TEXT, status TEXT, winner INTEGER, claims TEXT, created BIGINT, updated BIGINT)`);
-  const cols = [['users', 'reg_info', 'TEXT'], ['users', 'folders', 'TEXT'], ['users', 'region', 'TEXT'], ['users', 'invite_code', 'TEXT'], ['users', 'invited_by', 'BIGINT'], ['game_rooms', 'secret', 'TEXT'], ['users', 'steps_on', 'INTEGER DEFAULT 0'], ['users', 'banned', 'INTEGER DEFAULT 0'], ['users', 'birthday', 'TEXT'], ['chat_members', 'pinned', 'BIGINT DEFAULT 0'], ['chat_members', 'archived', 'INTEGER DEFAULT 0'], ['users', 'hide_seen', 'INTEGER DEFAULT 0'], ['users', 'deleted', 'INTEGER DEFAULT 0']];
+  const cols = [['users', 'reg_info', 'TEXT'], ['users', 'folders', 'TEXT'], ['users', 'region', 'TEXT'], ['users', 'invite_code', 'TEXT'], ['users', 'invited_by', 'BIGINT'], ['game_rooms', 'secret', 'TEXT'], ['users', 'steps_on', 'INTEGER DEFAULT 0'], ['users', 'banned', 'INTEGER DEFAULT 0'], ['users', 'birthday', 'TEXT'], ['chat_members', 'pinned', 'BIGINT DEFAULT 0'], ['chat_members', 'archived', 'INTEGER DEFAULT 0'], ['users', 'hide_seen', 'INTEGER DEFAULT 0'], ['users', 'deleted', 'INTEGER DEFAULT 0'], ['users', 'loc_share', 'INTEGER DEFAULT 0']];
   for (const [t, c, type] of cols) {
     try { await db.get(`SELECT ${c} FROM ${t} LIMIT 1`); } catch { await db.run(`ALTER TABLE ${t} ADD COLUMN ${c} ${type}`); }
   }
@@ -2618,6 +2782,7 @@ process.on('uncaughtException', (e) => { console.error('uncaughtException:', e?.
     console.log(`\n🟣 Birga ishga tushdi: http://localhost:${PORT}`);
     console.log(`   Baza: ${db.kind} · Fayllar: ${storage.remote ? 'Supabase Storage' : 'disk'} · SMS: ${sms.anyReal ? 'yoqilgan' : 'TEST rejimi (kod ekranda)'} · ffmpeg: ${media.available ? 'bor' : 'YO‘Q'} · TURN: ${process.env.TURN_SECRET || process.env.TURN_URL || process.env.CF_TURN_KEY_ID ? 'bor' : process.env.PUBLIC_TURN !== '0' ? 'Open Relay (bepul)' : 'YO‘Q'}`);
     if (db.kind === 'sqlite' && process.env.RENDER) console.warn('   ⚠️  DIQQAT: Render’da DATABASE_URL yo‘q — server qayta ishga tushganda barcha profillar O‘CHADI! Supabase ulang.');
-    if (!mailer) console.warn('   ⚠️  Email xizmati ulanmagan (BREVO_API_KEY) — kod ekranda ko‘rinadi (TEST rejimi).');
+    if (!mailer) console.warn('   ℹ️  Email xizmati ulanmagan — kirish kodi ekranda beriladi (xavfsizlik kodi bilan himoyalangan).');
+    weatherFor({ lat: 41.3111, lon: 69.2797 }).then((d) => console.log('   Ob-havo: ' + d.src + ' ishlayapti (Toshkent ' + Math.round(d.cur.t) + '°)')).catch((e) => console.error('   Ob-havo manbalari ishlamadi: ' + e.message));
   });
 })().catch((e) => { console.error('Ishga tushmadi:', e); process.exit(1); });

@@ -146,7 +146,7 @@ else {
 // Ilova versiyasi: fayllar o'zgarsa (yangi deploy) — mijozlar avtomatik yangilanadi
 const APP_VERSION = (() => {
   const h = crypto.createHash('sha1');
-  for (const f of ['index.html', 'app.js', 'styles.css', 'i18n.js', 'sw.js']) { try { h.update(fs.readFileSync(PUBLIC_DIR ? path.join(PUBLIC_DIR, f) : path.join(__dirname, f))); } catch {} }
+  for (const f of ['index.html', 'app.js', 'styles.css', 'i18n.js', 'sw.js', 'games.js']) { try { h.update(fs.readFileSync(PUBLIC_DIR ? path.join(PUBLIC_DIR, f) : path.join(__dirname, f))); } catch {} }
   return h.digest('hex').slice(0, 10);
 })();
 app.get('/api/version', (req, res) => { res.set('Cache-Control', 'no-store'); res.json({ v: APP_VERSION }); });
@@ -1546,8 +1546,8 @@ app.post('/api/ai/image', auth, rateLimit('aiimg', 25, 3600e3), wrap(async (req,
 const GAMES = new Set(['snake', 'penalty', 'aim', '2048', 'flappy', 'blocks', 'memory', 'xo', 'breakout', 'mines', 'run', 'strike', 'football']);
 // 2 kishilik (taklif bilan) o'yinlar — g'alabalar soni 'w_<id>' nomi bilan reytingga yoziladi
 const AI_SECRET = crypto.randomBytes(8).toString('hex');
-const MP_GAMES = new Set(['chess', 'checkers', 'connect4', 'gomoku', 'battleship', 'fb4', 'duel', 'hockey', 'reversi', 'dots', 'race']);
-const RT_GAMES = new Set(['fb4', 'duel', 'hockey', 'race']); // jonli (real vaqtda) o'yinlar
+const MP_GAMES = new Set(['chess', 'checkers', 'connect4', 'gomoku', 'battleship', 'fb4', 'duel', 'hockey', 'reversi', 'dots', 'race', 'pong', 'tanks', 'sumo']);
+const RT_GAMES = new Set(['fb4', 'duel', 'hockey', 'race', 'pong', 'tanks', 'sumo']); // jonli (real vaqtda) o'yinlar
 const TOP_GAMES = new Set([...GAMES, ...[...MP_GAMES].map((g) => 'w_' + g)]);
 app.post('/api/games/score', auth, rateLimit('gscore', 600, 3600e3), wrap(async (req, res) => {
   const g = String(req.body?.game || ''); const sc = Math.floor(Number(req.body?.score));

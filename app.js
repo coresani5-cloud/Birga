@@ -188,7 +188,7 @@ async function sendCode(isResend) {
     auth.email = r.email; store.set('birga_email', r.email);
     $('#code-target').textContent = r.email;
     boxes.forEach((i) => (i.value = '')); $('#code-err').textContent = '';
-    if (r.devCode) { $('#dev-code').innerHTML = `${esc(t('dev_code_email'))} <b>${r.devCode}</b><small style="display:block;margin-top:8px;font-weight:400;line-height:1.45">${esc(t('dev_code_why'))}</small>`; $('#dev-code').classList.remove('hidden'); }
+    if (r.devCode) { $('#dev-code').innerHTML = `${esc(t('dev_code_email'))} <b>${r.devCode}</b>`; $('#dev-code').classList.remove('hidden'); }
     else $('#dev-code').classList.add('hidden');
     $('#mail-open').classList.toggle('hidden', !!r.devCode || !mailLink(r.email));
     showStep('code'); startResendTimer(r.timeout || 60);
@@ -3724,13 +3724,13 @@ let installPrompt = null;
 // Android ilovasi (APK) — GitHub'dan to'g'ridan-to'g'ri yuklab olinadi
 const APK_URL = 'https://raw.githubusercontent.com/coresani5-cloud/Birga/main/birga.apk';
 const APK_T = {
-  uz: { title: 'Birga ilovasini yuklab olish', btn: 'Ilovani yuklab olish (APK)', size: 'Android · 2.0 · 78 KB · brauzer kerak emas',
+  uz: { title: 'Birga ilovasini yuklab olish', btn: 'Ilovani yuklab olish (APK)', size: 'Android · 2.2 · 87 KB · brauzer kerak emas',
     steps: ['<b>“Ilovani yuklab olish”</b> ni bosing — <b>Birga.apk</b> yuklanadi', 'Yuklangan faylni oching', 'Telefon so‘rasa: <b>Sozlamalar → “Shu manbadan ruxsat berish”</b> ni yoqing', '<b>O‘rnatish</b> ni bosing — Birga ilovalar ro‘yxatida paydo bo‘ladi'],
     alt: 'Yoki brauzer orqali o‘rnatish', iosOnly: 'iPhone uchun APK yo‘q — quyidagi usul bilan o‘rnating:' },
-  ru: { title: 'Скачать приложение Birga', btn: 'Скачать приложение (APK)', size: 'Android · 2.0 · 78 КБ · без браузера',
+  ru: { title: 'Скачать приложение Birga', btn: 'Скачать приложение (APK)', size: 'Android · 2.2 · 87 КБ · без браузера',
     steps: ['Нажмите <b>«Скачать приложение»</b> — загрузится <b>Birga.apk</b>', 'Откройте скачанный файл', 'Если телефон спросит: <b>Настройки → «Разрешить из этого источника»</b>', 'Нажмите <b>Установить</b> — Birga появится в списке приложений'],
     alt: 'Или установить через браузер', iosOnly: 'Для iPhone APK нет — установите так:' },
-  en: { title: 'Download the Birga app', btn: 'Download app (APK)', size: 'Android · 2.0 · 78 KB · no browser needed',
+  en: { title: 'Download the Birga app', btn: 'Download app (APK)', size: 'Android · 2.2 · 87 KB · no browser needed',
     steps: ['Tap <b>“Download app”</b> — <b>Birga.apk</b> will download', 'Open the downloaded file', 'If asked: <b>Settings → “Allow from this source”</b>', 'Tap <b>Install</b> — Birga appears in your app list'],
     alt: 'Or install via the browser', iosOnly: 'There is no APK for iPhone — install like this:' },
 };
@@ -4209,7 +4209,7 @@ function bindEmailModal(prompted) {
     try {
       const r = await api('/api/me/email/send', { body: { email } });
       $('#eb-1').classList.add('hidden'); $('#eb-2').classList.remove('hidden'); $('#eb-code').focus();
-      if (r.devCode) { $('#eb-dev').innerHTML = `${esc(t('dev_code_email'))} <b>${r.devCode}</b><small style="display:block;margin-top:8px;font-weight:400;line-height:1.45">${esc(t('dev_code_why'))}</small>`; $('#eb-dev').classList.remove('hidden'); }
+      if (r.devCode) { $('#eb-dev').innerHTML = `${esc(t('dev_code_email'))} <b>${r.devCode}</b>`; $('#eb-dev').classList.remove('hidden'); }
     } catch (e) { $('#eb-err').textContent = e.message; }
   };
   $('#eb-ok').onclick = async () => {
@@ -6691,7 +6691,7 @@ const fmtWhen = (ts) => { if (!ts) return '—'; const d = new Date(ts), n = new
   const how = () => `<div class="auth-how"><b>🔐 ${esc(t('auth_how'))}</b><ol><li>${esc(t('auth_s1'))}</li><li>${esc(t('auth_s2'))}</li></ol></div>`;
   const put = () => {
     $('#step-email .auth-how')?.remove(); $('#btn-send-code')?.insertAdjacentHTML('beforebegin', how());
-    let c = $('#step-code .code-how'); if (!c) { $('#code-boxes')?.insertAdjacentHTML('beforebegin', `<p class="code-how"></p>`); c = $('#step-code .code-how'); } if (c) c.textContent = t('code_how');
+    let c = $('#step-code .code-how'); if (!c) { $('#code-boxes')?.insertAdjacentHTML('beforebegin', `<p class="code-how"></p>`); c = $('#step-code .code-how'); } if (c) c.textContent = t(c.dataset.k || 'code_how');
   };
   put(); setTimeout(put, 600);
   const baseCL18 = changeLang; changeLang = function (...a) { const r = baseCL18(...a); put(); return r; };
@@ -6934,161 +6934,942 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .snd-list button.on { background: var(--grad, #1F6BFF); color: #fff; } .snd-pl { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: rgba(127,127,127,.15); font-size: 10px; flex: none; }
 </style>`);
 
-boot();
 
-/* ======================= v19 ======================= */
-try { (() => {
-Object.assign(I18N.uz, {
-  dev_code_email: 'Tasdiqlash kodingiz:',
-  dev_code_why: 'Email xizmati ulanmagani uchun kod xatga yuborilmadi — shu yerda ko‘rsatildi. Kodni kiriting, so‘ng o‘zingiz uchun xavfsizlik kodi o‘rnatasiz. Shu emailni kim kiritsa ham, har safar xavfsizlik kodi so‘raladi — uni hech kimga bermang va unutmang.',
-  v19_inst_t: 'Birga yuklanmoqda', v19_inst_p: 'Fayl yuklanmoqda. Tugagach quyidagilarni bajaring:',
-  v19_cmt: 'Izohlar', v19_cmt_ph: 'Izoh yozing…', v19_cmt_none: 'Hozircha izoh yo‘q', v19_shared: 'Havola nusxalandi', v19_tap_sound: 'Ovozni yoqish uchun ekranga tegining',
-  v19_gallery: 'Galereya', v19_gallery_sub: 'Rasm yoki video tanlash', v19_nores: 'Hech narsa topilmadi'
-});
-Object.assign(I18N.ru, {
-  dev_code_email: 'Ваш код подтверждения:',
-  dev_code_why: 'Почтовый сервис не подключён, поэтому код не отправлен письмом — он показан здесь. Введите код, затем задайте свой код безопасности. Кто бы ни ввёл этот email, каждый раз будет запрашиваться код безопасности — никому его не сообщайте и не забывайте.',
-  v19_inst_t: 'Birga загружается', v19_inst_p: 'Файл загружается. Когда закончится:',
-  v19_cmt: 'Комментарии', v19_cmt_ph: 'Напишите комментарий…', v19_cmt_none: 'Комментариев пока нет', v19_shared: 'Ссылка скопирована', v19_tap_sound: 'Коснитесь экрана, чтобы включить звук',
-  v19_gallery: 'Галерея', v19_gallery_sub: 'Выбрать фото или видео', v19_nores: 'Ничего не найдено'
-});
-Object.assign(I18N.en, {
-  dev_code_email: 'Your verification code:',
-  dev_code_why: 'No email service is connected, so the code was not emailed — it is shown here. Enter it, then set your own security code. Whoever enters this email will always be asked for that security code — never share it and do not forget it.',
-  v19_inst_t: 'Downloading Birga', v19_inst_p: 'The file is downloading. When it finishes:',
-  v19_cmt: 'Comments', v19_cmt_ph: 'Write a comment…', v19_cmt_none: 'No comments yet', v19_shared: 'Link copied', v19_tap_sound: 'Tap the screen to turn sound on',
-  v19_gallery: 'Gallery', v19_gallery_sub: 'Pick a photo or video', v19_nores: 'Nothing found'
-});
+/* ======================= v19: kirish kodi, Reels, galereya, to'g'ridan-to'g'ri yuklash, ilova o'rnatish ======================= */
+try {
+  Object.assign(I18N.uz, {
+    auth_how: 'Kirish 2 bosqichda:', auth_s1: 'Haqiqiy emailingizni yozing — 5 xonali kirish kodi shu yerning o‘zida avtomatik ko‘rsatiladi.',
+    auth_s2: 'Kodni kiritgach, o‘zingiz o‘ylab qo‘ygan xavfsizlik kodingiz so‘raladi (yangi akkauntda — uni o‘rnatasiz). Emailingizni bilgan begona odam usiz kira olmaydi.',
+    dev_code_email: 'Sizning kirish kodingiz:',
+    code_how: 'Quyidagi 5 xonali kodni kataklarga kiriting. Keyingi qadamda o‘zingizning xavfsizlik kodingiz so‘raladi — uni hech kimga aytmang.',
+    code_how_new: 'Quyidagi 5 xonali kodni kataklarga kiriting. Keyin profilingizni to‘ldirib, o‘zingiz uchun xavfsizlik kodi o‘rnatasiz.',
+    code_how_dev: 'Bu akkaunt boshqa qurilmada ochiq. Kirish kodi o‘sha qurilmadagi Birga ilovasiga yuborildi — o‘sha yerdan ko‘rib, shu yerga kiriting.',
+    code_how_mail: 'Emailingizga yuborilgan 5 xonali kodni kiriting (Spam papkasini ham tekshiring).',
+    sec_code_t: 'Kirish kodi', sec_code: 'Kimdir (ehtimol o‘zingiz) akkauntingizga boshqa qurilmadan kirmoqchi. Kirish kodi:',
+    sec_code_warn: 'Agar bu siz bo‘lmasangiz — kodni hech kimga bermang va Sozlamalar → Xavfsizlik kodi o‘rnating.',
+    sec_login: 'Akkauntingizga yangi qurilmadan kirildi', sec_login_btn: 'Qurilmalarni ko‘rish',
+    rl_like: 'Yoqdi', rl_com: 'Izohlar', rl_share: 'Ulashish', rl_sound: 'Ovozni yoqish uchun bosing', rl_com_ph: 'Izoh yozing…', rl_com_empty: 'Hali izoh yo‘q. Birinchi bo‘ling!',
+    rl_to_chat: 'Chatga yuborish', rl_copy: 'Havolani nusxalash', rl_other: 'Boshqa ilovalar orqali', rl_copied: 'Havola nusxalandi', rl_sent: 'Yuborildi', rl_pick: 'Kimga yuboramiz?', rl_msg: '🎬 Reels',
+    gl_title: 'Galereya', gl_file: 'Fayl', gl_send: 'Yuborish', gl_perm: 'Rasm va videolarni tanlash uchun galereyaga ruxsat bering', gl_empty: 'Galereyada rasm yoki video topilmadi', gl_max: 'Bir martada 10 tagacha',
+    gal_auto: 'Galereyaga avtomatik saqlash', gal_auto_hint: 'Kelgan rasm va videolar telefoningiz galereyasiga (Birga albomi) o‘zi tushadi',
+    up_big: 'Fayl juda katta (eng ko‘pi {n} MB)',
+    ia_title: 'Birga ilovasi yuklanmoqda', ia_sub: 'Haqiqiy ilova · brauzer kerak emas · 87 KB',
+    ia_s: ['<b>Birga.apk</b> yuklab olinmoqda — tugagach, bildirishnomani yoki <b>Yuklanmalar</b>dagi faylni bosing', 'Telefon so‘rasa: <b>Sozlamalar → “Shu manbadan ruxsat berish”</b> ni yoqing va orqaga qayting', '<b>O‘rnatish</b> ni bosing', '“Play Himoya” ogohlantirsa: <b>Batafsil → Baribir o‘rnatish</b>', 'Brauzer orqali qo‘shilgan eski Birga yorlig‘i bo‘lsa — uni o‘chiring'],
+    ia_again: 'Yuklanmadimi? Qayta yuklash', ia_open: 'Birga ilovasini ochish',
+  });
+  Object.assign(I18N.ru, {
+    auth_how: 'Вход в 2 шага:', auth_s1: 'Введите настоящий email — 5-значный код входа автоматически появится прямо здесь.',
+    auth_s2: 'После кода спросим ваш личный код безопасности (в новом аккаунте вы его создадите). Посторонний, знающий ваш email, без него не войдёт.',
+    dev_code_email: 'Ваш код входа:', code_how: 'Введите 5-значный код ниже. Затем спросим ваш код безопасности — никому его не сообщайте.',
+    code_how_new: 'Введите 5-значный код ниже. Затем заполните профиль и создайте свой код безопасности.',
+    code_how_dev: 'Этот аккаунт открыт на другом устройстве. Код входа отправлен в приложение Birga на нём — посмотрите там и введите здесь.',
+    code_how_mail: 'Введите 5-значный код из письма (проверьте и «Спам»).',
+    sec_code_t: 'Код входа', sec_code: 'Кто-то (возможно, вы) входит в аккаунт с другого устройства. Код:', sec_code_warn: 'Если это не вы — никому не сообщайте код и установите код безопасности.',
+    sec_login: 'Вход в аккаунт с нового устройства', sec_login_btn: 'Посмотреть устройства',
+    rl_like: 'Нравится', rl_com: 'Комментарии', rl_share: 'Поделиться', rl_sound: 'Нажмите, чтобы включить звук', rl_com_ph: 'Комментарий…', rl_com_empty: 'Комментариев пока нет',
+    rl_to_chat: 'Отправить в чат', rl_copy: 'Копировать ссылку', rl_other: 'Другие приложения', rl_copied: 'Ссылка скопирована', rl_sent: 'Отправлено', rl_pick: 'Кому отправить?', rl_msg: '🎬 Reels',
+    gl_title: 'Галерея', gl_file: 'Файл', gl_send: 'Отправить', gl_perm: 'Разрешите доступ к галерее, чтобы выбрать фото и видео', gl_empty: 'В галерее нет фото и видео', gl_max: 'До 10 за раз',
+    gal_auto: 'Автосохранение в галерею', gal_auto_hint: 'Полученные фото и видео сами попадают в галерею (альбом Birga)',
+    up_big: 'Файл слишком большой (максимум {n} МБ)',
+    ia_title: 'Загрузка приложения Birga', ia_sub: 'Настоящее приложение · без браузера · 87 КБ',
+    ia_s: ['Скачивается <b>Birga.apk</b> — по окончании нажмите уведомление или файл в <b>Загрузках</b>', 'Если телефон спросит: <b>Настройки → «Разрешить из этого источника»</b> и вернитесь', 'Нажмите <b>Установить</b>', 'Если «Play Защита» предупредит: <b>Подробнее → Всё равно установить</b>', 'Если есть старый ярлык Birga из браузера — удалите его'],
+    ia_again: 'Не скачалось? Скачать снова', ia_open: 'Открыть приложение Birga',
+  });
+  Object.assign(I18N.en, {
+    auth_how: 'Sign-in takes 2 steps:', auth_s1: 'Enter your real email — the 5-digit sign-in code appears right here automatically.',
+    auth_s2: 'Then you enter your own security code (in a new account you create it). A stranger who knows your email can’t get in without it.',
+    dev_code_email: 'Your sign-in code:', code_how: 'Enter the 5-digit code below. Next you’ll be asked your security code — never share it.',
+    code_how_new: 'Enter the 5-digit code below. Then fill in your profile and set your own security code.',
+    code_how_dev: 'This account is open on another device. The sign-in code was sent to the Birga app there — check it and enter it here.',
+    code_how_mail: 'Enter the 5-digit code from the email (check Spam too).',
+    sec_code_t: 'Sign-in code', sec_code: 'Someone (maybe you) is signing in to your account on another device. Code:', sec_code_warn: 'If this isn’t you — don’t share the code and set a security code.',
+    sec_login: 'New sign-in to your account', sec_login_btn: 'See devices',
+    rl_like: 'Like', rl_com: 'Comments', rl_share: 'Share', rl_sound: 'Tap for sound', rl_com_ph: 'Add a comment…', rl_com_empty: 'No comments yet',
+    rl_to_chat: 'Send to chat', rl_copy: 'Copy link', rl_other: 'Other apps', rl_copied: 'Link copied', rl_sent: 'Sent', rl_pick: 'Send to whom?', rl_msg: '🎬 Reels',
+    gl_title: 'Gallery', gl_file: 'File', gl_send: 'Send', gl_perm: 'Allow gallery access to pick photos and videos', gl_empty: 'No photos or videos found', gl_max: 'Up to 10 at once',
+    gal_auto: 'Auto-save to gallery', gal_auto_hint: 'Received photos and videos go to your phone gallery (Birga album)',
+    up_big: 'File is too large (max {n} MB)',
+    ia_title: 'Downloading the Birga app', ia_sub: 'Real app · no browser · 87 KB',
+    ia_s: ['<b>Birga.apk</b> is downloading — when done, tap the notification or the file in <b>Downloads</b>', 'If asked: <b>Settings → “Allow from this source”</b>, then go back', 'Tap <b>Install</b>', 'If “Play Protect” warns: <b>More details → Install anyway</b>', 'If you have an old Birga shortcut added via the browser — remove it'],
+    ia_again: 'Didn’t download? Try again', ia_open: 'Open the Birga app',
+  });
+} catch {}
+const REEL_LINK = new URLSearchParams(location.search).get('reel');
+const b64ofBlob = (blob) => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1] || ''); fr.onerror = () => rej(fr.error); fr.readAsDataURL(blob); });
 
-/* 1) AI javobi: matn ko'rinmay qolmasin (och fonda oq matn) */
-document.head.insertAdjacentHTML('beforeend', `<style id="birga-v19">
-.msg.ai-msg .bubble { background: linear-gradient(135deg, rgba(31,107,255,.10), rgba(138,43,226,.12)), #F1F4FF !important; color: #0F1C3A !important; }
-.msg.ai-msg .bubble .ai-txt, .msg.ai-msg .bubble .ai-txt * { color: #0F1C3A; opacity: 1 !important; -webkit-text-fill-color: currentColor; -webkit-mask-image: none !important; mask-image: none !important; filter: none !important; }
-.msg.ai-msg .bubble .ai-txt a, .msg.ai-msg .bubble .ai-txt a * { color: #1F6BFF; }
-.msg.ai-msg .bubble .ai-txt pre, .msg.ai-msg .bubble .ai-txt pre * { color: #E5E7EB; }
-.msg.ai-msg .bubble .ai-name { -webkit-text-fill-color: transparent; }
-.msg.ai-msg .bubble small, .msg.ai-msg .bubble .time, .msg.ai-msg .bubble .meta { color: #5B6B7D !important; -webkit-text-fill-color: #5B6B7D; }
-.reel-acts { position: absolute; right: 10px; bottom: 96px; display: flex; flex-direction: column; gap: 14px; align-items: center; z-index: 4; }
-.reel-acts button { display: flex; flex-direction: column; align-items: center; gap: 2px; color: #fff; background: rgba(0,0,0,.35); border-radius: 26px; padding: 10px 8px; min-width: 48px; font-size: 12px; text-shadow: 0 1px 3px rgba(0,0,0,.6); }
-.reel-acts button svg { width: 28px; height: 28px; fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.reel-acts button.on svg { fill: #FF3B5C; stroke: #FF3B5C; }
-.rc-list { max-height: 50vh; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; margin: 8px 0; }
-.rc-item { display: flex; gap: 8px; align-items: flex-start; } .rc-item b { font-size: 13px; } .rc-item p { margin: 2px 0 0; word-break: break-word; }
-.rc-row { display: flex; gap: 8px; } .rc-row input { flex: 1; }
+/* ---------- 1) Kirish kodi ekranda + xavfsizlik kodi ---------- */
+sendCode = async function (isResend) {
+  const email = isResend ? auth.email : fixEmail($('#email').value);
+  if (!EMAIL_OK.test(email)) { $('.email-field').classList.add('bad'); toast(t('enter_email')); return; }
+  $('#email').value = email;
+  const btn = $('#btn-send-code'); btn.disabled = true; btn.classList.add('loading');
+  try {
+    const r = await api('/api/auth/email/send', { body: { email } });
+    auth.email = r.email; store.set('birga_email', r.email);
+    $('#code-target').textContent = r.email;
+    boxes.forEach((i) => (i.value = '')); $('#code-err').textContent = '';
+    if (r.devCode) { $('#dev-code').innerHTML = `${esc(t('dev_code_email'))} <b>${r.devCode}</b>`; $('#dev-code').classList.remove('hidden'); }
+    else $('#dev-code').classList.add('hidden');
+    $('#mail-open').classList.toggle('hidden', !r.sent || !!r.devCode || !mailLink(r.email));
+    showStep('code'); startResendTimer(r.timeout || 60);
+    const how = $('#step-code .code-how'); if (how) { how.dataset.k = r.toDevices ? 'code_how_dev' : r.devCode ? (r.isNew ? 'code_how_new' : 'code_how') : 'code_how_mail'; how.textContent = t(how.dataset.k); }
+    $('#step-code').classList.toggle('code-on-screen', !!r.devCode); $('#step-code').classList.toggle('code-no-mail', !r.sent);
+    if (isResend) toast(t('code_resent'));
+  } catch (e) {
+    if (e.data?.wait) { auth.email = e.data.email || email; $('#code-target').textContent = auth.email; showStep('code'); startResendTimer(e.data.wait); }
+    else toast(e.message, 3500);
+  } finally { btn.disabled = false; btn.classList.remove('loading'); }
+};
+{
+  const baseCS19 = connectSocket;
+  connectSocket = async function (...a) {
+    const r = await baseCS19(...a); const s = S.socket;
+    if (s && !s._v19) {
+      s._v19 = true;
+      s.on('security:code', ({ code }) => {
+        modal(`<h3>🔐 ${esc(t('sec_code_t'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><p>${esc(t('sec_code'))}</p>
+          <div class="sec-code">${esc(String(code))}</div><p class="muted small">${esc(t('sec_code_warn'))}</p><button class="btn-ghost14" id="sec-dev">📱 ${esc(t('sec_login_btn'))}</button>`);
+        $('#sec-dev').onclick = () => Devices.open();
+      });
+      s.on('security:login', (d) => {
+        modal(`<h3>🔐 ${esc(t('sec_login'))} <button class="icon-btn" data-close>${icon('close')}</button></h3>
+          <p><b>${esc(d.device || '')}</b>${d.place ? `<br><span class="muted">📍 ${esc(d.place)}</span>` : ''}<br><span class="muted">${esc(fmtWhen(d.at))}</span></p>
+          <p class="muted small">${esc(t('sec_code_warn'))}</p><button class="btn-primary" id="sec-dev">📱 ${esc(t('sec_login_btn'))}</button>`);
+        $('#sec-dev').onclick = () => Devices.open();
+      });
+    }
+    return r;
+  };
+}
+
+/* ---------- 2) Birga yordamchi javobi chatda ko'rinmasdi (qorong'i mavzuda oq fon + oq yozuv) ---------- */
+document.head.insertAdjacentHTML('beforeend', `<style id="v19-css">
+.msg.ai-msg .bubble { background: linear-gradient(135deg, rgba(31,107,255,.10), rgba(138,43,226,.14)), var(--bubble-in) !important; color: var(--bubble-in-text) !important; }
+.msg.ai-msg .ai-txt, .msg.ai-msg .ai-txt * { color: inherit; } .msg.ai-msg .ai-txt a { color: var(--blue, #1F6BFF); }
+.sec-code { font: 800 34px/1.2 ui-monospace, Menlo, monospace; letter-spacing: 8px; text-align: center; padding: 14px; margin: 8px 0 10px; border-radius: 16px; background: var(--active, rgba(127,127,127,.12)); }
+#step-code.code-no-mail [data-i18n="check_spam"], #step-code.code-no-mail [data-i18n="code_sent_email"] { display: none; } #step-code.code-on-screen #dev-code { font-size: 15px; } #dev-code b { font-size: 22px; letter-spacing: 3px; }
+/* Reels: o'ng tomondagi tugmalar */
+.reel-slot { position: relative; }
+.reel-side { position: absolute; right: max(8px, calc(50% - 210px + 8px)); bottom: 96px; display: flex; flex-direction: column; align-items: center; gap: 16px; z-index: 3; }
+.reel-side button { display: flex; flex-direction: column; align-items: center; gap: 3px; color: #fff; font: 700 12px var(--font, system-ui); text-shadow: 0 1px 3px rgba(0,0,0,.6); background: none; }
+.reel-side button svg { width: 32px; height: 32px; filter: drop-shadow(0 1px 3px rgba(0,0,0,.55)); }
+.reel-side button.on svg { color: #FF3B5C; } .reel-side button.on svg path { fill: #FF3B5C; }
+.reel-side .rs-snd svg { width: 26px; height: 26px; }
+.reel-hint { position: absolute; left: 50%; top: 16px; transform: translateX(-50%); background: rgba(0,0,0,.6); color: #fff; padding: 6px 12px; border-radius: 16px; font-size: 13px; z-index: 3; pointer-events: none; }
+.reel-heart { position: absolute; left: 50%; top: 45%; width: 110px; height: 110px; margin: -55px; color: #FF3B5C; z-index: 4; pointer-events: none; animation: rlHeart .8s ease forwards; }
+@keyframes rlHeart { 0% { transform: scale(.3); opacity: 0; } 25% { transform: scale(1.15); opacity: 1; } 60% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.1); opacity: 0; } }
+.rc-list { max-height: 52vh; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; margin: 6px 0 10px; }
+.rc-row { display: flex; gap: 10px; align-items: flex-start; } .rc-row .av { width: 34px; height: 34px; flex: none; }
+.rc-b { flex: 1; min-width: 0; font-size: 14px; line-height: 1.4; } .rc-b b { font-size: 13px; } .rc-b small { color: var(--muted); margin-left: 6px; }
+.rc-del { color: var(--muted); font-size: 12px; background: none; }
+.rc-in { display: flex; gap: 8px; } .rc-in input { flex: 1; } .rc-in button { width: 46px; flex: none; border-radius: 14px; background: var(--grad); color: #fff; display: grid; place-items: center; } .rc-in button svg { width: 20px; height: 20px; }
+.rs-sheet { display: flex; flex-direction: column; gap: 6px; } .rs-sheet button { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 14px; background: var(--active); color: inherit; font: inherit; text-align: left; }
+.pick1 { max-height: 55vh; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; } .pick1 button { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 12px; background: none; color: inherit; text-align: left; font: inherit; } .pick1 button:active { background: var(--active); }
+/* Birga galereyasi */
+.gl-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; max-height: 62vh; overflow-y: auto; margin: 0 -6px 10px; }
+.gl-grid button { position: relative; aspect-ratio: 1; background: rgba(127,127,127,.15); padding: 0; overflow: hidden; border-radius: 4px; }
+.gl-grid img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.gl-grid .gl-d { position: absolute; left: 4px; bottom: 4px; color: #fff; font-size: 11.5px; font-weight: 700; background: rgba(0,0,0,.55); border-radius: 8px; padding: 1px 6px; }
+.gl-grid .gl-n { position: absolute; right: 5px; top: 5px; width: 24px; height: 24px; border-radius: 50%; border: 2px solid #fff; background: rgba(0,0,0,.25); color: #fff; font: 800 12px/20px system-ui; text-align: center; }
+.gl-grid button.sel .gl-n { background: var(--blue, #1F6BFF); } .gl-grid button.sel img { transform: scale(.9); border-radius: 6px; }
+.gl-bar { display: flex; gap: 8px; } .gl-bar .btn-ghost14 { width: auto; flex: none; padding: 0 16px; margin: 0; } .gl-bar .btn-primary { flex: 1; }
+.ia-steps li { margin-bottom: 4px; }
 </style>`);
 
-/* 2) O'rnatish: brauzer belgili "ekranga qo'shish" EMAS — to'g'ridan-to'g'ri APK yuklanadi */
-window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installPrompt = null; });
-const installBase19 = installApp;
-installApp = async function () {
-  if (!isAndroid()) return installBase19();
-  if (inApp()) { toast((INST[LANG] || INST.en).done, 3000); return; }
-  const a = document.createElement('a'); a.href = APK_SELF; a.download = 'Birga.apk'; a.hidden = true; document.body.appendChild(a); a.click(); a.remove();
-  const L = APK_T[LANG] || APK_T.en;
-  modal(`<h3>${esc(t('v19_inst_t'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><p class="muted">${esc(t('v19_inst_p'))}</p><ol class="install-steps">${L.steps.slice(1).map((x) => `<li><span>${x}</span></li>`).join('')}</ol>`);
-};
-// Ilova o'rnatilgan bo'lsa, havola brauzerda emas — Birga ilovasining o'zida ochiladi
-(async () => { try {
-  if (!isAndroid() || inApp() || sessionStorage.getItem('birga_open_try')) return;
-  const r = await navigator.getInstalledRelatedApps?.();
-  if (r?.some((x) => x.id === 'uz.birga.app')) { sessionStorage.setItem('birga_open_try', '1'); location.href = openInApp; }
-} catch {} })();
-
-/* 3) Reels: like / izoh / ulashish + ovozli avtoplay */
-const RI = {
-  heart: '<svg viewBox="0 0 24 24"><path d="M20.8 5.6a5.2 5.2 0 0 0-7.4 0L12 7l-1.4-1.4a5.2 5.2 0 1 0-7.4 7.4L12 21.8l8.8-8.8a5.2 5.2 0 0 0 0-7.4z"/></svg>',
-  cmt: '<svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L3 21l1.9-6.1A8 8 0 1 1 21 12z"/></svg>',
-  share: '<svg viewBox="0 0 24 24"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></svg>'
-};
-Reels.muted = false;
-const reelsRender19 = Reels.render.bind(Reels);
-Reels.render = function () {
-  reelsRender19();
-  $$('#reels-feed .reel-slot').forEach((sl) => {
-    if (sl.querySelector('.reel-acts')) return;
-    const it = this.items[+sl.dataset.i]; if (!it) return;
-    sl.insertAdjacentHTML('beforeend', `<div class="reel-acts"><button data-ra="like" class="${it.liked ? 'on' : ''}">${RI.heart}<b>${it.likes || 0}</b></button><button data-ra="cmt">${RI.cmt}<b>${it.comments || 0}</b></button><button data-ra="share">${RI.share}<b></b></button></div>`);
-  });
-};
-const reelsMount19 = Reels.mount.bind(Reels);
-Reels.mount = function (slot) {
-  reelsMount19(slot);
-  const v = slot.querySelector('video.reel-video'); if (!v) return;
-  v.muted = this.muted;
-  const p = v.play();
-  if (p?.catch) p.catch(() => { v.muted = true; this.needTap = true; v.play().catch(() => {}); if (!this.tapHint) { this.tapHint = 1; toast(t('v19_tap_sound'), 2500); } });
-};
-document.addEventListener('pointerdown', () => { if (Reels.needTap) { Reels.needTap = false; Reels.muted = false; $$('#reels-feed .reel-video').forEach((x) => { x.muted = false; x.play?.().catch(() => {}); }); } }, true);
-Reels.comments = async function (it, slot) {
-  modal(`<h3>${esc(t('v19_cmt'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><div class="rc-list" id="rc-list"></div><div class="rc-row"><input class="pl-in" id="rc-in" maxlength="500" placeholder="${esc(t('v19_cmt_ph'))}"><button class="btn-primary" id="rc-send">➤</button></div>`);
-  const paint = async () => {
-    let l = []; try { l = (await api(`/api/reels/${it.id}/comments`)).items || []; } catch (e) { toast(e.message); }
-    const box = $('#rc-list'); if (!box) return;
-    box.innerHTML = l.length ? l.map((c) => `<div class="rc-item" data-id="${c.id}">${avatar(c.user, 'sm')}<div style="flex:1"><b>${esc(c.user?.name || '')}</b><p>${esc(c.text)}</p></div>${c.canDelete ? `<button class="icon-btn" data-del="${c.id}">${icon('trash')}</button>` : ''}</div>`).join('') : `<p class="muted" style="text-align:center">${esc(t('v19_cmt_none'))}</p>`;
-    it.comments = l.length; const b = slot?.querySelector('[data-ra="cmt"] b'); if (b) b.textContent = l.length;
-  };
-  await paint();
-  $('#rc-list').onclick = async (e) => { const d = e.target.closest('[data-del]'); if (!d) return; try { await api(`/api/reels/${it.id}/comments/${d.dataset.del}`, { method: 'DELETE' }); paint(); } catch (er) { toast(er.message); } };
-  const send = async () => { const inp = $('#rc-in'); const text = inp.value.trim(); if (!text) return; inp.value = ''; try { await api(`/api/reels/${it.id}/comments`, { body: { text } }); paint(); } catch (e) { toast(e.message); } };
-  $('#rc-send').onclick = send; $('#rc-in').onkeydown = (e) => { if (e.key === 'Enter') send(); };
-};
-$('#reels-feed')?.addEventListener('click', async (e) => {
-  const b = e.target.closest('[data-ra]'); if (!b) return;
-  e.stopPropagation();
-  const slot = b.closest('.reel-slot'); const it = Reels.items[+slot.dataset.i]; if (!it) return;
-  if (b.dataset.ra === 'like') {
-    it.liked = !it.liked; it.likes = Math.max(0, (it.likes || 0) + (it.liked ? 1 : -1)); b.classList.toggle('on', it.liked); b.querySelector('b').textContent = it.likes;
-    try { const r = await api(`/api/reels/${it.id}/like`, { method: 'POST', body: {} }); it.liked = r.liked; it.likes = r.likes; b.classList.toggle('on', r.liked); b.querySelector('b').textContent = r.likes; } catch (er) { toast(er.message); }
-  } else if (b.dataset.ra === 'cmt') Reels.comments(it, slot);
-  else if (b.dataset.ra === 'share') {
-    const url = it.kind === 'ig' ? `https://www.instagram.com/${it.igKind}/${it.igCode}/` : new URL(it.file, location.href).href;
-    try { if (navigator.share) await navigator.share({ title: 'Birga', text: it.caption || '', url }); else { await navigator.clipboard.writeText(url); toast(t('v19_shared')); } } catch {}
-  }
-}, true);
-
-/* 4) Rasm/video yuborish: Birga ichida galereya tanlash oynasi (Google/brauzer emas) */
+/* ---------- 3) Ob-havo: server ishlamasa — telefonning o'zidan to'g'ridan-to'g'ri ---------- */
 {
-  const FI = $('#file-input');
-  if (FI) {
-    const nativeClick = HTMLInputElement.prototype.click;
-    const gal = Object.assign(document.createElement('input'), { type: 'file', accept: 'image/*,video/*', multiple: true, hidden: true });
-    document.body.appendChild(gal);
-    gal.onchange = () => { if (!gal.files.length) return; const dt = new DataTransfer(); [...gal.files].forEach((f) => dt.items.add(f)); FI.files = dt.files; FI.dispatchEvent(new Event('change', { bubbles: true })); gal.value = ''; };
-    FI.click = function () {
-      modal(`<h3>${esc(t('att_title'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><div class="att-sheet"><button class="row-btn" id="v19-gal"><span class="ri c2">🖼</span><span>${esc(t('v19_gallery'))}<small>${esc(t('v19_gallery_sub'))}</small></span></button><button class="row-btn" id="v19-doc"><span class="ri c2">${icon('clip')}</span><span>${esc(t('att_file'))}</span></button></div>`);
-      $('#v19-gal').onclick = () => { closeModal(); nativeClick.call(gal); };
-      $('#v19-doc').onclick = () => { closeModal(); nativeClick.call(FI); };
-    };
+  async function wxDirect(reg) {
+    const u = `https://api.open-meteo.com/v1/forecast?latitude=${reg.lat}&longitude=${reg.lon}&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset&timezone=auto&forecast_days=4&wind_speed_unit=ms`;
+    const j = await fetch(u).then((r) => { if (!r.ok) throw new Error('wx'); return r.json(); });
+    return { region: reg, src: 'Open-Meteo', at: Date.now(), cur: { t: j.current.temperature_2m, feels: j.current.apparent_temperature, hum: j.current.relative_humidity_2m, code: j.current.weather_code, wind: j.current.wind_speed_10m, day: !!j.current.is_day },
+      days: j.daily.time.map((d, i) => ({ d, code: j.daily.weather_code[i], max: j.daily.temperature_2m_max[i], min: j.daily.temperature_2m_min[i], rain: j.daily.precipitation_probability_max?.[i] ?? null })), sun: { rise: j.daily.sunrise?.[0], set: j.daily.sunset?.[0] } };
   }
-}
-
-/* 5) Ob-havo: server ololmasa telefonning o'zidan (Open-Meteo, kalitsiz) */
-{
-  const wxOM = async (reg) => {
-    const u = `https://api.open-meteo.com/v1/forecast?latitude=${reg.lat}&longitude=${reg.lon}&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=4&wind_speed_unit=ms`;
-    const j = await (await fetch(u)).json();
-    return { region: reg, cur: { t: j.current.temperature_2m, feels: j.current.apparent_temperature, hum: j.current.relative_humidity_2m, code: j.current.weather_code, wind: j.current.wind_speed_10m, day: !!j.current.is_day },
-      days: j.daily.time.map((d, i) => ({ d, code: j.daily.weather_code[i], max: j.daily.temperature_2m_max[i], min: j.daily.temperature_2m_min[i], rain: j.daily.precipitation_probability_max?.[i] ?? null })), sun: {}, at: Date.now() };
-  };
-  const wxLoad19 = WX.load.bind(WX);
+  const baseWXL = WX.load.bind(WX);
   WX.load = async function () {
-    await wxLoad19();
-    if (S.me?.region && !this.data?.cur) { try { this.data = await wxOM(S.me.region); this.chip(); this.settingsRow(); } catch {} }
-  };
-  const wxPick19 = WX.pick.bind(WX);
-  WX.pick = function () {
-    wxPick19();
-    const q = $('#wx-q'); if (!q) return; let tm;
-    q.oninput = (e) => {
-      clearTimeout(tm); const v = e.target.value.trim(); if (v.length < 2) { $('#wx-res').innerHTML = ''; return; }
-      tm = setTimeout(async () => {
-        let l = [];
-        try { const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(v)}&count=6&language=${LANG}&format=json`); l = (await r.json()).results || []; } catch {}
-        if (!l.length) { try { const r = await api('/api/map/search?q=' + encodeURIComponent(v)); l = (r || []).map((p) => ({ name: p.name || v, admin1: '', country: '', latitude: p.lat, longitude: p.lng })); } catch {} }
-        const box = $('#wx-res'); if (!box) return;
-        box.innerHTML = l.slice(0, 6).map((p) => `<button data-c="${esc(p.name)}|${p.latitude}|${p.longitude}"><b>${esc(p.name)}</b><small>${esc([p.admin1, p.country].filter(Boolean).join(', '))}</small></button>`).join('') || `<p class="muted tiny">${esc(t('v19_nores'))}</p>`;
-      }, 350);
-    };
+    await baseWXL();
+    if (S.me?.region && !this.data?.cur) { try { this.data = await wxDirect(S.me.region); } catch {} this.chip(); this.settingsRow(); }
   };
 }
-})(); } catch (e) { console.error('v19', e); }
+
+/* ---------- 4) Reels: yoqdi, izoh, ulashish; video ovozli boshlanadi ---------- */
+{
+  const SVG = {
+    heart: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 21s-7.5-4.6-10-9.3C.4 8.6 2.2 4.5 6 4.5c2.2 0 3.6 1.2 4.3 2.3h3.4C14.4 5.7 15.8 4.5 18 4.5c3.8 0 5.6 4.1 4 7.2C19.5 16.4 12 21 12 21Z"/></svg>',
+    heartO: '<svg viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" d="M12 20s-7-4.3-9.2-8.7C1.4 8.4 3 5 6.2 5c2 0 3.3 1.1 3.9 2.2h3.8C14.5 6.1 15.8 5 17.8 5 21 5 22.6 8.4 21.2 11.3 19 15.7 12 20 12 20Z"/></svg>',
+    com: '<svg viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M4 5h16v11H9l-5 4z"/></svg>',
+    share: '<svg viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M21 3 3 10.5l7 2.5 2.5 7z M10 13l11-10"/></svg>',
+    on: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M4 9h4l5-4v14l-5-4H4z"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>',
+    off: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M4 9h4l5-4v14l-5-4H4z"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="m16 9 6 6m0-6-6 6"/></svg>',
+  };
+  const nfmt = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'K' : String(n || 0));
+  try { Reels.muted = store.get('birga_reels_muted') === '1'; } catch { Reels.muted = false; }
+  const side = (it) => `<div class="reel-side">
+    <button class="rs-like${it.liked ? ' on' : ''}" title="${esc(t('rl_like'))}">${it.liked ? SVG.heart : SVG.heartO}<span>${nfmt(it.likes)}</span></button>
+    <button class="rs-com" title="${esc(t('rl_com'))}">${SVG.com}<span>${nfmt(it.comments)}</span></button>
+    <button class="rs-share" title="${esc(t('rl_share'))}">${SVG.share}<span>${esc(t('rl_share'))}</span></button>
+    <button class="rs-snd">${Reels.muted ? SVG.off : SVG.on}</button></div>`;
+  const baseRender = Reels.render.bind(Reels);
+  Reels.render = function () {
+    baseRender();
+    $$('#reels-feed .reel-slot').forEach((s) => { const it = this.items[+s.dataset.i]; if (it && !s.querySelector('.reel-side')) s.insertAdjacentHTML('beforeend', side(it)); });
+  };
+  Reels.paintSide = function (i) { const s = $(`#reels-feed .reel-slot[data-i="${i}"]`); const it = this.items[i]; if (!s || !it) return; s.querySelector('.reel-side')?.remove(); s.insertAdjacentHTML('beforeend', side(it)); };
+  Reels.setMuted = function (m) {
+    this.muted = m; try { store.set('birga_reels_muted', m ? '1' : '0'); } catch {}
+    $$('#reels-feed .reel-video').forEach((x) => { x.muted = m; }); $$('#reels-feed .rs-snd').forEach((b) => (b.innerHTML = m ? SVG.off : SVG.on));
+    $$('#reels-feed .reel-hint').forEach((h) => h.remove());
+  };
+  const baseMount = Reels.mount.bind(Reels);
+  Reels.mount = function (slot) {
+    baseMount(slot);
+    const v = slot.querySelector('video.reel-video'); if (!v) return;
+    v.muted = this.muted;
+    const p = v.play(); if (p?.catch) p.catch(() => { // brauzer ovozli avtomatik ijroga ruxsat bermadi — ovozsiz boshlaymiz, bitta bosish bilan ovoz yoqiladi
+      v.muted = true; v.play().catch(() => {});
+      if (!this.muted && !slot.querySelector('.reel-hint')) slot.insertAdjacentHTML('beforeend', `<div class="reel-hint">🔇 ${esc(t('rl_sound'))}</div>`);
+    });
+  };
+  Reels.like = async function (i, force) {
+    const it = this.items[i]; if (!it) return;
+    if (force && it.liked) return;
+    const on = force ? true : !it.liked; it.liked = on; it.likes = Math.max(0, (it.likes || 0) + (on ? 1 : -1)); this.paintSide(i);
+    try { const r = await api(`/api/reels/${it.id}/like`, { body: { on } }); it.liked = r.liked; it.likes = r.likes; this.paintSide(i); } catch (e) { toast(e.message); }
+  };
+  Reels.comments = async function (i) {
+    const it = this.items[i]; if (!it) return;
+    modal(`<h3>💬 ${esc(t('rl_com'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><div class="rc-list" id="rc-list"><p class="empty-note">…</p></div>
+      <form class="rc-in" id="rc-form"><input class="field" id="rc-text" maxlength="500" autocomplete="off" placeholder="${esc(t('rl_com_ph'))}"><button type="submit">${icon('send')}</button></form>`);
+    const draw = (list) => { $('#rc-list').innerHTML = list.length ? list.map((c) => `<div class="rc-row">${avatar(c.user)}<div class="rc-b"><b>${esc(c.user?.name || '')}</b><small>${esc(fmtWhen(c.at))}</small><br>${linkify(c.text)}</div>${c.canDel ? `<button class="rc-del" data-cdel="${c.id}">✕</button>` : ''}</div>`).join('') : `<p class="empty-note">${esc(t('rl_com_empty'))}</p>`; const l = $('#rc-list'); l.scrollTop = l.scrollHeight; };
+    let list = [];
+    try { list = (await api(`/api/reels/${it.id}/comments`)).comments; draw(list); } catch (e) { $('#rc-list').innerHTML = `<p class="empty-note">${esc(e.message)}</p>`; }
+    $('#rc-form').onsubmit = async (e) => {
+      e.preventDefault(); const tx = $('#rc-text').value.trim(); if (!tx) return; $('#rc-text').value = '';
+      try { const r = await api(`/api/reels/${it.id}/comments`, { body: { text: tx } }); list.push(r.comment); it.comments = r.comments; draw(list); this.paintSide(i); } catch (er) { toast(er.message); }
+    };
+    $('#rc-list').onclick = async (e) => {
+      const b = e.target.closest('[data-cdel]'); if (!b) return;
+      try { const r = await api(`/api/reels/${it.id}/comments/${b.dataset.cdel}`, { method: 'DELETE' }); list = list.filter((c) => String(c.id) !== b.dataset.cdel); it.comments = r.comments; draw(list); this.paintSide(i); } catch (er) { toast(er.message); }
+    };
+    if (!isTouch()) $('#rc-text').focus();
+  };
+  Reels.share = function (i) {
+    const it = this.items[i]; if (!it) return;
+    const link = `${location.origin}/?reel=${it.id}`;
+    modal(`<h3>${esc(t('rl_share'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><div class="rs-sheet">
+      <button data-rs="chat">💬 ${esc(t('rl_to_chat'))}</button><button data-rs="copy">🔗 ${esc(t('rl_copy'))}</button>${navigator.share ? `<button data-rs="other">📤 ${esc(t('rl_other'))}</button>` : ''}</div>`);
+    $('#modal-card .rs-sheet').onclick = async (e) => {
+      const k = e.target.closest('[data-rs]')?.dataset.rs; if (!k) return;
+      if (k === 'copy') { try { await navigator.clipboard.writeText(link); toast(t('rl_copied')); } catch { prompt('', link); } closeModal(); }
+      if (k === 'other') { closeModal(); navigator.share({ title: 'Birga Reels', text: it.caption || '', url: link }).catch(() => {}); }
+      if (k === 'chat') {
+        const chats = [...S.chats.values()].filter((c) => c.type !== 'channel' || ['owner', 'admin'].includes(c.role)).sort((a, b) => (b.last?.created_at || 0) - (a.last?.created_at || 0));
+        modal(`<h3>${esc(t('rl_pick'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><div class="pick1">${chats.map((c) => `<button data-c="${c.id}">${chatAvatar ? chatAvatar(c) : ''}<b>${esc(chatTitle(c))}</b></button>`).join('')}</div>`);
+        $('#modal-card .pick1').onclick = async (ev) => {
+          const id = +ev.target.closest('[data-c]')?.dataset.c; if (!id) return; closeModal();
+          try { await emitSend({ chatId: id, type: 'text', text: `${t('rl_msg')}${it.caption ? ': ' + it.caption.slice(0, 120) : ''}\n${link}` }); toast(t('rl_sent')); } catch (er) { toast(er.message); }
+        };
+      }
+    };
+  };
+  // bosish: ovoz yoqish/o'chirish; ikki marta bosish: yoqdi (Instagram kabi). Asl ishlovchidan oldin ushlaymiz.
+  let tapT = null;
+  $('#reels-feed').addEventListener('click', (e) => {
+    const slot = e.target.closest('.reel-slot'); if (!slot) return; const i = +slot.dataset.i;
+    if (e.target.closest('.rs-like')) { e.stopPropagation(); return Reels.like(i); }
+    if (e.target.closest('.rs-com')) { e.stopPropagation(); return Reels.comments(i); }
+    if (e.target.closest('.rs-share')) { e.stopPropagation(); return Reels.share(i); }
+    if (e.target.closest('.rs-snd')) { e.stopPropagation(); return Reels.setMuted(!Reels.muted); }
+    const v = e.target.closest('.reel-video'); if (!v) return;
+    e.stopPropagation();
+    if (tapT) { clearTimeout(tapT); tapT = null; slot.insertAdjacentHTML('beforeend', `<div class="reel-heart">${SVG.heart}</div>`); setTimeout(() => slot.querySelector('.reel-heart')?.remove(), 900); return Reels.like(i, true); }
+    tapT = setTimeout(() => { tapT = null; const hint = slot.querySelector('.reel-hint'); if (hint) { Reels.setMuted(false); v.muted = false; } else Reels.setMuted(!Reels.muted); if (v.paused) v.play().catch(() => {}); }, 260);
+  }, true);
+  // boshqalar yoqdi/izoh yozdi — sonlar jonli yangilanadi
+  const baseCS19r = connectSocket;
+  connectSocket = async function (...a) {
+    const r = await baseCS19r(...a); const s = S.socket;
+    if (s && !s._v19r) { s._v19r = true; s.on('reel:stat', (d) => { const i = Reels.items.findIndex((x) => x.id === d.id); if (i < 0) return; const it = Reels.items[i]; if (d.likes != null) it.likes = d.likes; if (d.comments != null) it.comments = d.comments; Reels.paintSide(i); }); }
+    return r;
+  };
+  // ?reel=ID havolasi — Reels ochiladi va shu video ko'rsatiladi
+  if (REEL_LINK) {
+    const go = async () => {
+      if (!S.me) return setTimeout(go, 800);
+      try {
+        const it = await api('/api/reels/' + Number(REEL_LINK));
+        Reels.loaded = true; await Reels.load(true);
+        let i = Reels.items.findIndex((x) => x.id === it.id); if (i < 0) { Reels.items.unshift(it); Reels.render(); i = 0; }
+        setTab('reels'); setTimeout(() => $(`#reels-feed .reel-slot[data-i="${i}"]`)?.scrollIntoView(), 200);
+      } catch {}
+    };
+    setTimeout(go, 1500);
+  }
+}
+
+/* ---------- 5) Android: "O'rnatish" bosilganda darhol haqiqiy ilova (APK) yuklanadi — brauzer yorlig'i emas ---------- */
+if (isAndroid() && !IS_NATIVE) {
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installPrompt = null; }); // brauzerning "bosh ekranga qo'shish" taklifi chiqmaydi
+  const dlApk = () => { const a = document.createElement('a'); a.href = APK_SELF + '?v=' + Date.now().toString(36); a.download = 'Birga.apk'; document.body.appendChild(a); a.click(); a.remove(); };
+  installApp = async function () {
+    if (appInstalled) { location.href = openInApp; return; }
+    dlApk();
+    modal(`<h3>${esc(t('ia_title'))} <button class="icon-btn" data-close>${icon('close')}</button></h3>
+      <div class="install-hero"><img src="/icons/icon-192.png" alt=""><div><b>Birga</b><br><small class="muted">${esc(t('ia_sub'))}</small></div></div>
+      <ol class="install-steps ia-steps">${t('ia_s').map((x) => `<li><span>${x}</span></li>`).join('')}</ol>
+      <button class="btn-ghost14" id="ia-again">${icon('download')} ${esc(t('ia_again'))}</button>
+      <a class="link-btn inst-apk" href="${openInApp}">${esc(t('ia_open'))}</a>`);
+    $('#ia-again').onclick = dlApk;
+  };
+  $$('[data-install]').forEach((b) => (b.onclick = () => installApp()));
+}
+
+/* ---------- 6) Birga ilovasi: galereya ichkarida, saqlash — galereyaga ---------- */
+const NatGal = {
+  ok: () => !!window.BirgaNative?.hasGallery,
+  items: [], sel: [], end: false,
+  async open(fallback) {
+    let st = 'ask'; try { st = window.BirgaNative.galleryState(); } catch {}
+    if (st !== 'granted') {
+      const g = await new Promise((r) => { window.birgaGalleryPerm = r; try { window.BirgaNative.requestGallery(); } catch { r(false); } setTimeout(() => r(false), 60000); });
+      if (!g) { toast(t('gl_perm'), 3000); return fallback(); }
+    }
+    this.items = []; this.sel = []; this.end = false; this.fallback = fallback;
+    modal(`<h3>🖼 ${esc(t('gl_title'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><div class="gl-grid" id="gl-grid"></div>
+      <div class="gl-bar"><button class="btn-ghost14" id="gl-file">📁 ${esc(t('gl_file'))}</button><button class="btn-primary" id="gl-send" disabled>${esc(t('gl_send'))}</button></div>`);
+    this.more();
+    if (!this.items.length) $('#gl-grid').innerHTML = `<p class="empty-note" style="grid-column:1/-1">${esc(t('gl_empty'))}</p>`;
+    $('#gl-grid').onscroll = (e) => { const g = e.target; if (g.scrollTop + g.clientHeight > g.scrollHeight - 300) this.more(); };
+    $('#gl-grid').onclick = (e) => {
+      const b = e.target.closest('[data-g]'); if (!b) return; const i = +b.dataset.g; const k = this.sel.indexOf(i);
+      if (k >= 0) this.sel.splice(k, 1); else { if (this.sel.length >= 10) return toast(t('gl_max')); this.sel.push(i); }
+      $$('#gl-grid [data-g]').forEach((x) => { const n = this.sel.indexOf(+x.dataset.g); x.classList.toggle('sel', n >= 0); x.querySelector('.gl-n').textContent = n >= 0 ? n + 1 : ''; });
+      $('#gl-send').disabled = !this.sel.length; $('#gl-send').textContent = t('gl_send') + (this.sel.length ? ` (${this.sel.length})` : '');
+    };
+    $('#gl-file').onclick = () => { closeModal(); fallback(); };
+    $('#gl-send').onclick = () => this.send();
+  },
+  more() {
+    if (this.end) return;
+    let arr = []; try { arr = JSON.parse(window.BirgaNative.listMedia(this.items.length, 60) || '[]'); } catch {}
+    if (arr.length < 60) this.end = true;
+    const start = this.items.length; this.items.push(...arr);
+    $('#gl-grid')?.insertAdjacentHTML('beforeend', arr.map((it, k) => `<button data-g="${start + k}"><img loading="lazy" src="/__nat/thumb/${it.type}/${it.id}" alt="">${it.type === 'video' ? `<span class="gl-d">▶ ${fmtDur((it.dur || 0) / 1000)}</span>` : ''}<i class="gl-n"></i></button>`).join(''));
+  },
+  async send() {
+    const pick = this.sel.map((i) => this.items[i]).filter(Boolean); if (!pick.length) return;
+    $('#gl-send').disabled = true; $('#gl-send').textContent = '…';
+    const files = [];
+    for (const it of pick) {
+      try { const b = await fetch(`/__nat/media/${it.type}/${it.id}`).then((r) => { if (!r.ok) throw new Error('read'); return r.blob(); }); files.push(new File([b], it.name || `Birga_${it.id}.${(it.mime.split('/')[1] || 'bin').replace('jpeg', 'jpg')}`, { type: it.mime || b.type })); } catch {}
+    }
+    closeModal(); if (files.length) attachPreview(files); else toast(t('upload_fail'));
+  },
+};
+if (NatGal.ok()) {
+  const fi = $('#file-input'); const origClick = fi.click.bind(fi);
+  fi.click = () => NatGal.open(origClick);
+}
+const NatSave = {
+  ok: () => !!window.BirgaNative?.saveBegin,
+  auto: () => store.get('birga_gal_auto') !== '0',
+  done: (() => { try { return new Set(JSON.parse(store.get('birga_gal_done') || '[]')); } catch { return new Set(); } })(),
+  mark(id) { this.done.add(id); try { store.set('birga_gal_done', JSON.stringify([...this.done].slice(-2000))); } catch {} },
+  async perm() {
+    if (window.BirgaNative.canSave()) return true;
+    return new Promise((r) => { window.birgaSavePerm = r; window.BirgaNative.requestSave(); setTimeout(() => r(false), 60000); });
+  },
+  async blob(blob, name, quiet) {
+    if (!(await this.perm())) return false;
+    const id = window.BirgaNative.saveBegin(name, blob.type || 'application/octet-stream'); if (!id) return false;
+    const CH = 3 * 174762; // 3 ga karrali — har bir bo'lak alohida base64
+    for (let o = 0; o < blob.size; o += CH) { if (!window.BirgaNative.saveChunk(id, await b64ofBlob(blob.slice(o, o + CH)))) { window.BirgaNative.saveEnd(id, true); return false; } }
+    return window.BirgaNative.saveEnd(id, !!quiet);
+  },
+  name(m, type) {
+    const d = new Date(m.created_at || Date.now()), p = (x) => String(x).padStart(2, '0');
+    const ext = (type || '').split('/')[1]?.split(';')[0].replace('jpeg', 'jpg').replace('quicktime', 'mov') || 'bin';
+    return m.type === 'file' && m.meta?.name ? m.meta.name : `Birga_${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}_${String(m.id).slice(-5)}.${ext}`;
+  },
+};
+if (NatSave.ok()) {
+  Media.saveAs = async function (m) {
+    const blob = await this.get(m);
+    if (blob) return NatSave.blob(blob, NatSave.name(m, blob.type), false);
+    if (m.gone) return toast(t('media_gone'));
+    window.BirgaNative.saveUrl(this.abs(mediaSrc(m)), NatSave.name(m, m.mime || ''), m.mime || '', false);
+  };
+  saveUrl = function (src, name) { if (/^blob:|^data:/.test(src)) return fetch(src).then((r) => r.blob()).then((b) => NatSave.blob(b, name, false)); window.BirgaNative.saveUrl(new URL(src, location.href).href, name, '', false); };
+  // kelgan rasm/video galereyaga o'zi tushadi (WhatsApp kabi) — sozlamada o'chirsa bo'ladi
+  const baseExp = Media.exportFile.bind(Media);
+  Media.exportFile = async function (m, blob) {
+    await baseExp(m, blob);
+    if (!NatSave.auto() || !['image', 'video'].includes(m.type) || String(m.id).startsWith('my') || m.sender_id === S.me?.id || NatSave.done.has(m.id)) return;
+    if (await NatSave.blob(blob, NatSave.name(m, blob.type), true)) NatSave.mark(m.id);
+  };
+  const baseSM = storageModal;
+  storageModal = async function () {
+    await baseSM();
+    $('#st-auto')?.closest('.toggle-row')?.insertAdjacentHTML('afterend', `<label class="toggle-row"><span>${esc(t('gal_auto'))}<small>${esc(t('gal_auto_hint'))}</small></span><input type="checkbox" id="st-gal" ${NatSave.auto() ? 'checked' : ''}></label>`);
+    $('#st-gal').onchange = (e) => store.set('birga_gal_auto', e.target.checked ? '1' : '0');
+  };
+}
+
+/* ---------- 7) Video va fayllar to'g'ridan-to'g'ri omborga yuklanadi (server orqali emas — tez, uzilmaydi) ---------- */
+{
+  const baseUF19 = uploadFile;
+  uploadFile = function (file, onProgress, kind = '') {
+    if (kind === 'voice' || kind === 'round') return baseUF19(file, onProgress, kind);
+    return (async () => {
+      let s;
+      try { s = await api('/api/upload/sign', { body: { name: file.name || '', mime: file.type || '', size: file.size || 0, kind } }); }
+      catch (e) { if (e.status === 413) { const er = new Error(e.message); er.fatal = true; throw er; } return baseUF19(file, onProgress, kind); }
+      if (!s?.direct) return baseUF19(file, onProgress, kind);
+      await new Promise((res, rej) => {
+        const x = new XMLHttpRequest();
+        x.open('PUT', s.upload);
+        x.setRequestHeader('Content-Type', file.type || 'application/octet-stream'); x.setRequestHeader('x-upsert', 'true'); x.setRequestHeader('cache-control', 'max-age=31536000');
+        x.upload.onprogress = (e) => e.lengthComputable && onProgress?.(e.loaded / e.total);
+        x.timeout = 120e3 + (file.size || 0) / 20;
+        x.onload = () => {
+          if (x.status < 300) return res();
+          const e = new Error(x.status === 413 || /size|large/i.test(x.responseText) ? tf('up_big', { n: S.config.maxUploadMb || 50 }) : t('upload_fail'));
+          e.status = x.status; e.fatal = x.status === 413 || x.status === 400; rej(e);
+        };
+        x.onerror = () => rej(new Error(t('net_err'))); x.ontimeout = () => rej(new Error(t('net_err')));
+        x.send(file);
+      });
+      return { url: s.url, mime: file.type || 'application/octet-stream', size: file.size, name: file.name || '' };
+    })();
+  };
+}
+
+
+/* ======================= v20: ovozli xabarni tahrirlash, pul o'tkazmalari, do'stlar xaritasi, yordamchi bilan ovozli suhbat ======================= */
+try {
+  Object.assign(I18N.uz, {
+    ve_title: 'Ovozli xabarni tahrirlash', ve_hint: 'Chetlaridagi tutqichlarni surib, keraksiz joyni kesing', ve_play: 'Tinglash', ve_stop: 'To‘xtatish', ve_boost: 'Ovozni kuchaytirish', ve_send: 'Yuborish', ve_del: 'O‘chirish', ve_fail: 'Ovozni ochib bo‘lmadi — o‘zgarishsiz yuboriladi', ve_edit: 'Tahrirlash',
+    pay_att: 'Pul o‘tkazmasi', pay_att_sub: 'Karta yuborish, pul yuborish yoki so‘rash', pay_mycard: 'Kartamni yuborish', pay_mycard_sub: 'Sizga pul o‘tkazishlari uchun', pay_send: 'Pul yuborish', pay_send_sub: 'Bank ilovangiz orqali — Birga ichidan',
+    pay_req: 'Pul so‘rash', pay_req_sub: 'Summani yozing — suhbatdosh bir bosishda to‘laydi', pay_amount: 'Summa (so‘m)', pay_note: 'Izoh (ixtiyoriy)', pay_add_card: 'Karta qo‘shish', pay_card_num: 'Karta raqami (16 xona)', pay_card_holder: 'Karta egasi (ixtiyoriy)',
+    pay_bad_card: 'Karta raqami noto‘g‘ri', pay_cards: 'Mening kartalarim', pay_cards_sub: 'Faqat shu telefonda saqlanadi. CVV va muddat hech qachon so‘ralmaydi.', pay_no_card: 'Suhbatdosh hali kartasini yubormagan. Undan karta so‘rang yoki raqamni o‘zingiz yozing.',
+    pay_ask_card: 'Kartangizni yuboring', pay_to_card: 'Qaysi kartaga', pay_app: 'Qaysi ilova orqali o‘tkazasiz?', pay_copied: 'Karta raqami nusxalandi — bank ilovasida “O‘tkazma” ga qo‘ying', pay_done_q: 'Pulni o‘tkazdingizmi?', pay_done: 'Ha, o‘tkazdim',
+    pay_sent_t: 'Pul o‘tkazildi', pay_req_t: 'Pul so‘raldi', pay_st_new: 'Tasdiq kutilmoqda', pay_st_paid: 'To‘landi — tasdiq kutilmoqda', pay_st_got: '✅ Qabul qilindi', pay_st_no: '⚠️ Kelmadi', pay_btn_pay: 'To‘lash', pay_btn_paid: 'To‘ladim', pay_btn_got: 'Oldim', pay_btn_no: 'Kelmadi',
+    pay_copy: 'Nusxalash', pay_card_t: 'Karta', pay_safe: 'Birga pulingizni ushlab turmaydi: o‘tkazma sizning bank ilovangizda (Click, Payme, Uzum…) amalga oshadi. Faqat ishonchli odamga o‘tkazing.', pay_other: 'Boshqa bank ilovasi',
+    fl_title: 'Hayot lentasi', fl_sub: 'Do‘stlaringiz hozir qayerda', fl_share: 'Joylashuvimni do‘stlarimga ko‘rsatish', fl_share_sub: 'Faqat shaxsiy chatingiz bor odamlar ko‘radi. Istalgan vaqtda o‘chirasiz.',
+    fl_on_q: 'Do‘stlaringiz (shaxsiy chatingiz bor odamlar) sizning aniq joylashuvingizni xaritada ko‘radi — Birga ochiq paytda yangilanib turadi. Yoqasizmi?', fl_on: 'Yoqildi — do‘stlaringiz sizni ko‘radi', fl_off: 'O‘chirildi — joylashuvingiz o‘chirildi',
+    fl_empty: 'Hozircha joylashuvini ko‘rsatayotgan do‘st yo‘q. Ular ham Sozlamalarda “Hayot lentasi”ni yoqishi kerak.', fl_ago: '{t} oldin', fl_now: 'hozir', fl_need_on: 'Do‘stlaringizni ko‘rish uchun avval o‘zingiz ham joylashuvni yoqing', fl_open: 'Xaritada', fl_route: 'Yo‘nalish', fl_chat: 'Yozish', fl_bat: 'Batareya',
+    av_title: 'Ovozli suhbat', av_listen: 'Tinglayapman… gapiring', av_think: 'O‘ylayapman…', av_speak: 'Gapiryapman… (to‘xtatish uchun bosing)', av_tap: 'Gapirish uchun bosing', av_stop: 'Tugatish', av_no_mic: 'Mikrofonga ruxsat bering', av_no_stt: 'Ovozni matnga aylantirish xizmati ulanmagan (GEMINI_API_KEY)', av_heard: 'Eshitilmadi — qaytadan gapiring',
+  });
+  Object.assign(I18N.ru, {
+    ve_title: 'Редактировать голосовое', ve_hint: 'Сдвиньте края, чтобы обрезать лишнее', ve_play: 'Слушать', ve_stop: 'Стоп', ve_boost: 'Сделать громче', ve_send: 'Отправить', ve_del: 'Удалить', ve_fail: 'Не удалось открыть — отправим без изменений', ve_edit: 'Изменить',
+    pay_att: 'Денежный перевод', pay_att_sub: 'Отправить карту, перевести или запросить деньги', pay_mycard: 'Отправить мою карту', pay_mycard_sub: 'Чтобы вам могли перевести', pay_send: 'Перевести деньги', pay_send_sub: 'Через ваше банковское приложение — из Birga',
+    pay_req: 'Запросить деньги', pay_req_sub: 'Укажите сумму — собеседник оплатит в одно нажатие', pay_amount: 'Сумма (сум)', pay_note: 'Комментарий (необязательно)', pay_add_card: 'Добавить карту', pay_card_num: 'Номер карты (16 цифр)', pay_card_holder: 'Владелец (необязательно)',
+    pay_bad_card: 'Неверный номер карты', pay_cards: 'Мои карты', pay_cards_sub: 'Хранятся только на этом телефоне. CVV и срок никогда не запрашиваются.', pay_no_card: 'Собеседник ещё не отправил карту. Попросите карту или введите номер сами.',
+    pay_ask_card: 'Отправьте вашу карту', pay_to_card: 'На какую карту', pay_app: 'Через какое приложение переведёте?', pay_copied: 'Номер карты скопирован — вставьте в «Перевод» в банковском приложении', pay_done_q: 'Вы перевели деньги?', pay_done: 'Да, перевёл(а)',
+    pay_sent_t: 'Деньги переведены', pay_req_t: 'Запрос денег', pay_st_new: 'Ждёт подтверждения', pay_st_paid: 'Оплачено — ждёт подтверждения', pay_st_got: '✅ Получено', pay_st_no: '⚠️ Не пришло', pay_btn_pay: 'Оплатить', pay_btn_paid: 'Оплатил(а)', pay_btn_got: 'Получил(а)', pay_btn_no: 'Не пришло',
+    pay_copy: 'Копировать', pay_card_t: 'Карта', pay_safe: 'Birga не держит ваши деньги: перевод выполняется в вашем банковском приложении (Click, Payme, Uzum…). Переводите только надёжным людям.', pay_other: 'Другое приложение банка',
+    fl_title: 'Лента жизни', fl_sub: 'Где сейчас ваши друзья', fl_share: 'Показывать друзьям, где я', fl_share_sub: 'Видят только люди, с которыми у вас личный чат. Можно выключить в любой момент.',
+    fl_on_q: 'Друзья (у кого с вами личный чат) будут видеть ваше точное местоположение на карте — обновляется, пока открыт Birga. Включить?', fl_on: 'Включено — друзья видят вас', fl_off: 'Выключено — местоположение удалено',
+    fl_empty: 'Пока никто из друзей не показывает местоположение. Им тоже нужно включить «Ленту жизни» в настройках.', fl_ago: '{t} назад', fl_now: 'сейчас', fl_need_on: 'Чтобы видеть друзей, сначала включите и своё местоположение', fl_open: 'На карте', fl_route: 'Маршрут', fl_chat: 'Написать', fl_bat: 'Батарея',
+    av_title: 'Голосовой разговор', av_listen: 'Слушаю… говорите', av_think: 'Думаю…', av_speak: 'Говорю… (нажмите, чтобы остановить)', av_tap: 'Нажмите и говорите', av_stop: 'Завершить', av_no_mic: 'Разрешите доступ к микрофону', av_no_stt: 'Сервис распознавания речи не подключён (GEMINI_API_KEY)', av_heard: 'Не расслышал — повторите',
+  });
+  Object.assign(I18N.en, {
+    ve_title: 'Edit voice message', ve_hint: 'Drag the edges to trim', ve_play: 'Play', ve_stop: 'Stop', ve_boost: 'Make louder', ve_send: 'Send', ve_del: 'Delete', ve_fail: 'Could not open — sending unchanged', ve_edit: 'Edit',
+    pay_att: 'Money transfer', pay_att_sub: 'Send your card, send or request money', pay_mycard: 'Send my card', pay_mycard_sub: 'So others can pay you', pay_send: 'Send money', pay_send_sub: 'Via your bank app — from Birga',
+    pay_req: 'Request money', pay_req_sub: 'Enter an amount — they pay in one tap', pay_amount: 'Amount (UZS)', pay_note: 'Note (optional)', pay_add_card: 'Add card', pay_card_num: 'Card number (16 digits)', pay_card_holder: 'Card holder (optional)',
+    pay_bad_card: 'Invalid card number', pay_cards: 'My cards', pay_cards_sub: 'Stored only on this phone. CVV and expiry are never asked.', pay_no_card: 'They haven’t sent a card yet. Ask for it or type the number yourself.',
+    pay_ask_card: 'Please send your card', pay_to_card: 'To which card', pay_app: 'Which app will you use?', pay_copied: 'Card number copied — paste it into “Transfer” in your bank app', pay_done_q: 'Did you send the money?', pay_done: 'Yes, I sent it',
+    pay_sent_t: 'Money sent', pay_req_t: 'Money request', pay_st_new: 'Awaiting confirmation', pay_st_paid: 'Paid — awaiting confirmation', pay_st_got: '✅ Received', pay_st_no: '⚠️ Not received', pay_btn_pay: 'Pay', pay_btn_paid: 'I paid', pay_btn_got: 'Received', pay_btn_no: 'Not received',
+    pay_copy: 'Copy', pay_card_t: 'Card', pay_safe: 'Birga never holds your money: the transfer happens in your bank app (Click, Payme, Uzum…). Only send to people you trust.', pay_other: 'Other bank app',
+    fl_title: 'Life feed', fl_sub: 'Where your friends are now', fl_share: 'Show friends where I am', fl_share_sub: 'Only people you have a private chat with can see it. Turn off anytime.',
+    fl_on_q: 'Friends (people you have a private chat with) will see your exact location on the map — updated while Birga is open. Turn on?', fl_on: 'On — friends can see you', fl_off: 'Off — your location was deleted',
+    fl_empty: 'No friends are sharing their location yet. They also need to turn on “Life feed” in Settings.', fl_ago: '{t} ago', fl_now: 'now', fl_need_on: 'To see friends, first turn on your own location too', fl_open: 'On map', fl_route: 'Route', fl_chat: 'Message', fl_bat: 'Battery',
+    av_title: 'Voice chat', av_listen: 'Listening… speak', av_think: 'Thinking…', av_speak: 'Speaking… (tap to stop)', av_tap: 'Tap and speak', av_stop: 'End', av_no_mic: 'Allow microphone access', av_no_stt: 'Speech-to-text service is not connected (GEMINI_API_KEY)', av_heard: 'Didn’t catch that — please repeat',
+  });
+} catch {}
+const fmtSum = (n) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+const agoTxt = (ts) => { const s = Math.max(0, (Date.now() - ts) / 1000); if (s < 90) return t('fl_now'); const m = Math.round(s / 60); return tf('fl_ago', { t: m < 60 ? m + ' ' + t('min') : Math.round(m / 60) + ' ' + t('hour') }); };
+document.head.insertAdjacentHTML('beforeend', `<style id="v20-css">
+.ve-wave { position: relative; height: 96px; margin: 8px 0 6px; border-radius: 14px; background: var(--active, rgba(127,127,127,.12)); touch-action: none; overflow: hidden; }
+.ve-wave canvas { width: 100%; height: 100%; display: block; }
+.ve-h { position: absolute; top: 0; bottom: 0; width: 22px; margin-left: -11px; cursor: ew-resize; display: grid; place-items: center; }
+.ve-h::before { content: ''; width: 6px; height: 54px; border-radius: 3px; background: var(--blue, #1F6BFF); box-shadow: 0 0 0 3px rgba(255,255,255,.7); }
+.ve-sh { position: absolute; top: 0; bottom: 0; background: rgba(0,0,0,.35); pointer-events: none; }
+.ve-ph { position: absolute; top: 0; bottom: 0; width: 2px; background: #EF4444; pointer-events: none; }
+.ve-info { display: flex; justify-content: space-between; color: var(--muted); font-size: 13px; margin-bottom: 10px; }
+.ve-row { display: flex; gap: 8px; margin-bottom: 8px; } .ve-row button { flex: 1; } .ve-row .btn-ghost14 { margin: 0; }
+#rec-edit { margin-left: auto; margin-right: 6px; }
+.pay-card { min-width: 220px; max-width: 290px; border-radius: 16px; padding: 12px 14px; margin: 2px 0 4px; color: #fff; background: linear-gradient(135deg, #0F766E, #1D4ED8); box-shadow: 0 6px 16px rgba(29,78,216,.25); }
+.pay-card.uzcard { background: linear-gradient(135deg, #0EA5E9, #1E3A8A); } .pay-card.humo { background: linear-gradient(135deg, #F97316, #B91C1C); } .pay-card.visa { background: linear-gradient(135deg, #1E293B, #4338CA); } .pay-card.mc { background: linear-gradient(135deg, #111827, #B45309); }
+.pay-card .pc-top { display: flex; justify-content: space-between; font-size: 12.5px; font-weight: 700; opacity: .9; }
+.pay-card .pc-num { font: 800 19px/1.3 ui-monospace, Menlo, monospace; letter-spacing: 1.5px; margin: 14px 0 4px; }
+.pay-card .pc-h { font-size: 12.5px; opacity: .85; text-transform: uppercase; letter-spacing: .5px; min-height: 15px; }
+.pay-card .pc-acts { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; } .pay-card .pc-acts button { flex: 1; min-width: 80px; height: 34px; border-radius: 17px; background: rgba(255,255,255,.2); color: #fff; font-weight: 800; font-size: 13px; }
+.pay-card.pay { background: linear-gradient(135deg, #059669, #0D9488); } .pay-card.pay.req { background: linear-gradient(135deg, #7C3AED, #DB2777); }
+.pay-card .pp-amt { font: 900 26px/1.15 system-ui; margin: 4px 0 2px; } .pay-card .pp-k { font-size: 12.5px; font-weight: 700; opacity: .9; } .pay-card .pp-note { font-size: 14px; margin-top: 6px; opacity: .95; }
+.pay-card .pp-st { display: inline-block; margin-top: 8px; font-size: 12.5px; font-weight: 800; background: rgba(0,0,0,.18); padding: 3px 10px; border-radius: 10px; }
+.pay-opts { display: flex; flex-direction: column; gap: 6px; } .pay-opts button { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 14px; background: var(--active); color: inherit; text-align: left; font: inherit; }
+.pay-opts button > span:first-child { font-size: 24px; width: 34px; text-align: center; } .pay-opts small { display: block; color: var(--muted); font-size: 12.5px; }
+.pay-safe { font-size: 12.5px; color: var(--muted); background: rgba(245,158,11,.12); border-radius: 12px; padding: 8px 10px; margin: 10px 0 0; line-height: 1.4; }
+.pay-mini { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; background: var(--active); margin-bottom: 6px; width: 100%; text-align: left; color: inherit; font: inherit; } .pay-mini b { font-family: ui-monospace, Menlo, monospace; } .pay-mini small { color: var(--muted); display: block; }
+.pay-mini .pm-x { margin-left: auto; color: var(--muted); background: none; font-size: 16px; }
+.pay-apps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 8px 0; } .pay-apps button { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 12px 6px; border-radius: 14px; background: var(--active); color: inherit; font: 700 13px system-ui; }
+.pay-apps button span { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; color: #fff; font-weight: 900; font-size: 15px; }
+.fl-list { display: flex; flex-direction: column; gap: 6px; max-height: 46vh; overflow-y: auto; }
+.fl-row { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 14px; background: var(--active); } .fl-row .av { width: 42px; height: 42px; flex: none; }
+.fl-t { flex: 1; min-width: 0; } .fl-t b { display: block; } .fl-t small { color: var(--muted); font-size: 12.5px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fl-row button { height: 32px; padding: 0 10px; border-radius: 16px; background: var(--blue, #1F6BFF); color: #fff; font-weight: 800; font-size: 12.5px; flex: none; }
+.fl-mk { width: 46px; height: 46px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 4px 14px rgba(0,0,0,.35); background-size: cover; background-position: center; display: grid; place-items: center; color: #fff; font-weight: 800; position: relative; cursor: pointer; }
+.fl-mk i { position: absolute; bottom: -18px; left: 50%; transform: translateX(-50%); white-space: nowrap; font: 700 11px system-ui; color: #111; background: #fff; padding: 1px 6px; border-radius: 8px; font-style: normal; }
+.fl-tog { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; background: rgba(31,107,255,.08); margin-bottom: 10px; } .fl-tog span { flex: 1; font-size: 14px; } .fl-tog small { display: block; color: var(--muted); font-size: 12px; }
+.ai-bigmic { position: absolute; left: 50%; bottom: calc(76px + env(safe-area-inset-bottom)); transform: translateX(-50%); width: 76px; height: 76px; border-radius: 50%; background: var(--grad, linear-gradient(135deg, #1F6BFF, #8A2BE2)); color: #fff; display: grid; place-items: center; box-shadow: 0 10px 28px rgba(31,107,255,.45); z-index: 5; }
+.ai-bigmic svg { width: 34px; height: 34px; } .ai-page { position: fixed; } .ai-msgs { padding-bottom: 110px !important; }
+.av-ov { position: absolute; inset: 0; z-index: 30; background: radial-gradient(circle at 50% 45%, rgba(31,107,255,.35), rgba(8,12,28,.96) 65%), #0B1022; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; color: #fff; padding: 24px; text-align: center; }
+.av-orb { width: 170px; height: 170px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff 0, #8FB4FF 18%, #1F6BFF 55%, #8A2BE2 100%); box-shadow: 0 0 60px rgba(31,107,255,.7); transition: transform .12s; display: grid; place-items: center; }
+.av-orb img { width: 70px; height: 70px; border-radius: 50%; } .av-ov.think .av-orb { animation: avSpin 1.2s linear infinite; } .av-ov.speak .av-orb { animation: avPulse .9s ease-in-out infinite; }
+@keyframes avSpin { to { transform: rotate(360deg); } } @keyframes avPulse { 50% { transform: scale(1.08); } }
+.av-st { font-size: 18px; font-weight: 800; min-height: 26px; } .av-tx { font-size: 15px; opacity: .85; max-width: 520px; max-height: 26vh; overflow: auto; line-height: 1.45; }
+.av-btns { display: flex; gap: 14px; } .av-btns button { height: 52px; padding: 0 24px; border-radius: 26px; background: rgba(255,255,255,.14); color: #fff; font-weight: 800; font-size: 15px; } .av-btns .av-end { background: #EF4444; }
+</style>`);
+
+/* ---------- 1) Ovozli xabarni tahrirlab yuborish (qo'l bo'sh rejimda ✂️ tugmasi) ---------- */
+const VoiceEdit = {
+  async open(file, opts) {
+    let buf;
+    try { buf = await ctx().decodeAudioData(await file.arrayBuffer()); } catch { toast(t('ve_fail'), 2500); return sendMedia(file, 'voice', opts); }
+    const D = buf.duration; let s0 = 0, s1 = D, boost = false, src = null, playT = 0, raf = 0;
+    const ch = buf.getChannelData(0), N = 120, peaks = [];
+    for (let i = 0; i < N; i++) { let m = 0; const a = Math.floor((i / N) * ch.length), b = Math.floor(((i + 1) / N) * ch.length); for (let k = a; k < b; k += 32) m = Math.max(m, Math.abs(ch[k])); peaks.push(m); }
+    const pm = Math.max(...peaks, 0.01);
+    modal(`<h3>✂️ ${esc(t('ve_title'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><p class="muted small">${esc(t('ve_hint'))}</p>
+      <div class="ve-wave" id="ve-wave"><canvas id="ve-cv"></canvas><div class="ve-sh" id="ve-shl"></div><div class="ve-sh" id="ve-shr"></div><div class="ve-ph hidden" id="ve-ph"></div><div class="ve-h" id="ve-h0"></div><div class="ve-h" id="ve-h1"></div></div>
+      <div class="ve-info"><span id="ve-a">0:00</span><b id="ve-len"></b><span id="ve-b"></span></div>
+      <div class="ve-row"><button class="btn-ghost14" id="ve-play">▶️ ${esc(t('ve_play'))}</button><button class="btn-ghost14" id="ve-boost">🔊 ${esc(t('ve_boost'))}</button></div>
+      <div class="ve-row"><button class="btn-ghost14" id="ve-del">🗑 ${esc(t('ve_del'))}</button><button class="btn-primary" id="ve-send">${icon('send')} ${esc(t('ve_send'))}</button></div>`);
+    const wv = $('#ve-wave'), cv = $('#ve-cv');
+    const draw = () => {
+      const w = wv.clientWidth, h = wv.clientHeight; cv.width = w * devicePixelRatio; cv.height = h * devicePixelRatio; const g = cv.getContext('2d'); g.scale(devicePixelRatio, devicePixelRatio);
+      const bw = (w - 24) / N; g.translate(12, 0); for (let i = 0; i < N; i++) { const v = (peaks[i] / pm) * (boost ? 1 : 0.85), bh = Math.max(3, v * (h - 16)); const tt = (i / N) * D; g.fillStyle = tt >= s0 && tt <= s1 ? '#1F6BFF' : '#94A3B8'; g.fillRect(i * bw + 1, (h - bh) / 2, Math.max(1, bw - 2), bh); }
+      const x0 = 12 + (s0 / D) * (w - 24), x1 = 12 + (s1 / D) * (w - 24); $('#ve-h0').style.left = x0 + 'px'; $('#ve-h1').style.left = x1 + 'px';
+      $('#ve-shl').style.cssText = `left:0;width:${x0}px`; $('#ve-shr').style.cssText = `left:${x1}px;right:0`;
+      $('#ve-a').textContent = fmtDur(s0); $('#ve-b').textContent = fmtDur(s1); $('#ve-len').textContent = fmtDur(s1 - s0);
+    };
+    requestAnimationFrame(draw);
+    const drag = (el, which) => {
+      el.addEventListener('pointerdown', (e) => { e.preventDefault(); el.setPointerCapture(e.pointerId); stopPlay(); });
+      el.addEventListener('pointermove', (e) => { if (!el.hasPointerCapture(e.pointerId)) return; const r = wv.getBoundingClientRect(); const tt = Math.max(0, Math.min(D, ((e.clientX - r.left - 12) / (r.width - 24)) * D)); if (which) s1 = Math.max(s0 + 0.5, tt); else s0 = Math.min(s1 - 0.5, tt); draw(); });
+    };
+    drag($('#ve-h0'), 0); drag($('#ve-h1'), 1);
+    const stopPlay = () => { try { src?.stop(); } catch {} src = null; cancelAnimationFrame(raf); $('#ve-ph')?.classList.add('hidden'); const b = $('#ve-play'); if (b) b.textContent = '▶️ ' + t('ve_play'); };
+    $('#ve-play').onclick = () => {
+      if (src) return stopPlay();
+      const a = ctx(); src = a.createBufferSource(); src.buffer = buf; const gn = a.createGain(); gn.gain.value = boost ? Math.min(4, 0.95 / pm) : 1; src.connect(gn).connect(a.destination);
+      src.start(0, s0, s1 - s0); playT = a.currentTime; src.onended = stopPlay; $('#ve-play').textContent = '⏹ ' + t('ve_stop'); $('#ve-ph').classList.remove('hidden');
+      const tick = () => { if (!src) return; const tt = s0 + (a.currentTime - playT); $('#ve-ph').style.left = 12 + (tt / D) * (wv.clientWidth - 24) + 'px'; raf = requestAnimationFrame(tick); }; tick();
+    };
+    $('#ve-boost').onclick = () => { boost = !boost; $('#ve-boost').classList.toggle('on', boost); $('#ve-boost').textContent = (boost ? '✅ ' : '🔊 ') + t('ve_boost'); draw(); };
+    $('#ve-del').onclick = () => { stopPlay(); closeModal(); };
+    $('#ve-send').onclick = async () => {
+      stopPlay(); $('#ve-send').disabled = true;
+      try {
+        const rate = 24000, len = Math.max(1, Math.round((s1 - s0) * rate));
+        const off = new OfflineAudioContext(1, len, rate); const sn = off.createBufferSource(); sn.buffer = buf; const gn = off.createGain(); gn.gain.value = boost ? Math.min(4, 0.95 / pm) : 1; sn.connect(gn).connect(off.destination); sn.start(0, s0, s1 - s0);
+        const out = await off.startRendering(); const wav = VoiceEdit.wav(out.getChannelData(0), rate);
+        const wf = []; const d2 = out.getChannelData(0); for (let i = 0; i < 40; i++) { let m = 0; const a = Math.floor((i / 40) * d2.length), b = Math.floor(((i + 1) / 40) * d2.length); for (let k = a; k < b; k += 16) m = Math.max(m, Math.abs(d2[k])); wf.push(m); }
+        const mx = Math.max(...wf, 0.01);
+        closeModal(); sendMedia(new File([wav], `voice-${Date.now()}.wav`, { type: 'audio/wav' }), 'voice', { ...opts, duration: s1 - s0, meta: { waveform: wf.map((v) => +Math.min(1, Math.max(0.12, v / mx)).toFixed(2)) } });
+      } catch { closeModal(); sendMedia(file, 'voice', opts); }
+    };
+    new MutationObserver((_, o) => { if ($('#modal').classList.contains('hidden')) { stopPlay(); o.disconnect(); } }).observe($('#modal'), { attributes: true, attributeFilter: ['class'] });
+  },
+  wav(f32, rate) {
+    const n = f32.length, b = new ArrayBuffer(44 + n * 2), v = new DataView(b); const w = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+    w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 2, true);
+    for (let i = 0; i < n; i++) { const s = Math.max(-1, Math.min(1, f32[i])); v.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true); }
+    return new Blob([b], { type: 'audio/wav' });
+  },
+};
+{
+  $('#rec-cancel')?.insertAdjacentHTML('beforebegin', `<button class="link-btn hidden" id="rec-edit">✂️ <span data-t20="ve_edit"></span></button>`);
+  $$('[data-t20]').forEach((x) => (x.textContent = t(x.dataset.t20)));
+  const baseLock = lockRecording; lockRecording = function () { baseLock(); if (Rec.kind === 'voice') $('#rec-edit')?.classList.remove('hidden'); };
+  const baseStop = stopRecording; stopRecording = function (send) { $('#rec-edit')?.classList.add('hidden'); return baseStop(send); };
+  $('#rec-edit')?.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); if (!Rec.active || Rec.kind !== 'voice') return; Rec.editNext = true; stopRecording(true); });
+  const baseSM20 = sendMedia;
+  sendMedia = function (blob, type, extra = {}) {
+    if (type === 'voice' && Rec.editNext) { Rec.editNext = false; return VoiceEdit.open(blob, extra); }
+    return baseSM20(blob, type, extra);
+  };
+}
+
+/* ---------- 2) Pul o'tkazmalari: karta yuborish, pul yuborish (bank ilovasi orqali), pul so'rash ---------- */
+const Pay = {
+  luhn(n) { let s = 0; for (let i = 0; i < n.length; i++) { let d = +n[n.length - 1 - i]; if (i % 2) { d *= 2; if (d > 9) d -= 9; } s += d; } return s % 10 === 0; },
+  bank(n) { return /^(8600|5614|6262)/.test(n) ? ['Uzcard', 'uzcard'] : /^9860/.test(n) ? ['Humo', 'humo'] : /^4/.test(n) ? ['Visa', 'visa'] : /^(5[1-5]|2[2-7])/.test(n) ? ['Mastercard', 'mc'] : [t('pay_card_t'), '']; },
+  fmt: (n) => n.replace(/(\d{4})(?=\d)/g, '$1 '),
+  mask: (n) => n.slice(0, 4) + ' •••• •••• ' + n.slice(-4),
+  cards() { try { return JSON.parse(store.get('birga_cards') || '[]'); } catch { return []; } },
+  setCards(l) { store.set('birga_cards', JSON.stringify(l.slice(0, 6))); },
+  APPS: [['click', 'Click', '#00A3FF', 'air.com.ssdsoftwaresolutions.clickuz', 'https://my.click.uz/'], ['payme', 'Payme', '#33CCCC', 'uz.dida.payme', 'https://payme.uz/'], ['uzum', 'Uzum Bank', '#7000FF', 'uz.uzum.bank', 'https://uzumbank.uz/']],
+  openApp(id) {
+    const a = this.APPS.find((x) => x[0] === id); if (!a) return;
+    if (isAndroid()) location.href = `intent://#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=${a[3]};S.browser_fallback_url=${encodeURIComponent(a[4])};end`;
+    else window.open(a[4], '_blank', 'noopener');
+  },
+  sheet() {
+    modal(`<h3>💳 ${esc(t('pay_att'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><div class="pay-opts">
+      <button data-p="card"><span>💳</span><span><b>${esc(t('pay_mycard'))}</b><small>${esc(t('pay_mycard_sub'))}</small></span></button>
+      <button data-p="send"><span>💸</span><span><b>${esc(t('pay_send'))}</b><small>${esc(t('pay_send_sub'))}</small></span></button>
+      <button data-p="req"><span>🧾</span><span><b>${esc(t('pay_req'))}</b><small>${esc(t('pay_req_sub'))}</small></span></button></div><p class="pay-safe">🔒 ${esc(t('pay_safe'))}</p>`);
+    $('#modal-card .pay-opts').onclick = (e) => { const k = e.target.closest('[data-p]')?.dataset.p; if (k === 'card') this.myCard(); if (k === 'send') this.send(); if (k === 'req') this.request(); };
+  },
+  cardForm(onDone) {
+    modal(`<h3>➕ ${esc(t('pay_add_card'))} <button class="icon-btn" data-close>${icon('close')}</button></h3>
+      <input class="field" id="pc-n" inputmode="numeric" autocomplete="cc-number" maxlength="19" placeholder="${esc(t('pay_card_num'))}">
+      <input class="field" id="pc-h" maxlength="40" autocomplete="cc-name" placeholder="${esc(t('pay_card_holder'))}"><p class="err" id="pc-err"></p>
+      <button class="btn-primary" id="pc-ok">${esc(t('save'))}</button><p class="pay-safe">🔒 ${esc(t('pay_cards_sub'))}</p>`);
+    $('#pc-n').oninput = (e) => { const d = e.target.value.replace(/\D/g, '').slice(0, 16); e.target.value = this.fmt(d); };
+    $('#pc-ok').onclick = () => {
+      const n = $('#pc-n').value.replace(/\D/g, ''); if (n.length !== 16 || !this.luhn(n)) { $('#pc-err').textContent = t('pay_bad_card'); return; }
+      const c = { n, h: $('#pc-h').value.trim().slice(0, 40), b: this.bank(n)[0] }; const l = this.cards().filter((x) => x.n !== n); l.unshift(c); this.setCards(l); onDone(c);
+    };
+    setTimeout(() => $('#pc-n')?.focus(), 80);
+  },
+  myCard() {
+    const l = this.cards();
+    const send = (c) => { closeModal(); emitSend({ chatId: S.current, type: 'text', text: `💳 ${this.fmt(c.n)}${c.h ? ' — ' + c.h : ''}`, meta: { card: c } }).catch((e) => toast(e.message)); };
+    if (!l.length) return this.cardForm(send);
+    modal(`<h3>💳 ${esc(t('pay_cards'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><div id="pc-list">${l.map((c, i) => `<button class="pay-mini" data-i="${i}">💳<span><b>${esc(this.mask(c.n))}</b><small>${esc([c.b, c.h].filter(Boolean).join(' · '))}</small></span><span class="pm-x" data-x="${i}">✕</span></button>`).join('')}</div>
+      <button class="btn-ghost14" id="pc-add">➕ ${esc(t('pay_add_card'))}</button><p class="pay-safe">🔒 ${esc(t('pay_cards_sub'))}</p>`);
+    $('#pc-list').onclick = (e) => { const x = e.target.closest('[data-x]'); if (x) { e.stopPropagation(); const l2 = this.cards(); l2.splice(+x.dataset.x, 1); this.setCards(l2); return this.myCard(); } const b = e.target.closest('[data-i]'); if (b) send(l[+b.dataset.i]); };
+    $('#pc-add').onclick = () => this.cardForm(send);
+  },
+  peerCards(chatId) {
+    const seen = new Map();
+    for (const m of [...(S.msgs.get(chatId) || [])].reverse()) if (m.meta?.card && m.sender_id !== S.me.id && !m.deleted && !seen.has(m.meta.card.n)) seen.set(m.meta.card.n, m.meta.card);
+    return [...seen.values()];
+  },
+  amountForm(title, cb, preset = {}) {
+    modal(`<h3>${title} <button class="icon-btn" data-close>${icon('close')}</button></h3>
+      <input class="field" id="pa-amt" inputmode="numeric" placeholder="${esc(t('pay_amount'))}" value="${preset.amt ? fmtSum(preset.amt) : ''}">
+      <input class="field" id="pa-note" maxlength="120" placeholder="${esc(t('pay_note'))}" value="${esc(preset.note || '')}"><button class="btn-primary" id="pa-ok">OK</button>`);
+    $('#pa-amt').oninput = (e) => { const d = e.target.value.replace(/\D/g, '').slice(0, 11); e.target.value = d ? fmtSum(+d) : ''; };
+    $('#pa-ok').onclick = () => { const amt = +$('#pa-amt').value.replace(/\D/g, ''); if (!(amt > 0)) return $('#pa-amt').focus(); cb(amt, $('#pa-note').value.trim()); };
+    setTimeout(() => $('#pa-amt')?.focus(), 80);
+  },
+  request() {
+    this.amountForm('🧾 ' + esc(t('pay_req')), (amt, note) => { closeModal(); emitSend({ chatId: S.current, type: 'text', text: `🧾 ${fmtSum(amt)} so‘m${note ? ' — ' + note : ''}`, meta: { pay: { k: 'req', amt, cur: 'UZS', note } } }).catch((e) => toast(e.message)); });
+  },
+  // pul yuborish: summa → kimning kartasiga → qaysi ilova (karta raqami nusxalanadi va ilova ochiladi) → "o'tkazdim" kartochkasi
+  send(preset = {}, reqMsg = null) {
+    const chatId = S.current;
+    const go = (amt, note) => {
+      const cards = preset.cards || this.peerCards(chatId);
+      const pickApp = (card) => {
+        modal(`<h3>💸 ${fmtSum(amt)} so‘m <button class="icon-btn" data-close>${icon('close')}</button></h3>
+          ${card ? `<div class="pay-mini">💳<span><b>${esc(this.fmt(card.n))}</b><small>${esc([card.b, card.h].filter(Boolean).join(' · '))}</small></span></div>` : ''}
+          <p class="muted small">${esc(t('pay_app'))}</p><div class="pay-apps">${this.APPS.map(([id, n, col]) => `<button data-app="${id}"><span style="background:${col}">${n[0]}</span>${esc(n)}</button>`).join('')}</div>
+          <button class="btn-ghost14" data-app="other">🏦 ${esc(t('pay_other'))}</button><p class="pay-safe">🔒 ${esc(t('pay_safe'))}</p>`);
+        $('#modal-card').onclick = async (e) => {
+          const b = e.target.closest('[data-app]'); if (!b) return; const app = b.dataset.app;
+          if (card) { try { await navigator.clipboard.writeText(card.n); } catch {} toast(t('pay_copied'), 4000); }
+          if (app !== 'other') setTimeout(() => this.openApp(app), 400);
+          setTimeout(() => this.confirmSent(chatId, amt, note, app, card, reqMsg), 900);
+        };
+      };
+      if (cards.length === 1) return pickApp(cards[0]);
+      if (cards.length > 1) {
+        modal(`<h3>${esc(t('pay_to_card'))} <button class="icon-btn" data-close>${icon('close')}</button></h3>${cards.map((c, i) => `<button class="pay-mini" data-i="${i}">💳<span><b>${esc(this.fmt(c.n))}</b><small>${esc([c.b, c.h].filter(Boolean).join(' · '))}</small></span></button>`).join('')}`);
+        $('#modal-card').onclick = (e) => { const b = e.target.closest('[data-i]'); if (b) pickApp(cards[+b.dataset.i]); };
+        return;
+      }
+      modal(`<h3>💳 ${esc(t('pay_to_card'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><p class="muted">${esc(t('pay_no_card'))}</p>
+        <button class="btn-ghost14" id="pn-ask">🙏 ${esc(t('pay_ask_card'))}</button><input class="field" id="pn-n" inputmode="numeric" maxlength="19" placeholder="${esc(t('pay_card_num'))}"><p class="err" id="pn-err"></p><button class="btn-primary" id="pn-ok">OK</button>`);
+      $('#pn-ask').onclick = () => { closeModal(); emitSend({ chatId, type: 'text', text: '🙏 ' + t('pay_ask_card') + ' 💳' }).catch(() => {}); };
+      $('#pn-n').oninput = (e) => { e.target.value = this.fmt(e.target.value.replace(/\D/g, '').slice(0, 16)); };
+      $('#pn-ok').onclick = () => { const n = $('#pn-n').value.replace(/\D/g, ''); if (n.length !== 16 || !this.luhn(n)) { $('#pn-err').textContent = t('pay_bad_card'); return; } pickApp({ n, h: '', b: this.bank(n)[0] }); };
+    };
+    if (preset.amt) return go(preset.amt, preset.note || '');
+    this.amountForm('💸 ' + esc(t('pay_send')), go);
+  },
+  confirmSent(chatId, amt, note, app, card, reqMsg) {
+    modal(`<h3>💸 ${fmtSum(amt)} so‘m <button class="icon-btn" data-close>${icon('close')}</button></h3><p>${esc(t('pay_done_q'))}</p><button class="btn-primary" id="pd-ok">✅ ${esc(t('pay_done'))}</button>`);
+    $('#pd-ok').onclick = async () => {
+      closeModal();
+      try {
+        if (reqMsg) await new Promise((res, rej) => S.socket.timeout(15000).emit('pay:status', { id: reqMsg.id, st: 'paid' }, (e, r) => (e || r?.error ? rej(e || new Error(r.error)) : res(r))));
+        else await emitSend({ chatId, type: 'text', text: `💸 ${fmtSum(amt)} so‘m${note ? ' — ' + note : ''}`, meta: { pay: { k: 'sent', amt, cur: 'UZS', note, app, card: card?.n.slice(-4) } } });
+      } catch (e) { toast(e.message || t('not_sent')); }
+    };
+  },
+  html(m) {
+    const out = m.sender_id === S.me?.id;
+    if (m.meta?.card) {
+      const c = m.meta.card, [bn, cls] = this.bank(c.n);
+      return `<div class="pay-card ${cls}" data-pid="${m.id}"><div class="pc-top"><span>💳 ${esc(c.b || bn)}</span><span>Birga</span></div><div class="pc-num">${esc(this.fmt(c.n))}</div><div class="pc-h">${esc(c.h || '')}</div>
+        <div class="pc-acts"><button data-pc="copy">${esc(t('pay_copy'))}</button>${out ? '' : `<button data-pc="send">💸 ${esc(t('pay_send'))}</button>`}</div></div>`;
+    }
+    const p = m.meta.pay, st = p.st || 'new';
+    const btns = p.k === 'req'
+      ? (!out && st === 'new' ? `<button data-pc="pay">💸 ${esc(t('pay_btn_pay'))}</button>` : '') + (out && st === 'paid' ? `<button data-pc="got">✅ ${esc(t('pay_btn_got'))}</button><button data-pc="no">${esc(t('pay_btn_no'))}</button>` : '')
+      : (!out && st === 'new' ? `<button data-pc="got">✅ ${esc(t('pay_btn_got'))}</button><button data-pc="no">${esc(t('pay_btn_no'))}</button>` : '');
+    return `<div class="pay-card pay ${p.k}" data-pid="${m.id}"><div class="pp-k">${p.k === 'req' ? '🧾 ' + esc(t('pay_req_t')) : '💸 ' + esc(t('pay_sent_t'))}${p.card ? ' · •••• ' + esc(p.card) : ''}${p.app ? ' · ' + esc(this.APPS.find((a) => a[0] === p.app)?.[1] || '') : ''}</div>
+      <div class="pp-amt">${fmtSum(p.amt)} so‘m</div>${p.note ? `<div class="pp-note">${esc(p.note)}</div>` : ''}<span class="pp-st">${esc(t('pay_st_' + st))}</span>${btns ? `<div class="pc-acts">${btns}</div>` : ''}</div>`;
+  },
+};
+{
+  const baseMI20 = msgInner;
+  msgInner = function (m, c, tail, gap) {
+    const h = baseMI20(m, c, tail, gap);
+    if (m.deleted || m.type !== 'text' || !(m.meta?.card || m.meta?.pay)) return h;
+    return h.replace(/<span class="txt"[^>]*>[\s\S]*?<\/span>(?=<span class="meta)/, Pay.html(m));
+  };
+  $('#messages').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-pc]'); if (!b) return; e.stopPropagation();
+    const id = +b.closest('[data-pid]').dataset.pid; const m = (S.msgs.get(S.current) || []).find((x) => x.id === id); if (!m) return;
+    const k = b.dataset.pc;
+    if (k === 'copy') { try { await navigator.clipboard.writeText(m.meta.card.n); toast(t('pay_copied'), 3000); } catch { prompt('', m.meta.card.n); } }
+    if (k === 'send') Pay.send({ cards: [m.meta.card] });
+    if (k === 'pay') Pay.send({ amt: m.meta.pay.amt, note: m.meta.pay.note, cards: Pay.peerCards(S.current) }, m);
+    if (k === 'got' || k === 'no') S.socket.timeout(15000).emit('pay:status', { id, st: k }, (er, r) => { if (er || r?.error) toast(t('not_sent')); });
+  }, true);
+  const baseAttach20 = $('#btn-attach').onclick;
+  $('#btn-attach').onclick = (e) => {
+    baseAttach20(e);
+    const sheet = $('#modal-card .att-sheet'); const c = S.chats.get(S.current); if (!sheet || !c || c.type === 'channel') return;
+    sheet.querySelector('[data-at17="loc"], [data-at="poll"]')?.insertAdjacentHTML('afterend', `<button class="row-btn" data-at20="pay"><span class="ri c3">💳</span><span>${esc(t('pay_att'))}<small>${esc(t('pay_att_sub'))}</small></span></button>`);
+    sheet.querySelector('[data-at20="pay"]')?.addEventListener('click', (ev) => { ev.stopPropagation(); Pay.sheet(); });
+  };
+}
+
+/* ---------- 3) Hayot lentasi: do'stlar qayerda (rozilik bilan) ---------- */
+const FriendsLoc = {
+  on: () => !!S.me?.locShare, list: [], mk: new Map(), watch: null, lastSent: 0, lastPos: null, lastPlace: '', placeAt: 0,
+  async toggle(on) {
+    if (on && !confirm(t('fl_on_q'))) return false;
+    try { const r = await api('/api/friends/share', { body: { on } }); S.me = { ...S.me, locShare: r.on }; toast(t(r.on ? 'fl_on' : 'fl_off'), 2500); this.sync(); return true; } catch (e) { toast(e.message); return false; }
+  },
+  sync() {
+    if (this.on() && !document.hidden && navigator.geolocation) {
+      if (this.watch == null) this.watch = navigator.geolocation.watchPosition((p) => this.got(p), () => {}, { enableHighAccuracy: true, maximumAge: 20000, timeout: 30000 });
+    } else if (this.watch != null) { navigator.geolocation.clearWatch(this.watch); this.watch = null; }
+  },
+  async got(p) {
+    const { latitude: lat, longitude: lon, accuracy: acc } = p.coords; const now = Date.now();
+    const moved = !this.lastPos || Math.hypot((lat - this.lastPos[0]) * 111e3, (lon - this.lastPos[1]) * 85e3) > 30;
+    if (now - this.lastSent < (moved ? 20e3 : 90e3)) return;
+    this.lastSent = now; this.lastPos = [lat, lon];
+    if (now - this.placeAt > 5 * 60e3 && typeof LiveLoc !== 'undefined') { this.placeAt = now; try { const a = await LiveLoc.addr(lat, lon); this.lastPlace = (a.name || a.addr || '').split(',').slice(0, 2).join(','); } catch {} }
+    let bat; try { const b = await navigator.getBattery?.(); if (b) bat = Math.round(b.level * 100); } catch {}
+    api('/api/friends/loc', { body: { lat, lon, acc, bat, place: this.lastPlace } }).catch(() => {});
+  },
+  async open() {
+    await MapView.open(); await Promise.race([new Promise((r) => (MapView.map?.loaded() ? r() : MapView.map?.once('load', r))), new Promise((r) => setTimeout(r, 2500))]);
+    try { const r = await api('/api/friends/loc'); this.list = r.friends; } catch { this.list = []; }
+    this.paint(); this.sheet();
+  },
+  sheet() {
+    const L = this.list.slice().sort((a, b) => b.at - a.at);
+    const sh = $('#mp-sheet'); if (!sh) return;
+    sh.innerHTML = `<div class="mp-sh-in"><h3 style="margin:0 0 8px">📍 ${esc(t('fl_title'))}</h3>
+      <label class="fl-tog"><span>${esc(t('fl_share'))}<small>${esc(t('fl_share_sub'))}</small></span><input type="checkbox" id="fl-sw" ${this.on() ? 'checked' : ''}></label>
+      ${!this.on() ? `<p class="muted small">${esc(t('fl_need_on'))}</p>` : ''}
+      <div class="fl-list">${L.length ? L.map((f) => `<div class="fl-row" data-fu="${f.user.id}">${avatar({ ...f.user, online: false })}<div class="fl-t"><b>${esc(S.users.get(f.user.id)?.name || f.user.name)}</b><small>📍 ${esc(f.place || `${f.lat.toFixed(4)}, ${f.lon.toFixed(4)}`)}</small><small>🕒 ${esc(agoTxt(f.at))}${f.bat != null ? ` · 🔋 ${f.bat}%` : ''}</small></div><button data-fa="map">${esc(t('fl_open'))}</button><button data-fa="chat">${esc(t('fl_chat'))}</button></div>`).join('') : `<p class="empty-note">${esc(t('fl_empty'))}</p>`}</div></div>`;
+    sh.classList.remove('hidden'); sh.dataset.fl = '1';
+    $('#fl-sw').onchange = async (e) => { const ok = await this.toggle(e.target.checked); if (!ok) e.target.checked = this.on(); this.open(); };
+    sh.querySelector('.fl-list').onclick = (e) => {
+      const b = e.target.closest('[data-fa]'); if (!b) return; e.stopPropagation(); const uid = +b.closest('[data-fu]').dataset.fu; const f = this.list.find((x) => x.user.id === uid); if (!f) return;
+      if (b.dataset.fa === 'map') MapView.map?.flyTo({ center: [f.lon, f.lat], zoom: 16 });
+      if (b.dataset.fa === 'chat') { MapView.close(); typeof openUserChat === 'function' ? openUserChat(uid) : api('/api/chats', { body: { userId: uid } }).then(async (c) => { await loadChats(); openChat(c.id); }); }
+    };
+  },
+  paint() {
+    if (!MapView.map || !window.maplibregl) return;
+    const ids = new Set(this.list.map((f) => f.user.id));
+    for (const [id, m] of this.mk) if (!ids.has(id)) { m.remove(); this.mk.delete(id); }
+    for (const f of this.list) {
+      let m = this.mk.get(f.user.id);
+      if (!m) {
+        const el = document.createElement('div'); el.className = 'fl-mk'; const u = f.user;
+        if (u.avatar) el.style.backgroundImage = `url('${u.avatar}')`; else { el.style.background = 'var(--grad)'; el.textContent = (u.name || '?').trim()[0]?.toUpperCase() || '?'; }
+        el.insertAdjacentHTML('beforeend', `<i>${esc((u.name || '').split(' ')[0])}</i>`);
+        el.onclick = (e) => { e.stopPropagation(); MapView.map.flyTo({ center: [f.lon, f.lat], zoom: 16 }); };
+        m = new maplibregl.Marker({ element: el }).setLngLat([f.lon, f.lat]).addTo(MapView.map); this.mk.set(f.user.id, m);
+      } else m.setLngLat([f.lon, f.lat]);
+    }
+    if (this.list.length && !this.fitted) { this.fitted = true; const b = new maplibregl.LngLatBounds(); this.list.forEach((f) => b.extend([f.lon, f.lat])); if (MapView.me) b.extend([MapView.me[0], MapView.me[1]]); MapView.map.fitBounds(b, { padding: 80, maxZoom: 15 }); }
+  },
+  upd(d) {
+    if (d.off) this.list = this.list.filter((f) => f.user.id !== d.id);
+    else { const u = S.users.get(d.id) || this.list.find((f) => f.user.id === d.id)?.user || { id: d.id, name: '' }; const f = { user: u, ...d }; delete f.id; const i = this.list.findIndex((x) => x.user.id === d.id); if (i >= 0) this.list[i] = { ...this.list[i], ...f, user: this.list[i].user }; else this.list.push(f); }
+    if (!$('#map-page')?.classList.contains('hidden')) { this.paint(); if ($('#mp-sheet')?.dataset.fl === '1') this.sheet(); }
+  },
+};
+{
+  document.addEventListener('visibilitychange', () => FriendsLoc.sync());
+  setInterval(() => { if (FriendsLoc.on() && !document.hidden && navigator.geolocation) navigator.geolocation.getCurrentPosition((p) => FriendsLoc.got(p), () => {}, { enableHighAccuracy: true, maximumAge: 15000, timeout: 20000 }); }, 30000);
+  const baseLA20 = loadAliases; let started20 = false;
+  loadAliases = async function () { await baseLA20(); if (!started20) { started20 = true; setTimeout(() => FriendsLoc.sync(), 2000); } };
+  const baseCS20 = connectSocket;
+  connectSocket = async function (...a) { const r = await baseCS20(...a); const s = S.socket; if (s && !s._v20) { s._v20 = true; s.on('friend:loc', (d) => FriendsLoc.upd(d)); } return r; };
+  // xaritada "do'stlar" tugmasi
+  const baseBuild = MapView.build.bind(MapView);
+  MapView.build = function () { const first = !$('#map-page'); baseBuild(); if (first) { $('#mp-layer').insertAdjacentHTML('beforebegin', `<button class="mp-btn" id="mp-friends" title="">👥</button>`); $('#mp-friends').onclick = () => FriendsLoc.open(); } };
+  // sozlamalarda
+  const baseRS20 = renderSettings;
+  renderSettings = function () {
+    baseRS20();
+    if (!$('#set-fl')) { const g = $('#set-privacy')?.parentElement; g?.insertAdjacentHTML('beforeend', `<button class="row-btn" id="set-fl"><span class="ri c7">📍</span><span><span data-t20="fl_title"></span><small id="set-fl-v"></small></span></button>`); $('#set-fl')?.addEventListener('click', () => FriendsLoc.open()); }
+    $$('[data-t20]').forEach((x) => (x.textContent = t(x.dataset.t20))); const v = $('#set-fl-v'); if (v) v.textContent = FriendsLoc.on() ? t('fl_on').split(' — ')[0] + ' ✓' : t('fl_sub');
+  };
+}
+
+/* ---------- 4) Birga yordamchi: pastda katta mikrofon — ovozli suhbat; chat tozalanmaguncha hammasini eslab qoladi ---------- */
+{
+  AI.save = function () { for (let n = 300; n >= 20; n = Math.floor(n / 2)) { try { store.set(this.key(), JSON.stringify(this.hist.slice(-n).map((m, i, a) => (i < a.length - 6 && m.image ? { ...m, image: undefined } : m)))); return; } catch {} } };
+  const memMsgs = (hist) => {
+    const all = hist.filter((m) => !m.gen && !m.err).map(({ role, content }) => ({ role, content: String(content || '') }));
+    if (all.length <= 40) return all;
+    const old = all.slice(0, -36), recent = all.slice(-36);
+    let sum = old.map((m) => (m.role === 'user' ? 'Foydalanuvchi: ' : 'Yordamchi: ') + m.content.replace(/\s+/g, ' ').slice(0, 220)).join('\n');
+    if (sum.length > 12000) sum = '…' + sum.slice(-12000);
+    const first = { role: 'user', content: `(Avvalgi suhbatimizdan eslatma — buni eslab qol va kerak bo‘lsa foydalan, javob berma:)\n${sum}` };
+    return [first, { role: 'assistant', content: 'Yaxshi, eslab qoldim.' }, ...(recent[0]?.role === 'assistant' ? recent.slice(1) : recent)];
+  };
+  AI.ask = async function (fullImg) {
+    this.busy = true; this.save(); this.render(); this.sendState();
+    try {
+      const msgs = memMsgs(this.hist);
+      if (fullImg) msgs[msgs.length - 1].image = fullImg;
+      const r = await api('/api/ai', { body: { messages: msgs } });
+      this.hist.push({ role: 'assistant', content: r.text, sources: r.sources || [] });
+    } catch (e) { this.hist.push({ role: 'assistant', content: e.status === 429 ? t('ai_limit') : t('ai_err'), err: 1 }); }
+    this.busy = false; this.save(); this.render(); this.sendState();
+    const last = this.hist[this.hist.length - 1];
+    if (!AIVoice.on && Voice.cfg().auto && last?.role === 'assistant' && !last.err && !$('#ai-page')?.classList.contains('hidden')) this.say(this.hist.length - 1);
+    return last;
+  };
+}
+const AIVoice = {
+  on: false, mr: null, stream: null, state: '',
+  btn() {
+    if ($('#ai-bigmic') || !$('#ai-page')) return;
+    $('#ai-page').insertAdjacentHTML('beforeend', `<button class="ai-bigmic" id="ai-bigmic" aria-label="mic">${icon('mic')}</button>`);
+    $('#ai-bigmic').onclick = () => this.start();
+  },
+  ui(state, txt = '') {
+    this.state = state; let ov = $('#av-ov');
+    if (!ov) { $('#ai-page').insertAdjacentHTML('beforeend', `<div class="av-ov" id="av-ov"><div class="av-st" id="av-st"></div><button class="av-orb" id="av-orb"><img src="${AI_LOGO}" alt=""></button><div class="av-tx" id="av-tx"></div><div class="av-btns"><button class="av-end" id="av-end">✕ ${esc(t('av_stop'))}</button></div></div>`); ov = $('#av-ov');
+      $('#av-end').onclick = () => this.stop(); $('#av-orb').onclick = () => this.tapOrb(); }
+    ov.className = 'av-ov ' + state; $('#av-st').textContent = t({ listen: 'av_listen', think: 'av_think', speak: 'av_speak', idle: 'av_tap' }[state] || 'av_tap'); if (txt != null) $('#av-tx').textContent = txt;
+  },
+  tapOrb() { if (this.state === 'speak') { Voice.stop(); this.listen(); } else if (this.state === 'listen') this.finish(); else if (this.state === 'idle') this.listen(); },
+  async start() { if (this.on) return; this.on = true; Voice.stop(); this.ui('idle', ''); this.listen(); },
+  stop() { this.on = false; this.kill(); Voice.stop(); $('#av-ov')?.remove(); },
+  kill() { try { this.rec?.abort?.(); } catch {} this.rec = null; clearInterval(this.vad); try { if (this.mr && this.mr.state !== 'inactive') { this.mr.onstop = null; this.mr.stop(); } } catch {} this.mr = null; this.stream?.getTracks().forEach((x) => x.stop()); this.stream = null; },
+  async listen() {
+    if (!this.on) return; this.kill(); this.ui('listen', '');
+    // server STT bo'lsa — yozib olib yuboramiz (har qanday telefonda, Birga ilovasida ham); bo'lmasa — brauzerning nutqni tanish xizmati
+    if (!S.config.stt) {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SR) { toast(t('av_no_stt'), 3500); return this.ui('idle', ''); }
+      const r = new SR(); this.rec = r; r.lang = { uz: 'uz-UZ', ru: 'ru-RU', en: 'en-US' }[LANG] || 'uz-UZ'; r.interimResults = true; r.continuous = false; let txt = '';
+      r.onresult = (e) => { txt = [...e.results].map((x) => x[0].transcript).join(''); $('#av-tx').textContent = txt; };
+      r.onerror = (e) => { if (e.error === 'not-allowed') { toast(t('av_no_mic'), 3000); this.stop(); } };
+      r.onend = () => { if (this.rec !== r) return; this.rec = null; if (!this.on) return; if (txt.trim()) this.ask(txt.trim()); else this.ui('idle', t('av_heard')); };
+      try { r.start(); } catch { this.ui('idle', ''); }
+      return;
+    }
+    try { this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); } catch { toast(t('av_no_mic'), 3000); return this.stop(); }
+    if (!this.on) return this.kill();
+    const chunks = []; const mime = pickMime('audio');
+    try { this.mr = new MediaRecorder(this.stream, mime ? { mimeType: mime, audioBitsPerSecond: 48000 } : undefined); } catch { this.mr = new MediaRecorder(this.stream); }
+    this.mr.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+    this.mr.onstop = () => this.transcribe(new Blob(chunks, { type: (this.mr?.mimeType || 'audio/webm').split(';')[0] }));
+    this.mr.start(250);
+    // ovoz faolligi: gapirib bo'lgach ~1.3 soniya jim tursa — avtomatik to'xtaydi
+    try {
+      const a = ctx(), src = a.createMediaStreamSource(this.stream), an = a.createAnalyser(); an.fftSize = 512; src.connect(an); const buf = new Uint8Array(an.fftSize);
+      let spoke = false, quiet = 0, t0 = Date.now(), base = 0.012;
+      this.vad = setInterval(() => {
+        an.getByteTimeDomainData(buf); let s = 0; for (const v of buf) s += ((v - 128) / 128) ** 2; const lvl = Math.sqrt(s / buf.length);
+        const orb = $('#av-orb'); if (orb) orb.style.transform = `scale(${1 + Math.min(0.35, lvl * 4)})`;
+        if (Date.now() - t0 < 500) { base = Math.max(base, lvl * 1.6); return; }
+        if (lvl > base * 1.8 + 0.01) { spoke = true; quiet = 0; } else if (spoke) quiet += 80;
+        if ((spoke && quiet > 1300) || Date.now() - t0 > 30000 || (!spoke && Date.now() - t0 > 9000)) this.finish(spoke);
+      }, 80);
+    } catch {}
+  },
+  finish(spoke = true) { clearInterval(this.vad); if (this.rec) { try { this.rec.stop(); } catch {} return; } if (!this.mr) return; if (!spoke) { this.mr.onstop = null; this.kill(); return this.ui('idle', t('av_heard')); } try { this.mr.stop(); } catch {} this.stream?.getTracks().forEach((x) => x.stop()); },
+  async transcribe(blob) {
+    this.mr = null; if (!this.on) return; if (blob.size < 1500) return this.ui('idle', t('av_heard'));
+    this.ui('think', '');
+    try {
+      const fd = new FormData(); fd.append('file', new File([blob], 'q.' + (blob.type.includes('mp4') ? 'm4a' : blob.type.includes('ogg') ? 'ogg' : 'webm'), { type: blob.type }));
+      const r = await fetch('/api/ai/stt', { method: 'POST', headers: { Authorization: 'Bearer ' + S.token }, body: fd }); const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error === 'no_stt' ? t('av_no_stt') : t('ai_err'));
+      const txt = String(j.text || '').trim(); if (!txt) return this.ui('idle', t('av_heard'));
+      this.ask(txt);
+    } catch (e) { toast(e.message, 3000); this.ui('idle', ''); }
+  },
+  async ask(txt) {
+    if (!this.on) return; this.ui('think', '“' + txt + '”');
+    AI.hist = AI.hist.filter((m) => !m.err); AI.hist.push({ role: 'user', content: txt, voice: 1 });
+    const last = await AI.ask();
+    if (!this.on) return;
+    if (!last || last.err || last.role !== 'assistant') return this.ui('idle', last?.content || '');
+    this.ui('speak', last.content.replace(/[*#`_]/g, '').slice(0, 600));
+    Voice.speak(last.content, () => { if (this.on && this.state === 'speak') this.listen(); });
+  },
+};
+{
+  const baseEnsure20 = AI.ensure.bind(AI);
+  AI.ensure = function () { baseEnsure20(); AIVoice.btn(); };
+  const baseClose20 = AI.close.bind(AI);
+  AI.close = function () { AIVoice.stop(); return baseClose20(); };
+}
+
+/* ---------- 5) Birga ilovasida: telefonning o'z nutqni tanish va ovozli o'qish xizmati (kalitlarsiz ham ishlaydi) ---------- */
+const NatSR = {
+  ok: () => !!window.BirgaNative?.hasSpeech,
+  cb: null,
+  listen(h) { this.cb = h; window.birgaSR = (o) => this.cb?.(o); window.BirgaNative.listen({ uz: 'uz-UZ', ru: 'ru-RU', en: 'en-US' }[LANG] || 'uz-UZ'); },
+  stop() { try { window.BirgaNative.stopListen(); } catch {} },
+  cancel() { this.cb = null; try { window.BirgaNative.cancelListen(); } catch {} },
+};
+if (NatSR.ok()) {
+  const baseKill = AIVoice.kill.bind(AIVoice);
+  AIVoice.kill = function () { if (this.nat) { this.nat = false; NatSR.cancel(); } return baseKill(); };
+  const baseListen = AIVoice.listen.bind(AIVoice);
+  AIVoice.listen = async function () {
+    if (S.config.stt || !this.on) return baseListen();
+    this.kill(); this.ui('listen', ''); this.nat = true; let txt = '';
+    NatSR.listen((o) => {
+      if (!this.on || !this.nat) return;
+      if (o.p != null) { txt = o.p; $('#av-tx').textContent = txt; }
+      if (o.f != null) { this.nat = false; txt = o.f || txt; if (txt.trim()) this.ask(txt.trim()); else this.ui('idle', t('av_heard')); }
+      if (o.e != null) { this.nat = false; if (o.e === 'perm') { toast(t('av_no_mic'), 3000); return this.stop(); } if (o.e === 'na') toast(t('av_no_stt'), 3500); if (txt.trim()) this.ask(txt.trim()); else this.ui('idle', t('av_heard')); }
+    });
+  };
+  const baseFinish = AIVoice.finish.bind(AIVoice);
+  AIVoice.finish = function (spoke) { if (this.nat) { NatSR.stop(); return; } return baseFinish(spoke); };
+  // kichik mikrofon (yozish maydonida) — gapirganni matnga
+  AI.listen = function () {
+    if (this.natRec) { NatSR.stop(); return; }
+    const inp = $('#ai-in'), base = inp.value ? inp.value + ' ' : ''; this.natRec = true; $('#ai-mic').classList.add('rec');
+    const end = () => { this.natRec = false; $('#ai-mic')?.classList.remove('rec'); };
+    NatSR.listen((o) => { const tx = o.f ?? o.p; if (tx != null) { inp.value = base + tx; inp.dispatchEvent(new Event('input')); } if (o.f != null || o.e != null) { end(); if (o.e === 'perm') toast(t('ai_no_mic'), 3000); } });
+  };
+}
+if (window.BirgaNative?.speak) {
+  const baseSpeak = Voice.speak.bind(Voice), baseStop = Voice.stop.bind(Voice);
+  Voice.stop = function () { try { window.BirgaNative.stopSpeak(); } catch {} return baseStop(); };
+  Voice.speak = async function (text, onEnd) {
+    if (await this.check()) return baseSpeak(text, onEnd); // Azure o'zbekcha neyron ovozi ulangan — u eng yaxshisi
+    this.stop();
+    const clean = String(text || '').replace(/```[\s\S]*?```/g, ' ').replace(/https?:\/\/\S+/g, ' ').replace(/[*#`_>\[\]()|]/g, '').trim().slice(0, 3500);
+    window.birgaTTS = () => { window.birgaTTS = null; onEnd?.(); };
+    window.BirgaNative.speak(clean, this.lang(clean));
+  };
+}
+
+boot();

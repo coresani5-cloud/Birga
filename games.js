@@ -1384,6 +1384,387 @@
     return { ...api, stop, resize: cv.fit };
   };
 
+
+  /* ================= v20: yangi 2 kishilik o'yinlar — jonli (futbol 4×4, Strike duel, xokkey) va navbatli (Reversi, Nuqtalar) ================= */
+  MPL.push(
+    { id: 'fb4', e: '⚽', c: ['#16A34A', '#1D4ED8'], rt: 1, big: 1, n: { uz: 'Futbol 4×4 (jonli)', ru: 'Футбол 4×4 (онлайн)', en: 'Football 4v4 (live)' } },
+    { id: 'duel', e: '🔫', c: ['#475569', '#B45309'], rt: 1, n: { uz: 'Counter duel (jonli)', ru: 'Counter дуэль', en: 'Counter duel' } },
+    { id: 'hockey', e: '🏒', c: ['#0EA5E9', '#E11D48'], rt: 1, n: { uz: 'Havo xokkeyi', ru: 'Аэрохоккей', en: 'Air hockey' } },
+    { id: 'reversi', e: '⚫', c: ['#15803D', '#14532D'], n: { uz: 'Reversi', ru: 'Реверси', en: 'Reversi' } },
+    { id: 'dots', e: '🔲', c: ['#F59E0B', '#B45309'], n: { uz: 'Nuqtalar va kataklar', ru: 'Точки и квадраты', en: 'Dots & Boxes' } },
+  );
+  const RT_T = {
+    uz: { wait_rt: 'Raqib ulanmoqda…', go: 'Boshladik!', lost: 'Raqib bilan aloqa uzildi…', kills: 'Frag', first: '{n} ga birinchi yetgan yutadi', you: 'Siz', opp: 'Raqib', goal: '⚽ GOOOL!', respawn: 'Qayta tug‘ilish…', hit: 'Tegdi!', killed: 'Yo‘q qilindi!', pass: 'Navbat o‘tkazildi — yurish yo‘q' },
+    ru: { wait_rt: 'Подключаем соперника…', go: 'Поехали!', lost: 'Связь с соперником потеряна…', kills: 'Фраги', first: 'Побеждает первый до {n}', you: 'Вы', opp: 'Соперник', goal: '⚽ ГОООЛ!', respawn: 'Возрождение…', hit: 'Попал!', killed: 'Убит!', pass: 'Пропуск хода — нет ходов' },
+    en: { wait_rt: 'Connecting opponent…', go: 'Go!', lost: 'Connection to opponent lost…', kills: 'Frags', first: 'First to {n} wins', you: 'You', opp: 'Opponent', goal: '⚽ GOAL!', respawn: 'Respawning…', hit: 'Hit!', killed: 'Eliminated!', pass: 'Turn passed — no moves' },
+  };
+  const rt = (k) => (RT_T[L()] || RT_T.uz)[k] || RT_T.uz[k];
+  // umumiy: jonli aloqa — raqibdan ma'lumot kelmay qolsa ogohlantirish
+  function rtLink(ctx, onMsg) {
+    const st = { last: 0, alive: false };
+    return {
+      st, recv(d) { st.last = performance.now(); st.alive = true; onMsg(d); },
+      lost() { return st.alive && performance.now() - st.last > 4000; },
+    };
+  }
+
+  // ---- Futbol 4×4 (jonli, 2 kishi): uy egasi (0) fizikani hisoblaydi, mehmon (1) boshqaruvini yuboradi ----
+  MPI.fb4 = (stage, ctx) => {
+    stage.classList.add('gm-stage-pad');
+    const { c, g, fit } = canvasIn(stage, 0.62);
+    const pad = padUI(stage, [{ id: 'shoot', t: '⚽', cls: 'big' }, { id: 'pass', t: '↗️' }]);
+    const FW = 68, FH = 105, GW = 18, MATCH = 180, HOST = ctx.me === 0, SPEC = ctx.me < 0;
+    const form = [[0, 0.95], [-0.5, 0.75], [0.5, 0.75], [0, 0.58]];
+    const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+    let pl = [], ball, sc = [0, 0], time = 0, owner = null, ctrl = [null, null], kick = 0, msg = '', msgT = 0, over = false, started = false, cd = 3;
+    const gin = { x: 0, y: 0, sh: 0, ps: 0 }; let seen = { sh: 0, ps: 0, sh0: 0, ps0: 0 }; const mine = { sh: 0, ps: 0 };
+    let snap = null, prev = null, snapT = 0;
+    const mk = (team, i) => { const [fx, fy] = form[i]; const y = team ? 1 - fy : fy; return { team, i, gk: i === 0, hx: FW / 2 + fx * FW * 0.5, hy: y * FH, x: 0, y: 0, vx: 0, vy: 0, cd: 0, dir: team ? Math.PI / 2 : -Math.PI / 2 }; };
+    const kickoff = (to) => {
+      pl.forEach((p) => { p.x = p.hx; p.y = p.hy; p.vx = p.vy = 0; p.cd = 0; });
+      ball = { x: FW / 2, y: FH / 2, vx: 0, vy: 0, z: 0, vz: 0 }; owner = null; kick = 1;
+      const s = pl.find((p) => p.team === to && p.i === 3); s.x = FW / 2; s.y = FH / 2 + (to ? -1.6 : 1.6);
+    };
+    pl = [0, 1, 2, 3].map((i) => mk(0, i)).concat([0, 1, 2, 3].map((i) => mk(1, i))); kickoff(0); ctrl = [pl[3], pl[7]];
+    const goalY = (team) => (team ? FH + 1 : -1);
+    function strike(p, tx, ty, power, lob) { const dx = tx - ball.x, dy = ty - ball.y, d = Math.hypot(dx, dy) || 1; ball.vx = (dx / d) * power; ball.vy = (dy / d) * power; ball.vz = lob ? 9 : 2.5; owner = null; p.cd = 0.35; snd(240, 0.06, 0.07, 'triangle'); }
+    const shootAt = (p, aim) => strike(p, FW / 2 + aim, goalY(p.team), 47, false);
+    const bestMate = (p) => { let b = null, bs = -1e9; for (const m of pl) { if (m === p || m.team !== p.team || m.gk) continue; const fwd = p.team ? m.y - p.y : p.y - m.y; const press = Math.min(...pl.filter((o) => o.team !== p.team).map((o) => dist(o, m))); const s = fwd * 0.6 + press * 1.2 - Math.abs(dist(p, m) - 22) * 0.3; if (s > bs) { bs = s; b = m; } } return b; };
+    const passTo = (p, m) => strike(p, m.x + m.vx * 0.25, m.y + m.vy * 0.25, Math.min(40, 18 + dist(p, m) * 0.9), dist(p, m) > 30);
+    // ---- uy egasi: simulyatsiya ----
+    function sim(dt) {
+      time += dt; kick = Math.max(0, kick - dt);
+      if (time >= MATCH && !over) { over = true; const w = sc[0] === sc[1] ? 2 : sc[0] > sc[1] ? 0 : 1; ctx.rt?.send({ t: 'end', w, sc }); setTimeout(() => ctx.over(w), 600); }
+      const inputs = [{ x: pad.x, y: pad.y, sh: mine.sh, ps: mine.ps }, { x: -gin.x, y: -gin.y, sh: gin.sh, ps: gin.ps }];
+      const kd = keysDown; if (kd.has('arrowleft') || kd.has('a')) inputs[0].x = -1; if (kd.has('arrowright') || kd.has('d')) inputs[0].x = 1; if (kd.has('arrowup') || kd.has('w')) inputs[0].y = -1; if (kd.has('arrowdown') || kd.has('s')) inputs[0].y = 1;
+      const press = [inputs[0].sh > seen.sh0, inputs[0].ps > seen.ps0, inputs[1].sh > seen.sh, inputs[1].ps > seen.ps];
+      seen.sh0 = inputs[0].sh; seen.ps0 = inputs[0].ps; seen.sh = inputs[1].sh; seen.ps = inputs[1].ps;
+      for (const t of [0, 1]) {
+        if (owner && owner.team === t && !owner.gk) ctrl[t] = owner;
+        else { const cand = pl.filter((p) => p.team === t && !p.gk).sort((a, b) => dist(a, ball) - dist(b, ball))[0]; if (cand !== ctrl[t] && dist(cand, ball) + 2 < dist(ctrl[t], ball)) ctrl[t] = cand; }
+      }
+      for (const p of pl) {
+        p.cd = Math.max(0, p.cd - dt);
+        let tx = p.hx, ty = p.hy, spd = 15;
+        if (p === ctrl[p.team]) { const inp = inputs[p.team]; p.vx += (inp.x * 20 - p.vx) * Math.min(1, dt * 10); p.vy += (inp.y * 20 - p.vy) * Math.min(1, dt * 10); }
+        else {
+          if (p.gk) { tx = FW / 2 + Math.max(-GW / 2, Math.min(GW / 2, (ball.x - FW / 2) * 0.6)); ty = p.team ? 3 : FH - 3; spd = 13; if (dist(p, ball) < 14 && (p.team ? ball.y < 16 : ball.y > FH - 16)) { tx = ball.x; ty = ball.y; } }
+          else { const att = owner ? owner.team === p.team : false; tx = p.hx + (ball.x - FW / 2) * 0.35; ty = p.hy + (ball.y / FH - 0.5) * FH * 0.55 + (att ? (p.team ? 10 : -10) : 0); }
+          const dx = tx - p.x, dy = ty - p.y, d = Math.hypot(dx, dy);
+          const vx = d > 0.6 ? (dx / d) * Math.min(spd, d * 4) : 0, vy = d > 0.6 ? (dy / d) * Math.min(spd, d * 4) : 0;
+          p.vx += (vx - p.vx) * Math.min(1, dt * 6); p.vy += (vy - p.vy) * Math.min(1, dt * 6);
+        }
+        p.x = Math.max(1, Math.min(FW - 1, p.x + p.vx * dt)); p.y = Math.max(-1, Math.min(FH + 1, p.y + p.vy * dt));
+        if (Math.hypot(p.vx, p.vy) > 2) p.dir = Math.atan2(p.vy, p.vx);
+      }
+      for (let i = 0; i < pl.length; i++) for (let j = i + 1; j < pl.length; j++) { const a = pl[i], b = pl[j], d = dist(a, b); if (d < 2.4 && d > 0) { const f = (2.4 - d) / 2; a.x -= ((b.x - a.x) / d) * f; a.y -= ((b.y - a.y) / d) * f; b.x += ((b.x - a.x) / d) * f; b.y += ((b.y - a.y) / d) * f; } }
+      if (owner) {
+        const a = owner.dir; ball.x = owner.x + Math.cos(a) * 1.6; ball.y = owner.y + Math.sin(a) * 1.6; ball.vx = owner.vx; ball.vy = owner.vy; ball.z = 0;
+        const t = owner.team, sh = press[t * 2], ps = press[t * 2 + 1];
+        if (owner.gk) { if (owner.cd <= 0.05) { const m = bestMate(owner); if (m) passTo(owner, m); } }
+        else if (sh) shootAt(owner, inputs[t].x * GW * 0.45);
+        else if (ps) { const m = bestMate(owner); if (m) passTo(owner, m); }
+        for (const p of pl) if (owner && p.team !== owner.team && p.cd <= 0 && dist(p, ball) < 1.9 && Math.random() < dt * (p === ctrl[p.team] ? 7 : 2.5)) { owner.cd = 0.6; owner = p; p.cd = 0.3; snd(500, 0.04, 0.04); break; }
+      } else {
+        ball.x += ball.vx * dt; ball.y += ball.vy * dt; ball.vz -= 30 * dt; ball.z = Math.max(0, ball.z + ball.vz * dt); if (ball.z === 0) ball.vz = Math.abs(ball.vz) > 4 ? -ball.vz * 0.4 : 0;
+        const fr = ball.z > 0 ? 0.995 : Math.pow(0.35, dt); ball.vx *= fr; ball.vy *= fr;
+        if (ball.x < 0.5 || ball.x > FW - 0.5) { ball.vx = -ball.vx * 0.7; ball.x = Math.max(0.5, Math.min(FW - 0.5, ball.x)); }
+        if (ball.y < 0 || ball.y > FH) {
+          if (Math.abs(ball.x - FW / 2) < GW / 2 && ball.z < 3) { const tm = ball.y < 0 ? 0 : 1; sc[tm]++; msg = rt('goal'); msgT = 1.8; snd(1046, 0.4, 0.09); kickoff(1 - tm); }
+          else { ball.vy = -ball.vy * 0.6; ball.y = Math.max(0.5, Math.min(FH - 0.5, ball.y)); }
+        }
+        if (kick <= 0 && ball.z < 1.6) for (const p of pl) { if (p.cd > 0) continue; const d = dist(p, ball), sp = Math.hypot(ball.vx, ball.vy); if (d < (p.gk ? 2.8 : 1.8) && (sp < 34 || (p.gk && Math.random() < 0.6) || Math.random() < 0.3)) { owner = p; if (p.gk) { ball.vx = ball.vy = 0; p.cd = 0.5; } break; } }
+      }
+    }
+    const pack = () => ({ t: 's', p: pl.map((p) => [Math.round(p.x * 10) / 10, Math.round(p.y * 10) / 10, Math.round(p.dir * 100) / 100]), b: [Math.round(ball.x * 10) / 10, Math.round(ball.y * 10) / 10, Math.round(ball.z * 10) / 10], sc, tm: Math.round(time), c: [pl.indexOf(ctrl[0]), pl.indexOf(ctrl[1])], m: msgT > 0 ? msg : '', cd: Math.max(0, Math.ceil(cd)) });
+    const link = rtLink(ctx, (d) => {
+      if (HOST) { if (d.t === 'i') { gin.x = +d.x || 0; gin.y = +d.y || 0; gin.sh = d.sh | 0; gin.ps = d.ps | 0; } return; }
+      if (d.t === 's') { prev = snap; snap = d; snapT = performance.now(); if (d.m && d.m !== msg) { msg = d.m; msgT = 1.8; snd(1046, 0.3, 0.07); } sc = d.sc; time = d.tm; }
+      if (d.t === 'end' && !over) { over = true; sc = d.sc || sc; setTimeout(() => ctx.over(d.w), 600); }
+    });
+    ctx.turn(-1, rt('wait_rt'));
+    let sendT = 0, hiT = 0;
+    const stop = loop((dt) => {
+      const W = c.W, H = c.H;
+      if (pad.take('shoot') || keysDown.has(' ')) mine.sh++; if (pad.take('pass') || keysDown.has('x')) mine.ps++;
+      sendT += dt; hiT += dt;
+      if (HOST) {
+        if (!started && link.st.alive) { started = true; ctx.turn(-1, '⚽ ' + gname(mpMeta('fb4'))); }
+        if (started) { if (cd > 0) cd -= dt; else if (!over) sim(dt); }
+        if (sendT > 0.066) { sendT = 0; ctx.rt?.send(pack()); }
+      } else if (!SPEC) {
+        let x = pad.x, y = pad.y; const kd = keysDown; if (kd.has('arrowleft') || kd.has('a')) x = -1; if (kd.has('arrowright') || kd.has('d')) x = 1; if (kd.has('arrowup') || kd.has('w')) y = -1; if (kd.has('arrowdown') || kd.has('s')) y = 1;
+        if (sendT > 0.05) { sendT = 0; ctx.rt?.send({ t: 'i', x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100, sh: mine.sh, ps: mine.ps }); }
+        if (snap && !started) { started = true; ctx.turn(-1, gname(mpMeta('fb4'))); }
+      }
+      // ko'rinish: har kim o'z jamoasini pastda ko'radi (mehmon uchun maydon 180° buriladi)
+      const flip = ctx.me === 1;
+      let P, B, C2, CD;
+      if (HOST) { P = pl.map((p) => [p.x, p.y, p.dir]); B = [ball.x, ball.y, ball.z]; C2 = [pl.indexOf(ctrl[0]), pl.indexOf(ctrl[1])]; CD = Math.ceil(cd); }
+      else if (snap) {
+        const k = prev ? Math.min(1, (performance.now() - snapT) / 66) : 1, lerp = (a, b) => (prev ? a + (b - a) * k : b);
+        P = snap.p.map((q, i) => [lerp(prev?.p[i][0] ?? q[0], q[0]), lerp(prev?.p[i][1] ?? q[1], q[1]), q[2]]);
+        B = [lerp(prev?.b[0] ?? snap.b[0], snap.b[0]), lerp(prev?.b[1] ?? snap.b[1], snap.b[1]), snap.b[2]]; C2 = snap.c; CD = snap.cd;
+      }
+      const k = W / (FW + 8), ox = 4 * k, oy = (H - FH * k) / 2;
+      const X = (x) => ox + (flip ? FW - x : x) * k, Y = (y) => oy + (flip ? FH - y : y) * k;
+      g.fillStyle = '#14532D'; g.fillRect(0, 0, W, H);
+      for (let i = 0; i < 10; i++) { g.fillStyle = i % 2 ? '#16A34A' : '#15803D'; g.fillRect(ox, oy + (FH / 10) * i * k, FW * k, (FH / 10) * k + 1); }
+      g.strokeStyle = 'rgba(255,255,255,.85)'; g.lineWidth = 2; g.strokeRect(ox, oy, FW * k, FH * k);
+      g.beginPath(); g.moveTo(ox, oy + (FH / 2) * k); g.lineTo(ox + FW * k, oy + (FH / 2) * k); g.stroke(); g.beginPath(); g.arc(ox + (FW / 2) * k, oy + (FH / 2) * k, 9 * k, 0, 7); g.stroke();
+      for (const t of [0, 1]) { const y0 = t ? oy + (FH - 16) * k : oy; g.strokeRect(ox + (FW / 2 - 20) * k, y0, 40 * k, 16 * k); g.fillStyle = 'rgba(255,255,255,.9)'; g.fillRect(ox + (FW / 2 - GW / 2) * k, t ? oy + FH * k : oy - 3 * k, GW * k, 3 * k); }
+      if (P) {
+        P.forEach((q, i) => {
+          const team = i < 4 ? 0 : 1, gk = i % 4 === 0, x = X(q[0]), y = Y(q[1]), r = 1.55 * k, myTeam = team === (ctx.me < 0 ? 0 : ctx.me);
+          g.fillStyle = 'rgba(0,0,0,.25)'; g.beginPath(); g.ellipse(x + 2, y + 3, r, r * 0.6, 0, 0, 7); g.fill();
+          if (C2 && C2[team] === i) { g.strokeStyle = myTeam ? '#FDE047' : '#FCA5A5'; g.lineWidth = 2.5; g.beginPath(); g.arc(x, y, r + 4, 0, 7); g.stroke(); }
+          g.fillStyle = gk ? (team ? '#F59E0B' : '#22D3EE') : team ? '#DC2626' : '#2563EB'; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+          const dd = (flip ? Math.PI : 0) + q[2]; g.fillStyle = '#FCD9B6'; g.beginPath(); g.arc(x + Math.cos(dd) * r * 0.25, y + Math.sin(dd) * r * 0.25, r * 0.5, 0, 7); g.fill();
+        });
+        const bx = X(B[0]), by = Y(B[1]) - B[2] * k * 0.6, br = 0.9 * k * (1 + B[2] * 0.05);
+        g.fillStyle = 'rgba(0,0,0,.3)'; g.beginPath(); g.ellipse(X(B[0]) + 1, Y(B[1]) + 2, br, br * 0.6, 0, 0, 7); g.fill();
+        g.fillStyle = '#fff'; g.beginPath(); g.arc(bx, by, br, 0, 7); g.fill(); g.fillStyle = '#111'; g.beginPath(); g.arc(bx, by, br * 0.4, 0, 7); g.fill();
+      }
+      const myS = sc[ctx.me === 1 ? 1 : 0], opS = sc[ctx.me === 1 ? 0 : 1];
+      g.fillStyle = 'rgba(0,0,0,.5)'; rr(g, W / 2 - 92, 6, 184, 30, 15); g.fill();
+      text(g, `${ctx.me === 1 ? '🔴' : '🔵'} ${myS} : ${opS} ${ctx.me === 1 ? '🔵' : '🔴'}`, W / 2 - 22, 21, 15); text(g, `${Math.min(90, Math.floor((time / MATCH) * 90))}'`, W / 2 + 62, 21, 13, '#FDE047');
+      if (!started) text(g, rt('wait_rt'), W / 2, H / 2, 18);
+      else if (CD > 0) text(g, String(CD), W / 2, H / 2, 64, '#FDE047');
+      if (msgT > 0) { msgT -= dt; text(g, msg, W / 2, H / 2 - 40, 34); }
+      if (link.lost() && !over) text(g, rt('lost'), W / 2, H * 0.7, 15, '#FCA5A5');
+    });
+    return { apply: () => false, rt: (s, d) => link.recv(d), stop, resize: fit };
+  };
+
+  // ---- Strike duel (jonli 1×1, raycasting 3D): har kim o'z harakatini hisoblaydi, tegish raqibga yuboriladi ----
+  MPI.duel = (stage, ctx) => {
+    stage.classList.add('gm-stage-pad');
+    const { c, g, fit } = canvasIn(stage, null);
+    const MAP = ['################', '#......#.......#', '#.##...#..###..#', '#.#.......#....#', '#.#..##...#.##.#', '#....#.........#', '###..#..####...#', '#.......#......#', '#..##...#..##..#', '#...#......#...#', '#...#..##..#...#', '#.......##.....#', '#.###......###.#', '#...#..#.......#', '#......#...#...#', '################'];
+    const N = 16, wall = (x, y) => x < 0 || y < 0 || x >= N || y >= N || MAP[y | 0][x | 0] === '#';
+    const pad = padUI(stage, [{ id: 'fire', t: '🔫', cls: 'big' }, { id: 'reload', t: '🔄' }]);
+    const WIN = 5, SPAWN = [[1.5, 1.5, 0.8], [14.5, 14.5, 3.9]];
+    const me = Math.max(0, ctx.me);
+    let P = { x: SPAWN[me][0], y: SPAWN[me][1], a: SPAWN[me][2], hp: 100, dead: 0 }, O = null, Oprev = null, OT = 0;
+    let frags = [0, 0], ammo = 20, reloadT = 0, fireT = 0, flash = 0, hurt = 0, hitMk = 0, oFlash = 0, oFire = 0, fireN = 0, msg = '', msgT = 0, over = false, look = null, lookX = 0, started = false;
+    c.addEventListener('pointerdown', (e) => { look = e.pointerId; lookX = e.clientX; });
+    c.addEventListener('pointermove', (e) => { if (look === e.pointerId) { P.a += (e.clientX - lookX) * 0.0065; lookX = e.clientX; } });
+    const lu = (e) => { if (look === e.pointerId) look = null; }; c.addEventListener('pointerup', lu); c.addEventListener('pointercancel', lu);
+    const los = (x0, y0, x1, y1) => { const d = Math.hypot(x1 - x0, y1 - y0), n = Math.ceil(d * 6); for (let i = 1; i < n; i++) if (wall(x0 + ((x1 - x0) * i) / n, y0 + ((y1 - y0) * i) / n)) return false; return true; };
+    const respawn = () => { const far = SPAWN.concat([[1.5, 14.5, 0], [14.5, 1.5, 3.1], [7.5, 7.5, 0]]).filter((s) => !O || Math.hypot(s[0] - O.x, s[1] - O.y) > 6); const s = far[ri(far.length)] || SPAWN[me]; Object.assign(P, { x: s[0], y: s[1], a: s[2], hp: 100, dead: 0 }); ammo = 20; reloadT = 0; };
+    const link = rtLink(ctx, (d) => {
+      if (d.t === 'p') { Oprev = O; O = d; OT = performance.now(); if (d.f > oFire) { oFire = d.f; oFlash = 0.08; snd(160, 0.07, 0.04, 'square'); } frags[1 - me] = Math.max(frags[1 - me], d.k | 0); }
+      if (d.t === 'hit' && !P.dead && !over) { P.hp -= d.dmg | 0; hurt = 0.4; snd(120, 0.15, 0.07, 'sawtooth'); if (P.hp <= 0) { P.dead = 2.5; ctx.rt?.send({ t: 'die' }); msg = rt('killed'); msgT = 2; } }
+      if (d.t === 'die') { frags[me]++; msg = '💀 +1'; msgT = 1.5; snd(700, 0.2, 0.07); if (frags[me] >= WIN && !over) { over = true; ctx.rt?.send({ t: 'end', w: me, fr: frags }); setTimeout(() => ctx.over(me), 800); } }
+      if (d.t === 'end' && !over) { over = true; setTimeout(() => ctx.over(d.w), 800); }
+    });
+    function shoot() {
+      if (reloadT > 0 || fireT > 0 || P.dead || over) return;
+      if (ammo <= 0) { reloadT = 1.3; return; }
+      ammo--; fireT = 0.16; flash = 0.06; fireN++; snd(140, 0.09, 0.09, 'square'); snd(90, 0.12, 0.06, 'sawtooth');
+      if (O && !O.dead) {
+        const dx = O.x - P.x, dy = O.y - P.y, d = Math.hypot(dx, dy); let da = Math.atan2(dy, dx) - P.a; da = Math.atan2(Math.sin(da), Math.cos(da));
+        if (Math.abs(da) < Math.max(0.045, 0.3 / d) && los(P.x, P.y, O.x, O.y)) { const head = Math.abs(da) < 0.12 / d; ctx.rt?.send({ t: 'hit', dmg: head ? 50 : 25 }); hitMk = 0.25; msg = head ? '🎯 ' + rt('hit') : rt('hit'); msgT = 0.5; }
+      }
+      if (ammo === 0) reloadT = 1.3;
+    }
+    ctx.turn(-1, rt('first').replace('{n}', WIN));
+    let sendT = 0; const ZB = [];
+    const stop = loop((dt) => {
+      const W = c.W, H = c.H;
+      sendT += dt; if (link.st.alive && !started) { started = true; msg = rt('go'); msgT = 1.2; }
+      if (P.dead) { P.dead -= dt; if (P.dead <= 0) respawn(); }
+      else if (started && !over) {
+        let mx = pad.x, my = pad.y; const kd = keysDown;
+        if (kd.has('w') || kd.has('arrowup')) my = -1; if (kd.has('s') || kd.has('arrowdown')) my = 1; if (kd.has('a')) mx = -1; if (kd.has('d')) mx = 1;
+        if (kd.has('arrowleft')) P.a -= dt * 2.4; if (kd.has('arrowright')) P.a += dt * 2.4;
+        const sp = 3.1 * dt, ca = Math.cos(P.a), sa = Math.sin(P.a); const vx = (-my * ca - mx * sa) * sp, vy = (-my * sa + mx * ca) * sp;
+        if (!wall(P.x + vx + Math.sign(vx) * 0.2, P.y)) P.x += vx; if (!wall(P.x, P.y + vy + Math.sign(vy) * 0.2)) P.y += vy;
+        if (pad.b.fire || kd.has(' ')) shoot();
+        if (pad.take('reload') && ammo < 20 && reloadT <= 0) reloadT = 1.3;
+      }
+      if (reloadT > 0) { reloadT -= dt; if (reloadT <= 0) ammo = 20; }
+      fireT -= dt;
+      if (sendT > 0.05 && ctx.me >= 0) { sendT = 0; ctx.rt?.send({ t: 'p', x: Math.round(P.x * 100) / 100, y: Math.round(P.y * 100) / 100, a: Math.round(P.a * 100) / 100, hp: Math.max(0, Math.round(P.hp)), dead: P.dead > 0 ? 1 : 0, f: fireN, k: frags[me] }); }
+      ctx.turn(-1, `❤️ ${Math.max(0, Math.round(P.hp))} · 🔫 ${reloadT > 0 ? '…' : ammo} · ${rt('you')} ${frags[me]} : ${frags[1 - me]} ${rt('opp')}`);
+      // ---- render ----
+      const hz = H / 2;
+      let gr = g.createLinearGradient(0, 0, 0, hz); gr.addColorStop(0, '#0EA5E9'); gr.addColorStop(1, '#BAE6FD'); g.fillStyle = gr; g.fillRect(0, 0, W, hz);
+      gr = g.createLinearGradient(0, hz, 0, H); gr.addColorStop(0, '#A8A29E'); gr.addColorStop(1, '#44403C'); g.fillStyle = gr; g.fillRect(0, hz, W, hz);
+      const FOV = 1.05, cols = Math.ceil(W / 2), dirx = Math.cos(P.a), diry = Math.sin(P.a), plx = -diry * Math.tan(FOV / 2), ply = dirx * Math.tan(FOV / 2);
+      for (let i = 0; i < cols; i++) {
+        const cam = (2 * i) / cols - 1, rx = dirx + plx * cam, ry = diry + ply * cam;
+        let mx = P.x | 0, my = P.y | 0; const ddx = Math.abs(1 / rx), ddy = Math.abs(1 / ry); let sxs, sys, sdx, sdy, side = 0;
+        if (rx < 0) { sxs = -1; sdx = (P.x - mx) * ddx; } else { sxs = 1; sdx = (mx + 1 - P.x) * ddx; }
+        if (ry < 0) { sys = -1; sdy = (P.y - my) * ddy; } else { sys = 1; sdy = (my + 1 - P.y) * ddy; }
+        for (let k = 0; k < 64; k++) { if (sdx < sdy) { sdx += ddx; mx += sxs; side = 0; } else { sdy += ddy; my += sys; side = 1; } if (wall(mx, my)) break; }
+        const pd = side ? sdy - ddy : sdx - ddx; ZB[i] = pd;
+        const lh = H / Math.max(0.05, pd), y0 = hz - lh / 2; let wx = side ? P.x + pd * rx : P.y + pd * ry; wx -= Math.floor(wx);
+        const br = Math.max(0.22, 1 - pd / 14) * (side ? 0.78 : 1), crate = (mx + my) % 3 === 0;
+        const base = crate ? [150, 120, 70] : ((wx * 4) | 0) % 2 === 0 ? [120, 128, 140] : [108, 116, 128];
+        g.fillStyle = `rgb(${base[0] * br | 0},${base[1] * br | 0},${base[2] * br | 0})`; g.fillRect(i * 2, y0, 2.2, lh);
+        g.fillStyle = `rgba(0,0,0,${0.2 * br})`; for (let r = 1; r < 4; r++) g.fillRect(i * 2, y0 + (lh / 4) * r, 2.2, Math.max(1, lh / 90));
+      }
+      // raqib (oraliq holat bilan silliq)
+      if (O && !O.dead) {
+        const kk = Oprev ? Math.min(1, (performance.now() - OT) / 50) : 1; const ox = Oprev ? Oprev.x + (O.x - Oprev.x) * kk : O.x, oy = Oprev ? Oprev.y + (O.y - Oprev.y) * kk : O.y;
+        const dx = ox - P.x, dy = oy - P.y; const inv = 1 / (plx * diry - dirx * ply), tx = inv * (diry * dx - dirx * dy), ty = inv * (-ply * dx + plx * dy);
+        if (ty > 0.2) {
+          const scx = (W / 2) * (1 + tx / ty), sh = H / ty, col = Math.floor(scx / 2);
+          if (col >= 0 && col < cols && ZB[col] >= ty) {
+            const w = sh * 0.42, top = hz - sh * 0.38, bob = Math.sin(performance.now() / 110) * sh * 0.01, red = ctx.me === 0 ? '#DC2626' : '#2563EB';
+            g.fillStyle = red; rr(g, scx - w / 2, top + sh * 0.22 + bob, w, sh * 0.42, w * 0.18); g.fill();
+            g.fillStyle = '#1F2937'; g.fillRect(scx - w * 0.35, top + sh * 0.62 + bob, w * 0.28, sh * 0.25); g.fillRect(scx + w * 0.07, top + sh * 0.62 + bob, w * 0.28, sh * 0.25);
+            g.fillStyle = '#FCD34D'; g.beginPath(); g.arc(scx, top + sh * 0.13 + bob, w * 0.26, 0, 7); g.fill(); g.fillStyle = '#111827'; g.fillRect(scx - w * 0.28, top + sh * 0.06 + bob, w * 0.56, w * 0.12);
+            g.fillStyle = '#374151'; g.fillRect(scx - w * 0.05, top + sh * 0.35 + bob, w * 0.62, w * 0.12);
+            if (oFlash > 0) { g.fillStyle = '#FDE047'; g.beginPath(); g.arc(scx + w * 0.6, top + sh * 0.36 + bob, w * 0.16, 0, 7); g.fill(); }
+            const bw = Math.max(30, w); g.fillStyle = 'rgba(0,0,0,.5)'; g.fillRect(scx - bw / 2, top - 10, bw, 5); g.fillStyle = '#22C55E'; g.fillRect(scx - bw / 2, top - 10, bw * Math.max(0, O.hp) / 100, 5);
+            text(g, ctx.names?.[1 - me] || rt('opp'), scx, top - 20, 12);
+          }
+        }
+      }
+      if (oFlash > 0) oFlash -= dt;
+      const bob = Math.sin(performance.now() / 120) * (Math.abs(pad.x) + Math.abs(pad.y) > 0.1 ? 4 : 0.8), kick = fireT > 0 ? 8 : 0, gx = W * 0.62, gy = H - 10 + bob + kick;
+      g.fillStyle = '#1F2937'; g.beginPath(); g.moveTo(gx - 30, gy); g.lineTo(gx - 8, gy - 120); g.lineTo(gx + 14, gy - 120); g.lineTo(gx + 40, gy); g.fill();
+      g.fillStyle = '#4B5563'; g.fillRect(gx - 4, gy - 150, 14, 40); g.fillStyle = '#92400E'; g.beginPath(); g.moveTo(gx + 10, gy); g.lineTo(gx + 26, gy - 60); g.lineTo(gx + 50, gy - 50); g.lineTo(gx + 46, gy); g.fill();
+      if (flash > 0) { flash -= dt; g.fillStyle = '#FDE047'; g.beginPath(); g.arc(gx + 3, gy - 158, 18, 0, 7); g.fill(); }
+      g.strokeStyle = hitMk > 0 ? '#EF4444' : '#22C55E'; g.lineWidth = 2; g.beginPath(); g.moveTo(W / 2 - 12, hz); g.lineTo(W / 2 - 4, hz); g.moveTo(W / 2 + 4, hz); g.lineTo(W / 2 + 12, hz); g.moveTo(W / 2, hz - 12); g.lineTo(W / 2, hz - 4); g.moveTo(W / 2, hz + 4); g.lineTo(W / 2, hz + 12); g.stroke();
+      if (hitMk > 0) { hitMk -= dt; g.beginPath(); g.moveTo(W / 2 - 9, hz - 9); g.lineTo(W / 2 - 4, hz - 4); g.moveTo(W / 2 + 9, hz - 9); g.lineTo(W / 2 + 4, hz - 4); g.moveTo(W / 2 - 9, hz + 9); g.lineTo(W / 2 - 4, hz + 4); g.moveTo(W / 2 + 9, hz + 9); g.lineTo(W / 2 + 4, hz + 4); g.stroke(); }
+      const ms = 5; g.globalAlpha = 0.75; for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { g.fillStyle = MAP[y][x] === '#' ? '#1F2937' : '#E5E7EB'; g.fillRect(8 + x * ms, 8 + y * ms, ms, ms); }
+      g.fillStyle = '#16A34A'; g.fillRect(8 + P.x * ms - 2, 8 + P.y * ms - 2, 4, 4); g.globalAlpha = 1;
+      g.fillStyle = 'rgba(0,0,0,.5)'; rr(g, W / 2 - 60, 8, 120, 28, 14); g.fill(); text(g, `${frags[me]} : ${frags[1 - me]}`, W / 2, 22, 16);
+      if (reloadT > 0) text(g, '🔄…', W / 2, hz + 40, 16, '#FDE047');
+      if (hurt > 0) { hurt -= dt; g.fillStyle = `rgba(220,38,38,${hurt})`; g.fillRect(0, 0, W, H); }
+      if (P.dead > 0) { g.fillStyle = 'rgba(0,0,0,.55)'; g.fillRect(0, 0, W, H); text(g, rt('respawn') + ' ' + Math.ceil(P.dead), W / 2, hz, 22); }
+      if (!started) text(g, rt('wait_rt'), W / 2, hz - 50, 18);
+      if (msgT > 0) { msgT -= dt; text(g, msg, W / 2, hz - 60, 26); }
+      if (link.lost() && !over) text(g, rt('lost'), W / 2, H * 0.72, 15, '#FCA5A5');
+    });
+    return { apply: () => false, rt: (s, d) => link.recv(d), stop, resize: fit };
+  };
+
+  // ---- Havo xokkeyi (jonli): uy egasi shaybani hisoblaydi ----
+  MPI.hockey = (stage, ctx) => {
+    const { c, g, fit } = canvasIn(stage, 0.6);
+    const TW = 1, TH = 1.65, GOAL = 0.34, MR = 0.075, PR = 0.045, WIN = 7, HOST = ctx.me === 0, flip = ctx.me === 1;
+    let puck = { x: 0.5, y: TH / 2, vx: 0, vy: 0 }, m = [{ x: 0.5, y: TH - 0.18, vx: 0, vy: 0 }, { x: 0.5, y: 0.18, vx: 0, vy: 0 }], sc = [0, 0], over = false, started = false, msg = '', msgT = 0, serveT = 1;
+    let target = null, snap = null, prevS = null, snapT = 0;
+    const toWorld = (px, py) => { const s = Math.min(c.W / TW, c.H / TH), ox = (c.W - TW * s) / 2, oy = (c.H - TH * s) / 2; let x = (px - ox) / s, y = (py - oy) / s; if (flip) { x = TW - x; y = TH - y; } return [x, y]; };
+    const clampM = (o, seat) => { o.x = Math.max(MR, Math.min(TW - MR, o.x)); o.y = seat === 0 ? Math.max(TH / 2 + MR, Math.min(TH - MR, o.y)) : Math.max(MR, Math.min(TH / 2 - MR, o.y)); };
+    const onPt = (e) => { if (ctx.me < 0) return; const [x, y] = toWorld(...pos(c, e)); target = { x, y }; };
+    c.addEventListener('pointerdown', onPt); c.addEventListener('pointermove', (e) => { if (e.buttons || e.pointerType === 'touch') onPt(e); });
+    const reset = (towards) => { puck = { x: 0.5, y: TH / 2 + (towards === 0 ? 0.12 : -0.12), vx: 0, vy: 0 }; serveT = 0.8; };
+    const link = rtLink(ctx, (d) => {
+      if (HOST && d.t === 'm') { const o = m[1], nx = +d.x, ny = +d.y; o.vx = (nx - o.x) * 30; o.vy = (ny - o.y) * 30; o.x = nx; o.y = ny; clampM(o, 1); }
+      if (!HOST && d.t === 's') { prevS = snap; snap = d; snapT = performance.now(); if (d.sc[0] + d.sc[1] > sc[0] + sc[1]) { snd(880, 0.3, 0.08); msg = '🥅'; msgT = 1; } sc = d.sc; m[0].x = d.m[0]; m[0].y = d.m[1]; }
+      if (d.t === 'end' && !over) { over = true; setTimeout(() => ctx.over(d.w), 600); }
+    });
+    ctx.turn(-1, rt('first').replace('{n}', WIN));
+    let sendT = 0;
+    const stop = loop((dt) => {
+      const mine = m[Math.max(0, ctx.me)];
+      if (target && ctx.me >= 0) { const nx = mine.x + (target.x - mine.x) * Math.min(1, dt * 22), ny = mine.y + (target.y - mine.y) * Math.min(1, dt * 22); mine.vx = (nx - mine.x) / dt; mine.vy = (ny - mine.y) / dt; mine.x = nx; mine.y = ny; clampM(mine, ctx.me); }
+      sendT += dt; if (link.st.alive) started = true;
+      if (HOST && started && !over) {
+        if (serveT > 0) serveT -= dt;
+        else for (let st = 0; st < 3; st++) {
+          const h = dt / 3; puck.x += puck.vx * h; puck.y += puck.vy * h; puck.vx *= Math.pow(0.6, h); puck.vy *= Math.pow(0.6, h);
+          if (puck.x < PR) { puck.x = PR; puck.vx = Math.abs(puck.vx) * 0.9; snd(300, 0.03, 0.03); } if (puck.x > TW - PR) { puck.x = TW - PR; puck.vx = -Math.abs(puck.vx) * 0.9; snd(300, 0.03, 0.03); }
+          const inG = Math.abs(puck.x - TW / 2) < GOAL / 2;
+          if (puck.y < PR && !inG) { puck.y = PR; puck.vy = Math.abs(puck.vy) * 0.9; } if (puck.y > TH - PR && !inG) { puck.y = TH - PR; puck.vy = -Math.abs(puck.vy) * 0.9; }
+          if (puck.y < -PR || puck.y > TH + PR) { const s = puck.y < 0 ? 0 : 1; sc[s]++; snd(880, 0.3, 0.08); msg = '🥅'; msgT = 1; reset(1 - s); if (sc[s] >= WIN) { over = true; ctx.rt?.send({ t: 'end', w: s }); setTimeout(() => ctx.over(s), 600); } break; }
+          for (const o of m) { const dx = puck.x - o.x, dy = puck.y - o.y, d = Math.hypot(dx, dy); if (d < MR + PR && d > 0) { const nx = dx / d, ny = dy / d; puck.x = o.x + nx * (MR + PR); puck.y = o.y + ny * (MR + PR); const rv = (puck.vx - o.vx) * nx + (puck.vy - o.vy) * ny; if (rv < 0) { puck.vx -= 1.9 * rv * nx; puck.vy -= 1.9 * rv * ny; } const sp = Math.hypot(puck.vx, puck.vy); if (sp > 3.2) { puck.vx *= 3.2 / sp; puck.vy *= 3.2 / sp; } snd(500, 0.03, 0.05); } }
+        }
+        if (sendT > 0.033) { sendT = 0; ctx.rt?.send({ t: 's', p: [Math.round(puck.x * 1000) / 1000, Math.round(puck.y * 1000) / 1000], m: [Math.round(m[0].x * 1000) / 1000, Math.round(m[0].y * 1000) / 1000], sc }); }
+      } else if (!HOST && ctx.me >= 0 && sendT > 0.033) { sendT = 0; ctx.rt?.send({ t: 'm', x: Math.round(mine.x * 1000) / 1000, y: Math.round(mine.y * 1000) / 1000 }); }
+      if (!HOST && snap) { const k = prevS ? Math.min(1, (performance.now() - snapT) / 33) : 1; puck.x = prevS ? prevS.p[0] + (snap.p[0] - prevS.p[0]) * k : snap.p[0]; puck.y = prevS ? prevS.p[1] + (snap.p[1] - prevS.p[1]) * k : snap.p[1]; }
+      // chizish
+      const s = Math.min(c.W / TW, c.H / TH), ox = (c.W - TW * s) / 2, oy = (c.H - TH * s) / 2;
+      const X = (x) => ox + (flip ? TW - x : x) * s, Y = (y) => oy + (flip ? TH - y : y) * s;
+      g.clearRect(0, 0, c.W, c.H); g.fillStyle = '#E0F2FE'; rr(g, ox, oy, TW * s, TH * s, 26); g.fill(); g.strokeStyle = '#0EA5E9'; g.lineWidth = 5; g.stroke();
+      g.strokeStyle = 'rgba(225,29,72,.5)'; g.lineWidth = 3; g.beginPath(); g.moveTo(ox, oy + (TH / 2) * s); g.lineTo(ox + TW * s, oy + (TH / 2) * s); g.stroke(); g.beginPath(); g.arc(ox + (TW / 2) * s, oy + (TH / 2) * s, 0.14 * s, 0, 7); g.stroke();
+      g.fillStyle = '#0F172A'; g.fillRect(ox + (TW / 2 - GOAL / 2) * s, oy - 4, GOAL * s, 8); g.fillRect(ox + (TW / 2 - GOAL / 2) * s, oy + TH * s - 4, GOAL * s, 8);
+      const disc = (x, y, r, col, ring) => { g.fillStyle = 'rgba(0,0,0,.18)'; g.beginPath(); g.arc(X(x) + 3, Y(y) + 4, r * s, 0, 7); g.fill(); g.fillStyle = col; g.beginPath(); g.arc(X(x), Y(y), r * s, 0, 7); g.fill(); if (ring) { g.fillStyle = 'rgba(255,255,255,.35)'; g.beginPath(); g.arc(X(x), Y(y), r * s * 0.45, 0, 7); g.fill(); } };
+      disc(puck.x, puck.y, PR, '#111827'); disc(m[0].x, m[0].y, MR, '#2563EB', 1); disc(m[1].x, m[1].y, MR, '#E11D48', 1);
+      const my = sc[Math.max(0, ctx.me)], op = sc[1 - Math.max(0, ctx.me)];
+      text(g, `${my}`, c.W - 24, c.H / 2 + 26, 26, '#0F172A'); text(g, `${op}`, c.W - 24, c.H / 2 - 26, 26, '#94A3B8');
+      if (!started) text(g, rt('wait_rt'), c.W / 2, c.H / 2 - 40, 16, '#0F172A');
+      if (msgT > 0) { msgT -= dt; text(g, msg, c.W / 2, c.H / 2, 40, '#0F172A'); }
+      if (link.lost() && !over) text(g, rt('lost'), c.W / 2, c.H * 0.7, 14, '#E11D48');
+    });
+    if (!HOST && ctx.me >= 0) m[1].y = 0.18;
+    return { apply: () => false, rt: (sd, d) => link.recv(d), stop, resize: fit };
+  };
+
+  // ---- Reversi (8×8, navbatma-navbat) ----
+  MPI.reversi = (stage, ctx) => {
+    const N = 8; const cv = boardCanvas(stage, N); const { c, g } = cv;
+    const b = Array(N * N).fill(-1); b[27] = b[36] = 1; b[28] = b[35] = 0; let turn = 0, done = false, lastI = -1;
+    const flips = (i, sd) => { if (b[i] !== -1) return []; const x0 = i % N, y0 = (i / N) | 0, out = []; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) { const L = []; let x = x0 + dx, y = y0 + dy; while (x >= 0 && y >= 0 && x < N && y < N && b[y * N + x] === 1 - sd) { L.push(y * N + x); x += dx; y += dy; } if (L.length && x >= 0 && y >= 0 && x < N && y < N && b[y * N + x] === sd) out.push(...L); } return out; };
+    const moves = (sd) => b.map((_, i) => i).filter((i) => flips(i, sd).length);
+    const finish = () => { const n0 = b.filter((v) => v === 0).length, n1 = b.filter((v) => v === 1).length; done = true; ctx.over(n0 === n1 ? 2 : n0 > n1 ? 0 : 1); };
+    c.addEventListener('pointerdown', (e) => { if (done || turn !== ctx.me) return; const p = cv.cell(e); if (!p) return; const i = p[1] * N + p[0]; if (flips(i, ctx.me).length) ctx.send(i); });
+    const api = {
+      apply(sd, i, replay) {
+        if (done || sd !== turn) return false; const f = flips(i, sd); if (!f.length) return false;
+        b[i] = sd; f.forEach((k) => (b[k] = sd)); lastI = i; if (!replay) snd(sd ? 380 : 480, 0.06, 0.06, 'triangle');
+        if (moves(1 - sd).length) turn = 1 - sd; else if (moves(sd).length) { turn = sd; if (!replay) ctx.hint(rt('pass')); } else { finish(); }
+        ctx.turn(done ? -1 : turn); return true;
+      },
+    };
+    const stop = loop(() => {
+      const s = Math.min(c.W, c.H) / N, ox = (c.W - s * N) / 2, oy = (c.H - s * N) / 2;
+      g.clearRect(0, 0, c.W, c.H); g.fillStyle = '#166534'; rr(g, ox - 4, oy - 4, s * N + 8, s * N + 8, 10); g.fill();
+      g.strokeStyle = '#14532D'; g.lineWidth = 1.5; for (let i = 0; i <= N; i++) { g.beginPath(); g.moveTo(ox, oy + i * s); g.lineTo(ox + s * N, oy + i * s); g.moveTo(ox + i * s, oy); g.lineTo(ox + i * s, oy + s * N); g.stroke(); }
+      const hint = !done && turn === ctx.me ? moves(ctx.me) : [];
+      for (let i = 0; i < N * N; i++) {
+        const x = ox + (i % N) * s + s / 2, y = oy + ((i / N) | 0) * s + s / 2;
+        if (b[i] >= 0) { g.fillStyle = 'rgba(0,0,0,.3)'; g.beginPath(); g.arc(x + 2, y + 3, s * 0.4, 0, 7); g.fill(); g.fillStyle = b[i] ? '#F8FAFC' : '#111827'; g.beginPath(); g.arc(x, y, s * 0.4, 0, 7); g.fill(); }
+        else if (hint.includes(i)) { g.fillStyle = 'rgba(255,255,255,.25)'; g.beginPath(); g.arc(x, y, s * 0.12, 0, 7); g.fill(); }
+        if (i === lastI) { g.fillStyle = '#EF4444'; g.beginPath(); g.arc(x, y, s * 0.08, 0, 7); g.fill(); }
+      }
+      const n0 = b.filter((v) => v === 0).length, n1 = b.filter((v) => v === 1).length; text(g, `⚫ ${n0}   ⚪ ${n1}`, c.W / 2, oy - 2 > 14 ? oy - 12 : 12, 14);
+    });
+    ctx.turn(0);
+    return { ...api, stop, resize: cv.fit };
+  };
+
+  // ---- Nuqtalar va kataklar (5×5 katak): katak yopgan yana yuradi ----
+  MPI.dots = (stage, ctx) => {
+    const K = 5, D = K + 1; const cv = canvasIn(stage, 1); const { c, g } = cv;
+    const H = K * D, V = D * K; const lines = Array(H + V).fill(-1), box = Array(K * K).fill(-1); let turn = 0, done = false, lastL = -1;
+    // chiziq raqami: 0..H-1 gorizontal (y*K + x, y=0..K), H.. vertikal (y*D + x, y=0..K-1)
+    const boxLines = (bx, by) => [by * K + bx, (by + 1) * K + bx, H + by * D + bx, H + by * D + bx + 1];
+    const geom = () => { const s = Math.min(c.W, c.H) / (K + 0.8), ox = (c.W - s * K) / 2, oy = (c.H - s * K) / 2; return { s, ox, oy }; };
+    c.addEventListener('pointerdown', (e) => {
+      if (done || turn !== ctx.me) return; const [px, py] = pos(c, e); const { s, ox, oy } = geom(); let best = -1, bd = s * 0.28;
+      for (let i = 0; i < H + V; i++) { if (lines[i] !== -1) continue; let x1, y1, x2, y2; if (i < H) { const y = (i / K) | 0, x = i % K; x1 = ox + x * s; y1 = oy + y * s; x2 = x1 + s; y2 = y1; } else { const j = i - H, y = (j / D) | 0, x = j % D; x1 = ox + x * s; y1 = oy + y * s; x2 = x1; y2 = y1 + s; } const mx = (x1 + x2) / 2, my = (y1 + y2) / 2, d = Math.hypot(px - mx, py - my); if (d < bd) { bd = d; best = i; } }
+      if (best >= 0) ctx.send(best);
+    });
+    const api = {
+      apply(sd, i, replay) {
+        if (done || sd !== turn || !(i >= 0 && i < H + V) || lines[i] !== -1) return false;
+        lines[i] = sd; lastL = i; let got = 0;
+        for (let by = 0; by < K; by++) for (let bx = 0; bx < K; bx++) if (box[by * K + bx] === -1 && boxLines(bx, by).every((l) => lines[l] !== -1)) { box[by * K + bx] = sd; got++; }
+        if (!replay) snd(got ? 880 : 420, got ? 0.12 : 0.04, 0.05);
+        if (!got) turn = 1 - sd;
+        if (box.every((v) => v !== -1)) { done = true; const n0 = box.filter((v) => v === 0).length, n1 = box.length - n0; ctx.over(n0 === n1 ? 2 : n0 > n1 ? 0 : 1); }
+        ctx.turn(done ? -1 : turn); return true;
+      },
+    };
+    const COL = ['#2563EB', '#E11D48'];
+    const stop = loop(() => {
+      const { s, ox, oy } = geom(); g.clearRect(0, 0, c.W, c.H);
+      for (let by = 0; by < K; by++) for (let bx = 0; bx < K; bx++) if (box[by * K + bx] >= 0) { g.fillStyle = COL[box[by * K + bx]] + '33'; g.fillRect(ox + bx * s + 3, oy + by * s + 3, s - 6, s - 6); text(g, box[by * K + bx] === ctx.me ? '★' : '●', ox + bx * s + s / 2, oy + by * s + s / 2, s * 0.3, COL[box[by * K + bx]]); }
+      g.lineCap = 'round';
+      for (let i = 0; i < H + V; i++) { let x1, y1, x2, y2; if (i < H) { const y = (i / K) | 0, x = i % K; x1 = ox + x * s; y1 = oy + y * s; x2 = x1 + s; y2 = y1; } else { const j = i - H, y = (j / D) | 0, x = j % D; x1 = ox + x * s; y1 = oy + y * s; x2 = x1; y2 = y1 + s; } g.strokeStyle = lines[i] >= 0 ? COL[lines[i]] : 'rgba(148,163,184,.35)'; g.lineWidth = lines[i] >= 0 ? (i === lastL ? 7 : 5) : 3; g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke(); }
+      g.fillStyle = '#E2E8F0'; for (let y = 0; y <= K; y++) for (let x = 0; x <= K; x++) { g.beginPath(); g.arc(ox + x * s, oy + y * s, 5, 0, 7); g.fill(); }
+      const n0 = box.filter((v) => v === 0).length, n1 = box.filter((v) => v === 1).length; text(g, `🔵 ${n0} : ${n1} 🔴`, c.W / 2, Math.max(12, oy - 18), 15);
+    });
+    ctx.turn(0);
+    return { ...api, stop, resize: cv.fit };
+  };
+
   /* ---- o'yin xonasi (server bilan bog'lanish) ---- */
   const Room = { cur: null, inst: null, moves: [], off: null };
   const sock = () => (typeof S !== 'undefined' ? S.socket : null);
@@ -1439,6 +1820,7 @@
       },
       hint: (s) => { const el = $('#mp-turn'); if (el) { el.textContent = s; el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 900); } },
       secretSave: (data) => emitA('game:secret', { room: r.id, data }),
+      rt: meta.rt ? { send: (d) => { const s = sock(); if (s && r.seat >= 0) s.volatile.emit('game:rt', { room: r.id, d }); } } : null,
     };
     const showResult = (w) => {
       if (overShown) return; overShown = true;
@@ -1456,7 +1838,7 @@
     Room.showResult = showResult;
     requestAnimationFrame(() => {
       Room.inst = MPI[r.game](st, ctx);
-      for (const mv of Room.moves) Room.inst.apply(mv.s, mv.m, true);
+      if (!meta.rt) for (const mv of Room.moves) Room.inst.apply(mv.s, mv.m, true);
       Room.inst.ready?.();
       if (r.status === 'over' && r.winner != null) showResult(r.winner);
     });
@@ -1482,9 +1864,10 @@
       if (wasWait && st.status !== 'wait') { Room.moves = st.moves.slice(); build(); }
       else if (st.status === 'over') { $('#gm-info').innerHTML = ''; Room.showResult?.(st.winner); }
     };
-    const onConn = () => { if (Room.cur) resync(); };
-    s.on('game:move', onMove); s.on('game:state', onState); s.on('connect', onConn);
-    Room.off = () => { s.off('game:move', onMove); s.off('game:state', onState); s.off('connect', onConn); Room.off = null; };
+    const onConn = () => { if (Room.cur && !mpMeta(Room.cur.game)?.rt) resync(); };
+    const onRt = (ev) => { if (Room.cur && ev.room === Room.cur.id) Room.inst?.rt?.(ev.s, ev.d); };
+    s.on('game:move', onMove); s.on('game:state', onState); s.on('connect', onConn); s.on('game:rt', onRt);
+    Room.off = () => { s.off('game:move', onMove); s.off('game:state', onState); s.off('connect', onConn); s.off('game:rt', onRt); Room.off = null; };
   }
   function closeRoom(silent) {
     Room.inst?.stop?.(); Room.inst = null; Room.cur = null; Room.off?.();
@@ -1556,6 +1939,96 @@
       act.classList.remove('hidden');
     }
   }
+
+
+  /* ================= Birga Poyga (jonli, 2 kishi): har kim o'z mashinasini boshqaradi, holat raqibga uzatiladi ================= */
+  MPL.push({ id: 'race', e: '🏎️', c: ['#DC2626', '#111827'], rt: 1, big: 1, n: { uz: 'Birga Poyga (jonli)', ru: 'Гонки (онлайн)', en: 'Birga Racing (live)' } });
+  const RACE_T = { uz: { lap: 'Davra', pos: 'O‘rin', nitro: 'Nitro', fin: '🏁 Marra!', off: 'Yo‘ldan chiqdingiz', wrong: '↩️ Teskari yo‘nalish' }, ru: { lap: 'Круг', pos: 'Место', nitro: 'Нитро', fin: '🏁 Финиш!', off: 'Вы вне трассы', wrong: '↩️ Не туда' }, en: { lap: 'Lap', pos: 'Pos', nitro: 'Nitro', fin: '🏁 Finish!', off: 'Off track', wrong: '↩️ Wrong way' } };
+  const rct = (k) => (RACE_T[L()] || RACE_T.uz)[k];
+  MPI.race = (stage, ctx) => {
+    stage.classList.add('gm-stage-pad');
+    const { c, g, fit } = canvasIn(stage, null);
+    const pad = padUI(stage, [{ id: 'gas', t: '⛽', cls: 'big' }, { id: 'brake', t: '🛑' }, { id: 'nitro', t: '🔥' }]);
+    const LAPS = 3, WTR = 70, ME = Math.max(0, ctx.me), SPEC = ctx.me < 0;
+    // trassa: silliq yopiq egri chiziq (Catmull-Rom)
+    const CP = [[0, 0], [520, -40], [880, 120], [940, 420], [700, 560], [520, 420], [300, 520], [120, 760], [-260, 720], [-420, 420], [-300, 160], [-460, -120], [-260, -300]];
+    const P = []; const n = CP.length;
+    for (let i = 0; i < n; i++) { const p0 = CP[(i - 1 + n) % n], p1 = CP[i], p2 = CP[(i + 1) % n], p3 = CP[(i + 2) % n]; for (let k = 0; k < 40; k++) { const t2 = k / 40, t3 = t2 * t2, t4 = t3 * t2; P.push([0.5 * (2 * p1[0] + (-p0[0] + p2[0]) * t2 + (2 * p0[0] - 5 * p1[0] + 4 * p2[0] - p3[0]) * t3 + (-p0[0] + 3 * p1[0] - 3 * p2[0] + p3[0]) * t4), 0.5 * (2 * p1[1] + (-p0[1] + p2[1]) * t2 + (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * t3 + (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * t4)]); } }
+    const NP = P.length, S = [0]; for (let i = 1; i <= NP; i++) S.push(S[i - 1] + Math.hypot(P[i % NP][0] - P[i - 1][0], P[i % NP][1] - P[i - 1][1])); const LEN = S[NP];
+    const dirAt = (i) => { const a = P[i % NP], b = P[(i + 1) % NP]; return Math.atan2(b[1] - a[1], b[0] - a[0]); };
+    const nearest = (x, y, hint) => { let bi = hint, bd = 1e12; for (let k = -30; k <= 30; k++) { const i = (hint + k + NP) % NP, d = (P[i][0] - x) ** 2 + (P[i][1] - y) ** 2; if (d < bd) { bd = d; bi = i; } } if (bd > 300 * 300) for (let i = 0; i < NP; i++) { const d = (P[i][0] - x) ** 2 + (P[i][1] - y) ** 2; if (d < bd) { bd = d; bi = i; } } return [bi, Math.sqrt(bd)]; };
+    const a0 = dirAt(0), side = (s) => [P[0][0] - Math.cos(a0) * 40 + Math.cos(a0 + Math.PI / 2) * 22 * s, P[0][1] - Math.sin(a0) * 40 + Math.sin(a0 + Math.PI / 2) * 22 * s];
+    const mkCar = (seat) => { const [x, y] = side(seat ? 1 : -1); return { x, y, a: a0, v: 0, idx: 0, lap: 0, prog: 0, nitro: 3, nT: 0, fin: 0, skid: [] }; };
+    const me = mkCar(ME), op = mkCar(1 - ME); for (const o of [me, op]) { o.idx = nearest(o.x, o.y, NP - 1)[0]; o.lap = o.idx > NP / 2 ? -1 : 0; } let opSnap = null, opPrev = null, opT = 0;
+    let started = false, cd = 3.4, time = 0, over = false, msg = '', msgT = 0, wrongT = 0, sendT = 0;
+    const COL = ['#2563EB', '#DC2626'];
+    const link = rtLink(ctx, (d) => {
+      if (d.t === 'c') { opPrev = opSnap; opSnap = d; opT = performance.now(); op.lap = d.l; op.prog = d.p; }
+      if (d.t === 'fin' && !over) { op.fin = d.tm || 1; if (!me.fin) { over = true; msg = rct('fin'); msgT = 3; setTimeout(() => ctx.over(1 - ME), 1500); } }
+    });
+    ctx.turn(-1, rt('wait_rt'));
+    const stop = loop((dt) => {
+      const W = c.W, H = c.H;
+      if (!started && (link.st.alive || SPEC)) { started = true; snd(440, 0.15, 0.06); ctx.turn(-1, '🏎️ ' + rct('lap') + ' × ' + LAPS); }
+      if (started && cd > 0) { const p0 = Math.ceil(cd); cd -= dt; if (Math.ceil(cd) !== p0) snd(cd <= 0 ? 880 : 440, 0.15, 0.07); }
+      const kd = keysDown; let steer = pad.x; if (kd.has('arrowleft') || kd.has('a')) steer = -1; if (kd.has('arrowright') || kd.has('d')) steer = 1;
+      const gas = pad.b.gas || kd.has('arrowup') || kd.has('w') || (pad.on && pad.y < -0.35), brake = pad.b.brake || kd.has('arrowdown') || kd.has('s') || (pad.on && pad.y > 0.5);
+      if ((pad.take('nitro') || kd.has('shift')) && me.nitro > 0 && me.nT <= 0 && started && cd <= 0) { me.nitro--; me.nT = 1.6; snd(160, 0.5, 0.06, 'sawtooth'); }
+      if (started && cd <= 0 && !SPEC) {
+        if (!me.fin) time += dt;
+        const [idx, off] = nearest(me.x, me.y, me.idx); const onTrack = off < WTR;
+        const vmax = (onTrack ? 300 : 120) * (me.nT > 0 ? 1.45 : 1); me.nT = Math.max(0, me.nT - dt);
+        if (!me.fin && gas) me.v += (me.nT > 0 ? 340 : 190) * dt; else if (brake) me.v -= 320 * dt; else me.v -= 70 * dt * Math.sign(me.v);
+        if (me.v > vmax) me.v -= (onTrack ? 260 : 420) * dt; me.v = Math.max(-80, Math.min(vmax + 40, me.v)); if (me.fin) me.v *= Math.pow(0.4, dt);
+        const sr = steer * Math.min(1, Math.abs(me.v) / 90) * (2.7 - Math.min(1.2, Math.abs(me.v) / 300)) * Math.sign(me.v || 1); me.a += sr * dt;
+        me.x += Math.cos(me.a) * me.v * dt; me.y += Math.sin(me.a) * me.v * dt;
+        if (Math.abs(steer) > 0.6 && Math.abs(me.v) > 200) { me.skid.push([me.x, me.y]); if (me.skid.length > 60) me.skid.shift(); }
+        if (!onTrack && off > WTR + 70) { const q = P[idx]; me.x += (q[0] - me.x) * dt * 2; me.y += (q[1] - me.y) * dt * 2; } // juda uzoqqa ketmasin
+        if (me.idx > NP * 0.8 && idx < NP * 0.2) me.lap++; else if (me.idx < NP * 0.2 && idx > NP * 0.8) me.lap--;
+        me.idx = idx; me.prog = me.lap * LEN + S[idx];
+        const fwd = Math.cos(me.a - dirAt(idx)); wrongT = fwd < -0.3 && Math.abs(me.v) > 40 ? wrongT + dt : 0;
+        if (me.lap >= LAPS && !me.fin) { me.fin = time; msg = rct('fin'); msgT = 3; snd(1046, 0.5, 0.08); ctx.rt?.send({ t: 'fin', tm: time }); if (!op.fin) { over = true; setTimeout(() => ctx.over(ME), 1500); } }
+      }
+      sendT += dt; if (!SPEC && sendT > 0.05) { sendT = 0; ctx.rt?.send({ t: 'c', x: Math.round(me.x), y: Math.round(me.y), a: Math.round(me.a * 100) / 100, v: Math.round(me.v), l: me.lap, p: Math.round(me.prog), n: me.nT > 0 ? 1 : 0 }); }
+      if (opSnap) { const k = opPrev ? Math.min(1.5, (performance.now() - opT) / 50) : 1, lp = (a, b) => (opPrev ? a + (b - a) * k : b); op.x = lp(opPrev?.x ?? opSnap.x, opSnap.x); op.y = lp(opPrev?.y ?? opSnap.y, opSnap.y); op.a = opSnap.a; op.v = opSnap.v; op.nT = opSnap.n; }
+      // ---- chizish: kamera mashina orqasidan (mashina yo'nalishi bo'yicha) ----
+      const zoom = Math.min(W, H) / 520 * (1 - Math.min(0.25, Math.abs(me.v) / 1400));
+      g.save(); g.fillStyle = '#3F7F3A'; g.fillRect(0, 0, W, H);
+      g.translate(W / 2, H * 0.66); g.scale(zoom, zoom); g.rotate(-me.a - Math.PI / 2); g.translate(-me.x, -me.y);
+      const path = () => { g.beginPath(); P.forEach((q, i) => (i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1]))); g.closePath(); };
+      g.lineJoin = 'round'; g.lineCap = 'round';
+      path(); g.strokeStyle = '#E5E7EB'; g.lineWidth = WTR * 2 + 16; g.stroke(); path(); g.setLineDash([22, 22]); g.strokeStyle = '#EF4444'; g.lineWidth = WTR * 2 + 16; g.stroke(); g.setLineDash([]);
+      path(); g.strokeStyle = '#374151'; g.lineWidth = WTR * 2; g.stroke(); path(); g.setLineDash([26, 30]); g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 3; g.stroke(); g.setLineDash([]);
+      // start/finish
+      g.save(); g.translate(P[0][0], P[0][1]); g.rotate(a0 + Math.PI / 2); for (let i = -7; i < 7; i++) for (let j = 0; j < 2; j++) { g.fillStyle = (i + j) % 2 ? '#fff' : '#111'; g.fillRect(i * 10, j * 10 - 10, 10, 10); } g.restore();
+      g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = 4; g.beginPath(); me.skid.forEach((q, i) => (i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1]))); g.stroke();
+      const car = (o, col, isMe) => {
+        g.save(); g.translate(o.x, o.y); g.rotate(o.a);
+        if (o.nT > 0) { g.fillStyle = 'rgba(251,146,60,.85)'; g.beginPath(); g.moveTo(-22, -6); g.lineTo(-44 - Math.random() * 14, 0); g.lineTo(-22, 6); g.fill(); }
+        g.fillStyle = 'rgba(0,0,0,.3)'; rr(g, -20, -10, 44, 24, 7); g.fill();
+        g.fillStyle = '#111'; [[-14, -13], [10, -13], [-14, 9], [10, 9]].forEach(([x, y]) => g.fillRect(x, y, 10, 5));
+        g.fillStyle = col; rr(g, -22, -11, 44, 22, 8); g.fill(); g.fillStyle = 'rgba(255,255,255,.85)'; rr(g, 2, -8, 10, 16, 3); g.fill(); g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(-16, -2, 14, 4);
+        g.restore();
+        if (!isMe) { g.save(); g.translate(o.x, o.y); g.rotate(me.a + Math.PI / 2); text(g, rt('opp'), 0, -34, 16, '#fff'); g.restore(); }
+      };
+      car(op, COL[1 - ME], false); car(me, COL[ME], true);
+      g.restore();
+      // ---- HUD ----
+      g.fillStyle = 'rgba(0,0,0,.5)'; rr(g, 8, 8, 150, 54, 12); g.fill();
+      text(g, `${rct('lap')} ${Math.max(1, Math.min(LAPS, me.lap + 1))}/${LAPS}`, 16, 24, 15, '#fff', 'left'); const first = me.fin ? !op.fin || me.fin <= op.fin : me.prog >= op.prog;
+      text(g, `${rct('pos')}: ${first ? '1' : '2'}/2`, 16, 46, 15, first ? '#FDE047' : '#fff', 'left');
+      g.fillStyle = 'rgba(0,0,0,.5)'; rr(g, W - 112, 8, 104, 54, 12); g.fill(); text(g, `${Math.round(Math.abs(me.v) * 0.6)}`, W - 60, 28, 22, '#fff'); text(g, 'km/h  🔥×' + me.nitro, W - 60, 50, 11, '#E5E7EB');
+      // mini xarita
+      const mx = W - 92, my = 74, ms = 80 / 1500; g.fillStyle = 'rgba(0,0,0,.35)'; rr(g, mx - 6, my - 6, 92, 92, 10); g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 2; g.beginPath(); P.forEach((q, i) => { const x = mx + 40 + (q[0] - 240) * ms, y = my + 40 + (q[1] - 230) * ms; i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.closePath(); g.stroke();
+      [[op, COL[1 - ME]], [me, COL[ME]]].forEach(([o, col]) => { g.fillStyle = col; g.beginPath(); g.arc(mx + 40 + (o.x - 240) * ms, my + 40 + (o.y - 230) * ms, 4, 0, 7); g.fill(); });
+      if (!started) text(g, rt('wait_rt'), W / 2, H * 0.35, 18);
+      else if (cd > 0) text(g, String(Math.ceil(cd)), W / 2, H * 0.35, 72, '#FDE047'); else if (cd > -0.8) text(g, rt('go'), W / 2, H * 0.35, 40, '#22C55E');
+      if (wrongT > 1) text(g, rct('wrong'), W / 2, H * 0.22, 20, '#FCA5A5');
+      if (msgT > 0) { msgT -= dt; text(g, msg, W / 2, H * 0.3, 36, '#FDE047'); }
+      if (link.lost() && !over) text(g, rt('lost'), W / 2, H * 0.45, 15, '#FCA5A5');
+    });
+    return { apply: () => false, rt: (s, d) => link.recv(d), stop, resize: fit };
+  };
 
   window.BirgaGames = { list: GAMES, start: startGame, renderLobby, tg, openRoom, invite, cardHTML, GameCards, mt, mp: MPL, _room: () => Room };
 })();

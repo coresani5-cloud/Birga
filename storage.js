@@ -51,6 +51,19 @@ async function remove(url, uploadDir) {
   }
 }
 
+// To'g'ridan-to'g'ri yuklash: telefon faylni serverdan o'tkazmasdan Supabase Storage'ga yuklaydi (tez, server xotirasiga yuk tushmaydi)
+async function signUpload(name) {
+  if (!REMOTE || !/^[\w.-]+$/.test(name)) return null;
+  const r = await fetch(`${URL_}/storage/v1/object/upload/sign/${BUCKET}/${name}`, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json', 'x-upsert': 'true' }, body: '{}' });
+  if (!r.ok) throw new Error('Storage sign: ' + r.status + ' ' + (await r.text()).slice(0, 200));
+  const j = await r.json(); const rel = j.url || j.signedURL || j.signedUrl; if (!rel) throw new Error('Storage sign: javob bo‘sh');
+  return { upload: `${URL_}/storage/v1${rel.startsWith('/') ? '' : '/'}${rel}`, url: PUBLIC_BASE + name };
+}
+async function exists(url) {
+  if (!REMOTE || !String(url).startsWith(PUBLIC_BASE)) return true;
+  const r = await fetch(url, { method: 'HEAD' }).catch(() => null); return !!r?.ok;
+}
+
 const isOurs = (url) => typeof url === 'string' && (/^\/uploads\/[\w.-]+$/.test(url) || (REMOTE && url.startsWith(PUBLIC_BASE) && /^[\w.-]+$/.test(url.slice(PUBLIC_BASE.length))));
 
-module.exports = { init, save, remove, isOurs, remote: REMOTE, maxMb: REMOTE ? 50 : 100 };
+module.exports = { init, save, remove, isOurs, signUpload, exists, remote: REMOTE, maxMb: REMOTE ? 50 : 100 };

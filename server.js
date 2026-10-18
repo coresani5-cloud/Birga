@@ -610,6 +610,7 @@ app.post('/api/me/2fa', auth, rateLimit('2faset', 20, 3600e3), wrap(async (req, 
 }));
 
 // har safar ochilganda token yangilanadi — faol foydalanuvchi hech qachon chiqib ketmaydi
+app.post('/api/auth/forget', (req, res) => { res.clearCookie(COOKIE, { path: '/' }); res.json({ ok: true }); }); // boshqa akkaunt qo'shish: sessiya saqlanadi, faqat cookie unutiladi
 app.get('/api/me', auth, wrap(async (req, res) => { const sid = req.sid || (await createSession(req, req.user)); const token = tokenFor(req.user, sid); setSession(req, res, token); res.json({ ...publicUser(req.user, true), token }); }));
 // Qurilmalar paneli
 app.get('/api/sessions', auth, wrap(async (req, res) => {
@@ -681,6 +682,66 @@ app.get('/api/native/poll', wrap(async (req, res) => {
   }
   res.set('Cache-Control', 'no-store'); res.json({ events: evs, now: evs.length ? Math.max(...evs.map((x) => x.at)) : since });
 }));
+
+// ===== Namoz vaqtlari: O'zbekiston musulmonlari idorasi (muslim.uz) ma'lumotlari — islomapi.uz orqali; zaxira: Aladhan (15°/15°, Hanafiy asr) =====
+const PRAY_CITIES = [['Toshkent', 41.311, 69.279], ['Andijon', 40.783, 72.344], ['Namangan', 40.998, 71.672], ["Farg'ona", 40.389, 71.783], ['Samarqand', 39.654, 66.976], ['Buxoro', 39.768, 64.455], ['Navoiy', 40.103, 65.374],
+  ['Qarshi', 38.861, 65.789], ['Termiz', 37.224, 67.278], ['Jizzax', 40.116, 67.842], ['Guliston', 40.49, 68.785], ['Nukus', 42.46, 59.61], ['Urganch', 41.55, 60.631], ['Xiva', 41.378, 60.364], ["Qo'qon", 40.529, 70.943], ["Marg'ilon", 40.471, 71.724], ['Angren', 41.017, 70.144], ['Denov', 38.267, 67.899], ['Zarafshon', 41.574, 64.201], ['Shahrisabz', 39.058, 66.834]];
+const kmBetween = (a, b, c, d) => Math.hypot((a - c) * 111.2, (b - d) * 111.2 * Math.cos((a * Math.PI) / 180));
+const prayCache = new Map();
+const hm = (x) => { const m = /(\d{1,2}):(\d{2})/.exec(String(x || '')); return m ? m[1].padStart(2, '0') + ':' + m[2] : null; };
+async function prayerFor(reg) {
+  const city = PRAY_CITIES.map((c) => [c, kmBetween(reg.lat, reg.lon, c[1], c[2])]).sort((a, b) => a[1] - b[1])[0];
+  const uz = city && city[1] < 160;
+  const tz = uz ? 5 : Math.round(reg.lon / 15); const loc = new Date(Date.now() + tz * 3600e3); const day = loc.toISOString().slice(0, 10);
+  const key = (uz ? city[0][0] : reg.lat.toFixed(1) + ',' + reg.lon.toFixed(1)) + ':' + day;
+  const c0 = prayCache.get(key); if (c0) return c0;
+  const errs = []; let out = null;
+  if (uz && process.env.PRAYER_ISLOMAPI !== '0') {
+    try {
+      const j = await wxFetch(`${process.env.ISLOMAPI_URL || 'https://islomapi.uz'}/api/present/day?region=${encodeURIComponent(city[0][0])}`);
+      const T = j.times || j.data?.times || j; const pick = (re) => hm(Object.entries(T).find(([k]) => re.test(k))?.[1]);
+      const t2 = { bomdod: pick(/tong|bomdod|fajr/i), quyosh: pick(/quyosh|sunrise/i), peshin: pick(/peshin|dhuhr/i), asr: pick(/^asr/i), shom: pick(/shom|maghrib/i), xufton: pick(/hufton|xufton|isha/i) };
+      if (Object.values(t2).every(Boolean)) out = { times: t2, region: j.region || city[0][0], hijri: j.hijri_date ? `${j.hijri_date.day || ''} ${j.hijri_date.month || ''}`.trim() : '', src: 'muslim.uz (O‘zbekiston musulmonlari idorasi)' };
+      else throw new Error('maydonlar topilmadi');
+    } catch (e) { errs.push('islomapi: ' + e.message); }
+  }
+  if (!out) {
+    try {
+      const d = `${loc.getUTCDate()}-${loc.getUTCMonth() + 1}-${loc.getUTCFullYear()}`;
+      const q = uz ? 'method=99&methodSettings=15,null,15&school=1' : 'method=3&school=1';
+      const j = await wxFetch(`${process.env.ALADHAN_URL || 'https://api.aladhan.com'}/v1/timings/${d}?latitude=${reg.lat}&longitude=${reg.lon}&${q}`);
+      const T = j.data.timings; const h = j.data.date?.hijri;
+      out = { times: { bomdod: hm(T.Fajr), quyosh: hm(T.Sunrise), peshin: hm(T.Dhuhr), asr: hm(T.Asr), shom: hm(T.Maghrib), xufton: hm(T.Isha) }, region: uz ? city[0][0] : reg.name, hijri: h ? `${h.day} ${h.month?.en || ''} ${h.year}` : '', src: 'Aladhan (hisob-kitob)' };
+    } catch (e) { errs.push('aladhan: ' + e.message); }
+  }
+  if (!out) throw new Error(errs.join(' | '));
+  out.date = day; out.tz = tz; prayCache.set(key, out); if (prayCache.size > 300) prayCache.delete(prayCache.keys().next().value);
+  return out;
+}
+app.get('/api/prayer', auth, wrap(async (req, res) => {
+  let reg = null; try { reg = JSON.parse(req.user.region || 'null'); } catch {}
+  if (!reg) return res.json({ region: null });
+  try { res.json({ ...(await prayerFor(reg)), place: reg.name }); } catch (e) { console.error('Namoz vaqtlari:', e.message); res.status(503).json({ error: 'prayer_unavailable' }); }
+}));
+// ===== Valyuta kurslari: O'zbekiston Respublikasi Markaziy banki (cbu.uz) rasmiy kursi =====
+const RATE_CCY = ['USD', 'EUR', 'RUB', 'GBP', 'CNY', 'KZT', 'TRY', 'KRW', 'AED'];
+let rateCache = null;
+async function ratesNow() {
+  if (rateCache && now() - rateCache.at < 3600e3) return rateCache.data;
+  const errs = [];
+  for (const u of [process.env.CBU_URL || 'https://cbu.uz/uz/arkhiv-kursov-valyut/json/', 'https://cbu.uz/ru/arkhiv-kursov-valyut/json/']) {
+    try {
+      const j = await wxFetch(u); if (!Array.isArray(j) || !j.length) throw new Error('bo‘sh');
+      const list = RATE_CCY.map((c) => j.find((x) => x.Ccy === c)).filter(Boolean).map((x) => ({ c: x.Ccy, uz: x.CcyNm_UZ, ru: x.CcyNm_RU, en: x.CcyNm_EN, rate: Number(x.Rate), nominal: Number(x.Nominal) || 1, diff: Number(x.Diff) || 0 }));
+      if (!list.length) throw new Error('valyutalar yo‘q');
+      const data = { date: j[0].Date, list, src: 'O‘zbekiston Respublikasi Markaziy banki' };
+      rateCache = { at: now(), data }; return data;
+    } catch (e) { errs.push(e.message); }
+  }
+  if (rateCache) return { ...rateCache.data, stale: true };
+  throw new Error(errs.join(' | '));
+}
+app.get('/api/rates', auth, wrap(async (req, res) => { try { res.json(await ratesNow()); } catch (e) { console.error('Valyuta kursi:', e.message); res.status(503).json({ error: 'rates_unavailable' }); } }));
 
 // ===== Hamyon: pul o'tkazmalari tarixi (chatlardagi "o'tkazildi / so'raldi" kartochkalari) =====
 app.get('/api/pay/history', auth, wrap(async (req, res) => {
@@ -1015,7 +1076,8 @@ async function chatSummary(chatId, uid) {
 
 app.get('/api/chats', auth, wrap(async (req, res) => {
   const ids = (await db.all('SELECT chat_id FROM chat_members WHERE user_id=?', [req.user.id])).map((r) => r.chat_id);
-  const list = await Promise.all(ids.map((id) => chatSummary(id, req.user.id)));
+  const dels = new Map((await db.all('SELECT chat_id, del_at FROM chat_members WHERE user_id=? AND del_at IS NOT NULL', [req.user.id]).catch(() => [])).map((r) => [Number(r.chat_id), Number(r.del_at)]));
+  const list = (await Promise.all(ids.map((id) => chatSummary(id, req.user.id)))).filter((c) => !dels.has(Number(c.id)) || (c.last && c.last.created_at > dels.get(Number(c.id)))); // o'chirilgan chat — yangi xabar kelguncha ko'rinmaydi
   res.json(list.sort((a, b) => (b.last?.created_at || 0) - (a.last?.created_at || 0)));
 }));
 
@@ -1977,6 +2039,18 @@ app.post('/api/chats/:id/role', auth, wrap(async (req, res) => {
   io.to('u' + target).emit('chat:update', await chatSummary(chat.id, target));
   res.json({ ok: true });
 }));
+// Chatni o'chirish (bloklamasdan): tarix o'zi uchun yashiriladi va ro'yxatdan olib tashlanadi; xohlasa — suhbatdosh uchun ham
+app.post('/api/chats/:id/delete', auth, wrap(async (req, res) => {
+  const chatId = Number(req.params.id); if (!(await isMember(chatId, req.user.id))) return res.status(403).json({ error: 'forbidden' });
+  const chat = await getChat(chatId); const peer = chat?.type === 'private' ? await privatePeer(chatId, req.user.id) : null;
+  const who = [req.user.id, ...(peer && req.body?.both ? [peer] : [])];
+  for (const u of who) {
+    await db.run(`INSERT INTO hidden_messages(user_id, message_id, at) SELECT ?, id, ? FROM messages WHERE chat_id=? AND id NOT IN (SELECT message_id FROM hidden_messages WHERE user_id=?)`, [u, now(), chatId, u]);
+    await db.run('UPDATE chat_members SET del_at=? WHERE chat_id=? AND user_id=?', [now(), chatId, u]);
+    io.to('u' + u).emit('chat:removed', { chatId });
+  }
+  res.json({ ok: true });
+}));
 app.post('/api/chats/:id/leave', auth, wrap(async (req, res) => {
   const chat = await getChat(req.params.id);
   const role = chat && await roleOf(chat.id, req.user.id);
@@ -2815,7 +2889,7 @@ async function extraSchema() {
   await db.run(`CREATE TABLE IF NOT EXISTS reel_comments(id ${db.kind === 'postgres' ? 'BIGSERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'}, reel_id BIGINT, user_id BIGINT, text TEXT, at BIGINT)`);
   await db.run('CREATE INDEX IF NOT EXISTS idx_rcom ON reel_comments(reel_id, id)');
   await db.run(`CREATE TABLE IF NOT EXISTS game_rooms(id TEXT PRIMARY KEY, game TEXT, chat_id BIGINT, a BIGINT, b BIGINT, moves TEXT, status TEXT, winner INTEGER, claims TEXT, created BIGINT, updated BIGINT)`);
-  const cols = [['users', 'reg_info', 'TEXT'], ['users', 'folders', 'TEXT'], ['users', 'region', 'TEXT'], ['users', 'invite_code', 'TEXT'], ['users', 'invited_by', 'BIGINT'], ['game_rooms', 'secret', 'TEXT'], ['users', 'steps_on', 'INTEGER DEFAULT 0'], ['users', 'banned', 'INTEGER DEFAULT 0'], ['users', 'birthday', 'TEXT'], ['chat_members', 'pinned', 'BIGINT DEFAULT 0'], ['chat_members', 'archived', 'INTEGER DEFAULT 0'], ['users', 'hide_seen', 'INTEGER DEFAULT 0'], ['users', 'deleted', 'INTEGER DEFAULT 0'], ['users', 'loc_share', 'INTEGER DEFAULT 0']];
+  const cols = [['users', 'reg_info', 'TEXT'], ['users', 'folders', 'TEXT'], ['users', 'region', 'TEXT'], ['users', 'invite_code', 'TEXT'], ['users', 'invited_by', 'BIGINT'], ['game_rooms', 'secret', 'TEXT'], ['users', 'steps_on', 'INTEGER DEFAULT 0'], ['users', 'banned', 'INTEGER DEFAULT 0'], ['users', 'birthday', 'TEXT'], ['chat_members', 'pinned', 'BIGINT DEFAULT 0'], ['chat_members', 'archived', 'INTEGER DEFAULT 0'], ['users', 'hide_seen', 'INTEGER DEFAULT 0'], ['users', 'deleted', 'INTEGER DEFAULT 0'], ['chat_members', 'del_at', 'BIGINT'], ['users', 'loc_share', 'INTEGER DEFAULT 0']];
   for (const [t, c, type] of cols) {
     try { await db.get(`SELECT ${c} FROM ${t} LIMIT 1`); } catch { await db.run(`ALTER TABLE ${t} ADD COLUMN ${c} ${type}`); }
   }
@@ -2842,6 +2916,8 @@ process.on('uncaughtException', (e) => { console.error('uncaughtException:', e?.
     console.log(`   Baza: ${db.kind} · Fayllar: ${storage.remote ? 'Supabase Storage' : 'disk'} · SMS: ${sms.anyReal ? 'yoqilgan' : 'TEST rejimi (kod ekranda)'} · ffmpeg: ${media.available ? 'bor' : 'YO‘Q'} · TURN: ${process.env.TURN_SECRET || process.env.TURN_URL || process.env.CF_TURN_KEY_ID ? 'bor' : process.env.PUBLIC_TURN !== '0' ? 'Open Relay (bepul)' : 'YO‘Q'}`);
     if (db.kind === 'sqlite' && process.env.RENDER) console.warn('   ⚠️  DIQQAT: Render’da DATABASE_URL yo‘q — server qayta ishga tushganda barcha profillar O‘CHADI! Supabase ulang.');
     if (!mailer) console.warn('   ℹ️  Email xizmati ulanmagan — kirish kodi ekranda beriladi (xavfsizlik kodi bilan himoyalangan).');
+    prayerFor({ lat: 40.998, lon: 71.672, name: 'Namangan' }).then((d) => console.log('   Namoz vaqtlari: ' + d.src + ' (' + d.region + ': peshin ' + d.times.peshin + ')')).catch((e) => console.error('   Namoz vaqtlari ishlamadi: ' + e.message));
+    ratesNow().then((d) => console.log('   Valyuta kursi: ' + d.src + ' (' + d.date + ', 1 USD = ' + d.list.find((x) => x.c === 'USD')?.rate + ' so‘m)')).catch((e) => console.error('   Valyuta kursi ishlamadi: ' + e.message));
     weatherFor({ lat: 41.3111, lon: 69.2797 }).then((d) => console.log('   Ob-havo: ' + d.src + ' ishlayapti (Toshkent ' + Math.round(d.cur.t) + '°)')).catch((e) => console.error('   Ob-havo manbalari ishlamadi: ' + e.message));
   });
 })().catch((e) => { console.error('Ishga tushmadi:', e); process.exit(1); });

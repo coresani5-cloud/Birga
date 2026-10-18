@@ -283,7 +283,7 @@ const upload = multer({
   limits: { fileSize: (Number(process.env.MAX_UPLOAD_MB) || storage.maxMb) * 1024 * 1024 },
 });
 
-app.get('/api/config', (req, res) => res.json({ v: APP_VERSION, pushKey: push?.publicKey, devSms: !sms.anyReal, maxUploadMb: Number(process.env.MAX_UPLOAD_MB) || storage.maxMb, email: !!mailer, gifs: !!process.env.TENOR_API_KEY, stt: !!(process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY), tts: !!(process.env.AZURE_SPEECH_KEY && process.env.AZURE_SPEECH_REGION) }));
+app.get('/api/config', (req, res) => res.json({ v: APP_VERSION, pushKey: push?.publicKey, devSms: !sms.anyReal, maxUploadMb: Number(process.env.MAX_UPLOAD_MB) || storage.maxMb, email: !!mailer, gifs: !!process.env.TENOR_API_KEY, stt: sttOn(), tts: !!(process.env.AZURE_SPEECH_KEY && process.env.AZURE_SPEECH_REGION) }));
 // Server va bazani "uyg'oq" ushlab turish uchun (cron-job.org shu manzilni chaqiradi)
 // ===== /holat — oddiy odam uchun bitta sahifada tekshiruv (✅ / ⚠️ / ❌) =====
 const STARTED = Date.now();
@@ -1355,6 +1355,8 @@ async function aiAnswer(msgs, { web = true, fast = false, sys = '', rawSys = '' 
   }
   const compat = [];
   if (process.env.GROQ_API_KEY) compat.push(['https://api.groq.com/openai/v1/chat/completions', process.env.GROQ_API_KEY, hasImg ? process.env.GROQ_VISION_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct' : process.env.GROQ_MODEL || 'llama-3.3-70b-versatile']);
+  const cfAcc = process.env.CF_ACCOUNT_ID, cfTok = process.env.CF_AI_TOKEN;
+  if (cfAcc && cfTok && !hasImg) compat.push([(process.env.CF_API_BASE || 'https://api.cloudflare.com') + `/client/v4/accounts/${cfAcc}/ai/v1/chat/completions`, cfTok, process.env.CF_TEXT_MODEL || '@cf/meta/llama-3.3-70b-instruct-fp8-fast']);
   if (process.env.AI_API_URL && process.env.AI_API_KEY) compat.push([process.env.AI_API_URL, process.env.AI_API_KEY, process.env.AI_MODEL || 'gpt-4o-mini']);
   if (process.env.AI_FREE !== '0') compat.push(['https://text.pollinations.ai/openai', null, 'openai']); // kalitsiz bepul zaxira (cheklangan)
   const oaMsgs = msgs.map((m) => (m.image ? { role: m.role, content: [{ type: 'text', text: m.content || ' ' }, { type: 'image_url', image_url: { url: m.image } }] } : { role: m.role, content: m.content }));
@@ -1417,6 +1419,7 @@ async function fileBytes(url) {
   if (/^https?:\/\//.test(url)) { const r = await fetch(url); if (!r.ok) throw new Error('file ' + r.status); return Buffer.from(await r.arrayBuffer()); }
   return fs.readFileSync(path.join(UPLOAD_DIR, path.basename(url)));
 }
+function sttOn() { return !!(process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY || (process.env.CF_ACCOUNT_ID && process.env.CF_AI_TOKEN)); }
 async function sttAudio(buf, mime) {
   const errs = []; let text = null;
   if (process.env.GEMINI_API_KEY) {
@@ -1435,6 +1438,13 @@ async function sttAudio(buf, mime) {
       const j = await r.json(); if (!r.ok) throw new Error(r.status + ' ' + JSON.stringify(j).slice(0, 150)); text = String(j.text || '').trim();
     } catch (e) { errs.push('groq: ' + e.message); }
   }
+  if (text == null && process.env.CF_ACCOUNT_ID && process.env.CF_AI_TOKEN) {
+    try {
+      const r = await fetch((process.env.CF_API_BASE || 'https://api.cloudflare.com') + `/client/v4/accounts/${process.env.CF_ACCOUNT_ID}/ai/run/${process.env.CF_STT_MODEL || '@cf/openai/whisper-large-v3-turbo'}`, { method: 'POST', headers: { Authorization: 'Bearer ' + process.env.CF_AI_TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify({ audio: buf.toString('base64'), task: 'transcribe', vad_filter: true }) });
+      const j = await r.json().catch(() => ({})); if (!r.ok || j.success === false) throw new Error(r.status + ' ' + JSON.stringify(j.errors || j).slice(0, 150));
+      text = String(j.result?.text || '').trim();
+    } catch (e) { errs.push('cf: ' + e.message); }
+  }
   if (text == null && errs.length) console.error('STT:', errs.join(' | '));
   return text;
 }
@@ -1445,7 +1455,7 @@ app.post('/api/ai/stt', auth, rateLimit('aistt2', 200, 3600e3), upload.single('f
     if (req.file.size > 9e6) return res.status(413).json({ error: 'too_big' });
     const buf = fs.readFileSync(req.file.path);
     const text = await sttAudio(buf, String(req.file.mimetype || 'audio/webm').split(';')[0]);
-    if (text == null) return res.status(503).json({ error: process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY ? 'stt_failed' : 'no_stt' });
+    if (text == null) return res.status(503).json({ error: sttOn() ? 'stt_failed' : 'no_stt' });
     res.json({ text });
   } finally { fs.unlink(req.file.path, () => {}); }
 }));
@@ -1454,24 +1464,8 @@ app.post('/api/ai/transcribe', auth, rateLimit('aistt', 120, 3600e3), wrap(async
   const have = await db.get('SELECT text FROM transcripts WHERE message_id=?', [m.id]); if (have) return res.json({ text: have.text });
   const buf = await fileBytes(m.file); if (buf.length > 19e6) return res.status(413).json({ error: 'too_big' });
   const mime = (m.mime || (m.type === 'voice' ? 'audio/ogg' : 'video/mp4')).split(';')[0];
-  const errs = []; let text = null;
-  if (process.env.GEMINI_API_KEY) {
-    try {
-      const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-      const j = await aiFetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
-        body: JSON.stringify({ contents: [{ role: 'user', parts: [{ inline_data: { mime_type: mime, data: buf.toString('base64') } }, { text: "Bu ovozli xabarni so'zma-so'z, aynan aytilgan tilda matnga aylantir. O'zbekcha bo'lsa — to'g'ri imlo bilan lotin yozuvida (o‘, g‘). Tinish belgilarini qo'y. Faqat matnning o'zini yoz, izohsiz. Nutq bo'lmasa — bo'sh qoldir." }] }],
-          generationConfig: { temperature: 0, maxOutputTokens: 4000, ...(/2\.5-flash/.test(model) ? { thinkingConfig: { thinkingBudget: 0 } } : {}) } }) }, 90000);
-      text = j?.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('').trim() ?? null;
-    } catch (e) { errs.push('gemini: ' + e.message); }
-  }
-  if (text == null && process.env.GROQ_API_KEY) {
-    try {
-      const fd = new FormData(); fd.append('file', new Blob([buf], { type: mime }), 'audio.' + (mime.split('/')[1] || 'ogg').replace('mpeg', 'mp3')); fd.append('model', process.env.GROQ_STT_MODEL || 'whisper-large-v3'); fd.append('temperature', '0');
-      const r = await fetch((process.env.GROQ_API_BASE || 'https://api.groq.com') + '/openai/v1/audio/transcriptions', { method: 'POST', headers: { Authorization: 'Bearer ' + process.env.GROQ_API_KEY }, body: fd });
-      const j = await r.json(); if (!r.ok) throw new Error(r.status + ' ' + JSON.stringify(j).slice(0, 150)); text = String(j.text || '').trim();
-    } catch (e) { errs.push('groq: ' + e.message); }
-  }
-  if (text == null) { if (errs.length) console.error('STT:', errs.join(' | ')); return res.status(503).json({ error: process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY ? 'stt_failed' : 'no_stt' }); }
+  const text = await sttAudio(buf, mime);
+  if (text == null) return res.status(503).json({ error: sttOn() ? 'stt_failed' : 'no_stt' });
   await db.run('INSERT INTO transcripts(message_id, text, at) VALUES(?,?,?) ON CONFLICT(message_id) DO UPDATE SET text=excluded.text', [m.id, text.slice(0, 8000), now()]);
   res.json({ text });
 }));

@@ -3724,13 +3724,13 @@ let installPrompt = null;
 // Android ilovasi (APK) — GitHub'dan to'g'ridan-to'g'ri yuklab olinadi
 const APK_URL = 'https://raw.githubusercontent.com/coresani5-cloud/Birga/main/birga.apk';
 const APK_T = {
-  uz: { title: 'Birga ilovasini yuklab olish', btn: 'Ilovani yuklab olish (APK)', size: 'Android · 2.2 · 87 KB · brauzer kerak emas',
+  uz: { title: 'Birga ilovasini yuklab olish', btn: 'Ilovani yuklab olish (APK)', size: 'Android · 2.3 · 87 KB · brauzer kerak emas',
     steps: ['<b>“Ilovani yuklab olish”</b> ni bosing — <b>Birga.apk</b> yuklanadi', 'Yuklangan faylni oching', 'Telefon so‘rasa: <b>Sozlamalar → “Shu manbadan ruxsat berish”</b> ni yoqing', '<b>O‘rnatish</b> ni bosing — Birga ilovalar ro‘yxatida paydo bo‘ladi'],
     alt: 'Yoki brauzer orqali o‘rnatish', iosOnly: 'iPhone uchun APK yo‘q — quyidagi usul bilan o‘rnating:' },
-  ru: { title: 'Скачать приложение Birga', btn: 'Скачать приложение (APK)', size: 'Android · 2.2 · 87 КБ · без браузера',
+  ru: { title: 'Скачать приложение Birga', btn: 'Скачать приложение (APK)', size: 'Android · 2.3 · 87 КБ · без браузера',
     steps: ['Нажмите <b>«Скачать приложение»</b> — загрузится <b>Birga.apk</b>', 'Откройте скачанный файл', 'Если телефон спросит: <b>Настройки → «Разрешить из этого источника»</b>', 'Нажмите <b>Установить</b> — Birga появится в списке приложений'],
     alt: 'Или установить через браузер', iosOnly: 'Для iPhone APK нет — установите так:' },
-  en: { title: 'Download the Birga app', btn: 'Download app (APK)', size: 'Android · 2.2 · 87 KB · no browser needed',
+  en: { title: 'Download the Birga app', btn: 'Download app (APK)', size: 'Android · 2.3 · 87 KB · no browser needed',
     steps: ['Tap <b>“Download app”</b> — <b>Birga.apk</b> will download', 'Open the downloaded file', 'If asked: <b>Settings → “Allow from this source”</b>', 'Tap <b>Install</b> — Birga appears in your app list'],
     alt: 'Or install via the browser', iosOnly: 'There is no APK for iPhone — install like this:' },
 };
@@ -8084,6 +8084,303 @@ const LifeFeed = {
   const baseUpd = FriendsLoc.upd.bind(FriendsLoc);
   FriendsLoc.upd = function (d) { baseUpd(d); const lp = $('#life-page'); if (lp && !lp.classList.contains('hidden')) { LifeFeed.paint(); LifeFeed.cards(); } };
   FriendsLoc.open = () => LifeFeed.open();
+}
+
+
+/* ======================= v22: mini pleyer, namoz vaqtlari, valyuta kursi, chatni o'chirish, bir nechta akkaunt, telefon kontaktlari, qo'ng'iroq sifati ======================= */
+try {
+  Object.assign(I18N.uz, { mp_at: '{t} da', pr_title: 'Namoz vaqtlari', pr_bomdod: 'Bomdod', pr_quyosh: 'Quyosh', pr_peshin: 'Peshin', pr_asr: 'Asr', pr_shom: 'Shom', pr_xufton: 'Xufton', pr_left: '{t} qoldi', pr_now: 'hozir', pr_src: 'Manba', pr_err: 'Namoz vaqtlarini olib bo‘lmadi', pr_need: 'Avval hududingizni tanlang', pr_h: 'soat', ac_back: 'Akkauntga qaytish',
+    fx_title: 'Valyuta kurslari', fx_sub: 'Markaziy bankning bugungi rasmiy kursi', fx_err: 'Kursni olib bo‘lmadi', fx_calc: 'Hisoblash', fx_sum: 'so‘m',
+    dc_title: 'Chatni o‘chirish', dc_q: 'Bu chat va yozishmalar ro‘yxatingizdan o‘chiriladi. Foydalanuvchi bloklanmaydi — yozsa, chat qayta paydo bo‘ladi.', dc_both: '{n} uchun ham o‘chirish', dc_ok: 'O‘chirish', dc_done: 'Chat o‘chirildi',
+    ac_title: 'Akkauntlar', ac_add: 'Akkaunt qo‘shish', ac_max: 'Ko‘pi bilan 5 ta akkaunt', ac_cur: 'hozirgi', ac_sw: 'Akkaunt almashtirildi', ac_rm: 'Ro‘yxatdan olib tashlash',
+    kc_title: 'Kontaktlaringiz Birga’da', kc_sub: 'Telefoningizdagi kontaktlardan Birga’dan foydalanayotganlar', kc_none: 'Telefon kontaktlaringizdan hali hech kim Birga’da emas — ularni taklif qiling!', kc_btn: '📇 Telefon kontaktlarini ulash', kc_perm: 'Kontaktlarga ruxsat berilmadi', kc_write: 'Yozish' });
+  Object.assign(I18N.ru, { mp_at: 'в {t}', pr_title: 'Время намаза', pr_bomdod: 'Фаджр', pr_quyosh: 'Восход', pr_peshin: 'Зухр', pr_asr: 'Аср', pr_shom: 'Магриб', pr_xufton: 'Иша', pr_left: 'через {t}', pr_now: 'сейчас', pr_src: 'Источник', pr_err: 'Не удалось получить время намаза', pr_need: 'Сначала выберите регион', pr_h: 'ч', ac_back: 'Вернуться в аккаунт',
+    fx_title: 'Курсы валют', fx_sub: 'Официальный курс Центрального банка на сегодня', fx_err: 'Не удалось получить курс', fx_calc: 'Посчитать', fx_sum: 'сум',
+    dc_title: 'Удалить чат', dc_q: 'Чат и переписка удалятся из вашего списка. Пользователь не блокируется — если напишет, чат появится снова.', dc_both: 'Удалить и для {n}', dc_ok: 'Удалить', dc_done: 'Чат удалён',
+    ac_title: 'Аккаунты', ac_add: 'Добавить аккаунт', ac_max: 'Не больше 5 аккаунтов', ac_cur: 'текущий', ac_sw: 'Аккаунт переключён', ac_rm: 'Убрать из списка',
+    kc_title: 'Ваши контакты в Birga', kc_sub: 'Кто из контактов телефона пользуется Birga', kc_none: 'Из ваших контактов пока никого нет в Birga — пригласите их!', kc_btn: '📇 Подключить контакты телефона', kc_perm: 'Нет доступа к контактам', kc_write: 'Написать' });
+  Object.assign(I18N.en, { mp_at: 'at {t}', pr_title: 'Prayer times', pr_bomdod: 'Fajr', pr_quyosh: 'Sunrise', pr_peshin: 'Dhuhr', pr_asr: 'Asr', pr_shom: 'Maghrib', pr_xufton: 'Isha', pr_left: 'in {t}', pr_now: 'now', pr_src: 'Source', pr_err: 'Could not load prayer times', pr_need: 'Choose your region first', pr_h: 'h', ac_back: 'Back to account',
+    fx_title: 'Exchange rates', fx_sub: 'Today’s official Central Bank rate', fx_err: 'Could not load rates', fx_calc: 'Convert', fx_sum: 'UZS',
+    dc_title: 'Delete chat', dc_q: 'The chat and messages are removed from your list. The user is not blocked — if they write, the chat comes back.', dc_both: 'Also delete for {n}', dc_ok: 'Delete', dc_done: 'Chat deleted',
+    ac_title: 'Accounts', ac_add: 'Add account', ac_max: 'Up to 5 accounts', ac_cur: 'current', ac_sw: 'Account switched', ac_rm: 'Remove from list',
+    kc_title: 'Your contacts on Birga', kc_sub: 'Phone contacts who use Birga', kc_none: 'None of your phone contacts are on Birga yet — invite them!', kc_btn: '📇 Connect phone contacts', kc_perm: 'No access to contacts', kc_write: 'Message' });
+} catch {}
+document.head.insertAdjacentHTML('beforeend', `<style id="v22-css">
+.mini-pl { display: flex; align-items: center; gap: 10px; height: 46px; padding: 0 12px; background: var(--panel, #fff); border-bottom: 1px solid var(--line, rgba(127,127,127,.18)); position: relative; z-index: 4; }
+.mini-pl .mpp { width: 34px; height: 34px; display: grid; place-items: center; color: var(--blue, #1F6BFF); background: none; flex: none; } .mini-pl .mpp svg { width: 22px; height: 22px; }
+.mini-pl .mpt { flex: 1; min-width: 0; text-align: left; background: none; color: inherit; font: inherit; } .mini-pl .mpt b { font-size: 14.5px; } .mini-pl .mpt span { color: var(--muted); font-size: 13.5px; margin-left: 6px; }
+.mini-pl .mps { height: 24px; padding: 0 7px; border: 2px solid var(--blue, #1F6BFF); color: var(--blue, #1F6BFF); border-radius: 8px; font-weight: 900; font-size: 12px; background: none; flex: none; }
+.mini-pl .mpx { width: 32px; height: 32px; display: grid; place-items: center; color: var(--muted); background: none; flex: none; } .mini-pl .mpx svg { width: 18px; height: 18px; }
+.mini-pl i { position: absolute; left: 0; bottom: 0; height: 2px; background: var(--blue, #1F6BFF); width: 0; }
+#pane-chats .pane-head { gap: 6px; } #pane-chats .pane-head .brand { margin-right: auto; min-width: 0; }
+.tchip { display: flex; align-items: center; gap: 4px; height: 34px; padding: 0 9px; border-radius: 17px; background: rgba(31,107,255,.1); color: var(--text); font-weight: 800; font-size: 13px; flex: none; white-space: nowrap; } .tchip span { font-size: 16px; } .tchip small { font-size: 11px; font-weight: 700; color: var(--muted); }
+#pane-chats .wx-chip { margin-right: 0; height: 34px; padding: 0 9px; font-size: 13px; }
+#pane-chats .pane-head { padding-left: 12px; padding-right: 10px; } .tchip { padding: 0 8px; } .pr2 { display: flex; flex-direction: column; line-height: 1.05; font-style: normal; } .pr2 small { font-size: 10px; font-weight: 800; color: #059669; } .pr2 b { font-size: 13px; }
+@media (max-width: 420px) { #pane-chats .brand span { font-size: 19px; } #pane-chats .brand img { width: 30px; height: 30px; } .tchip, #pane-chats .wx-chip, #pane-chats #btn-new-top { padding: 0 7px; } }
+.pr-list { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+.pr-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px; background: var(--active, rgba(127,127,127,.1)); } .pr-row b { flex: 1; font-size: 15.5px; } .pr-row span { font: 800 18px ui-monospace, Menlo, monospace; } .pr-row em { font-style: normal; font-size: 20px; width: 28px; text-align: center; }
+.pr-row.next { background: linear-gradient(90deg, #059669, #0D9488); color: #fff; box-shadow: 0 8px 20px rgba(5,150,105,.3); } .pr-row.next small { color: #D1FAE5; } .pr-row.past { opacity: .55; } .pr-row small { display: block; font-size: 12px; font-weight: 600; color: var(--muted); }
+.pr-head { text-align: center; } .pr-head b { font-size: 26px; display: block; } .pr-head small { color: var(--muted); }
+.fx-list { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+.fx-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; background: var(--active, rgba(127,127,127,.1)); } .fx-row .fl { font-size: 24px; width: 32px; text-align: center; } .fx-row .fn { flex: 1; min-width: 0; } .fx-row .fn b { display: block; } .fx-row .fn small { color: var(--muted); font-size: 12px; }
+.fx-row .fr { text-align: right; } .fx-row .fr b { font: 800 16px ui-monospace, Menlo, monospace; display: block; } .fx-row .fr small { font-size: 12px; font-weight: 700; } .fx-up { color: #16A34A; } .fx-dn { color: #DC2626; }
+.fx-calc { display: flex; gap: 8px; align-items: center; margin-top: 6px; } .fx-calc input { flex: 1; } .fx-calc select { height: 46px; border-radius: 14px; padding: 0 8px; background: var(--active); color: inherit; border: 0; font: inherit; } .fx-out { font-weight: 900; font-size: 18px; text-align: center; margin: 8px 0 0; }
+.ac-list { display: flex; flex-direction: column; gap: 6px; } .ac-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 14px; background: var(--active); width: 100%; color: inherit; font: inherit; text-align: left; } .ac-row .av { width: 40px; height: 40px; flex: none; }
+.ac-row .at { flex: 1; min-width: 0; } .ac-row .at b { display: block; } .ac-row .at small { color: var(--muted); font-size: 12px; } .ac-row .ac-on { color: #16A34A; font-weight: 800; font-size: 12px; } .ac-row .ac-x { background: none; color: var(--muted); font-size: 16px; padding: 4px 8px; }
+.pp-acc { margin: 12px 16px; padding: 12px; border-radius: 18px; background: var(--panel, rgba(127,127,127,.06)); } .pp-acc h4 { margin: 0 0 8px; font-size: 14px; color: var(--muted); }
+.kc-box { margin: 8px 12px; padding: 12px; border-radius: 18px; background: linear-gradient(135deg, rgba(31,107,255,.08), rgba(138,43,226,.08)); } .kc-box h4 { margin: 0; font-size: 15px; } .kc-box > small { color: var(--muted); font-size: 12.5px; }
+.kc-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; } .kc-row .av { width: 42px; height: 42px; flex: none; } .kc-row .kt { flex: 1; min-width: 0; } .kc-row .kt small { color: var(--muted); display: block; font-size: 12px; } .kc-row button { height: 32px; padding: 0 12px; border-radius: 16px; background: var(--grad); color: #fff; font-weight: 800; font-size: 12.5px; }
+.dc-both { display: flex; align-items: center; gap: 10px; margin: 10px 0 14px; font-weight: 600; }
+</style>`);
+const hhmm = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+
+/* ---------- 1) Ovozli / video xabar uchun mini pleyer (Telegram kabi): kim, qachon, tezlik, yopish ---------- */
+const MiniPl = {
+  info: null, src: null,
+  ensure() {
+    let b = $('#mini-pl'); if (b) return b;
+    document.body.insertAdjacentHTML('beforeend', `<div class="mini-pl hidden" id="mini-pl"><button class="mpp" id="mp-pp"></button><button class="mpt" id="mp-t"></button><button class="mps" id="mp-sp"></button><button class="mpx" id="mp-x">${icon('close')}</button><i id="mp-bar"></i></div>`);
+    b = $('#mini-pl');
+    $('#mp-pp').onclick = () => { const a = this.media(); if (!a) return; a.paused ? a.play().catch(() => {}) : a.pause(); this.paint(); };
+    $('#mp-sp').onclick = () => { setVoiceRate(); const r = voiceRate(); const a = this.media(); if (a && roundPlaying) a.playbackRate = r; this.paint(); };
+    $('#mp-x').onclick = () => { stopPlayer(); stopRound(); this.hide(); };
+    $('#mp-t').onclick = async () => { const i = this.info; if (!i) return; if (S.current !== i.chatId) await openChat(i.chatId); setTimeout(() => { const el = $(`.msg[data-id="${i.id}"]`); el?.scrollIntoView({ behavior: 'smooth', block: 'center' }); el?.animate([{ opacity: 0.4 }, { opacity: 1 }], 900); }, 300); };
+    return b;
+  },
+  media() { return player?.audio || roundPlaying?.querySelector('video') || null; },
+  host() { return $('#app').classList.contains('show-chat') || matchMedia('(min-width: 761px)').matches && S.current ? $('#chat-head') : $('#pane-chats .pane-head'); },
+  hide() { $('#mini-pl')?.classList.add('hidden'); this.info = null; this.src = null; },
+  paint() {
+    const a = this.media(); const el = player?.el || roundPlaying;
+    if (!a) return this.hide();
+    const b = this.ensure();
+    const key = player?.src || a.currentSrc || a.src;
+    if (key !== this.src) { // yangi ijro — kim va qachon yuborganini eslab qolamiz
+      this.src = key; const msgEl = el?.closest?.('.msg'); const m = msgEl && msgOf(msgEl);
+      if (m) { const u = m.sender_id === S.me?.id ? S.me : S.users.get(m.sender_id); this.info = { id: m.id, chatId: m.chat_id || S.current, name: u?.name || chatTitle(S.chats.get(S.current)) || '', at: m.created_at }; }
+      else this.info = { name: '', at: Date.now(), chatId: S.current };
+    }
+    const host = this.host(); if (host && b.previousElementSibling !== host) host.insertAdjacentElement('afterend', b);
+    b.classList.remove('hidden');
+    $('#mp-pp').innerHTML = icon(a.paused ? 'play' : 'pause');
+    $('#mp-t').innerHTML = `<b>${esc(this.info?.name || '')}</b><span>${esc(tf('mp_at', { t: fmtTime(this.info?.at || Date.now()) }))}</span>`;
+    $('#mp-sp').textContent = (voiceRate() === 1 ? '1' : voiceRate()) + 'X';
+    const d = isFinite(a.duration) && a.duration > 0 ? a.duration : 0; $('#mp-bar').style.width = d ? (a.currentTime / d) * 100 + '%' : '0';
+  },
+};
+setInterval(() => { try { if (player || roundPlaying || !$('#mini-pl')?.classList.contains('hidden')) MiniPl.paint(); } catch {} }, 250);
+
+/* ---------- 2) Namoz vaqtlari (muslim.uz) va 3) valyuta kursi (Markaziy bank) — tepada, ob-havo oldida ---------- */
+const PR_KEYS = ['bomdod', 'quyosh', 'peshin', 'asr', 'shom', 'xufton'];
+const PR_ICO = { bomdod: '🌄', quyosh: '☀️', peshin: '🕛', asr: '🌤', shom: '🌇', xufton: '🌙' };
+const Prayer = {
+  data: null,
+  chip() {
+    let b = $('#pr-chip'); const wx = $('#wx-chip') || $('#btn-new-top'); if (!wx) return;
+    if (!b) { wx.insertAdjacentHTML('beforebegin', `<button class="tchip" id="pr-chip"></button>`); b = $('#pr-chip'); b.onclick = () => this.open(); }
+    const n = this.next();
+    b.innerHTML = n ? `<span>🕌</span><i class="pr2"><small>${esc(t('pr_' + n.k))}</small><b>${esc(n.t)}</b></i>` : `<span>🕌</span>`;
+    b.title = t('pr_title');
+  },
+  times() { // bugungi vaqtlar (Date)
+    const d = this.data; if (!d?.times) return [];
+    const base = new Date(); return PR_KEYS.map((k) => { const [h, m] = d.times[k].split(':').map(Number); const x = new Date(base); x.setHours(h, m, 0, 0); return { k, t: d.times[k], at: x }; });
+  },
+  next() { const L = this.times().filter((x) => x.k !== 'quyosh'); if (!L.length) return null; const nowT = Date.now(); return L.find((x) => x.at.getTime() > nowT) || { ...L[0], tomorrow: true }; },
+  async load() { if (!S.me?.region) { this.data = null; this.chip(); return; } try { const d = await api('/api/prayer'); this.data = d.times ? d : null; } catch { this.data = null; } this.chip(); },
+  async open() {
+    if (!S.me?.region) { toast(t('pr_need')); return WX.pick(); }
+    if (!this.data) await this.load();
+    const d = this.data; if (!d) return modal(`<h3>🕌 ${esc(t('pr_title'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><p class="empty-note">${esc(t('pr_err'))}</p>`);
+    const n = this.next(), nowT = Date.now();
+    const left = n ? Math.max(0, Math.round(((n.tomorrow ? n.at.getTime() + 864e5 : n.at.getTime()) - nowT) / 60000)) : 0;
+    const lt = left >= 60 ? `${Math.floor(left / 60)} ${t('pr_h')} ${left % 60} ${t('min')}` : `${left} ${t('min')}`;
+    modal(`<h3>🕌 ${esc(t('pr_title'))} <button class="icon-btn" data-close>${icon('close')}</button></h3>
+      <div class="pr-head"><small>📍 ${esc(d.region || d.place || '')} · ${esc(new Date().toLocaleDateString(LANG === 'ru' ? 'ru-RU' : LANG === 'en' ? 'en-GB' : 'uz-UZ', { day: 'numeric', month: 'long' }))}${d.hijri ? ' · ' + esc(d.hijri) : ''}</small>
+      ${n ? `<b>${esc(t('pr_' + n.k))} — ${esc(n.t)}</b><small>${esc(tf('pr_left', { t: lt }))}</small>` : ''}</div>
+      <div class="pr-list">${this.times().map((x) => `<div class="pr-row${n && x.k === n.k && !n.tomorrow ? ' next' : x.at.getTime() < nowT ? ' past' : ''}"><em>${PR_ICO[x.k]}</em><b>${esc(t('pr_' + x.k))}</b><span>${esc(x.t)}</span></div>`).join('')}</div>
+      <p class="tiny muted" style="text-align:center">${esc(t('pr_src'))}: ${esc(d.src || '')}</p>
+      <button class="btn-ghost14" id="pr-reg">📍 ${esc(t('wx_change'))}</button>`);
+    $('#pr-reg').onclick = () => WX.pick();
+  },
+};
+const FX_FLAG = { USD: '🇺🇸', EUR: '🇪🇺', RUB: '🇷🇺', GBP: '🇬🇧', CNY: '🇨🇳', KZT: '🇰🇿', TRY: '🇹🇷', KRW: '🇰🇷', AED: '🇦🇪' };
+const Rates = {
+  data: null,
+  chip() {
+    let b = $('#fx-chip'); const before = $('#pr-chip') || $('#wx-chip') || $('#btn-new-top'); if (!before) return;
+    if (!b) { before.insertAdjacentHTML('beforebegin', `<button class="tchip" id="fx-chip"><span>💱</span></button>`); b = $('#fx-chip'); b.onclick = () => this.open(); }
+    b.title = t('fx_title');
+  },
+  async load() { try { this.data = await api('/api/rates'); } catch { this.data = null; } this.chip(); },
+  name(x) { return LANG === 'ru' ? x.ru : LANG === 'en' ? x.en : x.uz; },
+  async open() {
+    if (!this.data || Date.now() - (this.loadedAt || 0) > 3600e3) { await this.load(); this.loadedAt = Date.now(); }
+    const d = this.data; if (!d?.list) return modal(`<h3>💱 ${esc(t('fx_title'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><p class="empty-note">${esc(t('fx_err'))}</p>`);
+    const f = (n) => Number(n).toLocaleString('ru-RU', { maximumFractionDigits: 2 }).replace(/,/g, '.');
+    modal(`<h3>💱 ${esc(t('fx_title'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><p class="muted small">${esc(t('fx_sub'))} · ${esc(d.date || '')}</p>
+      <div class="fx-list">${d.list.map((x) => `<div class="fx-row"><span class="fl">${FX_FLAG[x.c] || '💵'}</span><span class="fn"><b>${x.nominal > 1 ? x.nominal + ' ' : '1 '}${esc(x.c)}</b><small>${esc(this.name(x) || '')}</small></span><span class="fr"><b>${f(x.rate)}</b><small class="${x.diff > 0 ? 'fx-up' : x.diff < 0 ? 'fx-dn' : ''}">${x.diff > 0 ? '▲ +' : x.diff < 0 ? '▼ ' : ''}${x.diff ? f(x.diff) : '—'}</small></span></div>`).join('')}</div>
+      <div class="fx-calc"><input class="field" id="fx-n" inputmode="decimal" placeholder="100" value="100"><select id="fx-c">${d.list.map((x) => `<option value="${x.c}">${x.c}</option>`).join('')}</select></div><p class="fx-out" id="fx-out"></p>
+      <p class="tiny muted" style="text-align:center">${esc(t('pr_src'))}: ${esc(d.src)} (cbu.uz)</p>`);
+    const calc = () => { const x = d.list.find((y) => y.c === $('#fx-c').value); const n = Number(String($('#fx-n').value).replace(',', '.')) || 0; $('#fx-out').textContent = `${f(n)} ${x.c} = ${f(Math.round((n * x.rate) / x.nominal))} ${t('fx_sum')}`; };
+    $('#fx-n').oninput = calc; $('#fx-c').onchange = calc; calc();
+  },
+};
+{
+  const baseUC22 = UserCount.set.bind(UserCount);
+  UserCount.set = function (n) { baseUC22(n); Prayer.chip(); Rates.chip(); };
+  const baseWXL22 = WX.load.bind(WX); WX.load = async function () { await baseWXL22(); Prayer.load(); };
+  setInterval(() => { if (!document.hidden) Prayer.chip(); }, 30000);
+  const baseLA22 = loadAliases; let st22 = false;
+  loadAliases = async function () { await baseLA22(); if (!st22) { st22 = true; Rates.chip(); Prayer.load(); } };
+}
+
+/* ---------- 4) Chatni o'chirish (bloklamasdan) ---------- */
+const DelChat = {
+  open(chatId) {
+    const c = S.chats.get(chatId); if (!c) return; const peer = c.type === 'private' && !c.self ? (S.users.get(c.peer?.id) || c.peer) : null;
+    modal(`<h3>🗑 ${esc(t('dc_title'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><p class="muted">${esc(t('dc_q'))}</p>
+      ${peer ? `<label class="dc-both"><input type="checkbox" id="dc-both"> ${esc(tf('dc_both', { n: peer.name || '' }))}</label>` : ''}
+      <button class="btn-primary" id="dc-ok" style="background:#DC2626">🗑 ${esc(t('dc_ok'))}</button>`);
+    $('#dc-ok').onclick = async () => {
+      try { await api(`/api/chats/${chatId}/delete`, { body: { both: !!$('#dc-both')?.checked } }); closeModal(); this.removed(chatId); toast(t('dc_done')); } catch (e) { toast(e.message); }
+    };
+  },
+  removed(chatId) { S.chats.delete(chatId); S.msgs.delete(chatId); if (S.current === chatId) { S.current = null; closeChat(); } renderChatList(); },
+};
+{
+  const baseCM22 = chatMenu;
+  chatMenu = function (chatId, x, y) {
+    baseCM22(chatId, x, y); const c = S.chats.get(chatId); if (!c || c.self || c.type !== 'private') return; const el = $('#ctx');
+    el.insertAdjacentHTML('beforeend', `<button data-a22="del" class="danger">🗑 ${esc(t('dc_title'))}</button>`);
+    el.querySelector('[data-a22]').onclick = (e) => { e.stopPropagation(); el.classList.add('hidden'); DelChat.open(chatId); };
+  };
+  const baseCMo22 = ChatMore.open.bind(ChatMore);
+  ChatMore.open = function () {
+    baseCMo22(); const c = S.chats.get(S.current); const el = $('#ctx'); if (!c || c.self || c.type !== 'private' || !el.classList.contains('chat-more')) return;
+    el.insertAdjacentHTML('beforeend', `<button data-cm="del22" class="danger"><span class="cm-e">🗑</span>${esc(t('dc_title'))}</button>`);
+    el.querySelector('[data-cm="del22"]').addEventListener('click', (e) => { e.stopPropagation(); el.classList.add('hidden'); el.classList.remove('chat-more'); DelChat.open(c.id); }, true);
+  };
+  const baseCS22 = connectSocket;
+  connectSocket = async function (...a) { const r = await baseCS22(...a); const s = S.socket; if (s && !s._v22) { s._v22 = true; s.on('chat:removed', ({ chatId }) => DelChat.removed(chatId)); } return r; };
+}
+
+/* ---------- 5) Bir nechta akkaunt (5 tagacha) ---------- */
+const Accts = {
+  list() { try { return JSON.parse(store.get('birga_accts') || '[]').filter((a) => a && a.token && a.id); } catch { return []; } },
+  save(l) { store.set('birga_accts', JSON.stringify(l.slice(0, 5))); },
+  upsert() {
+    if (!S.me?.id || !S.token) return; const l = this.list().filter((a) => a.id !== S.me.id);
+    l.unshift({ id: S.me.id, token: S.token, name: S.me.name || '', email: S.me.email || '', avatar: S.me.avatar || null }); this.save(l);
+  },
+  switchTo(id) {
+    const a = this.list().find((x) => x.id === id); if (!a || a.id === S.me?.id) return;
+    this.upsert(); try { window.BirgaNative?.clearToken?.(); } catch {}
+    store.set('birga_token', a.token); store.set('birga_acc_sw', '1'); location.href = '/';
+  },
+  async add() {
+    if (this.list().length >= 5) return toast(t('ac_max'), 3000);
+    this.upsert(); try { window.BirgaNative?.clearToken?.(); } catch {}
+    await fetch('/api/auth/forget', { method: 'POST', credentials: 'same-origin' }).catch(() => {});
+    store.del('birga_token'); store.set('birga_adding', '1'); location.href = '/';
+  },
+  remove(id) { this.save(this.list().filter((a) => a.id !== id)); },
+  html() {
+    const l = this.list(); const cur = S.me?.id;
+    return `<div class="ac-list">${l.map((a) => `<div class="ac-row" data-ac="${a.id}">${avatar({ id: a.id, name: a.name, avatar: a.avatar })}<span class="at"><b>${esc(a.name || a.email || '')}</b><small>${esc(a.email || '')}</small></span>${a.id === cur ? `<span class="ac-on">● ${esc(t('ac_cur'))}</span>` : `<button class="ac-x" data-acx="${a.id}" title="${esc(t('ac_rm'))}">✕</button>`}</div>`).join('')}</div>
+      ${l.length < 5 ? `<button class="btn-ghost14" id="ac-add" style="margin-top:8px">➕ ${esc(t('ac_add'))}</button>` : `<p class="tiny muted">${esc(t('ac_max'))}</p>`}`;
+  },
+  bind(root) {
+    root.querySelector('.ac-list')?.addEventListener('click', (e) => { const x = e.target.closest('[data-acx]'); if (x) { e.stopPropagation(); this.remove(+x.dataset.acx); root.querySelector('.pp-acc-in').innerHTML = this.html(); this.bind(root); return; } const r = e.target.closest('[data-ac]'); if (r) this.switchTo(+r.dataset.ac); });
+    root.querySelector('#ac-add')?.addEventListener('click', () => this.add());
+  },
+};
+{
+  const baseRP22 = renderProfile;
+  renderProfile = async function (el, user, opts = {}) {
+    const r = await baseRP22(el, user, opts);
+    if (opts.self && el && !el.querySelector('.pp-acc')) {
+      Accts.upsert();
+      const anchor = el.querySelector('.pp-cover'); anchor?.insertAdjacentHTML('afterend', `<div class="pp-acc"><h4>👥 ${esc(t('ac_title'))}</h4><div class="pp-acc-in">${Accts.html()}</div></div>`);
+      Accts.bind(el.querySelector('.pp-acc'));
+    }
+    return r;
+  };
+  const baseLA22b = loadAliases; let st22b = false;
+  loadAliases = async function () {
+    await baseLA22b(); if (st22b) return; st22b = true; Accts.upsert();
+    if (store.get('birga_acc_sw')) { store.del('birga_acc_sw'); toast(t('ac_sw'), 2000); }
+    store.del('birga_adding');
+  };
+  // chiqishda — ro'yxatdagi boshqa akkauntga o'tadi
+  const baseLogout22 = logout;
+  logout = async function (silent) {
+    const others = Accts.list().filter((a) => a.id !== S.me?.id);
+    if (!others.length) { Accts.save([]); return baseLogout22(silent); }
+    if (!silent && !confirm(t('confirm_logout'))) return;
+    try { window.BirgaNative?.clearToken?.(); } catch {}
+    await fetch('/api/auth/logout', { method: 'POST', headers: { Authorization: 'Bearer ' + S.token }, credentials: 'same-origin' }).catch(() => {});
+    Accts.save(others); store.set('birga_token', others[0].token); location.href = '/';
+  };
+}
+
+/* ---------- 6) Telefon kontaktlaridagi Birga foydalanuvchilari — Kontaktlar bo'limida ---------- */
+const PhoneCt = {
+  can: () => !!window.BirgaNative?.contacts || ('contacts' in navigator && 'ContactsManager' in window),
+  cache() { try { return JSON.parse(store.get('birga_pct') || 'null'); } catch { return null; } },
+  async read() {
+    if (window.BirgaNative?.contacts) return new Promise((res) => { window.birgaContacts = (j) => { window.birgaContacts = null; res(j); }; window.BirgaNative.contacts(); setTimeout(() => res(null), 30000); });
+    try { return (await navigator.contacts.select(['name', 'tel', 'email'], { multiple: true })).map((c) => ({ n: c.name?.[0] || '', p: c.tel || [], e: c.email || [] })); } catch { return null; }
+  },
+  async sync(user) {
+    const list = await this.read(); if (!list) { if (user) toast(t('kc_perm'), 3000); return; }
+    const phones = list.flatMap((c) => c.p || []), emails = list.flatMap((c) => c.e || []);
+    try { const r = await api('/api/contacts/match', { body: { phones, emails } }); const names = new Map(); list.forEach((c) => [...(c.p || []), ...(c.e || [])].forEach((x) => names.set(String(x).replace(/\D/g, '').slice(-9) || String(x).toLowerCase(), c.n)));
+      store.set('birga_pct', JSON.stringify({ at: Date.now(), users: r.users, checked: list.length })); r.users.forEach((u) => S.users.set(u.id, { ...(S.users.get(u.id) || {}), ...u })); this.paint(); } catch (e) { if (user) toast(e.message); }
+  },
+  paint() {
+    const host = $('#contact-results'); if (!host) return; $('#kc-box')?.remove();
+    const c = this.cache();
+    const body = c ? (c.users.length ? c.users.map((u) => `<div class="kc-row">${avatar(u)}<span class="kt"><b>${esc(u.name)}</b><small>${u.username ? '@' + esc(u.username) : esc(lastSeen(S.users.get(u.id) || u))}</small></span><button data-kcu="${u.id}">${esc(t('kc_write'))}</button></div>`).join('') : `<p class="muted small">${esc(t('kc_none'))}</p>`)
+      : `<button class="btn-ghost14" id="kc-go" style="margin-top:8px">${esc(t('kc_btn'))}</button>`;
+    host.insertAdjacentHTML('beforebegin', `<div class="kc-box" id="kc-box"><h4>📇 ${esc(t('kc_title'))}${c ? ` · ${c.users.length}` : ''}</h4><small>${esc(t('kc_sub'))}</small>${body}</div>`);
+    $('#kc-go')?.addEventListener('click', () => this.sync(true));
+    $('#kc-box').addEventListener('click', async (e) => { const b = e.target.closest('[data-kcu]'); if (!b) return; const ch = await api('/api/chats', { body: { userId: +b.dataset.kcu } }); upsertChat(ch); setTab('chats'); openChat(ch.id); });
+  },
+};
+{
+  const baseTab22 = setTab, baseRaw22 = setTab.raw;
+  const hook = () => { if (TAB === 'contacts' && PhoneCt.can()) { PhoneCt.paint(); const c = PhoneCt.cache(); if (window.BirgaNative?.contacts && (!c || Date.now() - c.at > 864e5)) PhoneCt.sync(false); } };
+  setTab = function (name) { const r = baseTab22(name); setTimeout(hook, 50); return r; }; setTab.raw = baseRaw22 ? (n) => { const r = baseRaw22(n); setTimeout(hook, 50); return r; } : undefined;
+}
+
+/* ---------- 7) Xorijiy qo'ng'iroqlar: tarmoqqa qarab sifatni avtomatik moslash (qotib qolmasligi uchun) ---------- */
+{
+  let lvl = -1, last = null;
+  setInterval(async () => {
+    const pc = Call.pc; if (!pc || pc.connectionState !== 'connected') { lvl = -1; return; }
+    try {
+      const st = await pc.getStats(); let rtt = 0, lost = 0, sent = 0;
+      st.forEach((r) => { if (r.type === 'candidate-pair' && r.nominated && r.currentRoundTripTime) rtt = r.currentRoundTripTime; if (r.type === 'remote-inbound-rtp') { lost += r.packetsLost || 0; } if (r.type === 'outbound-rtp') sent += r.packetsSent || 0; });
+      const loss = last && sent > last.sent ? Math.max(0, (lost - last.lost) / (sent - last.sent)) : 0; last = { lost, sent };
+      const want = rtt > 0.6 || loss > 0.12 ? 3 : rtt > 0.35 || loss > 0.05 ? 2 : rtt > 0.2 || loss > 0.02 ? 1 : 0;
+      if (want === lvl) return; lvl = want;
+      const V = [[900000, 1, 24], [500000, 1.5, 20], [250000, 2, 15], [120000, 3, 10]][want];
+      for (const s of pc.getSenders()) {
+        if (!s.track) continue; const p = s.getParameters(); p.encodings = p.encodings?.length ? p.encodings : [{}];
+        if (s.track.kind === 'video') { p.encodings[0].maxBitrate = V[0]; p.encodings[0].scaleResolutionDownBy = V[1]; p.encodings[0].maxFramerate = V[2]; p.degradationPreference = 'maintain-framerate'; }
+        else { p.encodings[0].maxBitrate = 32000; p.encodings[0].priority = 'high'; p.encodings[0].networkPriority = 'high'; }
+        await s.setParameters(p).catch(() => {});
+      }
+    } catch {}
+  }, 3000);
+}
+
+// akkaunt qo'shayotganda kirish oynasida — avvalgi akkauntga qaytish
+if (!store.get('birga_token') && Accts.list().length) {
+  const a = Accts.list()[0];
+  $('#auth')?.insertAdjacentHTML('beforeend', `<button class="link-btn" id="ac-back" style="position:fixed;left:50%;bottom:calc(14px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:5">← ${esc(t('ac_back'))}: ${esc(a.name || a.email || '')}</button>`);
+  $('#ac-back')?.addEventListener('click', () => { store.set('birga_token', a.token); location.href = '/'; });
 }
 
 boot();

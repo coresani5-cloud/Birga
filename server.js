@@ -1616,6 +1616,7 @@ const GAMES = new Set(['snake', 'penalty', 'aim', '2048', 'flappy', 'blocks', 'm
 // 2 kishilik (taklif bilan) o'yinlar — g'alabalar soni 'w_<id>' nomi bilan reytingga yoziladi
 const AI_SECRET = crypto.randomBytes(8).toString('hex');
 const MP_GAMES = new Set(['chess', 'checkers', 'connect4', 'gomoku', 'battleship', 'fb4', 'duel', 'hockey', 'reversi', 'dots', 'race', 'pong', 'tanks', 'sumo']);
+const N_LOCK = new Set(['chess', 'checkers']); // faqat 2 kishilik
 const RT_GAMES = new Set(['fb4', 'duel', 'hockey', 'race', 'pong', 'tanks', 'sumo']); // jonli (real vaqtda) o'yinlar
 const TOP_GAMES = new Set([...GAMES, ...[...MP_GAMES].map((g) => 'w_' + g)]);
 app.post('/api/games/score', auth, rateLimit('gscore', 600, 3600e3), wrap(async (req, res) => {
@@ -2355,6 +2356,7 @@ async function loadRoom(id) {
   const j = (x, d) => { try { return JSON.parse(x) ?? d; } catch { return d; } };
   const r = { ...row, a: Number(row.a), b: row.b == null ? null : Number(row.b), chat_id: Number(row.chat_id), winner: row.winner == null ? null : Number(row.winner),
     moves: j(row.moves, []), claims: j(row.claims, {}), secret: j(row.secret, {}), updated: Number(row.updated) };
+  r.pl = j(row.pl, null)?.map((x) => (x == null ? null : Number(x))) || [r.a, r.b]; r.cap = r.pl.length; r.chats = j(row.chats, null)?.map(Number) || [r.chat_id];
   rooms.set(id, r); return r;
   })().finally(() => roomLoads.delete(id));
   roomLoads.set(id, job); return job;
@@ -2518,106 +2520,146 @@ io.on('connection', async (socket) => {
     ack?.({ ok: true }); io.to('u' + uid).emit('msg:scheduled', { chatId: Number(r.chat_id) });
   });
 
-  // ===== 2 kishilik o'yinlar: taklif → qo'shilish → yurishlar (server faqat navbat/tartibni saqlaydi va uzatadi) =====
+  // ===== Ko'p kishilik o'yinlar (2–4 o'rin): taklif → qo'shilish → yurishlar (server navbat tartibini saqlaydi va uzatadi) =====
+  const seatOf = (r, u) => r.pl.indexOf(u);
+  const drawOf = (r) => (r.cap > 2 ? 9 : 2);
   const roomView = async (r) => {
-    const ua = await getUser(r.a), ub = r.b ? await getUser(r.b) : null;
-    return { id: r.id, game: r.game, chatId: r.chat_id, a: r.a, b: r.b, status: r.status, winner: r.winner, moves: r.moves,
-      seat: r.a === uid ? 0 : r.b === uid ? 1 : -1, users: [ua && publicUser(ua), ub && publicUser(ub)],
-      secret: r.a === uid ? r.secret[0] ?? null : r.b === uid ? r.secret[1] ?? null : null, turn: r.moves.length ? 1 - r.moves[r.moves.length - 1].s : 0 };
+    const users = []; for (const x of r.pl) { const u = x ? await getUser(x) : null; users.push(u && publicUser(u)); }
+    const seat = seatOf(r, uid); const last = r.moves[r.moves.length - 1];
+    return { id: r.id, game: r.game, chatId: r.chat_id, chats: r.chats, a: r.a, b: r.b, pl: r.pl, n: r.cap, joined: r.pl.filter(Boolean).length, status: r.status, winner: r.winner, moves: r.moves,
+      seat, users, out: r.claims.out || [], draw: drawOf(r), secret: seat >= 0 ? r.secret[seat] ?? null : null, turn: last ? (last.s + 1) % r.cap : 0 };
   };
-  const roomPush = async (r) => { const v = await roomView(r); [r.a, r.b].filter(Boolean).forEach((x) => io.to('u' + x).emit('game:state', { ...v, seat: x === r.a ? 0 : 1, secret: undefined })); };
+  const roomPush = async (r) => { const v = await roomView(r); r.pl.filter(Boolean).forEach((x) => io.to('u' + x).emit('game:state', { ...v, seat: seatOf(r, x), secret: undefined })); };
+  const roomSave = (r, cols) => db.run(`UPDATE game_rooms SET ${cols.map((c) => c + '=?').join(', ')} WHERE id=?`, [...cols.map((c) => (['moves', 'claims', 'secret', 'pl', 'chats'].includes(c) ? JSON.stringify(r[c]) : r[c])), r.id]);
+  const canSeeRoom = async (r) => r.pl.includes(uid) || (await Promise.all(r.chats.map((c) => isMember(c, uid)))).some(Boolean);
   on(socket, 'game:invite', async (p, ack) => {
-    const chatId = Number(p?.chatId), g = String(p?.game || '');
-    if (!MP_GAMES.has(g) || !(await canPost(chatId, uid))) return ack?.({ error: 'forbidden' });
+    const g = String(p?.game || ''); const multi = !N_LOCK.has(g);
+    const ids = [...new Set((Array.isArray(p?.chats) ? p.chats : [p?.chatId]).map(Number).filter(Boolean))].slice(0, 3);
+    if (!MP_GAMES.has(g) || !ids.length) return ack?.({ error: 'forbidden' });
     if (!rateOk('ginv' + uid, 30, 600e3)) return ack?.({ error: 'rate' });
-    const peerId = await privatePeer(chatId, uid);
-    if (peerId && ((await isBlocked(peerId, uid)) || (await isBlocked(uid, peerId)))) return ack?.({ error: 'blocked' });
-    const chat = await getChat(chatId); if (chat.type === 'channel') return ack?.({ error: 'forbidden' });
+    const peers = [];
+    for (const chatId of ids) {
+      if (!(await canPost(chatId, uid))) return ack?.({ error: 'forbidden' });
+      const chat = await getChat(chatId); if (chat.type === 'channel') return ack?.({ error: 'forbidden' });
+      const peerId = await privatePeer(chatId, uid);
+      if (peerId && ((await isBlocked(peerId, uid)) || (await isBlocked(uid, peerId)))) return ack?.({ error: 'blocked' });
+      if (peerId && peerId !== uid) peers.push(peerId);
+    }
+    let cap = multi ? Math.max(2, Math.min(4, Number(p?.n) || 1 + peers.length || 2)) : 2;
+    if (cap < 1 + peers.length) cap = Math.min(4, 1 + peers.length);
+    const pl = Array(cap).fill(null); pl[0] = uid;
+    [...new Set(peers)].slice(0, cap - 1).forEach((x, i) => (pl[i + 1] = x)); // shaxsiy chatdagi do'stlar darhol o'rnida
     const id = crypto.randomBytes(6).toString('hex');
-    const r = { id, game: g, chat_id: chatId, a: uid, b: peerId || null, moves: [], status: peerId ? 'play' : 'wait', winner: null, claims: {}, secret: {}, created: now(), updated: now() };
-    if (peerId === uid || chat.type === 'private' && !peerId) r.b = null, r.status = 'wait'; // "Saqlangan xabarlar"
-    await db.run('INSERT INTO game_rooms(id,game,chat_id,a,b,moves,status,winner,claims,created,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?)', [id, g, chatId, r.a, r.b, '[]', r.status, null, '{}', r.created, r.updated]);
+    const r = { id, game: g, chat_id: ids[0], chats: ids, a: uid, b: pl[1], pl, cap, moves: [], status: pl.every(Boolean) ? 'play' : 'wait', winner: null, claims: {}, secret: {}, created: now(), updated: now() };
+    await db.run('INSERT INTO game_rooms(id,game,chat_id,a,b,moves,status,winner,claims,created,updated,pl,chats) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)', [id, g, r.chat_id, r.a, r.b, '[]', r.status, null, '{}', r.created, r.updated, JSON.stringify(pl), JSON.stringify(ids)]);
     rooms.set(id, r);
-    const msg = await saveMessage(chatId, uid, { type: 'game', text: '' }, { game: { g, room: id } });
+    let msg = null; for (const chatId of ids) { const m = await saveMessage(chatId, uid, { type: 'game', text: '' }, { game: { g, room: id } }); if (chatId === ids[0]) msg = m; }
     ack?.({ ok: true, room: await roomView(r), message: msg });
   });
   on(socket, 'game:join', async (p, ack) => {
     const r = await loadRoom(p?.room); if (!r) return ack?.({ error: 'not_found' });
-    if (r.a !== uid && r.b !== uid) {
-      if (!(await isMember(r.chat_id, uid))) return ack?.({ error: 'forbidden' });
-      if (!r.b && r.status === 'wait') {
-        r.b = uid; r.status = 'play'; r.updated = now();
-        await db.run('UPDATE game_rooms SET b=?, status=?, updated=? WHERE id=? AND b IS NULL', [uid, 'play', r.updated, r.id]);
+    if (!r.pl.includes(uid)) {
+      if (!(await canSeeRoom(r))) return ack?.({ error: 'forbidden' });
+      const free = r.pl.indexOf(null);
+      if (free >= 0 && r.status === 'wait') {
+        r.pl[free] = uid; if (free === 1) r.b = uid; r.updated = now();
+        if (r.pl.every(Boolean)) r.status = 'play';
+        await roomSave(r, ['pl', 'b', 'status', 'updated']);
         roomPush(r).catch(() => {});
       }
     }
     ack?.({ ok: true, room: await roomView(r) });
   });
+  on(socket, 'game:start', async (p, ack) => { // uy egasi: kelganlar bilan hozir boshlash (kamida 2 kishi)
+    const r = await loadRoom(p?.room); if (!r || r.a !== uid || r.status !== 'wait') return ack?.({ error: 'forbidden' });
+    const pl = r.pl.filter(Boolean); if (pl.length < 2) return ack?.({ error: 'few' });
+    r.pl = pl; r.cap = pl.length; r.b = pl[1]; r.status = 'play'; r.updated = now();
+    await roomSave(r, ['pl', 'b', 'status', 'updated']); await roomPush(r); ack?.({ ok: true });
+  });
   on(socket, 'game:secret', async (p, ack) => { // faqat o'sha o'yinchiga qaytariladigan maxfiy holat (masalan, kemalar joylashuvi)
     const r = await loadRoom(p?.room); if (!r) return ack?.({ error: 'not_found' });
-    const seat = r.a === uid ? 0 : r.b === uid ? 1 : -1; const raw = JSON.stringify(p?.data ?? null);
+    const seat = seatOf(r, uid); const raw = JSON.stringify(p?.data ?? null);
     if (seat < 0 || r.status === 'over' || raw.length > 3000) return ack?.({ error: 'forbidden' });
     if (r.moves.some((m) => m.s === seat && m.m?.t === 'r')) return ack?.({ error: 'locked' }); // tayyor bo'lgandan keyin o'zgartirib bo'lmaydi
-    r.secret[seat] = JSON.parse(raw); await db.run('UPDATE game_rooms SET secret=? WHERE id=?', [JSON.stringify(r.secret), r.id]);
+    r.secret[seat] = JSON.parse(raw); await roomSave(r, ['secret']);
     ack?.({ ok: true });
   });
   on(socket, 'game:mine', async (p, ack) => {
-    const rows = await db.all("SELECT id FROM game_rooms WHERE (a=? OR b=?) AND status<>'over' AND updated>? ORDER BY updated DESC LIMIT 12", [uid, uid, now() - 14 * 864e5]);
-    const out = []; for (const x of rows) { const r = await loadRoom(x.id); if (r) { const v = await roomView(r); delete v.moves; delete v.secret; out.push(v); } }
+    const rows = await db.all("SELECT id FROM game_rooms WHERE (a=? OR b=? OR pl LIKE ? OR pl LIKE ?) AND status<>'over' AND updated>? ORDER BY updated DESC LIMIT 12", [uid, uid, `%,${uid},%`, `%,${uid}]%`, now() - 14 * 864e5]);
+    const out = []; for (const x of rows) { const r = await loadRoom(x.id); if (r && r.pl.includes(uid)) { const v = await roomView(r); delete v.moves; delete v.secret; out.push(v); } }
     ack?.({ rooms: out });
   });
   on(socket, 'game:peek', async (p, ack) => {
     const ids = (Array.isArray(p?.ids) ? p.ids : []).slice(0, 60).map(String);
     const out = {};
-    for (const id of ids) { const r = await loadRoom(id); if (r && (await isMember(r.chat_id, uid) || r.a === uid || r.b === uid)) out[id] = { status: r.status, winner: r.winner, a: r.a, b: r.b, n: r.moves.length }; }
+    for (const id of ids) { const r = await loadRoom(id); if (r && (await canSeeRoom(r))) out[id] = { status: r.status, winner: r.winner, a: r.a, b: r.b, pl: r.pl, n: r.cap, draw: drawOf(r), joined: r.pl.filter(Boolean).length, moves: r.moves.length }; }
     ack?.(out);
   });
+  const pushMove = async (r, seat, m) => {
+    const mv = { s: seat, m }; r.moves.push(mv); r.updated = now();
+    await roomSave(r, ['moves', 'updated']);
+    const ev = { room: r.id, i: r.moves.length - 1, ...mv };
+    r.pl.filter(Boolean).forEach((x) => io.to('u' + x).emit('game:move', ev));
+    return ev;
+  };
+  const finish = async (r, w) => {
+    r.status = 'over'; r.winner = w; r.updated = now();
+    await roomSave(r, ['status', 'winner', 'claims', 'updated']);
+    const wu = w >= 0 && w < r.cap ? r.pl[w] : null;
+    if (wu) await db.run(`INSERT INTO game_scores(user_id,game,best,plays,updated) VALUES(?,?,1,1,?) ON CONFLICT(user_id,game) DO UPDATE SET best=game_scores.best+1, plays=game_scores.plays+1, updated=excluded.updated`, [wu, 'w_' + r.game, now()]);
+    await roomPush(r);
+  };
   on(socket, 'game:move', async (p, ack) => {
     const r = await loadRoom(p?.room); if (!r) return ack?.({ error: 'not_found' });
-    const seat = r.a === uid ? 0 : r.b === uid ? 1 : -1;
-    if (seat < 0 || r.status !== 'play') return ack?.({ error: 'forbidden', moves: r.moves, status: r.status });
+    const seat = seatOf(r, uid);
+    if (seat < 0 || r.status !== 'play' || (r.claims.out || []).includes(seat)) return ack?.({ error: 'forbidden', moves: r.moves, status: r.status });
     const raw = JSON.stringify(p?.m ?? null);
     if (raw.length > 800 || r.moves.length >= 4000) return ack?.({ error: 'bad' });
     if (Number(p?.n) !== r.moves.length) return ack?.({ error: 'sync', moves: r.moves });
-    const mv = { s: seat, m: JSON.parse(raw) }; r.moves.push(mv); r.updated = now();
-    await db.run('UPDATE game_rooms SET moves=?, updated=? WHERE id=?', [JSON.stringify(r.moves), r.updated, r.id]);
-    const ev = { room: r.id, i: r.moves.length - 1, ...mv };
-    [r.a, r.b].forEach((x) => io.to('u' + x).emit('game:move', ev));
+    const m = JSON.parse(raw); if (m && typeof m === 'object' && m.quit) return ack?.({ error: 'bad' });
+    const ev = await pushMove(r, seat, m);
     ack?.({ ok: true, i: ev.i });
-    const other = seat ? r.a : r.b;
-    if (!online.has(other) && (!r.pushed || now() - r.pushed > 10 * 60e3)) { // raqib ilovada bo'lmasa — eslatma
+    const nxt = r.pl[(seat + 1) % r.cap];
+    if (nxt && !online.has(nxt) && (!r.pushed || now() - r.pushed > 10 * 60e3)) { // keyingi o'yinchi ilovada bo'lmasa — eslatma
       r.pushed = now(); const me = await getUser(uid);
-      push.send(other, { type: 'msg', chatId: r.chat_id, title: me?.name || 'Birga', body: '🎮 ' + (PREVIEW.game[0]), tag: 'game' + r.id }).catch(() => {});
+      push.send(nxt, { type: 'msg', chatId: r.chat_id, title: me?.name || 'Birga', body: '🎮 ' + (PREVIEW.game[0]), tag: 'game' + r.id }).catch(() => {});
     }
   });
   on(socket, 'game:over', async (p, ack) => {
     const r = await loadRoom(p?.room); if (!r) return ack?.({ error: 'not_found' });
-    const seat = r.a === uid ? 0 : r.b === uid ? 1 : -1;
+    const seat = seatOf(r, uid);
     if (seat < 0) return ack?.({ error: 'forbidden' });
     if (r.status === 'over') return ack?.({ ok: true, winner: r.winner });
-    let w = null;
-    if (p?.resign) w = r.b ? 1 - seat : 2;
-    else {
-      const c = [0, 1, 2].includes(Number(p?.w)) ? Number(p.w) : null; if (c === null) return ack?.({ error: 'bad' });
+    const D = drawOf(r); let w = null;
+    if (p?.resign) {
+      if (r.status === 'wait') { w = D; }
+      else if (r.cap <= 2) w = 1 - seat;
+      else {
+        const out = r.claims.out || (r.claims.out = []); if (!out.includes(seat)) out.push(seat);
+        const left = r.pl.map((_, i) => i).filter((i) => !out.includes(i));
+        if (left.length <= 1) w = left[0] ?? D;
+        else if (RT_GAMES.has(r.game) && seat === 0) w = D; // jonli o'yinda uy egasi chiqib ketsa — o'yin to'xtaydi
+        else { await roomSave(r, ['claims']); await pushMove(r, seat, { quit: 1 }); return ack?.({ ok: true, out: true }); }
+      }
+    } else {
+      const c = Number(p?.w); if (!(Number.isInteger(c) && ((c >= 0 && c < r.cap) || c === D))) return ack?.({ error: 'bad' });
       r.claims[seat] = c;
-      if (c === 1 - seat) w = c; // yutqazgan tomon tan oldi
-      else if (r.claims[1 - seat] === c) w = c; // ikkala tomon bir xil natija
+      const active = r.pl.map((_, i) => i).filter((i) => !(r.claims.out || []).includes(i));
+      const same = active.filter((i) => r.claims[i] === c).length;
+      if (r.cap <= 2 ? c === 1 - seat || r.claims[1 - seat] === c : (c !== seat && c !== D) || same >= Math.min(2, active.length)) w = c;
     }
-    if (w === null) { await db.run('UPDATE game_rooms SET claims=? WHERE id=?', [JSON.stringify(r.claims), r.id]); return ack?.({ ok: true, pending: true }); }
-    r.status = 'over'; r.winner = w; r.updated = now();
-    await db.run('UPDATE game_rooms SET status=?, winner=?, claims=?, updated=? WHERE id=?', ['over', w, JSON.stringify(r.claims), r.updated, r.id]);
-    const wu = w === 0 ? r.a : w === 1 ? r.b : null;
-    if (wu) await db.run(`INSERT INTO game_scores(user_id,game,best,plays,updated) VALUES(?,?,1,1,?) ON CONFLICT(user_id,game) DO UPDATE SET best=game_scores.best+1, plays=game_scores.plays+1, updated=excluded.updated`, [wu, 'w_' + r.game, now()]);
-    await roomPush(r); ack?.({ ok: true, winner: w });
+    if (w === null) { await roomSave(r, ['claims']); return ack?.({ ok: true, pending: true }); }
+    await finish(r, w); ack?.({ ok: true, winner: w });
   });
 
-  // Jonli o'yinlar (futbol 4×4, Strike duel, xokkey): holat/harakatlar ikki o'yinchi orasida tez uzatiladi (server saqlamaydi)
+  // Jonli o'yinlar: holat/harakatlar o'yinchilar orasida tez uzatiladi (server saqlamaydi)
   socket.on('game:rt', async (p) => {
     try {
       const r = await loadRoom(p?.room); if (!r || !RT_GAMES.has(r.game) || r.status !== 'play') return;
-      const seat = r.a === uid ? 0 : r.b === uid ? 1 : -1; if (seat < 0) return;
+      const seat = seatOf(r, uid); if (seat < 0) return;
       const raw = JSON.stringify(p?.d ?? null); if (raw.length > 4000 || !rateOk('rt' + uid, 3600, 60e3)) return;
-      io.to('u' + (seat ? r.a : r.b)).volatile.emit('game:rt', { room: r.id, s: seat, d: p.d });
+      const to = Number.isInteger(p?.to) && r.pl[p.to] ? [r.pl[p.to]] : r.pl.filter((x) => x && x !== uid);
+      to.forEach((x) => io.to('u' + x).volatile.emit('game:rt', { room: r.id, s: seat, d: p.d }));
     } catch {}
   });
   // Pul o'tkazmasi kartochkasi holati: "To'ladim" (so'rovga), "Oldim" / "Kelmadi" (yuborilganga)
@@ -2883,7 +2925,7 @@ async function extraSchema() {
   await db.run(`CREATE TABLE IF NOT EXISTS reel_comments(id ${db.kind === 'postgres' ? 'BIGSERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'}, reel_id BIGINT, user_id BIGINT, text TEXT, at BIGINT)`);
   await db.run('CREATE INDEX IF NOT EXISTS idx_rcom ON reel_comments(reel_id, id)');
   await db.run(`CREATE TABLE IF NOT EXISTS game_rooms(id TEXT PRIMARY KEY, game TEXT, chat_id BIGINT, a BIGINT, b BIGINT, moves TEXT, status TEXT, winner INTEGER, claims TEXT, created BIGINT, updated BIGINT)`);
-  const cols = [['users', 'reg_info', 'TEXT'], ['users', 'folders', 'TEXT'], ['users', 'region', 'TEXT'], ['users', 'invite_code', 'TEXT'], ['users', 'invited_by', 'BIGINT'], ['game_rooms', 'secret', 'TEXT'], ['users', 'steps_on', 'INTEGER DEFAULT 0'], ['users', 'banned', 'INTEGER DEFAULT 0'], ['users', 'birthday', 'TEXT'], ['chat_members', 'pinned', 'BIGINT DEFAULT 0'], ['chat_members', 'archived', 'INTEGER DEFAULT 0'], ['users', 'hide_seen', 'INTEGER DEFAULT 0'], ['users', 'deleted', 'INTEGER DEFAULT 0'], ['chat_members', 'del_at', 'BIGINT'], ['users', 'loc_share', 'INTEGER DEFAULT 0']];
+  const cols = [['users', 'reg_info', 'TEXT'], ['users', 'folders', 'TEXT'], ['users', 'region', 'TEXT'], ['users', 'invite_code', 'TEXT'], ['users', 'invited_by', 'BIGINT'], ['game_rooms', 'secret', 'TEXT'], ['users', 'steps_on', 'INTEGER DEFAULT 0'], ['users', 'banned', 'INTEGER DEFAULT 0'], ['users', 'birthday', 'TEXT'], ['chat_members', 'pinned', 'BIGINT DEFAULT 0'], ['chat_members', 'archived', 'INTEGER DEFAULT 0'], ['users', 'hide_seen', 'INTEGER DEFAULT 0'], ['users', 'deleted', 'INTEGER DEFAULT 0'], ['chat_members', 'del_at', 'BIGINT'], ['users', 'loc_share', 'INTEGER DEFAULT 0'], ['game_rooms', 'pl', 'TEXT'], ['game_rooms', 'chats', 'TEXT']];
   for (const [t, c, type] of cols) {
     try { await db.get(`SELECT ${c} FROM ${t} LIMIT 1`); } catch { await db.run(`ALTER TABLE ${t} ADD COLUMN ${c} ${type}`); }
   }

@@ -283,7 +283,7 @@ const upload = multer({
   limits: { fileSize: (Number(process.env.MAX_UPLOAD_MB) || storage.maxMb) * 1024 * 1024 },
 });
 
-app.get('/api/config', (req, res) => res.json({ v: APP_VERSION, pushKey: push?.publicKey, devSms: !sms.anyReal, maxUploadMb: Number(process.env.MAX_UPLOAD_MB) || storage.maxMb, email: !!mailer, gifs: !!process.env.TENOR_API_KEY, stt: sttOn(), tts: !!(process.env.AZURE_SPEECH_KEY && process.env.AZURE_SPEECH_REGION) }));
+app.get('/api/config', (req, res) => res.json({ v: APP_VERSION, pushKey: push?.publicKey, devSms: !sms.anyReal, maxUploadMb: Number(process.env.MAX_UPLOAD_MB) || storage.maxMb, email: !!mailer, gifs: !!process.env.TENOR_API_KEY, stt: sttOn(), tts: ttsOn() }));
 // Server va bazani "uyg'oq" ushlab turish uchun (cron-job.org shu manzilni chaqiradi)
 // ===== /holat — oddiy odam uchun bitta sahifada tekshiruv (✅ / ⚠️ / ❌) =====
 const STARTED = Date.now();
@@ -1292,7 +1292,7 @@ app.get('/api/steps', auth, wrap(async (req, res) => {
 
 // ===== Birga AI — umumiy savollarga javob beruvchi yordamchi =====
 // Bepul yo'l: Google AI Studio'dan GEMINI_API_KEY (Render → Environment). Yoki GROQ_API_KEY, yoki OpenAI-mos AI_API_URL + AI_API_KEY.
-const AI_SYSTEM = `Sen "Birga yordamchi" — Birga messenjerining aqlli yordamchisisan (avval "Birga AI" deb atalgan). Foydalanuvchi qaysi tilda yozsa, o'sha tilda javob ber (odatda o'zbek tilida, lotin yozuvida).
+const AI_SYSTEM = `Sen "Birga yordamchi" — Birga messenjerining aqlli yordamchisisan (avval "Birga AI" deb atalgan). Foydalanuvchi qaysi tilda yozsa, FAQAT o'sha tilda javob ber (odatda o'zbek tilida, lotin yozuvida). Bitta javobda ikki tilni hech qachon aralashtirma: o'zbekcha javobda ruscha, inglizcha yoki turkcha so'z, kirill harfi bo'lmasin; ruscha javobda o'zbekcha yoki inglizcha so'z bo'lmasin.
 ISHLASH TARZI (eng yaxshi suhbat yordamchilari kabi):
 - Avval savolni to'liq tushun: maqsad nima, qanday javob kutilmoqda. Savol noaniq bo'lsa — eng ehtimolli ma'noda javob ber va oxirida bitta qisqa aniqlashtiruvchi savol ber.
 - Eng muhim javobni birinchi gapda ber, keyin kerak bo'lsa tafsilot. Ortiqcha kirish so'zlari, takrorlar va "albatta, yordam beraman" kabi to'ldiruvchi gaplarsiz yoz.
@@ -1307,7 +1307,7 @@ O'ZBEK TILI QOIDALARI (o'zbekcha javob berganda albatta rioya qil):
 - Atamalar uchun o'zbek tilida qabul qilingan so'zni ishlat (kompyuter, internet, telefon kabi xalqaro so'zlar mumkin).
 BILIM VA ATAMALAR:
 - Sen fan (fizika, kimyo, biologiya, tibbiyot, matematika, informatika), tarix, iqtisod, huquq, din, adabiyot, texnika va kundalik hayot bo'yicha keng bilimga egasan — chuqur, aniq va to'liq javob ber.
-- Foydalanuvchi ruscha, inglizcha, lotincha yoki boshqa tildagi atamani yozsa (masalan "фотосинтез", "митохондрия", "derivative", "habeas corpus") — uni tushun, o'zbekcha muqobilini ber va asl atamani qavs ichida qoldir: "fotosintez (рус. фотосинтез, ingl. photosynthesis)".
+- Foydalanuvchi ruscha, inglizcha, lotincha yoki boshqa tildagi atamani yozsa (masalan "фотосинтез", "митохондрия", "derivative") — uni tushun va javobda faqat javob tilidagi muqobilini ishlat (o'zbekcha javobda: "fotosintez", "mitoxondriya", "hosila"). Boshqa tildagi so'zni javobga qo'shma.
 - Ilmiy savolga: ta'rif → qanday ishlaydi (mexanizm) → misol → muhim raqamlar/formulalar → qo'shimcha qiziqarli fakt tartibida javob ber. Formulalarni aniq yoz.
 - Agar "MA'LUMOTNOMA" bo'limi berilsa — undagi faktlarga tayan, raqam va sanalarni o'sha yerdan ol, o'zbekchaga tarjima qilib tushuntir; ma'lumotnoma savolga aloqasiz bo'lsa — e'tibor berma.
 - Foydalanuvchi kirill yozuvida yozsa — kirill yozuvida, sof o'zbekcha javob ber.
@@ -1394,6 +1394,30 @@ async function aiAnswer(msgs, { web = true, fast = false, sys = '', rawSys = '' 
   console.error('Birga AI:', errs.join(' | '));
   return null;
 }
+// Savol tilini aniqlash va javobda tillar aralashib ketmasligini tekshirish
+const LANG_NAMES = { uz: "o'zbek tilida (lotin yozuvida)", uz_cyrl: "o'zbek tilida (kirill yozuvida)", ru: 'rus tilida', en: 'ingliz tilida', tr: 'turk tilida' };
+const plainTxt = (t) => String(t || '').replace(/```[\s\S]*?```/g, ' ').replace(/`[^`]*`/g, ' ').replace(/https?:\/\/\S+/g, ' ').replace(/\[[^\]]*\]\([^)]*\)/g, ' ');
+function detectLang(t) {
+  t = plainTxt(t); const cyr = (t.match(/[а-яёўқғҳ]/gi) || []).length, lat = (t.match(/[a-zçşğıöü]/gi) || []).length;
+  if (cyr + lat < 3) return null;
+  if (cyr > lat) return /[ўқғҳ]/i.test(t) || /(^|\s)(ва|бу|нима|қандай|учун|билан|мен|сен|керак|бўлади|ҳақида)(?=\s|$|[?.,!])/i.test(t) ? 'uz_cyrl' : 'ru';
+  if (/[şçı]/i.test(t) || /(^|\s)(nasıl|nedir|teşekkür|merhaba|için|değil)(?=\s|$)/i.test(t)) return 'tr';
+  const w = t.toLowerCase().match(/[a-z']+/g) || [];
+  const en = w.filter((x) => /^(the|is|are|was|what|how|why|and|of|to|in|you|i|my|it|this|that|do|does|can|please|with|for|about|explain|tell|me)$/.test(x)).length;
+  const uz = w.filter((x) => /^(va|bu|nima|qanday|uchun|bilan|men|sen|kerak|haqida|bo'ladi|boladi|qilib|yoki|lekin|ham|emas|bor|yo'q|qanaqa|nega|menga)$/.test(x) || /(lar|ning|dagi|ni|da|ga|dan|mi)$/.test(x) && x.length > 4).length;
+  return en > uz && en >= 2 ? 'en' : 'uz';
+}
+function langMixed(ans, lang) {
+  const t = plainTxt(ans);
+  if (['uz', 'en', 'tr'].includes(lang)) { const cw = (t.match(/[а-яёўқғҳ]{2,}/gi) || []).length; if (cw > 0) return true; if (lang === 'uz' && (/[şçı]/.test(t) || /\b(konechno|voobshe|normalno|ponyatno|spasibo|problema|vopros|teşekkür|bilgi)\b/i.test(t))) return true; return false; }
+  if (['ru', 'uz_cyrl'].includes(lang)) { const lw = (t.match(/\b[a-z]{3,}\b/g) || []).length; return lw > 3; }
+  return false;
+}
+async function fixLang(text, lang) {
+  const name = LANG_NAMES[lang]; if (!name) return text;
+  const r = await aiAnswer([{ role: 'user', content: text }], { web: false, fast: true, rawSys: `Sen tahrirchisan. Quyidagi matnni to'liq ${name} qayta yoz: boshqa tildagi har bir so'z, atama va gapni ${name} tarjima qil, boshqa alifbo harflarini qoldirma. Ma'no, faktlar, raqamlar, tuzilma va Markdown formatini o'zgartirma. Faqat qayta yozilgan matnni chiqar, izohsiz.` }).catch(() => null);
+  const out = r?.text?.trim(); return out && out.length > text.length * 0.5 && !langMixed(out, lang) ? out : text;
+}
 // Bilim bazasi: Vikipediya (o'zbek, rus, ingliz) — savolga mos maqolalar qisqacha javobga qo'shiladi (kalit kerak emas)
 const wikiCache = new Map();
 async function wikiContext(q) {
@@ -1434,7 +1458,10 @@ app.post('/api/ai', auth, rateLimit('ai', 80, 3600e3), wrap(async (req, res) => 
   const sys = `\nFoydalanuvchi: ${me.name || ''}${reg?.name ? ', hududi: ' + reg.name : ''}.` + (mem.length ? `\nFoydalanuvchi so'rab eslab qolinganlar (kerak bo'lganda hisobga ol):\n${mem.map((x) => '- ' + x.fact).join('\n')}` : '') + (rem ? `\nFoydalanuvchi hozirgina "${rem[3].trim()}" ni eslab qolishni so'radi — eslab qolganingni qisqa tasdiqla.` : '');
   const wk = req.body?.web !== false && !msgs[msgs.length - 1].image ? await wikiContext(msgs[msgs.length - 1].content) : null;
   const sysW = sys + (wk ? `\n\nMA'LUMOTNOMA (Vikipediya, savolga mos bo'lishi mumkin):\n${wk.map((w, i) => `[${i + 1}] ${w.title} (${w.l}): ${w.text}`).join('\n')}` : '');
-  const out = await aiAnswer(msgs, { web: req.body?.web !== false, sys: sysW });
+  const qLang = detectLang(msgs[msgs.length - 1].content) || 'uz';
+  const sysL = sysW + `\n\nMUHIM: foydalanuvchining oxirgi savoli ${LANG_NAMES[qLang]} yozilgan. Butun javobni FAQAT ${LANG_NAMES[qLang]} yoz, boshqa tildagi so'z va harflarni aralashtirma (ma'lumotnoma boshqa tilda bo'lsa ham — tarjima qil).`;
+  const out = await aiAnswer(msgs, { web: req.body?.web !== false, sys: sysL });
+  if (out && langMixed(out.text, qLang)) out.text = await fixLang(out.text, qLang);
   if (out && wk && !(out.sources || []).length) out.sources = wk.map((w) => ({ title: `${w.title} — Vikipediya (${w.l})`, url: w.url }));
   if (!out) return res.status(503).json({ error: 'ai_unavailable' });
   res.json({ text: out.text.slice(0, 16000), sources: out.sources || [] });
@@ -1546,16 +1573,47 @@ app.post('/api/ai/sticker', auth, rateLimit('aistk', 25, 3600e3), wrap(async (re
 // ===== Birga AI ovozi: Microsoft Azure neyron ovozlari (o'zbekcha: Madina — ayol, Sardor — erkak). Kalit: AZURE_SPEECH_KEY + AZURE_SPEECH_REGION =====
 const TTS_VOICES = { uz: ['uz-UZ-MadinaNeural', 'uz-UZ-SardorNeural'], ru: ['ru-RU-SvetlanaNeural', 'ru-RU-DmitryNeural'], en: ['en-US-JennyNeural', 'en-US-GuyNeural'] };
 const ttsCache = new Map();
-app.get('/api/ai/voice', auth, (req, res) => res.json({ neural: !!(process.env.AZURE_SPEECH_KEY && process.env.AZURE_SPEECH_REGION), voices: TTS_VOICES }));
+// Aisha AI (voicelab.uz) — o'zbek kompaniyasi, o'zbekcha ovoz "Gulnoza". Kalit: AISHA_API_KEY (narxi so'mda)
+const azureOn = () => !!(process.env.AZURE_SPEECH_KEY && process.env.AZURE_SPEECH_REGION);
+function ttsOn() { return azureOn() || !!process.env.AISHA_API_KEY; }
+async function aishaTTS(text, lang) {
+  const base = process.env.AISHA_API_URL || 'https://back.aisha.group';
+  const parts = []; let cur = '';
+  for (const sn of text.match(/[^.!?…]+[.!?…]*\s*/g) || [text]) { if ((cur + sn).length > 950 && cur) { parts.push(cur); cur = ''; } cur += sn.length > 950 ? sn.slice(0, 950) : sn; }
+  if (cur.trim()) parts.push(cur);
+  const pcm = []; let fmt = null;
+  for (const t of parts.slice(0, 4)) {
+    const fd = new FormData(); fd.append('transcript', t.trim()); fd.append('language', lang);
+    if (lang === 'uz') { fd.append('model', process.env.AISHA_VOICE || 'Gulnoza'); fd.append('mood', process.env.AISHA_MOOD || 'Neutral'); }
+    const r = await fetch(base + '/api/v1/tts/post/', { method: 'POST', headers: { 'X-Api-Key': process.env.AISHA_API_KEY }, body: fd, signal: AbortSignal.timeout(60000) });
+    const j = await r.json().catch(() => ({})); if (!r.ok || !j.audio_path) throw new Error('aisha ' + r.status + ' ' + JSON.stringify(j).slice(0, 150));
+    const a = await fetch(/^https?:/.test(j.audio_path) ? j.audio_path : base + j.audio_path, { signal: AbortSignal.timeout(60000) }); if (!a.ok) throw new Error('aisha audio ' + a.status);
+    const b = Buffer.from(await a.arrayBuffer());
+    if (b.slice(0, 4).toString() !== 'RIFF') { if (parts.length === 1) return { buf: b, type: a.headers.get('content-type') || 'audio/mpeg' }; throw new Error('aisha format'); }
+    let o = 12; while (o + 8 <= b.length) { const id = b.slice(o, o + 4).toString(), sz = b.readUInt32LE(o + 4); if (id === 'fmt ') fmt = b.slice(o + 8, o + 8 + sz); if (id === 'data') { pcm.push(b.slice(o + 8, o + 8 + sz)); break; } o += 8 + sz + (sz & 1); }
+  }
+  if (!fmt || !pcm.length) throw new Error('aisha empty');
+  const data = Buffer.concat(pcm), h = Buffer.alloc(20 + fmt.length + 8);
+  h.write('RIFF', 0); h.write('WAVE', 8); h.write('fmt ', 12); h.writeUInt32LE(fmt.length, 16); fmt.copy(h, 20); h.write('data', 20 + fmt.length); h.writeUInt32LE(data.length, 24 + fmt.length);
+  h.writeUInt32LE(h.length - 8 + data.length, 4);
+  return { buf: Buffer.concat([h, data]), type: 'audio/wav' };
+}
+app.get('/api/ai/voice', auth, (req, res) => res.json({ neural: ttsOn(), voices: TTS_VOICES }));
 app.post('/api/ai/tts', auth, rateLimit('tts', 120, 3600e3), wrap(async (req, res) => {
   const key = process.env.AZURE_SPEECH_KEY, region = process.env.AZURE_SPEECH_REGION;
-  if (!key || !region) return res.status(501).json({ error: 'no_tts' });
+  if (!ttsOn()) return res.status(501).json({ error: 'no_tts' });
   const lang = ['uz', 'ru', 'en'].includes(req.body?.lang) ? req.body.lang : 'uz';
   const voice = TTS_VOICES[lang][req.body?.voice === 1 ? 1 : 0];
   let text = String(req.body?.text || '').replace(/```[\s\S]*?```/g, ' ').replace(/https?:\/\/\S+/g, ' ').replace(/[*#_`>|~\[\]]/g, '').replace(/[ʻ‘’`']/g, (c, i, s2) => (/[oOgG]/.test(s2[i - 1] || '') ? '‘' : 'ʼ')).replace(/\s+/g, ' ').trim().slice(0, 2500);
   if (!text) return res.status(400).json({ error: 'empty' });
-  const ck = voice + ':' + crypto.createHash('sha1').update(text).digest('hex');
-  let buf = ttsCache.get(ck);
+  const useAisha = !!process.env.AISHA_API_KEY && (lang === 'uz' || !azureOn());
+  const ck = (useAisha ? 'aisha:' + lang : voice) + ':' + crypto.createHash('sha1').update(text).digest('hex');
+  let buf = ttsCache.get(ck), type = 'audio/mpeg';
+  if (buf && buf.type) { type = buf.type; buf = buf.buf; }
+  else if (useAisha) {
+    try { const o = await aishaTTS(text, lang); buf = o.buf; type = o.type; ttsCache.set(ck, o); if (ttsCache.size > 200) ttsCache.delete(ttsCache.keys().next().value); }
+    catch (e) { console.error('TTS (Aisha):', e.message); if (!azureOn()) return res.status(502).json({ error: 'tts_failed' }); }
+  }
   if (!buf) {
     const esc = (x) => x.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const ssml = `<speak version="1.0" xml:lang="${voice.slice(0, 5)}"><voice name="${voice}"><prosody rate="${lang === 'uz' ? '-4%' : '0%'}">${esc(text)}</prosody></voice></speak>`;
@@ -1564,7 +1622,7 @@ app.post('/api/ai/tts', auth, rateLimit('tts', 120, 3600e3), wrap(async (req, re
     buf = Buffer.from(await r.arrayBuffer());
     ttsCache.set(ck, buf); if (ttsCache.size > 200) ttsCache.delete(ttsCache.keys().next().value);
   }
-  res.set({ 'Content-Type': 'audio/mpeg', 'Cache-Control': 'private, max-age=86400' }); res.end(buf);
+  res.set({ 'Content-Type': type, 'Cache-Control': 'private, max-age=86400' }); res.end(buf);
 }));
 // Chat xulosasi (faqat so'ragan odamga ko'rinadi)
 app.post('/api/ai/summary', auth, rateLimit('aisum', 30, 3600e3), wrap(async (req, res) => {

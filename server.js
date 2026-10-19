@@ -1305,6 +1305,11 @@ O'ZBEK TILI QOIDALARI (o'zbekcha javob berganda albatta rioya qil):
 - Rus, ingliz va turk so'zlarini ishlatma, o'zbekcha muqobilini ishlat: "konechno" emas "albatta", "normalno" emas "yaxshi", "ponyatno" emas "tushunarli", "voobshe" emas "umuman", "eshyo" emas "yana", "spasibo" emas "rahmat", "problema" emas "muammo", "vopros" emas "savol", "variant" o'rniga ko'pincha "yo'l" yoki "imkoniyat".
 - Turkcha shakllardan qoch ("bilgi" emas "ma'lumot", "teşekkür" emas "rahmat", "-yor" qo'shimchasi emas "-yapti"). Grammatika va so'z tartibi tabiiy o'zbekcha bo'lsin, tarjima ohangi sezilmasin.
 - Atamalar uchun o'zbek tilida qabul qilingan so'zni ishlat (kompyuter, internet, telefon kabi xalqaro so'zlar mumkin).
+BILIM VA ATAMALAR:
+- Sen fan (fizika, kimyo, biologiya, tibbiyot, matematika, informatika), tarix, iqtisod, huquq, din, adabiyot, texnika va kundalik hayot bo'yicha keng bilimga egasan — chuqur, aniq va to'liq javob ber.
+- Foydalanuvchi ruscha, inglizcha, lotincha yoki boshqa tildagi atamani yozsa (masalan "фотосинтез", "митохондрия", "derivative", "habeas corpus") — uni tushun, o'zbekcha muqobilini ber va asl atamani qavs ichida qoldir: "fotosintez (рус. фотосинтез, ingl. photosynthesis)".
+- Ilmiy savolga: ta'rif → qanday ishlaydi (mexanizm) → misol → muhim raqamlar/formulalar → qo'shimcha qiziqarli fakt tartibida javob ber. Formulalarni aniq yoz.
+- Agar "MA'LUMOTNOMA" bo'limi berilsa — undagi faktlarga tayan, raqam va sanalarni o'sha yerdan ol, o'zbekchaga tarjima qilib tushuntir; ma'lumotnoma savolga aloqasiz bo'lsa — e'tibor berma.
 - Foydalanuvchi kirill yozuvida yozsa — kirill yozuvida, sof o'zbekcha javob ber.
 Birga ilovasi va uning yaratuvchisi haqida ma'lumot (faqat shu haqda so'ralganda ishlat):
 - Birga messenjerini (Birga platformasi va Birga yordamchini) Hayitboyev Sardorbek yaratgan.
@@ -1331,6 +1336,17 @@ function freeAI(call) {
   };
   const p = freeQ.then(run, run); freeQ = p.catch(() => {}); return p;
 }
+// Cloudflare Workers AI: kalitsiz o'z Worker'imiz (CF_AI_WORKER, AI binding) yoki REST API (CF_ACCOUNT_ID + CF_AI_TOKEN)
+const cfOn = () => !!(process.env.CF_AI_WORKER || (process.env.CF_ACCOUNT_ID && process.env.CF_AI_TOKEN));
+async function cfRun(model, body, ms = 90000) {
+  const w = process.env.CF_AI_WORKER;
+  const url = w ? w.replace(/\/+$/, '') + '/run/' + model : (process.env.CF_API_BASE || 'https://api.cloudflare.com') + `/client/v4/accounts/${process.env.CF_ACCOUNT_ID}/ai/run/${model}`;
+  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(w ? { 'x-birga': 'srv' } : { Authorization: 'Bearer ' + process.env.CF_AI_TOKEN }) }, body: JSON.stringify(body), signal: AbortSignal.timeout(ms) });
+  const ct = r.headers.get('content-type') || '';
+  if (/^image\//.test(ct) && r.ok) return { image: Buffer.from(await r.arrayBuffer()), type: ct.split(';')[0] };
+  const j = await r.json().catch(() => ({})); if (!r.ok || j.success === false) throw new Error(r.status + ' ' + JSON.stringify(j.errors || j).slice(0, 160));
+  return j.result ?? j;
+}
 async function aiAnswer(msgs, { web = true, fast = false, sys = '', rawSys = '' } = {}) {
   const errs = [];
   const hasImg = msgs.some((m) => m.image);
@@ -1355,10 +1371,15 @@ async function aiAnswer(msgs, { web = true, fast = false, sys = '', rawSys = '' 
   }
   const compat = [];
   if (process.env.GROQ_API_KEY) compat.push(['https://api.groq.com/openai/v1/chat/completions', process.env.GROQ_API_KEY, hasImg ? process.env.GROQ_VISION_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct' : process.env.GROQ_MODEL || 'llama-3.3-70b-versatile']);
-  const cfAcc = process.env.CF_ACCOUNT_ID, cfTok = process.env.CF_AI_TOKEN;
-  if (cfAcc && cfTok && !hasImg) compat.push([(process.env.CF_API_BASE || 'https://api.cloudflare.com') + `/client/v4/accounts/${cfAcc}/ai/v1/chat/completions`, cfTok, process.env.CF_TEXT_MODEL || '@cf/meta/llama-3.3-70b-instruct-fp8-fast']);
   if (process.env.AI_API_URL && process.env.AI_API_KEY) compat.push([process.env.AI_API_URL, process.env.AI_API_KEY, process.env.AI_MODEL || 'gpt-4o-mini']);
   if (process.env.AI_FREE !== '0') compat.push(['https://text.pollinations.ai/openai', null, 'openai']); // kalitsiz bepul zaxira (cheklangan)
+  if (cfOn() && !hasImg && !process.env.GROQ_API_KEY && !process.env.AI_API_URL) { // Cloudflare Llama — Pollinations'dan oldin
+    try {
+      const j = await cfRun(process.env.CF_TEXT_MODEL || '@cf/meta/llama-3.3-70b-instruct-fp8-fast', { messages: [{ role: 'system', content: (rawSys || aiSys() + sys) }, ...msgs.map((m) => ({ role: m.role, content: m.content || ' ' }))], max_tokens: 2500, temperature: fast ? 0.3 : 0.6 });
+      const out = String(j?.response ?? j?.choices?.[0]?.message?.content ?? '').trim(); if (out) return { text: out, sources: [] };
+      errs.push('cf: empty');
+    } catch (e) { errs.push('cf: ' + e.message); }
+  }
   const oaMsgs = msgs.map((m) => (m.image ? { role: m.role, content: [{ type: 'text', text: m.content || ' ' }, { type: 'image_url', image_url: { url: m.image } }] } : { role: m.role, content: m.content }));
   for (const [url, key, model] of compat) {
     try {
@@ -1373,6 +1394,32 @@ async function aiAnswer(msgs, { web = true, fast = false, sys = '', rawSys = '' 
   console.error('Birga AI:', errs.join(' | '));
   return null;
 }
+// Bilim bazasi: Vikipediya (o'zbek, rus, ingliz) — savolga mos maqolalar qisqacha javobga qo'shiladi (kalit kerak emas)
+const wikiCache = new Map();
+async function wikiContext(q) {
+  q = String(q || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+  if (q.length < 6 || process.env.AI_WIKI === '0' || /^(salom|assalom|rahmat|hello|hi|привет|спасибо|qalaysan|yaxshimisan)\b/i.test(q)) return null;
+  const key = q.toLowerCase(); if (wikiCache.has(key)) return wikiCache.get(key);
+  const base = process.env.WIKI_BASE || 'https://{l}.wikipedia.org';
+  const langs = /[а-яё]/i.test(q) ? ['ru', 'uz', 'en'] : ['uz', 'ru', 'en'];
+  const STOP = /^(nima|nimaga|nega|qanday|qanaqa|qaysi|qachon|qayerda|kim|necha|haqida|haqda|uchun|bilan|bu|shu|u|va|yoki|ham|esa|edi|ekan|bo'ladi|boladi|degani|deb|ber|aytib|tushuntir|batafsil|vazifasi|vazifani|bajaradi|ishlaydi|nimalar|haqidagi|what|is|are|the|how|why|of|a|an|что|такое|как|почему|это|для|про)$/i;
+  const words = q.replace(/[?!.,;:"«»()]/g, ' ').split(' ').filter((w) => w.length > 2 && !STOP.test(w));
+  const cyr = words.filter((w) => /[а-яё]/i.test(w)), lat = words.filter((w) => !/[а-яё]/i.test(w));
+  const termsFor = (l) => ((l === 'ru' && cyr.length ? cyr : lat.length ? lat : cyr).slice(0, 5).join(' '));
+  if (!words.length) return null;
+  const one = async (l) => {
+    const terms = termsFor(l); if (!terms) return [];
+    try {
+      const u = base.replace('{l}', l) + '/w/api.php?action=query&format=json&utf8=1&generator=search&gsrlimit=2&gsrsearch=' + encodeURIComponent(terms) + '&prop=extracts|info&inprop=url&exintro=1&explaintext=1&exchars=1400&redirects=1';
+      const r = await fetch(u, { headers: { 'User-Agent': 'BirgaMessenger/1.0 (https://birga.onrender.com)' }, signal: AbortSignal.timeout(4500) });
+      const j = await r.json(); return Object.values(j?.query?.pages || {}).sort((a, b) => (a.index || 0) - (b.index || 0)).filter((pg) => (pg.extract || '').length > 80).map((pg) => ({ l, title: pg.title, url: pg.fullurl, text: pg.extract }));
+    } catch { return []; }
+  };
+  const seen = new Set(); const all = (await Promise.all(langs.map(one))).flat().filter((w) => !seen.has(w.url) && seen.add(w.url)).slice(0, 4);
+  const out = all.length ? all : null;
+  wikiCache.set(key, out); if (wikiCache.size > 500) wikiCache.delete(wikiCache.keys().next().value);
+  return out;
+}
 app.post('/api/ai', auth, rateLimit('ai', 80, 3600e3), wrap(async (req, res) => {
   const raw = Array.isArray(req.body?.messages) ? req.body.messages : [];
   const msgs = raw.slice(-48).map((m, i, a) => ({ role: m?.role === 'assistant' ? 'assistant' : 'user', content: String(m?.content || '').slice(0, i === 0 ? 14000 : 6000),
@@ -1385,7 +1432,10 @@ app.post('/api/ai', auth, rateLimit('ai', 80, 3600e3), wrap(async (req, res) => 
   const mem = await db.all('SELECT fact FROM ai_memory WHERE user_id=? ORDER BY at DESC LIMIT 40', [req.user.id]).catch(() => []);
   const me = req.user; let reg = null; try { reg = JSON.parse(me.region || 'null'); } catch {}
   const sys = `\nFoydalanuvchi: ${me.name || ''}${reg?.name ? ', hududi: ' + reg.name : ''}.` + (mem.length ? `\nFoydalanuvchi so'rab eslab qolinganlar (kerak bo'lganda hisobga ol):\n${mem.map((x) => '- ' + x.fact).join('\n')}` : '') + (rem ? `\nFoydalanuvchi hozirgina "${rem[3].trim()}" ni eslab qolishni so'radi — eslab qolganingni qisqa tasdiqla.` : '');
-  const out = await aiAnswer(msgs, { web: req.body?.web !== false, sys });
+  const wk = req.body?.web !== false && !msgs[msgs.length - 1].image ? await wikiContext(msgs[msgs.length - 1].content) : null;
+  const sysW = sys + (wk ? `\n\nMA'LUMOTNOMA (Vikipediya, savolga mos bo'lishi mumkin):\n${wk.map((w, i) => `[${i + 1}] ${w.title} (${w.l}): ${w.text}`).join('\n')}` : '');
+  const out = await aiAnswer(msgs, { web: req.body?.web !== false, sys: sysW });
+  if (out && wk && !(out.sources || []).length) out.sources = wk.map((w) => ({ title: `${w.title} — Vikipediya (${w.l})`, url: w.url }));
   if (!out) return res.status(503).json({ error: 'ai_unavailable' });
   res.json({ text: out.text.slice(0, 16000), sources: out.sources || [] });
 }));
@@ -1419,7 +1469,7 @@ async function fileBytes(url) {
   if (/^https?:\/\//.test(url)) { const r = await fetch(url); if (!r.ok) throw new Error('file ' + r.status); return Buffer.from(await r.arrayBuffer()); }
   return fs.readFileSync(path.join(UPLOAD_DIR, path.basename(url)));
 }
-function sttOn() { return !!(process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY || (process.env.CF_ACCOUNT_ID && process.env.CF_AI_TOKEN)); }
+function sttOn() { return !!(process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY || cfOn()); }
 async function sttAudio(buf, mime) {
   const errs = []; let text = null;
   if (process.env.GEMINI_API_KEY) {
@@ -1438,12 +1488,9 @@ async function sttAudio(buf, mime) {
       const j = await r.json(); if (!r.ok) throw new Error(r.status + ' ' + JSON.stringify(j).slice(0, 150)); text = String(j.text || '').trim();
     } catch (e) { errs.push('groq: ' + e.message); }
   }
-  if (text == null && process.env.CF_ACCOUNT_ID && process.env.CF_AI_TOKEN) {
-    try {
-      const r = await fetch((process.env.CF_API_BASE || 'https://api.cloudflare.com') + `/client/v4/accounts/${process.env.CF_ACCOUNT_ID}/ai/run/${process.env.CF_STT_MODEL || '@cf/openai/whisper-large-v3-turbo'}`, { method: 'POST', headers: { Authorization: 'Bearer ' + process.env.CF_AI_TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify({ audio: buf.toString('base64'), task: 'transcribe', vad_filter: true }) });
-      const j = await r.json().catch(() => ({})); if (!r.ok || j.success === false) throw new Error(r.status + ' ' + JSON.stringify(j.errors || j).slice(0, 150));
-      text = String(j.result?.text || '').trim();
-    } catch (e) { errs.push('cf: ' + e.message); }
+  if (text == null && cfOn()) {
+    try { const j = await cfRun(process.env.CF_STT_MODEL || '@cf/openai/whisper-large-v3-turbo', { audio: buf.toString('base64'), task: 'transcribe', vad_filter: true }); text = String(j?.text || '').trim(); }
+    catch (e) { errs.push('cf: ' + e.message); }
   }
   if (text == null && errs.length) console.error('STT:', errs.join(' | '));
   return text;
@@ -1571,13 +1618,11 @@ const imgSources = [
     return { buf: Buffer.from(d.data, 'base64'), type: d.mimeType || d.mime_type || 'image/png' };
   }],
   ['Cloudflare', async (en) => {
-    const acc = process.env.CF_ACCOUNT_ID, tok = process.env.CF_AI_TOKEN; if (!acc || !tok) return null;
-    const model = process.env.CF_IMAGE_MODEL || '@cf/black-forest-labs/flux-1-schnell';
-    const r = await fetch(`${process.env.CF_API_BASE || 'https://api.cloudflare.com'}/client/v4/accounts/${acc}/ai/run/${model}`, { method: 'POST', headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: en, steps: 8 }), signal: AbortSignal.timeout(90000) });
-    const ct = r.headers.get('content-type') || '';
-    if (/^image\//.test(ct) && r.ok) return { buf: Buffer.from(await r.arrayBuffer()), type: ct.split(';')[0] };
-    const j = await r.json().catch(() => ({})); if (!r.ok || !j.result?.image) throw new Error(r.status + ' ' + JSON.stringify(j.errors || j).slice(0, 160));
-    return { buf: Buffer.from(j.result.image, 'base64'), type: 'image/jpeg' };
+    if (!cfOn()) return null;
+    const j = await cfRun(process.env.CF_IMAGE_MODEL || '@cf/black-forest-labs/flux-1-schnell', { prompt: en, steps: 8 });
+    if (j.image && Buffer.isBuffer(j.image)) return { buf: j.image, type: j.type };
+    if (!j.image) throw new Error('cf: no image');
+    return { buf: Buffer.from(j.image, 'base64'), type: 'image/jpeg' };
   }],
   ['Pollinations', async (en) => {
     const seed = crypto.randomInt(1, 1e9);

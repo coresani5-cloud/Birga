@@ -1,7 +1,8 @@
 /* Birga — O'yinlar (10 ta kichik o'yin). app.js dagi umumiy yordamchilardan foydalanadi: $, t, esc, icon, api, modal, toast. */
 'use strict';
 (function () {
-  const L = () => (typeof LANG !== 'undefined' && ['uz', 'ru', 'en'].includes(LANG) ? LANG : 'uz');
+  const L = () => (typeof LANG !== 'undefined' && ['uz', 'ru', 'en'].includes(LANG) ? LANG : '_');
+  const PK = (ns) => (typeof I18N_PACK !== 'undefined' && I18N_PACK?.games?.[ns]) || null; // boshqa tillar tarjimasi (/i18n/<til>.json)
   const T = {
     uz: { score: 'Ochko', best: 'Rekord', again: 'Qayta o‘ynash', top: 'Reyting', share: 'Chatga ulashish', over: 'O‘yin tugadi', newrec: 'Yangi rekord!', rank: 'Birga’da {n}-o‘rin',
       tap_start: 'Boshlash uchun bosing', lives: 'Jon', level: 'Daraja', you: 'Siz', bot: 'Bot', win: 'Yutdingiz!', lose: 'Yutqazdingiz', draw: 'Durang', flag: 'Bayroq', open: 'Ochish',
@@ -19,7 +20,7 @@
       hint_snake: 'Swipe to turn', hint_penalty: 'Tap a corner of the goal', hint_aim: 'Tap the targets fast', hint_2048: 'Swipe — equal numbers merge', hint_flappy: 'Tap to fly',
       hint_blocks: 'Swipe ←→, tap to rotate, down to drop', hint_memory: 'Find the pairs', hint_xo: 'Try to beat the bot', hint_breakout: 'Drag the paddle', hint_mines: 'Avoid the mines', hint_run: 'Swipe left/right, up to jump, down to slide', wave: 'Wave', reload: 'Reloading', hint_strike: 'Left stick to move, swipe screen to turn, 🔫 to fire', hint_football: 'Stick to run, ⚽ to shoot, ↗️ to pass' },
   };
-  const tg = (k) => (T[L()] || T.uz)[k] || T.uz[k];
+  const tg = (k) => (T[L()] || PK('g') || T.en)[k] || T.en[k] || T.uz[k];
   const GAMES = [
     { id: 'run', e: '🏃', c: ['#F97316', '#DB2777'], n: { uz: 'Birga Run', ru: 'Birga Run', en: 'Birga Run' }, big: 1 },
     { id: 'strike', e: '🔫', c: ['#475569', '#B45309'], n: { uz: 'Birga Strike', ru: 'Birga Strike', en: 'Birga Strike' } },
@@ -35,7 +36,7 @@
     { id: 'breakout', e: '🏓', c: ['#14B8A6', '#0F766E'], n: { uz: 'G‘isht sindirish', ru: 'Арканоид', en: 'Breakout' } },
     { id: 'mines', e: '💣', c: ['#64748B', '#1E293B'], n: { uz: 'Mina qidiruv', ru: 'Сапёр', en: 'Minesweeper' } },
   ];
-  const gname = (g) => g.n[L()] || g.n.uz;
+  const gname = (g) => g.n[L()] || PK('gn')?.[g.id] || g.n.en || g.n.uz;
 
   /* ---------- umumiy yordamchilar ---------- */
   let actx = null;
@@ -1005,7 +1006,7 @@
       you_won: 'You won! 🎉', you_lost: 'You lost', draw: 'Draw', won_by: '{n} won', play: 'Play', watch: 'Watch', open: 'Open', invited: 'Game invite', status_wait: 'Waiting for opponent', status_play: 'Game in progress', status_over: 'Game over',
       shuffle: 'Shuffle', ready: 'Ready', wait_ready: 'Opponent is placing ships…', place: 'Place your ships', enemy: 'Enemy waters', mine: 'Your fleet', check: 'Check!', wins: 'wins', confirm: 'Tap again to confirm', sent: 'Invite sent', not_avail: 'Game not found', spectate: 'You are watching', rematch: 'Rematch', players: 'Players:', joined: 'joined', start_now: 'Start now ({n} players)', send_inv: 'Send invite', hint_grp: 'Up to {n} players can join from the group', hint_pick: 'Invited: {k} / {n} — select several chats', max4: 'Up to 4 players', their_n: '{n} is moving…' },
   };
-  const mt = (k) => (MT[L()] || MT.uz)[k] || MT.uz[k];
+  const mt = (k) => (MT[L()] || PK('mt') || MT.en)[k] || MT.en[k] || MT.uz[k];
   try { const st = document.createElement('style'); st.textContent = '.mp-bar.mp-n { flex-wrap: wrap; gap: 6px; } .mp-bar.mp-n .mp-p { max-width: 48%; padding-right: 8px; border-color: color-mix(in srgb, var(--pc) 55%, transparent); }\n.mp-bar.mp-n .mp-p.on { border-color: #FDE047; } .mp-p.out { opacity: .4; filter: grayscale(1); } .mp-p.out b { text-decoration: line-through; }\n.mp-ncount { display: flex; align-items: center; gap: 8px; margin: 4px 0 6px; flex-wrap: wrap; } .mp-ncount span { font-weight: 700; font-size: 14px; }\n.mp-ncount button { border: 1.5px solid var(--line, #ccc); background: transparent; color: inherit; border-radius: 20px; padding: 7px 14px; font: 700 14px system-ui; cursor: pointer; }\n.mp-ncount button.on { background: var(--accent, #2563EB); border-color: var(--accent, #2563EB); color: #fff; }\n.mp-nhint { margin: 0 0 8px; font-size: 13px; opacity: .75; } .chat-pick.multi button { position: relative; } .chat-pick.multi .mp-chk { margin-left: auto; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line, #bbb); flex: none; }\n.chat-pick.multi button.on .mp-chk { background: var(--accent, #2563EB); border-color: var(--accent, #2563EB); box-shadow: inset 0 0 0 4px var(--card, #fff); }\n.mp-send { width: 100%; margin-top: 10px; position: sticky; bottom: 0; } .mp-cnt { font-size: 16px; } .mp-cnt b { font-size: 22px; } #mp-start { margin-top: 12px; }'; document.head.appendChild(st); } catch {}
   const MPI = {};
   const FONT = 'system-ui, -apple-system, Segoe UI, sans-serif';
@@ -1444,7 +1445,7 @@
     ru: { wait_rt: 'Подключаем соперника…', go: 'Поехали!', lost: 'Связь с соперником потеряна…', kills: 'Фраги', first: 'Побеждает первый до {n}', you: 'Вы', opp: 'Соперник', goal: '⚽ ГОООЛ!', respawn: 'Возрождение…', hit: 'Попал!', killed: 'Убит!', pass: 'Пропуск хода — нет ходов' },
     en: { wait_rt: 'Connecting opponent…', go: 'Go!', lost: 'Connection to opponent lost…', kills: 'Frags', first: 'First to {n} wins', you: 'You', opp: 'Opponent', goal: '⚽ GOAL!', respawn: 'Respawning…', hit: 'Hit!', killed: 'Eliminated!', pass: 'Turn passed — no moves' },
   };
-  const rt = (k) => (RT_T[L()] || RT_T.uz)[k] || RT_T.uz[k];
+  const rt = (k) => (RT_T[L()] || PK('rt') || RT_T.en)[k] || RT_T.en[k] || RT_T.uz[k];
   // umumiy: jonli aloqa — raqibdan ma'lumot kelmay qolsa ogohlantirish
   function rtLink(ctx, onMsg) {
     const st = { last: 0, alive: false };
@@ -2081,7 +2082,7 @@
   /* ================= Birga Poyga (jonli, 2 kishi): har kim o'z mashinasini boshqaradi, holat raqibga uzatiladi ================= */
   MPL.push({ id: 'race', e: '🏎️', c: ['#DC2626', '#111827'], rt: 1, big: 1, n: { uz: 'Birga Poyga (jonli)', ru: 'Гонки (онлайн)', en: 'Birga Racing (live)' } });
   const RACE_T = { uz: { lap: 'Davra', pos: 'O‘rin', nitro: 'Nitro', fin: '🏁 Marra!', off: 'Yo‘ldan chiqdingiz', wrong: '↩️ Teskari yo‘nalish' }, ru: { lap: 'Круг', pos: 'Место', nitro: 'Нитро', fin: '🏁 Финиш!', off: 'Вы вне трассы', wrong: '↩️ Не туда' }, en: { lap: 'Lap', pos: 'Pos', nitro: 'Nitro', fin: '🏁 Finish!', off: 'Off track', wrong: '↩️ Wrong way' } };
-  const rct = (k) => (RACE_T[L()] || RACE_T.uz)[k];
+  const rct = (k) => (RACE_T[L()] || PK('race') || RACE_T.en)[k] || RACE_T.en[k];
   MPI.race = (stage, ctx) => {
     stage.classList.add('gm-stage-pad');
     const { c, g, fit } = canvasIn(stage, null);
@@ -2218,7 +2219,7 @@
       const pu = Array(NP).fill(0.5), pv = Array(NP).fill(0), lives = Array(NP).fill(LIVES), got = new Set();
       let ball = { x: 0.5, y: 0.5, vx: 0, vy: 0 }, serve = 1.5, msg = '', msgT = 0, hits = 0, trail = [], target = null, sendT = 0, aliveT = 0, started = false;
       const alive = (j) => j < NP && lives[j] > 0 && !ctx.out?.has(j);
-      const T = { uz: '❤️ {n} — oxirgi qolgan yutadi', ru: '❤️ {n} — побеждает последний', en: '❤️ {n} — last one standing wins' }[L()];
+      const T = { uz: '❤️ {n} — oxirgi qolgan yutadi', ru: '❤️ {n} — побеждает последний', en: '❤️ {n} — last one standing wins' }[L()] || PK('x')?.pong_last || '❤️ {n} — last one standing wins';
       const H = hostGame(ctx, { onInput: (d, s) => { if (s > 0 && s < NP) { got.add(s); const nx = Math.max(PW / 2, Math.min(1 - PW / 2, +d.u || 0.5)); pv[s] = (nx - pu[s]) * 25; pu[s] = nx; } },
         onSnap: (d) => { d.p.forEach((u, i) => { if (i !== ME || ctx.me < 0) pu[i] = u; }); if (d.l.some((v, i) => v < lives[i])) { snd(880, 0.25, 0.07); msg = d.l[ME] < lives[ME] && ctx.me >= 0 ? '💔' : '🏓'; msgT = 0.9; } d.l.forEach((v, i) => (lives[i] = v)); if (d.h > hits) snd(520, 0.04, 0.05, 'square'); hits = d.h; } });
       const doServe = () => { const al = [...Array(NP).keys()].filter(alive), j = al[ri(al.length)] ?? 0; const [vx, vy] = rot((Math.random() - 0.5) * 0.5, 0.8, j); ball = { x: 0.5, y: 0.5, vx, vy }; };
@@ -2471,5 +2472,5 @@
     return { apply: () => false, rt: (sd, d) => H.link.recv(d, sd), stop, resize: fit };
   };
 
-  window.BirgaGames = { list: GAMES, start: startGame, renderLobby, tg, openRoom, invite, cardHTML, GameCards, mt, mp: MPL, _room: () => Room };
+  window.BirgaGames = { _dicts: () => ({ g: T, mt: MT, rt: RT_T, race: RACE_T }), list: GAMES, start: startGame, renderLobby, tg, openRoom, invite, cardHTML, GameCards, mt, mp: MPL, _room: () => Room };
 })();

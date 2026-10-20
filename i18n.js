@@ -272,31 +272,53 @@ const I18N = {
     fmt_day: (d, m, y) => `${m} ${d}${y ? ', ' + y : ''}`,
   },
 };
-const LANG_NAMES = { uz: 'O‘zbekcha', ru: 'Русский', en: 'English' };
+// 30 til: o'rnatilganlari (uz, ru, en) shu faylda, qolganlari /i18n/<til>.json dan yuklanadi
+const LANG_LIST = [['uz', 'O‘zbekcha'], ['ru', 'Русский'], ['en', 'English'], ['kk', 'Қазақша'], ['ky', 'Кыргызча'], ['tg', 'Тоҷикӣ'], ['tk', 'Türkmençe'], ['kaa', 'Qaraqalpaqsha'],
+  ['tr', 'Türkçe'], ['az', 'Azərbaycanca'], ['mn', 'Монгол'], ['fa', 'فارسی'], ['ar', 'العربية'], ['ur', 'اردو'], ['hi', 'हिन्दी'], ['bn', 'বাংলা'], ['zh', '中文'], ['ja', '日本語'], ['ko', '한국어'],
+  ['de', 'Deutsch'], ['fr', 'Français'], ['es', 'Español'], ['it', 'Italiano'], ['pt', 'Português'], ['pl', 'Polski'], ['uk', 'Українська'], ['id', 'Bahasa Indonesia'], ['ms', 'Bahasa Melayu'], ['vi', 'Tiếng Việt'], ['th', 'ไทย']];
+const LANG_NAMES = Object.fromEntries(LANG_LIST);
+const LANG_BUILTIN = ['uz', 'ru', 'en'], LANG_RTL = ['fa', 'ar', 'ur'];
+const LANG_FB = { kk: 'ru', ky: 'ru', tg: 'ru', tk: 'ru', mn: 'ru', uk: 'ru', kaa: 'uz' }; // tarjima topilmasa — shu tilga
+const LANG_LOCALE = { uz: 'uz-UZ', ru: 'ru-RU', en: 'en-GB', kaa: 'uz-UZ', zh: 'zh-CN', pt: 'pt-BR' };
+const locTag = (l = LANG) => LANG_LOCALE[l] || l;
+const srTag = (l = LANG) => ({ en: 'en-US', kaa: 'uz-UZ', zh: 'zh-CN', pt: 'pt-BR', ar: 'ar-SA', fa: 'fa-IR', ur: 'ur-PK', hi: 'hi-IN', bn: 'bn-BD', ms: 'ms-MY' })[l] || (LANG_LOCALE[l] || (l + '-' + l.toUpperCase()));
+const PACK_V = 2;
+let I18N_PACK = null;
+function loadPack(l) {
+  if (LANG_BUILTIN.includes(l) || !LANG_NAMES[l]) return null;
+  let p = null; try { p = JSON.parse(localStorage.getItem('birga_pack_' + l) || 'null'); } catch {}
+  if (!p || p.v !== PACK_V) {
+    try { const x = new XMLHttpRequest(); x.open('GET', '/i18n/' + l + '.json?v=' + PACK_V, false); x.send(); if (x.status === 200) { p = JSON.parse(x.responseText); try { localStorage.setItem('birga_pack_' + l, x.responseText); } catch {} } } catch {}
+  }
+  if (!p || !p.app) return null;
+  I18N[l] = { ...p.app, months: p.months || I18N.en.months, days: p.days || I18N.en.days, fmt_day: (d, m, y) => `${d} ${m}${y ? ' ' + y : ''}` };
+  return p;
+}
 
 function detectLang() {
-  try { const s = localStorage.getItem('birga_lang'); if (I18N[s]) return s; } catch {}
+  try { const s = localStorage.getItem('birga_lang'); if (LANG_NAMES[s]) return s; } catch {}
   for (const l of navigator.languages || [navigator.language || 'en']) {
-    const c = String(l).slice(0, 2).toLowerCase();
-    if (I18N[c]) return c;
-    if (['kk', 'ky', 'tg', 'be', 'uk', 'az', 'hy', 'ka'].includes(c)) return 'ru';
+    const c = String(l).toLowerCase().split('-')[0];
+    if (LANG_NAMES[c]) return c;
+    if (['be', 'hy', 'ka'].includes(c)) return 'ru';
   }
   return 'en';
 }
 let LANG = detectLang();
+if (!LANG_BUILTIN.includes(LANG)) { I18N_PACK = loadPack(LANG); if (!I18N_PACK) LANG = LANG_FB[LANG] || 'en'; }
 function t(key, vars) {
-  let s = (I18N[LANG] && I18N[LANG][key]) ?? I18N.en[key] ?? key;
+  let s = (I18N[LANG] && I18N[LANG][key]) ?? (LANG_FB[LANG] && I18N[LANG_FB[LANG]][key]) ?? I18N.en[key] ?? key;
   if (vars && typeof s === 'string') for (const k in vars) s = s.replace('{' + k + '}', vars[k]);
   return s;
 }
 function applyI18n(root = document) {
-  document.documentElement.lang = LANG;
+  document.documentElement.lang = LANG; document.documentElement.dir = LANG_RTL.includes(LANG) ? 'rtl' : 'ltr';
   root.querySelectorAll('[data-i18n]').forEach((el) => (el.textContent = t(el.dataset.i18n)));
   root.querySelectorAll('[data-i18n-ph]').forEach((el) => (el.placeholder = t(el.dataset.i18nPh)));
   root.querySelectorAll('[data-i18n-title]').forEach((el) => (el.title = t(el.dataset.i18nTitle)));
 }
 function setLang(l) {
-  if (!I18N[l]) return;
+  if (!I18N[l] && !(LANG_NAMES[l] && (I18N_PACK = loadPack(l)))) return;
   LANG = l;
   try { localStorage.setItem('birga_lang', l); } catch {}
   applyI18n();

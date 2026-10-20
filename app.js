@@ -11,6 +11,7 @@ const store = {
   del: (k) => { try { localStorage.removeItem(k); } catch {} },
 };
 const PN = window.libphonenumber;
+document.addEventListener('error', (e) => { const el = e.target; if (el?.tagName === 'IMG' && el.dataset?.fb && !el.dataset.fbd) { el.dataset.fbd = '1'; el.src = el.dataset.fb; el.classList.add('still'); } }, true);
 const Rec = { active: false }; // ovoz/video yozish holati
 const isTouch = () => matchMedia('(pointer:coarse)').matches;
 
@@ -145,10 +146,22 @@ function applyTheme(th) {
   store.set('birga_theme', th);
 }
 function renderLangSwitch() {
-  $('#lang-switch').innerHTML = Object.keys(I18N).map((l) => `<button type="button" data-l="${l}" class="${l === LANG ? 'on' : ''}">${l.toUpperCase()}</button>`).join('');
+  $('#lang-switch').innerHTML = `<button type="button" data-lpick class="on">🌐 ${esc(LANG_NAMES[LANG] || LANG)} ▾</button>`;
 }
-$('#lang-switch').onclick = (e) => { const b = e.target.closest('[data-l]'); if (b) changeLang(b.dataset.l); };
+function langPicker() {
+  modal(`<h3>${t('language')} <button class="icon-btn" data-close>${icon('close')}</button></h3><input class="field lang-q" id="lang-q" placeholder="🔎" autocomplete="off"><div class="lang-opts">${LANG_LIST.map(([l, n]) => `<button data-l="${l}" class="${l === LANG ? 'on' : ''}" dir="auto">${esc(n)}<span>${l.toUpperCase()}</span></button>`).join('')}</div>`);
+  $('.lang-opts').onclick = (e) => { const x = e.target.closest('[data-l]'); if (x) { closeModal(); changeLang(x.dataset.l); } };
+  $('#lang-q').oninput = (e) => { const q = e.target.value.trim().toLowerCase(); $$('.lang-opts [data-l]').forEach((b) => (b.style.display = !q || b.textContent.toLowerCase().includes(q) ? '' : 'none')); };
+}
+$('#lang-switch').onclick = (e) => { if (e.target.closest('[data-lpick]')) langPicker(); };
 function changeLang(l) {
+  const prev = LANG;
+  if (l !== prev && (!LANG_BUILTIN.includes(l) || !LANG_BUILTIN.includes(prev) || LANG_RTL.includes(l) !== LANG_RTL.includes(prev))) { // yangi til to'liq qo'llanishi uchun sahifa qayta yuklanadi
+    if (!setLang(l) && LANG !== l) return toast(t('net_err'));
+    const go = () => setTimeout(() => location.reload(), 300); // oyna yopilishi (history.back) tugagach
+    if (S.me && S.token) api('/api/profile/lang', { body: { lang: l } }).catch(() => {}).finally(go); else go();
+    return;
+  }
   setLang(l); renderLangSwitch(); applyTheme(store.get('birga_theme') || 'auto');
   updateResend();
   if (S.me && S.token) { api('/api/profile/lang', { body: { lang: l } }).catch(() => {}); renderSettings(); renderChatList(); renderHeader(); Stories.render(); if (S.current) renderMessages(); if (TAB === 'profile') setTab('profile'); }
@@ -491,10 +504,7 @@ $$('[data-set]').forEach((b) => (b.onclick = async () => {
   if (a === 'saved') { setTab('chats'); startChatWith(S.me.id); }
   if (a === 'invite') invite();
   if (a === 'notif') { await setupPush(true); renderSettings(); }
-  if (a === 'lang') {
-    modal(`<h3>${t('language')} <button class="icon-btn" data-close>${icon('close')}</button></h3><div class="lang-opts">${Object.keys(I18N).map((l) => `<button data-l="${l}" class="${l === LANG ? 'on' : ''}">${LANG_NAMES[l]}<span>${l.toUpperCase()}</span></button>`).join('')}</div>`);
-    $('.lang-opts').onclick = (e) => { const x = e.target.closest('[data-l]'); if (x) { changeLang(x.dataset.l); closeModal(); } };
-  }
+  if (a === 'lang') langPicker();
 }));
 async function invite() {
   const url = location.origin;
@@ -2386,14 +2396,12 @@ async function jumpTo(id) {
   $('[data-set="logout"]')?.insertAdjacentHTML('afterend', `<button class="row-btn danger" id="set-delacc"><span class="ri c7"><svg><use href="#i-trash"/></svg></span><span data-t6="del_account"></span></button>`);
   const paint = () => {
     $$('[data-t6]').forEach((x) => (x.textContent = t(x.dataset.t6)));
-    const v = $('#set-privacy-v'); if (v && S.me) v.textContent = t(S.me.hide_seen ? 'seen_hidden' : 'seen_all');
+    const v = $('#set-privacy-v'); if (v && S.me) { const pv = S.me.priv || { seen: S.me.hide_seen ? 'nobody' : 'all', story: 'all' }; v.textContent = `${t('pv_seen')}: ${t('pv_' + pv.seen)} · ${t('pv_story')}: ${t('pv_' + pv.story)}`; }
   };
   const baseRS = renderSettings; renderSettings = function () { baseRS(); paint(); };
   setTimeout(paint, 0);
-  $('#set-privacy').onclick = async () => {
-    try { const u = await api('/api/profile/privacy', { body: { hideSeen: !S.me.hide_seen } }); S.me = { ...S.me, ...u }; paint(); toast(t(u.hide_seen ? 'privacy_on' : 'privacy_off'), 2500); }
-    catch (e) { toast(e.message); }
-  };
+  $('#set-privacy').onclick = () => Privacy.open().catch((e) => toast(e.message));
+  window.__privPaint = paint;
   $('#set-delacc').onclick = () => {
     const w = t('del_word');
     modal(`<h3>${t('del_title')} <button class="icon-btn" data-close>${icon('close')}</button></h3>
@@ -3868,7 +3876,7 @@ const emojiCp = (e) => [...String(e)].map((ch) => ch.codePointAt(0).toString(16)
 // Stiker: Google Noto animatsion emoji (CC BY 4.0), yuklanmasa — serverdagi Noto rasm
 function stickerImg(e, cp, cls = '') {
   cp = cp || emojiCp(e || '');
-  return `<img class="${cls}" src="https://fonts.gstatic.com/s/e/notoemoji/latest/${cp.replace(/-/g, '_')}/512.webp" alt="${esc(e || '')}" loading="lazy" onerror="this.onerror=null;this.src='/stickers/${cp}.svg';this.classList.add('still')">`;
+  return `<img class="${cls}" src="https://fonts.gstatic.com/s/e/notoemoji/latest/${cp.replace(/-/g, '_')}/512.webp" alt="${esc(e || '')}" loading="lazy" data-fb="/stickers/${cp}.svg">`;
 }
 function isEmojiOnly(text) {
   const s = String(text || '').trim();
@@ -4619,17 +4627,17 @@ try {
   Object.assign(I18N.uz, { tf_title: 'Xavfsizlik kodi', tf_enter: 'Akkauntingiz qo‘shimcha kod bilan himoyalangan. Kirish uchun o‘zingiz qo‘ygan xavfsizlik kodini kiriting.', tf_continue: 'Davom etish',
     tf_forgot: 'Kodni unutgan bo‘lsangiz, akkauntga kirib bo‘lmaydi — uni hech kimga aytmang va yodda saqlang.', tf_hint_is: 'Eslatma: {h}', tf_on: 'Yoqilgan', tf_off: 'O‘chirilgan',
     tf_about: 'Yoqilsa, yangi qurilmadan kirishda emaildagi koddan tashqari shu kod ham so‘raladi. Emailingizga kimdir kirib olsa ham akkauntingizga kira olmaydi.',
-    tf_new: 'Yangi kod (kamida 4 belgi)', tf_repeat: 'Kodni takrorlang', tf_hint: 'Eslatma (ixtiyoriy)', tf_current: 'Joriy kod', tf_mismatch: 'Kodlar bir xil emas',
+    tf_new: 'Yangi kod (kamida 6 belgi)', tf_repeat: 'Kodni takrorlang', tf_hint: 'Eslatma (ixtiyoriy)', tf_current: 'Joriy kod', tf_mismatch: 'Kodlar bir xil emas',
     tf_set_ok: 'Xavfsizlik kodi o‘rnatildi', tf_changed: 'Xavfsizlik kodi almashtirildi', tf_off_ok: 'Xavfsizlik kodi o‘chirildi', tf_change: 'Kodni almashtirish', tf_disable: 'Kodni o‘chirish', tf_enable: 'Kodni yoqish' });
   Object.assign(I18N.ru, { tf_title: 'Код безопасности', tf_enter: 'Ваш аккаунт защищён дополнительным кодом. Введите код безопасности, который вы установили.', tf_continue: 'Продолжить',
     tf_forgot: 'Если вы забудете код, войти в аккаунт будет нельзя — никому его не сообщайте и запомните.', tf_hint_is: 'Подсказка: {h}', tf_on: 'Включён', tf_off: 'Выключен',
     tf_about: 'При входе с нового устройства, кроме кода из email, будет запрашиваться этот код. Даже получив доступ к вашей почте, никто не войдёт в аккаунт.',
-    tf_new: 'Новый код (минимум 4 символа)', tf_repeat: 'Повторите код', tf_hint: 'Подсказка (необязательно)', tf_current: 'Текущий код', tf_mismatch: 'Коды не совпадают',
+    tf_new: 'Новый код (минимум 6 символов)', tf_repeat: 'Повторите код', tf_hint: 'Подсказка (необязательно)', tf_current: 'Текущий код', tf_mismatch: 'Коды не совпадают',
     tf_set_ok: 'Код безопасности установлен', tf_changed: 'Код безопасности изменён', tf_off_ok: 'Код безопасности отключён', tf_change: 'Изменить код', tf_disable: 'Отключить код', tf_enable: 'Включить код' });
   Object.assign(I18N.en, { tf_title: 'Security code', tf_enter: 'Your account is protected with an extra code. Enter the security code you set.', tf_continue: 'Continue',
     tf_forgot: 'If you forget the code you will not be able to sign in — keep it safe and never share it.', tf_hint_is: 'Hint: {h}', tf_on: 'On', tf_off: 'Off',
     tf_about: 'When signing in on a new device, this code will be asked in addition to the email code. Even someone with access to your email cannot get into your account.',
-    tf_new: 'New code (at least 4 characters)', tf_repeat: 'Repeat the code', tf_hint: 'Hint (optional)', tf_current: 'Current code', tf_mismatch: 'Codes do not match',
+    tf_new: 'New code (at least 6 characters)', tf_repeat: 'Repeat the code', tf_hint: 'Hint (optional)', tf_current: 'Current code', tf_mismatch: 'Codes do not match',
     tf_set_ok: 'Security code set', tf_changed: 'Security code changed', tf_off_ok: 'Security code turned off', tf_change: 'Change code', tf_disable: 'Turn off code', tf_enable: 'Turn on code' });
 } catch {}
 {
@@ -4885,7 +4893,7 @@ const AI = {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) { toast(t('ai_no_mic'), 3000); return; }
     if (this.rec) { this.rec.stop(); return; }
-    const r = new SR(); this.rec = r; r.lang = { uz: 'uz-UZ', ru: 'ru-RU', en: 'en-US' }[LANG] || 'uz-UZ'; r.interimResults = true; r.continuous = false;
+    const r = new SR(); this.rec = r; r.lang = srTag(); r.interimResults = true; r.continuous = false;
     const inp = $('#ai-in'), base = inp.value ? inp.value + ' ' : '';
     $('#ai-mic').classList.add('rec');
     r.onresult = (e) => { inp.value = base + [...e.results].map((x) => x[0].transcript).join(''); inp.dispatchEvent(new Event('input')); };
@@ -5489,7 +5497,7 @@ const Sched = {
   count: 0,
   pad: (n) => String(n).padStart(2, '0'),
   local: (d) => `${d.getFullYear()}-${Sched.pad(d.getMonth() + 1)}-${Sched.pad(d.getDate())}T${Sched.pad(d.getHours())}:${Sched.pad(d.getMinutes())}`,
-  fmt(at) { const d = new Date(at), n = new Date(); const same = d.toDateString() === n.toDateString(); return (same ? '' : d.toLocaleDateString(LANG === 'en' ? 'en-GB' : 'ru-RU', { day: 'numeric', month: 'short' }) + ', ') + Sched.pad(d.getHours()) + ':' + Sched.pad(d.getMinutes()); },
+  fmt(at) { const d = new Date(at), n = new Date(); const same = d.toDateString() === n.toDateString(); return (same ? '' : d.toLocaleDateString(locTag(), { day: 'numeric', month: 'short' }) + ', ') + Sched.pad(d.getHours()) + ':' + Sched.pad(d.getMinutes()); },
   open(text) {
     text = (text ?? textEl.value).trim();
     if (!text) { toast(t('sc_empty_text')); return; }
@@ -6344,7 +6352,7 @@ const Calls = {
     const row = (c) => {
       const missed = !c.out && !c.group && c.status !== 'answered'; const name = c.peer ? S.users.get(c.peer.id)?.name || c.peer.name : c.chat?.title;
       const sub = c.group ? `${t('gc_ended')} · ${fmtDur(c.duration)}` : c.status === 'answered' ? `${t(c.out ? 'calls_out' : 'calls_in')} · ${fmtDur(c.duration)}` : c.out ? (c.status === 'rejected' ? t('rejected') : t('no_answer')) : t('missed');
-      const d = new Date(c.at); const when = d.toDateString() === day ? fmtTime(c.at) : d.toLocaleDateString(LANG === 'en' ? 'en-GB' : 'ru-RU', { day: 'numeric', month: 'short' }) + ' ' + fmtTime(c.at);
+      const d = new Date(c.at); const when = d.toDateString() === day ? fmtTime(c.at) : d.toLocaleDateString(locTag(), { day: 'numeric', month: 'short' }) + ' ' + fmtTime(c.at);
       return `<div class="cl-row" data-chat="${c.chatId}">${c.peer ? avatar({ ...c.peer, online: false }, 'sm') : chatAvatar({ ...c.chat }, 'sm')}<div class="cl-t"><b class="${missed ? 'missed' : ''}">${esc(name || '')}</b><small><span class="cl-dir ${missed ? 'missed' : c.out ? 'out' : 'in'}">${c.out ? '↗' : '↙'}</span> ${esc(sub)}</small></div><span class="cl-when">${esc(when)}</span>${c.peer ? `<button class="cl-call" data-cpeer="${c.peer.id}" data-cv="${c.video ? 1 : 0}">${icon(c.video ? 'video' : 'phone')}</button>` : ''}</div>`;
     };
     box.innerHTML = `<div class="cl-sum"><div><b>${today.length}</b><small>${esc(t('calls_today'))}</small></div><div><b>${esc(hm(total))}</b><small>${esc(t('calls_total'))}</small></div><div><b>${L.filter((c) => !c.out && !c.group && c.status !== 'answered').length}</b><small>${esc(t('calls_missed'))}</small></div></div>
@@ -6532,7 +6540,7 @@ const WX = {
     if (!this.data || Date.now() - (this.data.at || 0) > 15 * 60e3) await this.load();
     const d = this.data;
     if (!d?.cur) { modal(`<h3>🌤 ${esc(t('wx_title'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><p class="empty-note">${esc(t('wx_err'))}</p><button class="btn-ghost14" id="wx-ch">📍 ${esc(t('wx_change'))}</button>`); $('#wx-ch').onclick = () => this.pick(); return; }
-    const dn = (s) => new Date(s).toLocaleDateString(LANG === 'en' ? 'en-GB' : LANG === 'ru' ? 'ru-RU' : 'uz-UZ', { weekday: 'short' });
+    const dn = (s) => new Date(s).toLocaleDateString(locTag(), { weekday: 'short' });
     modal(`<h3>🌤 ${esc(d.region.name)} <button class="icon-btn" data-close>${icon('close')}</button></h3>
       <div class="wx-now"><span class="wx-big">${this.ico(d.cur.code, d.cur.day)}</span><div><b>${Math.round(d.cur.t)}°C</b><span>${esc(this.desc(d.cur.code))}</span></div></div>
       <div class="wx-grid"><div><small>${esc(t('wx_feels'))}</small><b>${Math.round(d.cur.feels)}°</b></div><div><small>${esc(t('wx_hum'))}</small><b>${d.cur.hum}%</b></div><div><small>${esc(t('wx_wind'))}</small><b>${Math.round(d.cur.wind)} ${esc(t('wx_ms'))}</b></div></div>
@@ -6684,7 +6692,7 @@ try {
     snd_title: 'Sounds', snd_sub: 'Call and message sounds', snd_in: 'Incoming call', snd_out: 'Outgoing call tone', snd_msg: 'Message sound', snd_off: 'Silent', snd_saved: 'Saved', snd_stop: 'Stop',
     nat_bg: 'Messages while the app is closed', nat_bg_sub: 'The Birga app stays connected in the background and instantly notifies about new messages and calls' });
 } catch {}
-const fmtWhen = (ts) => { if (!ts) return '—'; const d = new Date(ts), n = new Date(); return d.toDateString() === n.toDateString() ? fmtTime(ts) : d.toLocaleDateString(LANG === 'en' ? 'en-GB' : 'ru-RU', { day: 'numeric', month: 'short', year: d.getFullYear() !== n.getFullYear() ? 'numeric' : undefined }) + ' ' + fmtTime(ts); };
+const fmtWhen = (ts) => { if (!ts) return '—'; const d = new Date(ts), n = new Date(); return d.toDateString() === n.toDateString() ? fmtTime(ts) : d.toLocaleDateString(locTag(), { day: 'numeric', month: 'short', year: d.getFullYear() !== n.getFullYear() ? 'numeric' : undefined }) + ' ' + fmtTime(ts); };
 
 /* ---------- 1) Kirish: tushuntirish va majburiy xavfsizlik kodi ---------- */
 {
@@ -6707,7 +6715,7 @@ const Must2FA = {
     setTimeout(() => $('#tfm-new')?.focus(), 100);
     $('#tfm-go').onclick = async () => {
       const a = $('#tfm-new').value, b = $('#tfm-rep').value;
-      if (a.length < 4) { $('#tfm-err').textContent = t('tf_new'); return; }
+      if (a.length < 6) { $('#tfm-err').textContent = t('tf_new'); return; }
       if (a !== b) { $('#tfm-err').textContent = t('tf_mismatch'); return; }
       try { const u = await api('/api/me/2fa', { body: { password: a, hint: $('#tfm-hint').value.trim() } }); S.me = { ...S.me, ...u }; $('#tf-must').remove(); toast(t('tf_set_ok'), 2500); try { renderSettings(); } catch {} }
       catch (e) { $('#tfm-err').textContent = e.message; }
@@ -7735,12 +7743,13 @@ const FriendsLoc = {
     const first = { role: 'user', content: `(Avvalgi suhbatimizdan eslatma — buni eslab qol va kerak bo‘lsa foydalan, javob berma:)\n${sum}` };
     return [first, { role: 'assistant', content: 'Yaxshi, eslab qoldim.' }, ...(recent[0]?.role === 'assistant' ? recent.slice(1) : recent)];
   };
+  AI.memMsgs = memMsgs;
   AI.ask = async function (fullImg) {
     this.busy = true; this.save(); this.render(); this.sendState();
     try {
       const msgs = memMsgs(this.hist);
       if (fullImg) msgs[msgs.length - 1].image = fullImg;
-      const r = await api('/api/ai', { body: { messages: msgs } });
+      const r = await api('/api/ai', { body: { messages: msgs, voice: this.hist[this.hist.length - 1]?.voice ? 1 : 0 } });
       this.hist.push({ role: 'assistant', content: r.text, sources: r.sources || [] });
     } catch (e) { this.hist.push({ role: 'assistant', content: e.status === 429 ? t('ai_limit') : t('ai_err'), err: 1 }); }
     this.busy = false; this.save(); this.render(); this.sendState();
@@ -7772,7 +7781,7 @@ const AIVoice = {
     if (!S.config.stt) {
       const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!SR) { toast(t('av_no_stt'), 3500); return this.ui('idle', ''); }
-      const r = new SR(); this.rec = r; r.lang = { uz: 'uz-UZ', ru: 'ru-RU', en: 'en-US' }[LANG] || 'uz-UZ'; r.interimResults = true; r.continuous = false; let txt = '';
+      const r = new SR(); this.rec = r; r.lang = srTag(); r.interimResults = true; r.continuous = false; let txt = '';
       r.onresult = (e) => { txt = [...e.results].map((x) => x[0].transcript).join(''); $('#av-tx').textContent = txt; };
       r.onerror = (e) => { if (e.error === 'not-allowed') { toast(t('av_no_mic'), 3000); this.stop(); } };
       r.onend = () => { if (this.rec !== r) return; this.rec = null; if (!this.on) return; if (txt.trim()) this.ask(txt.trim()); else this.ui('idle', t('av_heard')); };
@@ -7795,7 +7804,7 @@ const AIVoice = {
         const orb = $('#av-orb'); if (orb) orb.style.transform = `scale(${1 + Math.min(0.35, lvl * 4)})`;
         if (Date.now() - t0 < 500) { base = Math.max(base, lvl * 1.6); return; }
         if (lvl > base * 1.8 + 0.01) { spoke = true; quiet = 0; } else if (spoke) quiet += 80;
-        if ((spoke && quiet > 1300) || Date.now() - t0 > 30000 || (!spoke && Date.now() - t0 > 9000)) this.finish(spoke);
+        if ((spoke && quiet > 850) || Date.now() - t0 > 30000 || (!spoke && Date.now() - t0 > 9000)) this.finish(spoke);
       }, 80);
     } catch {}
   },
@@ -7804,12 +7813,22 @@ const AIVoice = {
     this.mr = null; if (!this.on) return; if (blob.size < 1500) return this.ui('idle', t('av_heard'));
     this.ui('think', '');
     try {
-      const fd = new FormData(); fd.append('file', new File([blob], 'q.' + (blob.type.includes('mp4') ? 'm4a' : blob.type.includes('ogg') ? 'ogg' : 'webm'), { type: blob.type }));
+      // bitta so'rovda: ovoz → matn → javob (ikki marta borib-kelmaslik uchun — tezroq)
+      const fd = new FormData(); fd.append('ask', '1'); try { fd.append('messages', JSON.stringify(AI.memMsgs ? AI.memMsgs(AI.hist.filter((m) => !m.err)) : [])); } catch {}
+      fd.append('file', new File([blob], 'q.' + (blob.type.includes('mp4') ? 'm4a' : blob.type.includes('ogg') ? 'ogg' : 'webm'), { type: blob.type }));
       const r = await fetch('/api/ai/stt', { method: 'POST', headers: { Authorization: 'Bearer ' + S.token }, body: fd }); const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.error === 'no_stt' ? t('av_no_stt') : t('ai_err'));
       const txt = String(j.text || '').trim(); if (!txt) return this.ui('idle', t('av_heard'));
+      if (j.answer?.text) return this.answered(txt, j.answer);
       this.ask(txt);
     } catch (e) { toast(e.message, 3000); this.ui('idle', ''); }
+  },
+  answered(txt, ans) {
+    if (!this.on) return;
+    AI.hist = AI.hist.filter((m) => !m.err); AI.hist.push({ role: 'user', content: txt, voice: 1 }, { role: 'assistant', content: ans.text, sources: ans.sources || [] });
+    try { AI.save(); AI.render(); AI.sendState(); } catch {}
+    this.ui('speak', ans.text.replace(/[*#`_]/g, '').slice(0, 600));
+    Voice.speak(ans.text, () => { if (this.on && this.state === 'speak') this.listen(); });
   },
   async ask(txt) {
     if (!this.on) return; this.ui('think', '“' + txt + '”');
@@ -7832,7 +7851,7 @@ const AIVoice = {
 const NatSR = {
   ok: () => !!window.BirgaNative?.hasSpeech,
   cb: null,
-  listen(h) { this.cb = h; window.birgaSR = (o) => this.cb?.(o); window.BirgaNative.listen({ uz: 'uz-UZ', ru: 'ru-RU', en: 'en-US' }[LANG] || 'uz-UZ'); },
+  listen(h) { this.cb = h; window.birgaSR = (o) => this.cb?.(o); window.BirgaNative.listen(srTag()); },
   stop() { try { window.BirgaNative.stopListen(); } catch {} },
   cancel() { this.cb = null; try { window.BirgaNative.cancelListen(); } catch {} },
 };
@@ -8196,7 +8215,7 @@ const Prayer = {
     const left = n ? Math.max(0, Math.round(((n.tomorrow ? n.at.getTime() + 864e5 : n.at.getTime()) - nowT) / 60000)) : 0;
     const lt = left >= 60 ? `${Math.floor(left / 60)} ${t('pr_h')} ${left % 60} ${t('min')}` : `${left} ${t('min')}`;
     modal(`<h3>🕌 ${esc(t('pr_title'))} <button class="icon-btn" data-close>${icon('close')}</button></h3>
-      <div class="pr-head"><small>📍 ${esc(d.region || d.place || '')} · ${esc(new Date().toLocaleDateString(LANG === 'ru' ? 'ru-RU' : LANG === 'en' ? 'en-GB' : 'uz-UZ', { day: 'numeric', month: 'long' }))}${d.hijri ? ' · ' + esc(d.hijri) : ''}</small>
+      <div class="pr-head"><small>📍 ${esc(d.region || d.place || '')} · ${esc(new Date().toLocaleDateString(locTag(), { day: 'numeric', month: 'long' }))}${d.hijri ? ' · ' + esc(d.hijri) : ''}</small>
       ${n ? `<b>${esc(t('pr_' + n.k))} — ${esc(n.t)}</b><small>${esc(tf('pr_left', { t: lt }))}</small>` : ''}</div>
       <div class="pr-list">${this.times().map((x) => `<div class="pr-row${n && x.k === n.k && !n.tomorrow ? ' next' : x.at.getTime() < nowT ? ' past' : ''}"><em>${PR_ICO[x.k]}</em><b>${esc(t('pr_' + x.k))}</b><span>${esc(x.t)}</span></div>`).join('')}</div>
       <p class="tiny muted" style="text-align:center">${esc(t('pr_src'))}: ${esc(d.src || '')}</p>
@@ -8383,4 +8402,50 @@ if (!store.get('birga_token') && Accts.list().length) {
   $('#ac-back')?.addEventListener('click', () => { store.set('birga_token', a.token); location.href = '/'; });
 }
 
+
+/* ---------- Maxfiylik: kim oxirgi faollik vaqtimni va hikoyalarimni ko'radi ---------- */
+Object.assign(I18N.uz, { pv_title: 'Maxfiylik', pv_seen: 'Oxirgi faollik vaqti', pv_story: 'Hikoyalarim', pv_who_seen: 'Oxirgi faollik vaqtimni kim ko‘radi?', pv_who_story: 'Hikoyalarimni kim ko‘radi?',
+  pv_all: 'Hamma', pv_contacts: 'Kontaktlarim', pv_nobody: 'Hech kim', pv_custom: 'Faqat tanlanganlar', pv_contacts_hint: 'Saqlangan kontaktlaringiz va yozishgan odamlaringiz', pv_pick: 'Kimlar ko‘ra oladi', pv_pick_n: '{n} kishi tanlandi', pv_saved: 'Maxfiylik sozlamalari saqlandi', pv_seen_note: 'Ko‘ra olmaydiganlarga “yaqinda faol edi” deb ko‘rinadi', pv_none: 'Hali hech kim bilan yozishmagansiz' });
+Object.assign(I18N.ru, { pv_title: 'Конфиденциальность', pv_seen: 'Время последней активности', pv_story: 'Мои истории', pv_who_seen: 'Кто видит время моей последней активности?', pv_who_story: 'Кто видит мои истории?',
+  pv_all: 'Все', pv_contacts: 'Мои контакты', pv_nobody: 'Никто', pv_custom: 'Только выбранные', pv_contacts_hint: 'Сохранённые контакты и люди, с которыми вы переписывались', pv_pick: 'Кто может видеть', pv_pick_n: 'Выбрано: {n}', pv_saved: 'Настройки конфиденциальности сохранены', pv_seen_note: 'Остальные увидят «был(а) недавно»', pv_none: 'Вы ещё ни с кем не переписывались' });
+Object.assign(I18N.en, { pv_title: 'Privacy', pv_seen: 'Last seen', pv_story: 'My stories', pv_who_seen: 'Who can see my last seen time?', pv_who_story: 'Who can see my stories?',
+  pv_all: 'Everybody', pv_contacts: 'My contacts', pv_nobody: 'Nobody', pv_custom: 'Only selected people', pv_contacts_hint: 'Your saved contacts and people you have chatted with', pv_pick: 'Who can see', pv_pick_n: '{n} selected', pv_saved: 'Privacy settings saved', pv_seen_note: 'Others will see “last seen recently”', pv_none: 'You haven’t chatted with anyone yet' });
+const Privacy = {
+  st: null,
+  async open() {
+    const r = await api('/api/profile/privacy');
+    this.st = { seen: { m: r.seen.m, sel: new Map(r.seen.users.map((u) => [u.id, u])) }, story: { m: r.story.m, sel: new Map(r.story.users.map((u) => [u.id, u])) } };
+    this.paint();
+  },
+  people() {
+    const m = new Map();
+    for (const c of S.chats.values()) if (c.type === 'private' && !c.self && c.peer && !c.peer.deleted) m.set(c.peer.id, S.users.get(c.peer.id) || c.peer);
+    for (const k of ['seen', 'story']) for (const [id, u] of this.st[k].sel) if (!m.has(id)) m.set(id, u);
+    return [...m.values()].sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+  },
+  sec(k) {
+    const st = this.st[k]; const ppl = this.people();
+    return `<div class="pv-sec" data-k="${k}"><h4>${esc(t(k === 'seen' ? 'pv_who_seen' : 'pv_who_story'))}</h4>
+      ${['all', 'contacts', 'nobody', 'custom'].map((m) => `<label class="pv-opt${st.m === m ? ' on' : ''}"><input type="radio" name="pv-${k}" value="${m}" ${st.m === m ? 'checked' : ''}><span><b>${esc(t('pv_' + m))}</b>${m === 'contacts' ? `<small>${esc(t('pv_contacts_hint'))}</small>` : ''}</span></label>`).join('')}
+      ${k === 'seen' ? `<p class="pv-note">${esc(t('pv_seen_note'))}</p>` : ''}
+      ${st.m === 'custom' ? `<div class="pv-pick"><small>${esc(t('pv_pick'))} · ${esc(t('pv_pick_n', { n: st.sel.size }))}</small>${ppl.length ? ppl.map((u) => `<label class="pv-u"><input type="checkbox" data-u="${u.id}" ${st.sel.has(u.id) ? 'checked' : ''}>${avatar({ ...u, online: false }, 'sm')}<b>${esc(u.name || '')}</b></label>`).join('') : `<p class="empty-note">${esc(t('pv_none'))}</p>`}</div>` : ''}</div>`;
+  },
+  paint() {
+    modal(`<h3>🔒 ${esc(t('pv_title'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><div class="pv-wrap">${this.sec('seen')}${this.sec('story')}</div><button class="btn-primary" id="pv-save">${esc(t('save'))}</button>`);
+    const card = $('#modal-card');
+    card.onchange = (e) => {
+      const sec = e.target.closest('.pv-sec'); if (!sec) return; const st = this.st[sec.dataset.k];
+      if (e.target.type === 'radio') { st.m = e.target.value; const y = card.querySelector('.pv-wrap')?.scrollTop || 0; this.paint(); const w = $('#modal-card .pv-wrap'); if (w) w.scrollTop = y; return; }
+      if (e.target.dataset.u) { const id = +e.target.dataset.u; if (e.target.checked) st.sel.set(id, this.people().find((u) => u.id === id)); else st.sel.delete(id); const sm = sec.querySelector('.pv-pick small'); if (sm) sm.textContent = `${t('pv_pick')} · ${t('pv_pick_n', { n: st.sel.size })}`; }
+    };
+    $('#pv-save').onclick = async () => {
+      try {
+        const body = {}; for (const k of ['seen', 'story']) body[k] = { m: this.st[k].m, list: [...this.st[k].sel.keys()] };
+        const u = await api('/api/profile/privacy', { body }); S.me = { ...S.me, ...u }; closeModal(); toast(t('pv_saved'), 2500); window.__privPaint?.();
+      } catch (e) { toast(e.message); }
+    };
+  },
+};
+try { const st = document.createElement('style'); st.textContent = `.pv-wrap{display:grid;gap:14px;max-height:60vh;overflow:auto;margin-bottom:12px}.pv-sec h4{margin:4px 0 8px;font-size:15px}.pv-opt{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:12px;background:var(--panel-2);margin-bottom:6px;cursor:pointer}.pv-opt.on{outline:2px solid var(--accent,#2563EB)}.pv-opt small{display:block;color:var(--muted);font-size:12px;margin-top:2px}.pv-opt input{margin-top:3px}.pv-note{font-size:12px;color:var(--muted);margin:2px 4px 0}.pv-pick{display:grid;gap:4px;padding:8px;border-radius:12px;background:var(--panel-2)}.pv-pick small{color:var(--muted)}.pv-u{display:flex;align-items:center;gap:10px;padding:6px;border-radius:10px;cursor:pointer}.pv-u .av{width:32px;height:32px}`; document.head.appendChild(st); } catch {}
+try { if (typeof I18N_PACK !== 'undefined' && I18N_PACK?.x) { if (I18N_PACK.x.inst) INST[LANG] = { ...INST.en, ...I18N_PACK.x.inst }; if (I18N_PACK.x.apk) APK_T[LANG] = { ...APK_T.en, ...I18N_PACK.x.apk }; } } catch {}
 boot();

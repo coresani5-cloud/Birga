@@ -24,7 +24,28 @@ const now = () => Date.now();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const hash = (s) => crypto.createHmac('sha256', JWT_SECRET).update(String(s)).digest('hex');
 const online = new Map(); // userId -> sockets soni
-const getUser = (id) => db.get('SELECT * FROM users WHERE id=?', [Number(id) || 0]);
+const getUser = async (id) => { const u = await db.get('SELECT * FROM users WHERE id=?', [Number(id) || 0]); if (u && (u.priv_seen === 'contacts' || u.priv_story === 'contacts')) await warmContacts(u.id); return u; };
+// ===== Maxfiylik: kim oxirgi faollik vaqtimni va hikoyalarimni ko'radi (hamma / kontaktlarim / hech kim / faqat tanlanganlar) =====
+const { AsyncLocalStorage } = require('async_hooks');
+const viewerALS = new AsyncLocalStorage(); // so'rov/hodisa kimga javob berayotgani (publicUser uchun)
+const PRIV_MODES = ['all', 'contacts', 'nobody', 'custom'];
+const contactSets = new Map(); // uid -> { set, at } — kontaktlar + suhbatdoshlar
+async function warmContacts(uid, force) {
+  const c = contactSets.get(uid); if (!force && c && Date.now() - c.at < 60e3) return c.set;
+  const rows = await db.all('SELECT user_id FROM contacts WHERE owner_id=?', [uid]).catch(() => []);
+  const set = new Set([...rows.map((r) => Number(r.user_id)), ...(await peersOf(uid)).map(Number)]);
+  contactSets.set(uid, { set, at: Date.now() }); return set;
+}
+const privList = (u, kind) => { try { return (JSON.parse(u['priv_' + kind + '_list'] || '[]') || []).map(Number); } catch { return []; } };
+function canSee(u, kind, viewer) {
+  const m = u['priv_' + kind] || (kind === 'seen' && u.hide_seen ? 'nobody' : 'all');
+  viewer = Number(viewer) || 0;
+  if (viewer === Number(u.id) || m === 'all') return true;
+  if (m === 'nobody' || !viewer) return false;
+  if (m === 'custom') return privList(u, kind).includes(viewer);
+  const c = contactSets.get(Number(u.id)); if (!c) warmContacts(Number(u.id)).catch(() => {}); // keyingi safar tayyor bo'ladi
+  return !!c?.set.has(viewer);
+}
 const STORY_TTL = 24 * 3600e3;
 let push = null;
 
@@ -32,12 +53,12 @@ let push = null;
 // Birga egasi/adminlari: ADMIN_EMAILS (vergul bilan), standart — loyiha egasi
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || 'coresani5@gmail.com').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean);
 const isAdminUser = (u) => !!u?.email && ADMIN_EMAILS.includes(String(u.email).toLowerCase());
-function publicUser(u, self = false) {
+function publicUser(u, self = false, viewer) {
   if (!u) return null;
   if (u.deleted) return { id: u.id, name: null, deleted: true, username: null, bio: '', avatar: null, last_seen: null, online: false };
-  const hide = !!u.hide_seen && !self; // "oxirgi faollik" yashirilgan — boshqalarga "yaqinda" ko'rinadi
+  const hide = !self && !canSee(u, 'seen', viewer ?? viewerALS.getStore()?.v); // "oxirgi faollik" yashirilgan — boshqalarga "yaqinda" ko'rinadi
   const o = { id: u.id, name: u.name, username: u.username, bio: u.bio, avatar: u.avatar, last_seen: hide ? null : u.last_seen, online: hide ? false : online.has(u.id), country: u.country, birthday: u.birthday || null };
-  if (self) { o.phone = String(u.phone || '').startsWith('mail:') ? null : u.phone; o.email = u.email || null; o.lang = u.lang; o.hide_seen = !!u.hide_seen; o.has2fa = !!u.pass_hash; o.locShare = !!Number(u.loc_share); o.pass_hint = u.pass_hint || ''; o.isAdmin = isAdminUser(u); try { o.region = JSON.parse(u.region || 'null'); } catch { o.region = null; } }
+  if (self) { o.phone = String(u.phone || '').startsWith('mail:') ? null : u.phone; o.email = u.email || null; o.lang = u.lang; o.hide_seen = !!u.hide_seen || u.priv_seen === 'nobody'; o.priv = { seen: u.priv_seen || (u.hide_seen ? 'nobody' : 'all'), story: u.priv_story || 'all' }; o.has2fa = !!u.pass_hash; o.locShare = !!Number(u.loc_share); o.pass_hint = u.pass_hint || ''; o.isAdmin = isAdminUser(u); try { o.region = JSON.parse(u.region || 'null'); } catch { o.region = null; } }
   return o;
 }
 
@@ -52,8 +73,11 @@ function parsePhone(input, defaultCountry) {
   return { e164: p.number, country: p.country || null };
 }
 
-const LANGS = ['uz', 'ru', 'en'];
-const tr = (lang, uz, ru, en) => ({ uz, ru, en }[LANGS.includes(lang) ? lang : 'en']);
+// Ilova 30 tilda; server xabarlari o'zbek / rus / ingliz tilida (boshqa tillar uchun eng yaqini)
+const LANG_EN = { uz: 'Uzbek', ru: 'Russian', en: 'English', kk: 'Kazakh', ky: 'Kyrgyz', tg: 'Tajik', tk: 'Turkmen', kaa: 'Karakalpak', tr: 'Turkish', az: 'Azerbaijani', mn: 'Mongolian', fa: 'Persian', ar: 'Arabic', ur: 'Urdu', hi: 'Hindi', bn: 'Bengali', zh: 'Chinese (Simplified)', ja: 'Japanese', ko: 'Korean', de: 'German', fr: 'French', es: 'Spanish', it: 'Italian', pt: 'Portuguese', pl: 'Polish', uk: 'Ukrainian', id: 'Indonesian', ms: 'Malay', vi: 'Vietnamese', th: 'Thai' };
+const LANGS = Object.keys(LANG_EN);
+const baseLang = (l) => (l === 'uz' || l === 'kaa' ? 'uz' : ['ru', 'kk', 'ky', 'tg', 'tk', 'mn', 'uk'].includes(l) ? 'ru' : 'en');
+const tr = (lang, uz, ru, en) => ({ uz, ru, en }[baseLang(lang)]);
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch((e) => { console.error(e); res.status(500).json({ error: 'server' }); });
 
 // ---------- TURN (qo'ng'iroqlar boshqa davlat/tarmoqlar orasida ham ulanishi uchun) ----------
@@ -105,12 +129,19 @@ async function cloudflareIce() {
   } catch (e) { console.error('Cloudflare TURN:', e.message); return cfIce || []; }
 }
 
+// Kontent xavfsizlik siyosati (XSS bo'lsa ham begona skript ishlamaydi)
+const CSP_HEADER = ["default-src 'self'", "script-src 'self' https://unpkg.com", "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com",
+  "font-src 'self' data: https://fonts.gstatic.com", "img-src 'self' data: blob: https:", "media-src 'self' data: blob: https:", "connect-src 'self' https: wss: blob: data:",
+  "frame-src 'self' https://www.instagram.com https://www.youtube.com https://www.youtube-nocookie.com https://www.openstreetmap.org", "worker-src 'self' blob:", "child-src 'self' blob:",
+  "object-src 'none'", "base-uri 'none'", "form-action 'self'", "frame-ancestors 'self'"].join('; ');
 // ---------- Express ----------
 const app = express();
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
 app.use((req, res, next) => {
-  res.set({ 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin', 'X-Frame-Options': 'SAMEORIGIN', 'Permissions-Policy': 'camera=(self), microphone=(self), geolocation=(self)' });
+  res.set({ 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin', 'X-Frame-Options': 'SAMEORIGIN', 'Permissions-Policy': 'camera=(self), microphone=(self), geolocation=(self)', 'Cross-Origin-Opener-Policy': 'same-origin' });
+  if (req.secure || req.get('x-forwarded-proto') === 'https') res.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  if (process.env.CSP !== '0' && !req.path.startsWith('/uploads')) res.set('Content-Security-Policy', CSP_HEADER);
   next();
 });
 // Birga'ning o'z javoblari belgisi: service worker hosting'ning "uyg'onish" sahifasini keshlab qo'ymasligi uchun
@@ -143,6 +174,14 @@ else {
     res.sendFile(path.join(__dirname, FLAT[req.path]), { headers: req.path === '/sw.js' ? { 'Cache-Control': 'no-cache' } : {} });
   });
 }
+// 30 til: qo'shimcha tillar tarjimasi bitta faylda (i18n-all.json) — /i18n/<til>.json sifatida beriladi
+let I18N_ALL = null;
+app.get('/i18n/:code.json', (req, res) => {
+  const code = String(req.params.code || ''); if (!/^[a-z]{2,3}$/.test(code)) return res.status(404).end();
+  if (!I18N_ALL) { for (const f of [PUBLIC_DIR && path.join(PUBLIC_DIR, 'i18n-all.json'), path.join(__dirname, 'i18n-all.json')].filter(Boolean)) { try { I18N_ALL = JSON.parse(fs.readFileSync(f, 'utf8')); break; } catch {} } I18N_ALL ||= {}; }
+  const p = I18N_ALL[code]; if (!p) return res.status(404).json({ error: 'no_lang' });
+  res.set('Cache-Control', 'public, max-age=3600').json(p);
+});
 // Ilova versiyasi: fayllar o'zgarsa (yangi deploy) — mijozlar avtomatik yangilanadi
 const APP_VERSION = (() => {
   const h = crypto.createHash('sha1');
@@ -237,7 +276,7 @@ function setSession(req, res, token) {
 }
 // ===== Xavfsizlik kodi (ikki bosqichli himoya) =====
 // Email/SMS kodidan keyin foydalanuvchi o'zi qo'ygan kod so'raladi. Kod scrypt bilan tuzlangan holda saqlanadi.
-const PASS_MIN = 4, PASS_MAX = 64;
+const PASS_MIN = 6, PASS_MAX = 64;
 function hashPass(pw) {
   const salt = crypto.randomBytes(16).toString('hex');
   return 'scrypt$' + salt + '$' + crypto.scryptSync(String(pw), salt, 32).toString('hex');
@@ -268,7 +307,7 @@ const auth = wrap(async (req, res, next) => {
     catch { return res.status(401).json({ error: 'unauthorized' }); }
   }
   req.sid = req.user._sid; if (req.sid) touchSession(req.sid, req);
-  next();
+  viewerALS.run({ v: req.user.id }, next);
 });
 app.post('/api/auth/logout', async (req, res) => {
   try { const t = (req.headers.authorization || '').replace('Bearer ', '').trim() || cookieToken(req); const { uid, sid } = jwt.verify(t, JWT_SECRET); if (sid) await revokeSessions(uid, [sid]); } catch {}
@@ -314,7 +353,7 @@ app.get('/birga.apk', (req, res) => {
   res.sendFile(f);
 });
 
-app.get('/holat', wrap(async (req, res) => {
+app.get('/holat', (req, res, next) => (process.env.HOLAT_KEY && req.query.k === process.env.HOLAT_KEY ? next() : auth(req, res, () => adminOnly(req, res, next))), wrap(async (req, res) => {
   const rows = [];
   const add = (ok, name, text, fix = '') => rows.push({ ok, name, text, fix });
   try { await db.get('SELECT 1 AS ok'); add(db.kind === 'postgres' ? 1 : process.env.RENDER ? 0 : 2, 'Baza (profillar, xabarlar)', db.kind === 'postgres' ? 'Supabase/PostgreSQL — doimiy saqlanadi' : 'SQLite — server diskida',
@@ -348,7 +387,7 @@ ${rows.map((r) => `<div class="r"><i>${ic[r.ok]}</i><div><b>${r.name}</b><small>
 <h3>Statistika</h3><div class="st"><div><b>${stats.users}</b><small>foydalanuvchi</small></div><div><b>${stats.online}</b><small>hozir onlayn</small></div><div><b>${stats.msgs}</b><small>xabar</small></div><div><b>${stats.groups}</b><small>guruh/kanal</small></div></div>
 </main></body></html>`);
 }));
-app.get('/api/health', wrap(async (req, res) => { await db.get('SELECT 1 AS ok'); res.json({ ok: true, db: db.kind, storage: storage.remote ? 'supabase' : 'disk', email: mailer ? 'on' : 'test', media: MEDIA_DELETE ? 'device' : 'server' }); }));
+app.get('/api/health', wrap(async (req, res) => { await db.get('SELECT 1 AS ok'); res.json({ ok: true }); }));
 app.get('/api/ice', auth, wrap(async (req, res) => { const [cf, mt] = await Promise.all([cloudflareIce(), meteredIce()]); res.json({ iceServers: [...iceServersFor(req.user.id), ...cf, ...mt], strong: !!(cf.length || mt.length || process.env.TURN_SECRET || process.env.TURN_URL) }); }));
 
 // ===== 1) SMS kod =====
@@ -473,9 +512,12 @@ async function issueEmailCode(req, res, key, email) {
   else if (strict) return res.status(502).json({ error: tr(lang, 'Email xizmati ulanmagan', 'Почтовый сервис не подключён', 'Email service is not configured') });
   // Xavfsizlik kodi hali o'rnatilmagan akkaunt boshqa qurilmada ochiq bo'lsa — kod ekranga emas, o'sha qurilmaga (Birga ichiga) yuboriladi (Telegram kabi)
   let toDev = false;
-  if (!strict && !sent && owner && !owner.pass_hash) {
-    // faqat hozir yetkaza oladigan qurilma bo'lsa (ochiq Birga yoki fonda ulangan Birga ilovasi) — aks holda egasi kirolmay qolmasin
-    toDev = [...io.sockets.sockets.values()].some((so) => Number(so.uid) === Number(owner.id)) || (nativeQ.get(Number(owner.id))?.seen || 0) > now() - 120e3;
+  // XAVFSIZLIK: xavfsizlik kodi yo'q mavjud akkaunt uchun kod HECH QACHON ekranda berilmaydi (aks holda emailni bilgan har kim kira olardi).
+  // Kod faqat egasining Birga ochilgan qurilmalariga (ichki xabar, push, Android ilova) yuboriladi.
+  if (!strict && !sent && owner && !owner.pass_hash && process.env.SCREEN_CODES_ALL !== '1') {
+    const live = (await db.get('SELECT COUNT(*) AS c FROM sessions WHERE user_id=? AND revoked=0 AND last>?', [owner.id, now() - 90 * 864e5]).catch(() => ({ c: 1 })))?.c;
+    if (!Number(live)) return res.status(403).json({ error: tr(lang, 'Bu akkauntga kirish uchun kod faqat ochiq qurilmangizga yuboriladi, lekin ochiq qurilma topilmadi. Administratorga murojaat qiling.', 'Код для этого аккаунта отправляется только на ваши открытые устройства, но таких нет. Обратитесь к администратору.', 'For this account the code is sent only to your signed-in devices, but none were found. Contact the administrator.'), code: 'no_device' });
+    toDev = true;
   }
   if (adminLocked && !sent && !toDev) { // admin akkaunti: kod hech qachon ekranda ko'rsatilmaydi
     if (process.env.LOG_CODES === '1') console.log(`📧 [TEST EMAIL] ${email} → ${code}`);
@@ -487,6 +529,7 @@ async function issueEmailCode(req, res, key, email) {
   const out = { ok: true, email, timeout: 60, sent, has2fa: !!owner?.pass_hash, isNew: !owner };
   if (toDev) {
     io.to('u' + owner.id).emit('security:code', { code, at: now() });
+    nativeEnqueue(Number(owner.id), { type: 'security', title: 'Birga', body: tr(lang, `🔐 Kirish kodi: ${code}`, `🔐 Код входа: ${code}`, `🔐 Sign-in code: ${code}`) });
     push.send(owner.id, { type: 'security', title: 'Birga', body: tr(lang, `🔐 Kirish kodi: ${code}. Hech kimga bermang! Siz so‘ramagan bo‘lsangiz — e’tibor bermang.`, `🔐 Код входа: ${code}. Никому не сообщайте!`, `🔐 Sign-in code: ${code}. Do not share it!`), tag: 'security' }).catch(() => {});
   }
   out.toDevices = toDev;
@@ -569,7 +612,7 @@ app.post('/api/auth/verify', rateLimit('verify', 30, 3600e3), wrap(async (req, r
 }));
 
 // 2-bosqich: xavfsizlik kodini tekshirish
-app.post('/api/auth/2fa', rateLimit('2fa', 30, 3600e3), wrap(async (req, res) => {
+app.post('/api/auth/2fa', rateLimit('2fa', 15, 3600e3), wrap(async (req, res) => {
   const lang = req.body.lang;
   let uid;
   try { uid = jwt.verify(String(req.body.ticket || ''), JWT_SECRET).t2; } catch {}
@@ -998,7 +1041,7 @@ app.post('/api/contacts/:id/name', auth, rateLimit('cname', 120, 3600e3), wrap(a
   const u = id && id !== req.user.id ? await getUser(id) : null;
   if (!u) return res.status(404).json({ error: 'not found' });
   const name = String(req.body?.name || '').replace(/\s+/g, ' ').trim().slice(0, 64) || null;
-  await db.run('INSERT INTO contacts(owner_id,user_id,name,created) VALUES(?,?,?,?) ON CONFLICT(owner_id,user_id) DO UPDATE SET name=excluded.name', [req.user.id, id, name, now()]);
+  contactSets.delete(req.user.id); await db.run('INSERT INTO contacts(owner_id,user_id,name,created) VALUES(?,?,?,?) ON CONFLICT(owner_id,user_id) DO UPDATE SET name=excluded.name', [req.user.id, id, name, now()]);
   res.json({ ok: true, id, contactName: name });
 }));
 // Telefon kontaktlaridan Birga'dagilarni topish (raqamlar saqlanmaydi, faqat topilgan foydalanuvchi bog'lanadi)
@@ -1016,7 +1059,7 @@ app.post('/api/contacts/match', auth, rateLimit('cmatch', 20, 3600e3), wrap(asyn
     const rows = await db.all(`SELECT * FROM users WHERE name IS NOT NULL AND id<>? AND phone IN (${chunk.map(() => '?').join(',')})`, [req.user.id, ...chunk]);
     for (const u of rows) {
       const name = byPhone.get(u.phone) || null;
-      await db.run('INSERT INTO contacts(owner_id,user_id,name,created) VALUES(?,?,?,?) ON CONFLICT(owner_id,user_id) DO UPDATE SET name=COALESCE(contacts.name, excluded.name)', [req.user.id, u.id, name, now()]);
+      contactSets.delete(req.user.id); await db.run('INSERT INTO contacts(owner_id,user_id,name,created) VALUES(?,?,?,?) ON CONFLICT(owner_id,user_id) DO UPDATE SET name=COALESCE(contacts.name, excluded.name)', [req.user.id, u.id, name, now()]);
       const row = await db.get('SELECT name FROM contacts WHERE owner_id=? AND user_id=?', [req.user.id, u.id]);
       found.push({ ...publicUser(u), contactName: row?.name || name });
     }
@@ -1039,7 +1082,15 @@ async function withReactions(list) {
   for (const m of list) { const r = map.get(m.id); if (r) m.reactions = r; }
   return list;
 }
-function fmtMsg(m) { return { ...m, meta: m.meta ? JSON.parse(m.meta) : null, deleted: !!m.deleted, edited: !!m.edited, gone: !!m.gone }; }
+// Karta raqami bazada shifrlangan holda saqlanadi (AES-256-GCM); faqat chat a'zolariga ochib beriladi
+const cardKey = () => crypto.createHash('sha256').update('birga-card:' + (process.env.CARD_KEY || JWT_SECRET)).digest();
+function cardEnc(n) { const iv = crypto.randomBytes(12), c = crypto.createCipheriv('aes-256-gcm', cardKey(), iv); const x = Buffer.concat([c.update(n, 'utf8'), c.final()]); return Buffer.concat([iv, c.getAuthTag(), x]).toString('base64'); }
+function cardDec(s) { try { const b = Buffer.from(s, 'base64'), d = crypto.createDecipheriv('aes-256-gcm', cardKey(), b.subarray(0, 12)); d.setAuthTag(b.subarray(12, 28)); return Buffer.concat([d.update(b.subarray(28)), d.final()]).toString('utf8'); } catch { return ''; } }
+function fmtMsg(m) {
+  const meta = m.meta ? JSON.parse(m.meta) : null;
+  if (meta?.card?.x) { meta.card = { n: cardDec(meta.card.x), h: meta.card.h, b: meta.card.b }; if (!meta.card.n) delete meta.card; }
+  return { ...m, meta, deleted: !!m.deleted, edited: !!m.edited, gone: !!m.gone };
+}
 const membersOf = async (chatId) => (await db.all('SELECT user_id FROM chat_members WHERE chat_id=?', [chatId])).map((r) => r.user_id);
 const isMember = async (chatId, uid) => !!(await db.get('SELECT 1 AS x FROM chat_members WHERE chat_id=? AND user_id=?', [Number(chatId) || 0, uid]));
 // "Yaqinlar" — shaxsiy chatdagi suhbatdoshlar (hikoyalar va onlayn holati shularga ko'rinadi)
@@ -1347,7 +1398,7 @@ async function cfRun(model, body, ms = 90000) {
   const j = await r.json().catch(() => ({})); if (!r.ok || j.success === false) throw new Error(r.status + ' ' + JSON.stringify(j.errors || j).slice(0, 160));
   return j.result ?? j;
 }
-async function aiAnswer(msgs, { web = true, fast = false, sys = '', rawSys = '' } = {}) {
+async function aiAnswer(msgs, { web = true, fast = false, sys = '', rawSys = '', maxTok = 0 } = {}) {
   const errs = [];
   const hasImg = msgs.some((m) => m.image);
   const split = (d) => { const m = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(d || ''); return m ? { mime: m[1], data: m[2] } : null; };
@@ -1358,7 +1409,7 @@ async function aiAnswer(msgs, { web = true, fast = false, sys = '', rawSys = '' 
       try {
         const j = await aiFetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
           method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
-          body: JSON.stringify({ systemInstruction: { parts: [{ text: (rawSys || aiSys() + sys) }] }, contents, ...(grounding ? { tools: [{ google_search: {} }] } : {}), generationConfig: { maxOutputTokens: 3000, temperature: fast ? 0.3 : 0.6, ...(/2\.5-flash/.test(model) ? { thinkingConfig: { thinkingBudget: fast ? 0 : Number(process.env.AI_THINK ?? 384) } } : {}) } }),
+          body: JSON.stringify({ systemInstruction: { parts: [{ text: (rawSys || aiSys() + sys) }] }, contents, ...(grounding ? { tools: [{ google_search: {} }] } : {}), generationConfig: { maxOutputTokens: maxTok || 3000, temperature: fast ? 0.3 : 0.6, ...(/2\.5-flash/.test(model) ? { thinkingConfig: { thinkingBudget: fast ? 0 : Number(process.env.AI_THINK ?? 384) } } : {}) } }),
         });
         const c = j?.candidates?.[0]; const out = c?.content?.parts?.map((p) => p.text || '').join('').trim();
         if (out) {
@@ -1375,7 +1426,7 @@ async function aiAnswer(msgs, { web = true, fast = false, sys = '', rawSys = '' 
   if (process.env.AI_FREE !== '0') compat.push(['https://text.pollinations.ai/openai', null, 'openai']); // kalitsiz bepul zaxira (cheklangan)
   if (cfOn() && !hasImg && !process.env.GROQ_API_KEY && !process.env.AI_API_URL) { // Cloudflare Llama — Pollinations'dan oldin
     try {
-      const j = await cfRun(process.env.CF_TEXT_MODEL || '@cf/meta/llama-3.3-70b-instruct-fp8-fast', { messages: [{ role: 'system', content: (rawSys || aiSys() + sys) }, ...msgs.map((m) => ({ role: m.role, content: m.content || ' ' }))], max_tokens: 2500, temperature: fast ? 0.3 : 0.6 });
+      const j = await cfRun(process.env.CF_TEXT_MODEL || '@cf/meta/llama-3.3-70b-instruct-fp8-fast', { messages: [{ role: 'system', content: (rawSys || aiSys() + sys) }, ...msgs.map((m) => ({ role: m.role, content: m.content || ' ' }))], max_tokens: maxTok || 2500, temperature: fast ? 0.3 : 0.6 });
       const out = String(j?.response ?? j?.choices?.[0]?.message?.content ?? '').trim(); if (out) return { text: out, sources: [] };
       errs.push('cf: empty');
     } catch (e) { errs.push('cf: ' + e.message); }
@@ -1385,7 +1436,7 @@ async function aiAnswer(msgs, { web = true, fast = false, sys = '', rawSys = '' 
     try {
       const free = !key && /pollinations/.test(url);
       const call = () => aiFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(key ? { Authorization: 'Bearer ' + key } : {}) },
-        body: JSON.stringify({ model, messages: [{ role: 'system', content: (rawSys || aiSys() + sys) }, ...oaMsgs], max_tokens: 3000, temperature: fast ? 0.3 : 0.6 }) });
+        body: JSON.stringify({ model, messages: [{ role: 'system', content: (rawSys || aiSys() + sys) }, ...oaMsgs], max_tokens: maxTok || 3000, temperature: fast ? 0.3 : 0.6 }) });
       const j = free ? await freeAI(call) : await call();
       const out = String(j?.choices?.[0]?.message?.content || '').trim(); if (out) return { text: out, sources: [] };
       errs.push(url + ': empty');
@@ -1395,22 +1446,31 @@ async function aiAnswer(msgs, { web = true, fast = false, sys = '', rawSys = '' 
   return null;
 }
 // Savol tilini aniqlash va javobda tillar aralashib ketmasligini tekshirish
-const LANG_NAMES = { uz: "o'zbek tilida (lotin yozuvida)", uz_cyrl: "o'zbek tilida (kirill yozuvida)", ru: 'rus tilida', en: 'ingliz tilida', tr: 'turk tilida' };
+const LANG_NAMES = { uz: "o'zbek tilida (lotin yozuvida)", uz_cyrl: "o'zbek tilida (kirill yozuvida)", ru: 'rus tilida', en: 'ingliz tilida', tr: 'turk tilida', kk: 'qozoq tilida', ky: 'qirg‘iz tilida', tg: 'tojik tilida', uk: 'ukrain tilida', az: 'ozarbayjon tilida', tk: 'turkman tilida', same: 'savol yozilgan tilning o‘zida' };
 const plainTxt = (t) => String(t || '').replace(/```[\s\S]*?```/g, ' ').replace(/`[^`]*`/g, ' ').replace(/https?:\/\/\S+/g, ' ').replace(/\[[^\]]*\]\([^)]*\)/g, ' ');
 function detectLang(t) {
   t = plainTxt(t); const cyr = (t.match(/[а-яёўқғҳ]/gi) || []).length, lat = (t.match(/[a-zçşğıöü]/gi) || []).length;
-  if (cyr + lat < 3) return null;
+  if (cyr + lat < 3) return /[\u0600-\u06FF\u0900-\u09FF\u0E00-\u0E7F\u3040-\u30FF\u3400-\u9FFF\uAC00-\uD7AF]/.test(t) ? 'same' : null;
+  if (cyr > lat) {
+    if (/[ӣӯҷ]/i.test(t)) return 'tg';
+    if (/[әұі]/i.test(t)) return 'kk';
+    if (/[єїґ]/i.test(t)) return 'uk';
+    if (/[ңөү]/i.test(t) && !/[ўқғҳ]/i.test(t)) return 'ky';
+  }
   if (cyr > lat) return /[ўқғҳ]/i.test(t) || /(^|\s)(ва|бу|нима|қандай|учун|билан|мен|сен|керак|бўлади|ҳақида)(?=\s|$|[?.,!])/i.test(t) ? 'uz_cyrl' : 'ru';
+  if (/ə/i.test(t)) return 'az';
+  if (/[äňýž]/i.test(t) && /[şç]/i.test(t)) return 'tk';
   if (/[şçı]/i.test(t) || /(^|\s)(nasıl|nedir|teşekkür|merhaba|için|değil)(?=\s|$)/i.test(t)) return 'tr';
+  if (/[àâæèéêëîïôœùûÿñ¿¡ãõßäöüąćęłńśźżăđơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/i.test(t)) return 'same';
   const w = t.toLowerCase().match(/[a-z']+/g) || [];
   const en = w.filter((x) => /^(the|is|are|was|what|how|why|and|of|to|in|you|i|my|it|this|that|do|does|can|please|with|for|about|explain|tell|me)$/.test(x)).length;
   const uz = w.filter((x) => /^(va|bu|nima|qanday|uchun|bilan|men|sen|kerak|haqida|bo'ladi|boladi|qilib|yoki|lekin|ham|emas|bor|yo'q|qanaqa|nega|menga)$/.test(x) || /(lar|ning|dagi|ni|da|ga|dan|mi)$/.test(x) && x.length > 4).length;
-  return en > uz && en >= 2 ? 'en' : 'uz';
+  return en > uz && en >= 2 ? 'en' : uz > 0 || w.length < 3 ? 'uz' : 'same';
 }
 function langMixed(ans, lang) {
   const t = plainTxt(ans);
   if (['uz', 'en', 'tr'].includes(lang)) { const cw = (t.match(/[а-яёўқғҳ]{2,}/gi) || []).length; if (cw > 0) return true; if (lang === 'uz' && (/[şçı]/.test(t) || /\b(konechno|voobshe|normalno|ponyatno|spasibo|problema|vopros|teşekkür|bilgi)\b/i.test(t))) return true; return false; }
-  if (['ru', 'uz_cyrl'].includes(lang)) { const lw = (t.match(/\b[a-z]{3,}\b/g) || []).length; return lw > 3; }
+  if (['ru', 'uz_cyrl', 'kk', 'ky', 'tg', 'uk'].includes(lang)) { const lw = (t.match(/\b[a-z]{3,}\b/g) || []).length; return lw > 3; }
   return false;
 }
 async function fixLang(text, lang) {
@@ -1444,27 +1504,34 @@ async function wikiContext(q) {
   wikiCache.set(key, out); if (wikiCache.size > 500) wikiCache.delete(wikiCache.keys().next().value);
   return out;
 }
-app.post('/api/ai', auth, rateLimit('ai', 80, 3600e3), wrap(async (req, res) => {
-  const raw = Array.isArray(req.body?.messages) ? req.body.messages : [];
-  const msgs = raw.slice(-48).map((m, i, a) => ({ role: m?.role === 'assistant' ? 'assistant' : 'user', content: String(m?.content || '').slice(0, i === 0 ? 14000 : 6000),
+async function aiChat(req, raw, { voice = false } = {}) {
+  const msgs = (Array.isArray(raw) ? raw : []).slice(-48).map((m, i, a) => ({ role: m?.role === 'assistant' ? 'assistant' : 'user', content: String(m?.content || '').slice(0, i === 0 ? 14000 : 6000),
     image: i === a.length - 1 && typeof m?.image === 'string' && m.image.length < 7e6 && /^data:image\/(jpeg|png|webp);base64,/.test(m.image) ? m.image : undefined }))
     .filter((m) => m.content.trim() || m.image);
-  if (!msgs.length || msgs[msgs.length - 1].role !== 'user') return res.status(400).json({ error: 'empty' });
+  if (!msgs.length || msgs[msgs.length - 1].role !== 'user') return { status: 400, body: { error: 'empty' } };
+  const q = msgs[msgs.length - 1];
   // "Eslab qol: ..." — foydalanuvchi haqidagi ma'lumot keyingi suhbatlarda ham ishlatiladi
-  const rem = /^\s*(eslab qol|yodda tut|esingda tursin|запомни|remember( that)?)[\s:,-]+(.{3,300})$/i.exec(msgs[msgs.length - 1].content);
+  const rem = /^\s*(eslab qol|yodda tut|esingda tursin|запомни|remember( that)?)[\s:,-]+(.{3,300})$/i.exec(q.content);
   if (rem) { await db.run('INSERT INTO ai_memory(user_id, fact, at) VALUES(?,?,?)', [req.user.id, rem[3].trim(), now()]); await db.run('DELETE FROM ai_memory WHERE user_id=? AND at < (SELECT MIN(at) FROM (SELECT at FROM ai_memory WHERE user_id=? ORDER BY at DESC LIMIT 40) x)', [req.user.id, req.user.id]).catch(() => {}); }
-  const mem = await db.all('SELECT fact FROM ai_memory WHERE user_id=? ORDER BY at DESC LIMIT 40', [req.user.id]).catch(() => []);
+  const web = req.body?.web !== false && req.body?.web !== '0';
+  const wikiP = web && !q.image ? wikiContext(q.content) : Promise.resolve(null);
+  const [mem, wk] = await Promise.all([db.all('SELECT fact FROM ai_memory WHERE user_id=? ORDER BY at DESC LIMIT 40', [req.user.id]).catch(() => []),
+    voice ? Promise.race([wikiP, sleep(1500).then(() => null)]) : wikiP]); // ovozli savolda bilim bazasini uzoq kutmaymiz
   const me = req.user; let reg = null; try { reg = JSON.parse(me.region || 'null'); } catch {}
   const sys = `\nFoydalanuvchi: ${me.name || ''}${reg?.name ? ', hududi: ' + reg.name : ''}.` + (mem.length ? `\nFoydalanuvchi so'rab eslab qolinganlar (kerak bo'lganda hisobga ol):\n${mem.map((x) => '- ' + x.fact).join('\n')}` : '') + (rem ? `\nFoydalanuvchi hozirgina "${rem[3].trim()}" ni eslab qolishni so'radi — eslab qolganingni qisqa tasdiqla.` : '');
-  const wk = req.body?.web !== false && !msgs[msgs.length - 1].image ? await wikiContext(msgs[msgs.length - 1].content) : null;
-  const sysW = sys + (wk ? `\n\nMA'LUMOTNOMA (Vikipediya, savolga mos bo'lishi mumkin):\n${wk.map((w, i) => `[${i + 1}] ${w.title} (${w.l}): ${w.text}`).join('\n')}` : '');
-  const qLang = detectLang(msgs[msgs.length - 1].content) || 'uz';
-  const sysL = sysW + `\n\nMUHIM: foydalanuvchining oxirgi savoli ${LANG_NAMES[qLang]} yozilgan. Butun javobni FAQAT ${LANG_NAMES[qLang]} yoz, boshqa tildagi so'z va harflarni aralashtirma (ma'lumotnoma boshqa tilda bo'lsa ham — tarjima qil).`;
-  const out = await aiAnswer(msgs, { web: req.body?.web !== false, sys: sysL });
+  const sysW = sys + (wk ? `\n\nMA'LUMOTNOMA (Vikipediya, savolga mos bo'lishi mumkin):\n${wk.map((w, i) => `[${i + 1}] ${w.title} (${w.l}): ${voice ? w.text.slice(0, 700) : w.text}`).join('\n')}` : '');
+  const qLang = detectLang(q.content) || 'uz';
+  const sysL = sysW + `\n\nMUHIM: foydalanuvchining oxirgi savoli ${LANG_NAMES[qLang]} yozilgan. Butun javobni FAQAT ${LANG_NAMES[qLang]} yoz, boshqa tildagi so'z va harflarni aralashtirma (ma'lumotnoma boshqa tilda bo'lsa ham — tarjima qil).`
+    + (voice ? `\nOVOZLI SUHBAT: javob ovoz bilan o'qiladi — 2–5 ta qisqa, ravon gap bilan javob ber, ro'yxat, jadval, Markdown belgilari va havolalarsiz. Foydalanuvchi batafsil so'rasa — ko'proq ayt.` : '');
+  const out = await aiAnswer(msgs, { web, sys: sysL, fast: voice, maxTok: voice ? 450 : 0 });
   if (out && langMixed(out.text, qLang)) out.text = await fixLang(out.text, qLang);
   if (out && wk && !(out.sources || []).length) out.sources = wk.map((w) => ({ title: `${w.title} — Vikipediya (${w.l})`, url: w.url }));
-  if (!out) return res.status(503).json({ error: 'ai_unavailable' });
-  res.json({ text: out.text.slice(0, 16000), sources: out.sources || [] });
+  if (!out) return { status: 503, body: { error: 'ai_unavailable' } };
+  return { status: 200, body: { text: out.text.slice(0, 16000), sources: out.sources || [] } };
+}
+app.post('/api/ai', auth, rateLimit('ai', 80, 3600e3), wrap(async (req, res) => {
+  const r = await aiChat(req, req.body?.messages, { voice: !!req.body?.voice });
+  res.status(r.status).json(r.body);
 }));
 app.get('/api/ai/memory', auth, wrap(async (req, res) => res.json({ list: (await db.all('SELECT at, fact FROM ai_memory WHERE user_id=? ORDER BY at DESC LIMIT 40', [req.user.id])).map((r) => ({ id: Number(r.at), fact: r.fact })) })));
 app.post('/api/ai/memory/clear', auth, wrap(async (req, res) => { const at = Number(req.body?.id); if (at) await db.run('DELETE FROM ai_memory WHERE user_id=? AND at=?', [req.user.id, at]); else await db.run('DELETE FROM ai_memory WHERE user_id=?', [req.user.id]); res.json({ ok: true }); }));
@@ -1530,6 +1597,11 @@ app.post('/api/ai/stt', auth, rateLimit('aistt2', 200, 3600e3), upload.single('f
     const buf = fs.readFileSync(req.file.path);
     const text = await sttAudio(buf, String(req.file.mimetype || 'audio/webm').split(';')[0]);
     if (text == null) return res.status(503).json({ error: sttOn() ? 'stt_failed' : 'no_stt' });
+    if (req.body?.ask === '1' && text.trim() && rateOk('ai' + req.user.id, 80, 3600e3)) { // bitta so'rovda: ovoz → matn → javob (tezroq)
+      let hist = []; try { hist = JSON.parse(String(req.body.messages || '[]')); } catch {}
+      const r = await aiChat(req, [...(Array.isArray(hist) ? hist : []), { role: 'user', content: text.trim() }], { voice: true });
+      return res.json({ text, answer: r.status === 200 ? r.body : null, error: r.status === 200 ? undefined : r.body.error });
+    }
     res.json({ text });
   } finally { fs.unlink(req.file.path, () => {}); }
 }));
@@ -1633,7 +1705,7 @@ app.post('/api/ai/summary', auth, rateLimit('aisum', 30, 3600e3), wrap(async (re
     const body = m.type === 'text' ? m.text : m.type === 'poll' ? `[so'rovnoma: ${meta.poll?.q}]` : `[${PREVIEW[m.type]?.[0] || m.type}]${m.text ? ' ' + m.text : ''}`;
     return `${new Date(Number(m.created_at)).toISOString().slice(5, 16).replace('T', ' ')} ${who}: ${String(body || '').slice(0, 400)}`; }).join('\n');
   const lang = LANGS.includes(req.body?.lang) ? req.body.lang : req.user.lang || 'uz';
-  const r = await aiAnswer([{ role: 'user', content: `Quyidagi chat yozishmasining qisqa xulosasini ${lang === 'ru' ? 'rus' : lang === 'en' ? 'ingliz' : 'sof o‘zbek'} tilida yoz: asosiy mavzular, kelishilgan narsalar, savollar va bajarilishi kerak bo'lgan ishlar (ro'yxat ko'rinishida, 8 banddan oshmasin).\n---\n${lines}` }], { web: false });
+  const r = await aiAnswer([{ role: 'user', content: `Quyidagi chat yozishmasining qisqa xulosasini ${lang === 'uz' ? 'sof o‘zbek' : lang === 'ru' ? 'rus' : (LANG_EN[lang] || 'English') + ' (shu tilda)'} tilida yoz: asosiy mavzular, kelishilgan narsalar, savollar va bajarilishi kerak bo'lgan ishlar (ro'yxat ko'rinishida, 8 banddan oshmasin).\n---\n${lines}` }], { web: false });
   if (!r) return res.status(503).json({ error: 'ai_unavailable' });
   res.json({ text: r.text });
 }));
@@ -1769,8 +1841,21 @@ app.get('/api/birthdays', auth, wrap(async (req, res) => {
 }));
 
 // Maxfiylik: oxirgi faollik vaqtini yashirish
+app.get('/api/profile/privacy', auth, wrap(async (req, res) => {
+  const u = await getUser(req.user.id); const out = {};
+  for (const k of ['seen', 'story']) { const ids = privList(u, k).slice(0, 200); const users = []; for (const id of ids) { const x = await getUser(id); if (x && !x.deleted) users.push(publicUser(x)); } out[k] = { m: u['priv_' + k] || (k === 'seen' && u.hide_seen ? 'nobody' : 'all'), users }; }
+  res.json(out);
+}));
 app.post('/api/profile/privacy', auth, wrap(async (req, res) => {
-  await db.run('UPDATE users SET hide_seen=? WHERE id=?', [req.body.hideSeen ? 1 : 0, req.user.id]);
+  for (const k of ['seen', 'story']) {
+    const v = req.body?.[k]; if (!v || typeof v !== 'object') continue;
+    const m = PRIV_MODES.includes(v.m) ? v.m : 'all';
+    const list = [...new Set((Array.isArray(v.list) ? v.list : []).map(Number).filter((x) => x > 0 && x !== req.user.id))].slice(0, 200);
+    await db.run(`UPDATE users SET priv_${k}=?, priv_${k}_list=? WHERE id=?`, [m, JSON.stringify(list), req.user.id]);
+    if (k === 'seen') await db.run('UPDATE users SET hide_seen=? WHERE id=?', [m === 'nobody' ? 1 : 0, req.user.id]);
+  }
+  if ('hideSeen' in (req.body || {})) await db.run('UPDATE users SET hide_seen=?, priv_seen=? WHERE id=?', [req.body.hideSeen ? 1 : 0, req.body.hideSeen ? 'nobody' : 'all', req.user.id]);
+  contactSets.delete(req.user.id);
   const u = await getUser(req.user.id); broadcastUser(u).catch(() => {});
   res.json(publicUser(u, true));
 }));
@@ -1913,7 +1998,8 @@ app.post('/api/push/unsubscribe', auth, wrap(async (req, res) => { await push.un
 
 // ===== Hikoyalar (stories) =====
 app.get('/api/stories', auth, wrap(async (req, res) => {
-  const ids = [req.user.id, ...(await peersOf(req.user.id))];
+  const ids = [req.user.id];
+  for (const p of await peersOf(req.user.id)) { const pu = await getUser(p); if (pu && canSee(pu, 'story', req.user.id)) ids.push(Number(p)); } // hikoya egasining maxfiylik sozlamasi
   const ph = ids.map(() => '?').join(',');
   const rows = await db.all(`SELECT s.*, (SELECT COUNT(*) FROM story_views v WHERE v.story_id=s.id AND v.user_id=?) AS seen,
     (SELECT COUNT(*) FROM story_views v WHERE v.story_id=s.id) AS views
@@ -1934,14 +2020,14 @@ app.post('/api/stories', auth, wrap(async (req, res) => {
   if (!storage.isOurs(file) || !/^(image|video)\//.test(String(mime)) || !(await fileAllowed(file, req.user.id))) return res.status(400).json({ error: 'bad file' });
   const id = await db.insert('INSERT INTO stories(user_id,file,mime,caption,duration,pinned,created_at,expires_at) VALUES(?,?,?,?,?,?,?,?)',
     [req.user.id, file, mime, String(req.body.caption || '').slice(0, 300), Number(req.body.duration) || null, req.body.pinned === false ? 0 : 1, now(), now() + STORY_TTL]);
-  (await peersOf(req.user.id)).concat(req.user.id).forEach((p) => io.to('u' + p).emit('story:new', { userId: req.user.id }));
+  { const me = await getUser(req.user.id); (await peersOf(req.user.id)).filter((p) => canSee(me, 'story', p)).concat(req.user.id).forEach((p) => io.to('u' + p).emit('story:new', { userId: req.user.id })); }
   res.json({ ok: true, id });
 }));
 
 app.post('/api/stories/:id/view', auth, wrap(async (req, res) => {
   const s = await db.get('SELECT * FROM stories WHERE id=?', [Number(req.params.id)]);
   if (!s) return res.status(404).json({ error: 'not found' });
-  if (s.user_id !== req.user.id) {
+  if (s.user_id !== req.user.id && canSee(await getUser(s.user_id), 'story', req.user.id) && (s.pinned || (await peersOf(req.user.id)).map(Number).includes(Number(s.user_id)))) {
     await db.run('INSERT INTO story_views(story_id,user_id,at) VALUES(?,?,?) ON CONFLICT(story_id,user_id) DO NOTHING', [s.id, req.user.id, now()]);
     io.to('u' + s.user_id).emit('story:view', { storyId: s.id });
   }
@@ -2041,7 +2127,10 @@ app.delete('/api/reels/:id', auth, wrap(async (req, res) => {
 // Profildagi "Postlar" — saqlangan hikoyalar
 app.get('/api/users/:id/posts', auth, wrap(async (req, res) => {
   const uid = Number(req.params.id);
-  const rows = await db.all('SELECT id,file,mime,caption,duration,created_at FROM stories WHERE user_id=? AND (pinned=1 OR expires_at>?) ORDER BY created_at DESC LIMIT 200', [uid, now()]);
+  if (uid !== req.user.id && ((await isBlocked(uid, req.user.id)) || (await isBlocked(req.user.id, uid)))) return res.json([]);
+  const owner = await getUser(uid); if (!owner || (uid !== req.user.id && !canSee(owner, 'story', req.user.id))) return res.json([]); // egasi hikoyalarini yashirgan
+  const peer = uid === req.user.id || (await peersOf(req.user.id)).map(Number).includes(uid); // faol hikoyalar faqat suhbatdoshlarga, qadalganlari profilda hammaga
+  const rows = await db.all(`SELECT id,file,mime,caption,duration,created_at FROM stories WHERE user_id=? AND (pinned=1${peer ? ' OR expires_at>?' : ''}) ORDER BY created_at DESC LIMIT 200`, peer ? [uid, now()] : [uid]);
   res.json(rows);
 }));
 
@@ -2251,9 +2340,9 @@ const io = new Server(server, { maxHttpBufferSize: 1e6, pingInterval: 20000, pin
 
 async function broadcastUser(raw) {
   try {
-    const u = publicUser(raw);
     const peers = await peersOf(raw.id);
-    peers.forEach((p) => io.to('u' + p).emit('user:update', u));
+    if (raw.priv_seen === 'contacts' || raw.priv_story === 'contacts') await warmContacts(raw.id);
+    peers.forEach((p) => io.to('u' + p).emit('user:update', publicUser(raw, false, p)));
     io.to('u' + raw.id).emit('user:update', publicUser(raw, true));
   } catch (e) { console.error('broadcastUser:', e.message); }
 }
@@ -2264,7 +2353,7 @@ const PREVIEW = {
   sticker: ['Stiker', 'Стикер', 'Sticker'], gif: ['GIF', 'GIF', 'GIF'], location: ['📍 Joylashuv', '📍 Геопозиция', '📍 Location'], game: ['🎮 O‘yinga taklif', '🎮 Приглашение в игру', '🎮 Game invite'], poll: ['📊 So‘rovnoma', '📊 Опрос', '📊 Poll'], call: ['📞 Guruh qo‘ng‘irog‘i boshlandi — qo‘shiling', '📞 Начался групповой звонок — присоединяйтесь', '📞 Group call started — join'],
 };
 function previewFor(m, lang) {
-  const i = Math.max(0, LANGS.indexOf(lang));
+  const i = Math.max(0, ['uz', 'ru', 'en'].indexOf(baseLang(lang)));
   if (m.type === 'text') return m.text.slice(0, 120);
   if (m.type === 'sticker') { let e = ''; try { e = (typeof m.meta === 'string' ? JSON.parse(m.meta || '{}') : m.meta || {}).e || ''; } catch {} return (e + ' ' + PREVIEW.sticker[i]).trim(); }
   return (PREVIEW[m.type]?.[i] || '') + (m.text ? ': ' + m.text.slice(0, 80) : '');
@@ -2295,7 +2384,7 @@ function cleanMeta(meta) {
   }
   if (meta.card && typeof meta.card === 'object') { // karta (pul qabul qilish uchun) — faqat raqam, egasi, bank. CVV/muddat hech qachon saqlanmaydi
     const n = String(meta.card.n || '').replace(/\D/g, '');
-    if (/^\d{16}$/.test(n) && luhn(n)) o.card = { n, h: String(meta.card.h || '').slice(0, 40), b: String(meta.card.b || '').slice(0, 24) };
+    if (/^\d{16}$/.test(n) && luhn(n)) o.card = { x: cardEnc(n), l4: n.slice(-4), h: String(meta.card.h || '').slice(0, 40), b: String(meta.card.b || '').slice(0, 24) };
   }
   if (meta.pay && typeof meta.pay === 'object') { // pul o'tkazmasi / so'rovi kartochkasi
     const amt = Math.round(Number(meta.pay.amt));
@@ -2465,7 +2554,7 @@ async function loadRoom(id) {
   roomLoads.set(id, job); return job;
 }
 const pendingCalls = new Map(); // calleeId -> { offer, ice[], expires, callId, from }
-const on = (socket, ev, fn) => socket.on(ev, (...a) => Promise.resolve(fn(...a)).catch((e) => { console.error(ev, e.message); const ack = a.find((x) => typeof x === 'function'); ack?.({ error: 'server' }); }));
+const on = (socket, ev, fn) => socket.on(ev, (...a) => viewerALS.run({ v: socket.uid }, () => Promise.resolve(fn(...a))).catch((e) => { console.error(ev, e.message); const ack = a.find((x) => typeof x === 'function'); ack?.({ error: 'server' }); }));
 
 io.on('connection', async (socket) => {
   const uid = socket.uid;
@@ -3028,7 +3117,7 @@ async function extraSchema() {
   await db.run(`CREATE TABLE IF NOT EXISTS reel_comments(id ${db.kind === 'postgres' ? 'BIGSERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'}, reel_id BIGINT, user_id BIGINT, text TEXT, at BIGINT)`);
   await db.run('CREATE INDEX IF NOT EXISTS idx_rcom ON reel_comments(reel_id, id)');
   await db.run(`CREATE TABLE IF NOT EXISTS game_rooms(id TEXT PRIMARY KEY, game TEXT, chat_id BIGINT, a BIGINT, b BIGINT, moves TEXT, status TEXT, winner INTEGER, claims TEXT, created BIGINT, updated BIGINT)`);
-  const cols = [['users', 'reg_info', 'TEXT'], ['users', 'folders', 'TEXT'], ['users', 'region', 'TEXT'], ['users', 'invite_code', 'TEXT'], ['users', 'invited_by', 'BIGINT'], ['game_rooms', 'secret', 'TEXT'], ['users', 'steps_on', 'INTEGER DEFAULT 0'], ['users', 'banned', 'INTEGER DEFAULT 0'], ['users', 'birthday', 'TEXT'], ['chat_members', 'pinned', 'BIGINT DEFAULT 0'], ['chat_members', 'archived', 'INTEGER DEFAULT 0'], ['users', 'hide_seen', 'INTEGER DEFAULT 0'], ['users', 'deleted', 'INTEGER DEFAULT 0'], ['chat_members', 'del_at', 'BIGINT'], ['users', 'loc_share', 'INTEGER DEFAULT 0'], ['game_rooms', 'pl', 'TEXT'], ['game_rooms', 'chats', 'TEXT']];
+  const cols = [['users', 'reg_info', 'TEXT'], ['users', 'folders', 'TEXT'], ['users', 'region', 'TEXT'], ['users', 'invite_code', 'TEXT'], ['users', 'invited_by', 'BIGINT'], ['game_rooms', 'secret', 'TEXT'], ['users', 'steps_on', 'INTEGER DEFAULT 0'], ['users', 'banned', 'INTEGER DEFAULT 0'], ['users', 'birthday', 'TEXT'], ['chat_members', 'pinned', 'BIGINT DEFAULT 0'], ['chat_members', 'archived', 'INTEGER DEFAULT 0'], ['users', 'hide_seen', 'INTEGER DEFAULT 0'], ['users', 'deleted', 'INTEGER DEFAULT 0'], ['chat_members', 'del_at', 'BIGINT'], ['users', 'loc_share', 'INTEGER DEFAULT 0'], ['game_rooms', 'pl', 'TEXT'], ['game_rooms', 'chats', 'TEXT'], ['users', 'priv_seen', 'TEXT'], ['users', 'priv_seen_list', 'TEXT'], ['users', 'priv_story', 'TEXT'], ['users', 'priv_story_list', 'TEXT']];
   for (const [t, c, type] of cols) {
     try { await db.get(`SELECT ${c} FROM ${t} LIMIT 1`); } catch { await db.run(`ALTER TABLE ${t} ADD COLUMN ${c} ${type}`); }
   }

@@ -167,7 +167,7 @@ else {
   const FLAT = {
     '/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/i18n.js': 'i18n.js', '/styles.css': 'styles.css',
     '/sw.js': 'sw.js', '/manifest.webmanifest': 'manifest.webmanifest', '/icons/icon-192.png': 'icon-192.png',
-    '/icons/icon-512.png': 'icon-512.png', '/icons/mark.png': 'mark.png', '/icons/logo-full.jpg': 'logo-full.jpg', '/icons/badge-96.png': 'badge-96.png', '/games.js': 'games.js',
+    '/icons/icon-512.png': 'icon-512.png', '/icons/mark.png': 'mark.png', '/icons/logo-full.jpg': 'logo-full.jpg', '/icons/badge-96.png': 'badge-96.png', '/games.js': 'games.js', '/privacy.html': 'privacy.html', '/terms.html': 'terms.html',
   };
   app.get(Object.keys(FLAT), (req, res) => {
     if (req.path.endsWith('.webmanifest')) res.type('application/manifest+json');
@@ -176,6 +176,7 @@ else {
 }
 // 30 til: qo'shimcha tillar tarjimasi bitta faylda (i18n-all.json) — /i18n/<til>.json sifatida beriladi
 let I18N_ALL = null;
+for (const k of ['privacy', 'terms']) app.get('/' + k, (req, res) => res.redirect(301, '/' + k + '.html'));
 app.get('/i18n/:code.json', (req, res) => {
   const code = String(req.params.code || ''); if (!/^[a-z]{2,3}$/.test(code)) return res.status(404).end();
   if (!I18N_ALL) { for (const f of [PUBLIC_DIR && path.join(PUBLIC_DIR, 'i18n-all.json'), path.join(__dirname, 'i18n-all.json')].filter(Boolean)) { try { I18N_ALL = JSON.parse(fs.readFileSync(f, 'utf8')); break; } catch {} } I18N_ALL ||= {}; }

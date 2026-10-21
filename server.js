@@ -1948,7 +1948,7 @@ async function sweepMedia() {
   sweeping = true;
   try {
     const files = await db.all(`SELECT DISTINCT file FROM messages WHERE type IN ${MEDIA_TYPES} AND file IS NOT NULL AND gone=0
-      AND (id IN (SELECT message_id FROM media_acks WHERE at>?) OR created_at<?) LIMIT 300`, [now() - 2 * 24 * 3600e3, now() - MEDIA_TTL]);
+      AND (restored_at IS NULL OR restored_at<?) AND (id IN (SELECT message_id FROM media_acks WHERE at>?) OR created_at<?) LIMIT 300`, [now() - 15 * 60e3, now() - 2 * 24 * 3600e3, now() - MEDIA_TTL]);
     let n = 0;
     for (const { file } of files) {
       const msgs = await db.all('SELECT * FROM messages WHERE file=? AND gone=0', [file]); // uzatilgan nusxalar ham shu faylni ishlatadi
@@ -3089,6 +3089,338 @@ app.get('/api/map/route', auth, rateLimit('maproute', 600, 3600e3), wrap(async (
   if (fs.existsSync(ml)) app.use('/vendor/maplibre', express.static(ml, { maxAge: '30d' }));
 }
 
+// ======================= BILIM SINOVI: fanlar, qiziqishlar, aralash, IQ + reyting =======================
+// Savollar quiz-bank.json da (har birida ishonchli manba ko'rsatilgan). To'g'ri javob faqat serverda — mijozga yuborilmaydi.
+const QZ_SCI = ['geography', 'physics', 'chemistry', 'biology', 'astronomy', 'math', 'history', 'literature'];
+const QZ_INT = ['uzbekistan', 'tech', 'sport', 'animals', 'general'];
+const QZ_CATS = [...QZ_SCI, ...QZ_INT, 'mix', 'iq'];
+const QZ_N = 10, QZ_IQ_N = 12;
+let QZ_BANK = null;
+const qzBank = () => { if (!QZ_BANK) { try { QZ_BANK = JSON.parse(fs.readFileSync(path.join(__dirname, 'quiz-bank.json'), 'utf8')); } catch (e) { console.error('quiz-bank.json:', e.message); QZ_BANK = {}; } } return QZ_BANK; };
+const qzLang = (l) => (String(l || '').startsWith('uz') || l === 'kaa' ? 'uz' : baseLang(l));
+const qzSessions = new Map(); // sid -> sessiya (30 daqiqa)
+const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+// 1 ta to'g'ri + 3 ta yaqin, lekin aniq noto'g'ri raqam
+const numOpts = (ans, spread) => { const s = new Set([ans]); let k = 0; while (s.size < 4 && k++ < 200) { const d = rnd(1, spread) * (Math.random() < 0.5 ? -1 : 1); if (ans + d >= 0 || ans < 0) s.add(ans + d); } return [...s].map(String); };
+const QZ_TXT = {
+  seq: { uz: 'Ketma-ketlikni davom ettiring: {s}, ?', ru: 'Продолжите последовательность: {s}, ?', en: 'Continue the sequence: {s}, ?' },
+  odd: { uz: 'Qaysi son ortiqcha?', ru: 'Какое число лишнее?', en: 'Which number is the odd one out?' },
+  ana: { uz: 'Qoidani toping: {a} → {b}, {c} → {d}. {e} → ?', ru: 'Найдите правило: {a} → {b}, {c} → {d}. {e} → ?', en: 'Find the rule: {a} → {b}, {c} → {d}. {e} → ?' },
+  mul: { uz: '{a} × {b} = ?', ru: '{a} × {b} = ?', en: '{a} × {b} = ?' },
+  pct: { uz: '{a} sonining {p}% i nechaga teng?', ru: 'Сколько будет {p}% от {a}?', en: 'What is {p}% of {a}?' },
+  sum: { uz: '{a} + {b} − {c} = ?', ru: '{a} + {b} − {c} = ?', en: '{a} + {b} − {c} = ?' },
+  sq: { uz: '{a}² = ?', ru: '{a}² = ?', en: '{a}² = ?' },
+  gen: { uz: 'Mantiqiy hisob', ru: 'Логический расчёт', en: 'Logical computation' },
+};
+const fillT = (k, l, v) => QZ_TXT[k][l].replace(/\{(\w)\}/g, (_, x) => v[x]);
+function qzGen(kind, lv, l) { // kind: math | iq;  lv: 1..3
+  const mk = (q, ans, opts, d) => ({ q, o: opts, d, src: QZ_TXT.gen[l], gen: 1, ans });
+  if (kind === 'math') {
+    const t = rnd(0, 3);
+    if (t === 0) { const a = rnd(6, 9 + lv * 4), b = rnd(6, 9 + lv * 3); return mk(fillT('mul', l, { a, b }), a * b, numOpts(a * b, 12), lv); }
+    if (t === 1) { const p = [10, 20, 25, 50, 15, 30][rnd(0, 5)], a = rnd(2, 20) * 20; const ans = (a * p) / 100; return mk(fillT('pct', l, { a, p }), ans, numOpts(ans, 10), lv); }
+    if (t === 2) { const a = rnd(20, 99 * lv), b = rnd(20, 99 * lv), c = rnd(10, 60); return mk(fillT('sum', l, { a, b, c }), a + b - c, numOpts(a + b - c, 10), lv); }
+    const a = rnd(11, 14 + lv * 4); return mk(fillT('sq', l, { a }), a * a, numOpts(a * a, 20), lv);
+  }
+  const t = rnd(0, lv === 1 ? 3 : 6);
+  let s, ans;
+  if (t === 0) { const a = rnd(1, 20), d = rnd(2, 9); s = [0, 1, 2, 3, 4].map((i) => a + d * i); ans = a + d * 5; }
+  else if (t === 1) { const a = rnd(1, 4), r = rnd(2, 3); s = [0, 1, 2, 3].map((i) => a * r ** i); ans = a * r ** 4; }
+  else if (t === 2) { const st = rnd(1, 6); s = [0, 1, 2, 3, 4].map((i) => (st + i) ** 2); ans = (st + 5) ** 2; }
+  else if (t === 3) { // ortiqcha son
+    const k = [3, 4, 5, 7][rnd(0, 3)]; const good = shuffle([...Array(12)].map((_, i) => k * (i + 2))).slice(0, 3); let bad; do { bad = rnd(k * 2, k * 13); } while (bad % k === 0);
+    const opts = [String(bad), ...good.map(String)]; return mk(QZ_TXT.odd[l] + ` (${shuffle([...opts]).join(', ')})`, bad, opts, lv);
+  }
+  else if (t === 4) { let a = rnd(1, 5), b = rnd(1, 5); s = [a, b]; while (s.length < 6) s.push(s[s.length - 1] + s[s.length - 2]); ans = s.pop() + 0; ans = s[s.length - 1] + s[s.length - 2]; }
+  else if (t === 5) { const a = rnd(2, 10); s = [a]; for (let i = 1; i < 5; i++) s.push(s[i - 1] + i + (lv - 1)); ans = s[4] + 5 + (lv - 1); }
+  else { const m = rnd(2, 5), c = rnd(1, 7); const f = (x) => x * m + c; const a = rnd(2, 6), b = a + rnd(2, 4), e = b + rnd(2, 5); return mk(fillT('ana', l, { a, b: f(a), c: b, d: f(b), e }), f(e), numOpts(f(e), Math.max(4, m * 2)), Math.max(lv, 2)); }
+  return mk(fillT('seq', l, { s: s.join(', ') }), ans, numOpts(ans, Math.max(3, Math.round(Math.abs(ans) * 0.15))), lv);
+}
+async function qzPick(uid, cat, l) {
+  const items = [];
+  if (cat === 'iq') { for (let i = 0; i < QZ_IQ_N; i++) items.push(qzGen('iq', i < 4 ? 1 : i < 8 ? 2 : 3, l)); return items; }
+  const bank = qzBank(); const cats = cat === 'mix' ? [...QZ_SCI, ...QZ_INT] : [cat];
+  const pool = []; for (const c of cats) (bank[c] || []).forEach((x, i) => pool.push({ ...x, k: c + ':' + i }));
+  const seen = new Set((await db.all('SELECT k FROM quiz_seen WHERE user_id=?', [uid]).catch(() => [])).map((r) => r.k));
+  const want = cat === 'math' ? 6 : QZ_N;
+  const fresh = shuffle(pool.filter((x) => !seen.has(x.k))), old = shuffle(pool.filter((x) => seen.has(x.k)).map((x) => ({ ...x, seen: 1 })));
+  const take = [...fresh, ...old].slice(0, want);
+  for (const x of take) items.push({ q: x.q[l] || x.q.en, o: x.o[l] || x.o.en, d: x.d, src: x.src, k: x.k, seen: x.seen, ans: 0 });
+  if (cat === 'math') for (let i = items.length; i < QZ_N; i++) items.push(qzGen('math', rnd(1, 3), l));
+  return items.sort((a, b) => a.d - b.d);
+}
+const qzLimit = (cat) => (cat === 'iq' ? 40e3 : 20e3);
+app.get('/api/quiz/cats', auth, (req, res) => { const b = qzBank(); res.json({ sci: QZ_SCI, int: QZ_INT, counts: Object.fromEntries(Object.entries(b).map(([k, v]) => [k, v.length])) }); });
+app.post('/api/quiz/start', auth, rateLimit('qzstart', 80, 3600e3), wrap(async (req, res) => {
+  const cat = String(req.body?.cat || ''); if (!QZ_CATS.includes(cat)) return res.status(400).json({ error: 'bad cat' });
+  const l = qzLang(req.body?.lang || req.user.lang);
+  const raw = await qzPick(req.user.id, cat, l); if (!raw.length) return res.status(503).json({ error: 'no_questions' });
+  const items = raw.map((x) => { const perm = shuffle([0, 1, 2, 3]); const o = perm.map((p) => String(x.o[p])); return { q: x.q, o, a: perm.indexOf(0), d: x.d, src: x.src, k: x.k, seen: x.seen }; });
+  const sid = crypto.randomBytes(12).toString('hex');
+  for (const [k, s] of qzSessions) if (now() - s.at > 1800e3) qzSessions.delete(k);
+  qzSessions.set(sid, { uid: req.user.id, cat, items, i: 0, tq: now(), pts: 0, ok: 0, max: 0, at: now(), done: false });
+  res.json({ sid, cat, limit: qzLimit(cat), qs: items.map((x) => ({ q: x.q, o: x.o, d: x.d })) });
+}));
+app.post('/api/quiz/answer', auth, rateLimit('qzans', 900, 3600e3), wrap(async (req, res) => {
+  const s = qzSessions.get(String(req.body?.sid || '')); if (!s || s.uid !== req.user.id || s.done) return res.status(400).json({ error: 'no_session' });
+  const i = Number(req.body?.i); if (i !== s.i) return res.status(409).json({ error: 'order', i: s.i });
+  const it = s.items[i], lim = qzLimit(s.cat), el = Math.max(0, now() - s.tq), pick = Number(req.body?.pick);
+  const ok = el <= lim + 3000 && pick === it.a;
+  let pts = ok ? 10 * it.d + Math.round(10 * Math.max(0, 1 - el / lim)) : 0; if (it.seen) pts = Math.round(pts / 2);
+  s.max += 10 * it.d + 10; s.pts += pts; if (ok) s.ok++; s.i++; s.tq = now() + 1300; // javob ko'rsatiladigan vaqt
+  const out = { ok, a: it.a, pts, total: s.pts, src: it.src };
+  if (s.i >= s.items.length) { s.done = true; out.done = await qzFinish(req.user.id, s); }
+  res.json(out);
+}));
+async function qzFinish(uid, s) {
+  const n = s.items.length; let iq = null;
+  if (s.cat === 'iq') iq = Math.max(70, Math.min(145, Math.round(70 + 75 * (s.pts / Math.max(1, s.max)) * 1.12)));
+  const prev = await db.get('SELECT * FROM quiz_scores WHERE user_id=? AND cat=?', [uid, s.cat]);
+  const best = Math.max(Number(prev?.best) || 0, s.cat === 'iq' ? iq : s.pts);
+  const add = s.cat === 'iq' ? 0 : s.pts;
+  await db.run(`INSERT INTO quiz_scores(user_id,cat,pts,games,correct,answered,best,updated) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(user_id,cat) DO UPDATE SET
+    pts=quiz_scores.pts+excluded.pts, games=quiz_scores.games+1, correct=quiz_scores.correct+excluded.correct, answered=quiz_scores.answered+excluded.answered, best=excluded.best, updated=excluded.updated`, [uid, s.cat, add, 1, s.ok, n, best, now()]);
+  for (const it of s.items) if (it.k) await db.run('INSERT INTO quiz_seen(user_id,k,at) VALUES(?,?,?) ON CONFLICT(user_id,k) DO NOTHING', [uid, it.k, now()]).catch(() => {});
+  const r = await qzRank(uid, s.cat);
+  return { pts: s.pts, correct: s.ok, n, iq, best, catPts: Number(prev?.pts || 0) + add, rank: r.rank, players: r.players };
+}
+async function qzRank(uid, cat) {
+  if (cat === 'all') {
+    const me = Number((await db.get("SELECT SUM(pts) AS s FROM quiz_scores WHERE user_id=? AND cat<>'iq'", [uid]))?.s || 0);
+    const above = Number((await db.get("SELECT COUNT(*) AS c FROM (SELECT user_id, SUM(pts) AS s FROM quiz_scores WHERE cat<>'iq' GROUP BY user_id) t WHERE t.s>?", [me]))?.c || 0);
+    const players = Number((await db.get("SELECT COUNT(DISTINCT user_id) AS c FROM quiz_scores WHERE cat<>'iq'"))?.c || 0);
+    return { rank: me > 0 ? above + 1 : null, players, score: me };
+  }
+  const col = cat === 'iq' ? 'best' : 'pts';
+  const me = Number((await db.get(`SELECT ${col} AS s FROM quiz_scores WHERE user_id=? AND cat=?`, [uid, cat]))?.s || 0);
+  const above = Number((await db.get(`SELECT COUNT(*) AS c FROM quiz_scores WHERE cat=? AND ${col}>?`, [cat, me]))?.c || 0);
+  const players = Number((await db.get('SELECT COUNT(*) AS c FROM quiz_scores WHERE cat=?', [cat]))?.c || 0);
+  return { rank: me > 0 ? above + 1 : null, players, score: me };
+}
+app.get('/api/quiz/top', auth, wrap(async (req, res) => {
+  const cat = String(req.query.cat || 'all'); if (cat !== 'all' && !QZ_CATS.includes(cat)) return res.status(400).json({ error: 'bad cat' });
+  const rows = cat === 'all'
+    ? await db.all("SELECT user_id, SUM(pts) AS s, SUM(correct) AS c, SUM(answered) AS a FROM quiz_scores WHERE cat<>'iq' GROUP BY user_id ORDER BY s DESC LIMIT 50")
+    : await db.all(`SELECT user_id, ${cat === 'iq' ? 'best' : 'pts'} AS s, correct AS c, answered AS a FROM quiz_scores WHERE cat=? ORDER BY s DESC, updated ASC LIMIT 50`, [cat]);
+  const list = []; for (const r of rows) { if (!Number(r.s)) continue; const u = await getUser(r.user_id); if (u && u.name && !u.deleted) list.push({ user: publicUser(u, u.id === req.user.id), score: Number(r.s), acc: Number(r.a) ? Math.round((100 * Number(r.c)) / Number(r.a)) : 0 }); }
+  res.json({ cat, list, me: await qzRank(req.user.id, cat) });
+}));
+app.get('/api/quiz/me', auth, wrap(async (req, res) => {
+  const rows = await db.all('SELECT * FROM quiz_scores WHERE user_id=?', [req.user.id]);
+  const cats = Object.fromEntries(rows.map((r) => [r.cat, { pts: Number(r.pts), games: Number(r.games), acc: Number(r.answered) ? Math.round((100 * Number(r.correct)) / Number(r.answered)) : 0, best: Number(r.best) }]));
+  res.json({ cats, all: await qzRank(req.user.id, 'all'), iq: cats.iq?.best || null });
+}));
+// Profil uchun: foydalanuvchining bilim nishonlari
+app.get('/api/quiz/user/:id', auth, wrap(async (req, res) => {
+  const rows = await db.all('SELECT cat, pts, best FROM quiz_scores WHERE user_id=?', [Number(req.params.id) || 0]);
+  res.json({ cats: Object.fromEntries(rows.map((r) => [r.cat, { pts: Number(r.pts), best: Number(r.best) }])) });
+}));
+
+// ======================= AI REELS: har kuni 4–5 ta kulgili, ma'noli, foydali video =======================
+// "Birga AI ✨" hisobi nomidan joylanadi. Ssenariy — AI (Gemini/Cloudflare Llama), rasmlar — Cloudflare FLUX, montaj — ffmpeg (serverda).
+// O'chirish: AI_REELS=0. Kunlik soni: AI_REELS_PER_DAY (standart 5). Saqlash muddati: AI_REELS_KEEP_DAYS (standart 21).
+const AIR = { busy: false, last: null, err: null, done: 0 };
+const airOn = () => process.env.AI_REELS !== '0' && (cfOn() || !!process.env.GEMINI_API_KEY || !!process.env.AI_API_KEY);
+const airPerDay = () => Math.min(12, Math.max(1, Number(process.env.AI_REELS_PER_DAY) || 5));
+const AIR_SLOTS = [8, 11, 14, 17, 20, 9, 12, 15, 18, 21, 10, 13]; // Toshkent vaqti (soat)
+const AIR_KINDS = ['funny', 'useful', 'fact', 'wisdom', 'funny', 'useful', 'fact', 'wisdom'];
+const AIR_TOPICS = {
+  funny: ['Nasriddin Afandi latifasi', 'Afandi va bozor', 'Afandi va qozi', 'Afandi va eshagi', 'maktab hayotidan hazil', 'oilaviy kulgili vaziyat', 'texnologiya va buvijon', 'talabalar hayotidan hazil', 'mehmondorchilikdagi kulgili holat', 'smartfon va kundalik hayot hazili'],
+  wisdom: ['sabr haqida ibratli hikoya', 'mehnat va natija', 'do‘stlik qadri', 'ota-onaga hurmat', 'vaqt qadri', 'kichik odatlarning katta kuchi', 'kitob o‘qishning foydasi', 'xato qilish va o‘rganish', 'shukronalik', 'halollik haqida ibratli hikoya'],
+  useful: ['uyqu sifatini yaxshilash', 'suv ichish odati', 'diqqatni jamlash usullari', 'til o‘rganish maslahatlari', 'pul tejash odatlari', 'telefon xavfsizligi (parol, firibgarlik)', 'vaqtni rejalashtirish', 'ko‘z charchog‘ining oldini olish', 'to‘g‘ri o‘tirish va qomat', 'imtihonga tayyorlanish'],
+  fact: ['koinot haqida fakt', 'okean va dengiz hayvonlari', 'inson tanasi haqida fakt', 'qushlar haqida fakt', 'O‘zbekiston tabiati', 'qadimgi ixtirolar', 'o‘simliklar dunyosi', 'Yer sayyorasi haqida fakt', 'buyuk alloma olimlar (Beruniy, Ibn Sino, Ulug‘bek, Al-Xorazmiy)', 'hasharotlar haqida fakt'],
+};
+const AIR_RULES = {
+  funny: 'Mavzu: xalq og‘zaki ijodidagi Nasriddin Afandi latifasi yoki kundalik hayotdan odobli, yengil hazil. Hech kimni kamsitma, siyosat, din, millat mavzusiga tegma. Oxirgi slaydda kulgili yakun (punchline).',
+  wisdom: 'Mavzu: qisqa ibratli hikoya yoki hikmatli fikr. Iqtibosni mashhur odamga o‘ylab topib nisbat berma — muallif aniq bo‘lmasa, muallif ko‘rsatma. Oxirgi slaydda xulosa.',
+  useful: 'Mavzu: kundalik hayot uchun amaliy, umumiy qabul qilingan va xavfsiz maslahatlar. Dori-darmon yoki tashxis tavsiya qilma. Har slaydda bitta aniq maslahat.',
+  fact: 'Mavzu: ilmiy-qiziqarli faktlar. Faqat ensiklopediyalarda tasdiqlangan, aniq faktlarni yoz (shubhali raqam yozma). Har slaydda bitta fakt.',
+};
+async function airBot() {
+  let u = await db.get("SELECT * FROM users WHERE phone='bot:birga_ai'");
+  if (!u) {
+    const taken = await db.get('SELECT id FROM users WHERE username=?', ['birga_ai']);
+    const id = await db.insert('INSERT INTO users(phone,name,username,bio,lang,search,created_at,last_seen) VALUES(?,?,?,?,?,?,?,?)',
+      ['bot:birga_ai', 'Birga AI ✨', taken ? null : 'birga_ai', 'Har kuni kulgili, ma’noli va foydali reels — sun’iy intellekt tayyorlaydi', 'uz', 'birga ai birga_ai', now(), now()]);
+    u = await db.get('SELECT * FROM users WHERE id=?', [id]);
+  }
+  return u;
+}
+const tashDay = (ts = now()) => new Date(ts + 5 * 3600e3).toISOString().slice(0, 10);
+const tashHour = (ts = now()) => new Date(ts + 5 * 3600e3).getUTCHours();
+async function airScript(kind) {
+  const recent = JSON.parse((await db.get("SELECT v FROM meta WHERE k='air_titles'"))?.v || '[]');
+  const topic = AIR_TOPICS[kind][rnd(0, AIR_TOPICS[kind].length - 1)];
+  const sys = `Sen "Birga" messenjeri uchun qisqa vertikal video (reels) ssenariy muallifisan. FAQAT o‘zbek tilida (lotin alifbosi, o‘ g‘ harflari bilan) yoz, boshqa til aralashmasin.
+${AIR_RULES[kind]}
+Javobni FAQAT JSON ko‘rinishida ber, boshqa hech narsa yozma:
+{"title":"qisqa sarlavha (5 so‘zgacha)","slides":[{"text":"ekranda chiqadigan matn, 110 belgigacha","img":"short English prompt for an illustration of this slide, no text"}],"caption":"1-2 gaplik izoh","tags":["3-4 ta xeshteg so‘zi"]}
+Slaydlar soni: 4 yoki 5. Matnlar qisqa, tushunarli, qiziqarli bo‘lsin.`;
+  const user = `Mavzu yo‘nalishi: ${topic}. Takrorlanmasin — bu sarlavhalar avval bo‘lgan: ${recent.slice(-30).join('; ') || 'yo‘q'}.`;
+  const r = await aiAnswer([{ role: 'user', content: user }], { web: false, rawSys: sys, maxTok: 900 });
+  const txt = String(r?.text || r || ''); const m = txt.match(/\{[\s\S]*\}/); if (!m) throw new Error('ssenariy JSON emas');
+  const j = JSON.parse(m[0]);
+  const slides = (Array.isArray(j.slides) ? j.slides : []).map((s) => ({ text: String(s.text || '').replace(/\s+/g, ' ').trim().slice(0, 140), img: String(s.img || '').slice(0, 300) })).filter((s) => s.text).slice(0, 5);
+  if (slides.length < 3) throw new Error('slaydlar kam');
+  const title = String(j.title || topic).slice(0, 60);
+  recent.push(title); await db.run("INSERT INTO meta(k,v) VALUES('air_titles',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", [JSON.stringify(recent.slice(-60))]);
+  return { kind, title, slides, caption: String(j.caption || '').slice(0, 200), tags: (Array.isArray(j.tags) ? j.tags : []).map((x) => '#' + String(x).replace(/[#\s]+/g, '').slice(0, 24)).filter((x) => x.length > 1).slice(0, 4) };
+}
+function ffRun(args, ms = 600000) {
+  return new Promise((resolve, reject) => {
+    const p = require('child_process').spawn(process.env.FFMPEG_PATH || 'ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', ...args]); let err = ''; try { require('os').setPriority(p.pid, 19); } catch {} // chat sekinlashmasin
+    p.stderr.on('data', (d) => (err += d)); const tm = setTimeout(() => { p.kill('SIGKILL'); reject(new Error('ffmpeg vaqt tugadi')); }, ms);
+    p.on('close', (c) => { clearTimeout(tm); c === 0 ? resolve() : reject(new Error('ffmpeg: ' + err.slice(-400))); }); p.on('error', (e) => { clearTimeout(tm); reject(e); });
+  });
+}
+const ffDur = (f) => { try { const r = require('child_process').spawnSync((process.env.FFMPEG_PATH || 'ffmpeg').replace(/ffmpeg$/, 'ffprobe'), ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', f]); const d = parseFloat(String(r.stdout)); return isFinite(d) ? d : null; } catch { return null; } };
+const AIR_FONT = ['/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', '/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf', path.join(__dirname, 'DejaVuSans-Bold.ttf')].find((f) => { try { return fs.existsSync(f); } catch { return false; } });
+const wrapLines = (s, n = 24) => { const out = []; let cur = ''; for (const w of s.split(' ')) { if ((cur + ' ' + w).trim().length > n && cur) { out.push(cur); cur = w; } else cur = (cur + ' ' + w).trim(); } if (cur) out.push(cur); return out.slice(0, 6).join('\n'); };
+const AIR_CHORD = { funny: [261.63, 329.63, 392], wisdom: [220, 261.63, 329.63], useful: [293.66, 369.99, 440], fact: [196, 246.94, 293.66] };
+const AIR_COL = { funny: '0xF59E0B', wisdom: '0x8B5CF6', useful: '0x22C55E', fact: '0x3B82F6' };
+const AIR_LABEL = { funny: 'KULGILI', wisdom: 'HIKMAT', useful: 'FOYDALI', fact: 'QIZIQARLI FAKT' };
+async function airImage(prompt, file, kind) {
+  try {
+    const r = await cfRun('@cf/black-forest-labs/flux-1-schnell', { prompt: prompt + ', colorful digital illustration, vertical composition, high detail, no text, no letters, no watermark', steps: 4 }, 120000);
+    const buf = r?.image ? (Buffer.isBuffer(r.image) ? r.image : Buffer.from(String(r.image), 'base64')) : null;
+    if (buf && buf.length > 1000) { fs.writeFileSync(file, buf); return true; }
+  } catch (e) { console.error('AI reels rasm:', e.message); }
+  // zaxira: rangli gradient fon
+  const c = AIR_COL[kind] || '0x3B82F6';
+  await ffRun(['-f', 'lavfi', '-i', `gradients=s=768x768:c0=${c}:c1=0x0F172A:x0=0:y0=0:x1=768:y1=768:d=1`, '-frames:v', '1', file]).catch(() => ffRun(['-f', 'lavfi', '-i', `color=c=${c}:s=768x768:d=1`, '-frames:v', '1', file]));
+  return false;
+}
+async function airMake(kind) {
+  const sc = await airScript(kind);
+  const dir = path.join(UPLOAD_DIR, 'air-' + crypto.randomBytes(6).toString('hex')); fs.mkdirSync(dir, { recursive: true });
+  try {
+    const clips = []; const chord = AIR_CHORD[kind];
+    for (let i = 0; i < sc.slides.length; i++) {
+      const s = sc.slides[i], img = path.join(dir, `i${i}.jpg`), txt = path.join(dir, `t${i}.txt`), clip = path.join(dir, `c${i}.mp4`);
+      await airImage(s.img || sc.title, img, kind);
+      fs.writeFileSync(txt, wrapLines(s.text));
+      let voice = null, D = Math.min(7.5, Math.max(3.6, 2.2 + s.text.length / 15));
+      if (process.env.AISHA_API_KEY) { try { const o = await aishaTTS(s.text, 'uz'); voice = path.join(dir, `v${i}.${o.type.includes('wav') ? 'wav' : 'mp3'}`); fs.writeFileSync(voice, o.buf); const d = ffDur(voice); if (d) D = Math.max(3, d + 0.7); } catch (e) { console.error('AI reels ovoz:', e.message); voice = null; } }
+      const font = AIR_FONT ? `fontfile=${AIR_FONT}:` : '';
+      const head = i === 0 ? `,drawtext=${font}text='${AIR_LABEL[kind]}':fontsize=30:fontcolor=white:box=1:boxcolor=${AIR_COL[kind]}@0.9:boxborderw=14:x=(w-text_w)/2:y=90` : '';
+      const vf = `[0:v]scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,boxblur=18:2,eq=brightness=-0.18[bg];` +
+        `[0:v]scale=760:760,crop=700:700:x='30+30*sin(t/${D.toFixed(2)}*3.14)':y='30*t/${D.toFixed(2)}'[fg];` +
+        `[bg][fg]overlay=x=10:y=170${head},drawtext=${font}textfile='${txt}':expansion=none:fontsize=42:line_spacing=12:fontcolor=white:box=1:boxcolor=black@0.55:boxborderw=26:x=(w-text_w)/2:y=h-text_h-150,` +
+        `drawtext=${font}text='Birga AI':fontsize=24:fontcolor=white@0.75:x=w-text_w-24:y=h-50,fade=t=in:st=0:d=0.35,fade=t=out:st=${(D - 0.35).toFixed(2)}:d=0.35,format=yuv420p[v]`;
+      const music = `aevalsrc='0.05*sin(2*PI*${chord[0]}*t)*(0.6+0.4*sin(2*PI*0.25*t))+0.035*sin(2*PI*${chord[1]}*t)+0.03*sin(2*PI*${chord[2]}*t)*(0.5+0.5*sin(2*PI*0.5*t))':s=44100:d=${D.toFixed(2)}`;
+      const args = ['-loop', '1', '-t', D.toFixed(2), '-i', img, '-f', 'lavfi', '-i', music];
+      if (voice) args.push('-i', voice);
+      const af = voice ? `[2:a]apad,atrim=0:${D.toFixed(2)},volume=1.4[vo];[1:a]volume=0.5[mu];[vo][mu]amix=inputs=2:duration=first:normalize=0,aformat=sample_rates=44100:channel_layouts=stereo[a]` : `[1:a]aformat=sample_rates=44100:channel_layouts=stereo,afade=t=in:d=0.3,afade=t=out:st=${(D - 0.4).toFixed(2)}:d=0.4[a]`;
+      args.push('-filter_complex', vf + ';' + af, '-map', '[v]', '-map', '[a]', '-r', '24', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '28', '-c:a', 'aac', '-b:a', '96k', '-t', D.toFixed(2), clip);
+      await ffRun(args); clips.push(clip);
+    }
+    const list = path.join(dir, 'list.txt'); fs.writeFileSync(list, clips.map((c) => `file '${c}'`).join('\n'));
+    const name = crypto.randomBytes(16).toString('hex') + '.mp4', out = path.join(UPLOAD_DIR, name);
+    await ffRun(['-f', 'concat', '-safe', '0', '-i', list, '-c', 'copy', '-movflags', '+faststart', out]);
+    const duration = ffDur(out) || null;
+    const url = await storage.save(out, 'video/mp4');
+    const bot = await airBot();
+    const cap = `✨ ${sc.title}${sc.caption ? '\n' + sc.caption : ''}${sc.tags.length ? '\n' + sc.tags.join(' ') : ''}\n🤖 AI`.slice(0, 300);
+    const id = await db.insert('INSERT INTO reels(user_id,kind,file,mime,ig_kind,ig_code,duration,caption,created_at) VALUES(?,?,?,?,?,?,?,?,?)', [bot.id, 'video', url, 'video/mp4', 'ai', kind, duration, cap, now()]);
+    console.log(`✨ AI reels tayyor: #${id} "${sc.title}" (${kind}, ${Math.round(duration || 0)} s)`);
+    return { id: Number(id), title: sc.title, kind };
+  } finally { fs.rm(dir, { recursive: true, force: true }, () => {}); }
+}
+async function airTick(force) {
+  if (AIR.busy || (!force && !airOn())) return null;
+  AIR.busy = true;
+  try {
+    const bot = await airBot();
+    const keep = (Number(process.env.AI_REELS_KEEP_DAYS) || 21) * 864e5;
+    for (const r of await db.all('SELECT * FROM reels WHERE user_id=? AND created_at<? LIMIT 50', [bot.id, now() - keep])) {
+      await db.run('DELETE FROM reels WHERE id=?', [r.id]); await db.run('DELETE FROM reel_likes WHERE reel_id=?', [r.id]); await db.run('DELETE FROM reel_comments WHERE reel_id=?', [r.id]); if (r.file) safeRemove(r.file);
+    }
+    const day = tashDay(), dayStart = Date.parse(day + 'T00:00:00Z') - 5 * 3600e3;
+    const made = Number((await db.get('SELECT COUNT(*) AS c FROM reels WHERE user_id=? AND created_at>=?', [bot.id, dayStart]))?.c || 0);
+    const due = AIR_SLOTS.slice(0, airPerDay()).filter((h) => h <= tashHour()).length;
+    if (!force && made >= due) return null;
+    const kind = AIR_KINDS[(made + Number(day.slice(-2))) % AIR_KINDS.length];
+    let res = null, lastErr = null;
+    for (let k = 0; k < 2 && !res; k++) { try { res = await airMake(kind); } catch (e) { lastErr = e; console.error('AI reels:', e.message); } }
+    AIR.last = now(); AIR.err = res ? null : lastErr?.message; if (res) AIR.done++;
+    return res;
+  } finally { AIR.busy = false; }
+}
+setTimeout(() => airTick().catch(() => {}), 90e3);
+setInterval(() => airTick().catch(() => {}), (Number(process.env.AI_REELS_CHECK_MIN) || 10) * 60e3);
+app.post('/api/admin/ai-reel', auth, adminOnly, wrap(async (req, res) => {
+  if (AIR.busy) return res.json({ busy: true });
+  airTick(true).catch(() => {}); res.json({ started: true });
+}));
+app.get('/api/admin/ai-reel', auth, adminOnly, (req, res) => res.json({ on: airOn(), busy: AIR.busy, last: AIR.last, err: AIR.err, done: AIR.done, perDay: airPerDay(), font: !!AIR_FONT, ffmpeg: media.available }));
+
+// ======================= MEDIA QAYTA TIKLASH: serverdan o'chgan faylni boshqa qurilmadan olish =======================
+// Fayl serverdan o'chgan, lekin qurilmangizda yo'q bo'lsa — "↻ Qayta yuklash": server chatdagi boshqa qurilmalardan (yuboruvchi yoki
+// qabul qiluvchilardan) so'raydi, faylni o'z xotirasida saqlagan qurilma uni xuddi o'sha nom bilan qayta yuklaydi, siz yuklab olasiz
+// va 15 daqiqadan so'ng fayl serverdan yana o'chiriladi. Serverda doimiy og'irlik qolmaydi.
+const mediaWants = new Map(); // messageId -> { users:Set, at }
+const RESTORE_GRACE = 15 * 60e3;
+async function askHolders(m, exceptSocket) {
+  const members = (await db.all('SELECT user_id FROM chat_members WHERE chat_id=?', [m.chat_id])).map((r) => Number(r.user_id));
+  const payload = { id: Number(m.id), chatId: Number(m.chat_id), file: m.file, alt: (() => { try { return JSON.parse(m.meta || '{}').alt || null; } catch { return null; } })() };
+  let n = 0; for (const u of members) { const room = io.sockets.adapter.rooms.get('u' + u); if (!room) continue; for (const sid of room) { if (sid === exceptSocket) continue; io.to(sid).emit('media:need', payload); n++; } }
+  return n;
+}
+app.post('/api/media/restore', auth, rateLimit('mrestore', 120, 3600e3), wrap(async (req, res) => {
+  const m = await db.get('SELECT * FROM messages WHERE id=?', [Number(req.body?.id) || 0]);
+  if (!m || m.deleted || !m.file || !(await isMember(m.chat_id, req.user.id))) return res.status(404).json({ error: 'not found' });
+  if (!m.gone) return res.json({ ok: true, ready: true, file: m.file });
+  const w = mediaWants.get(Number(m.id)) || { users: new Set(), at: now() }; w.users.add(req.user.id); w.at = now(); mediaWants.set(Number(m.id), w);
+  const asked = await askHolders(m, String(req.body?.sock || ''));
+  res.json({ ok: true, asked });
+}));
+// Faylni saqlagan qurilma: yuklash manzilini so'raydi (faqat so'ralgan xabar uchun, faqat chat a'zosi)
+app.post('/api/media/restore/sign', auth, rateLimit('mrsign', 120, 3600e3), wrap(async (req, res) => {
+  const id = Number(req.body?.id) || 0; const m = await db.get('SELECT * FROM messages WHERE id=?', [id]);
+  if (!m || !mediaWants.has(id) || !(await isMember(m.chat_id, req.user.id))) return res.status(403).json({ error: 'forbidden' });
+  if (!m.gone) return res.json({ done: true });
+  const name = path.basename(String(m.file).split('?')[0]); if (!/^[\w.-]+$/.test(name)) return res.status(400).json({ error: 'bad file' });
+  if (storage.remote) { const s = await storage.signUpload(name); return res.json({ direct: true, upload: s.upload }); }
+  res.json({ direct: false, upload: '/api/media/restore/put/' + id });
+}));
+app.post('/api/media/restore/put/:id', auth, express.raw({ type: () => true, limit: (Number(process.env.MAX_UPLOAD_MB) || storage.maxMb) + 'mb' }), wrap(async (req, res) => {
+  const id = Number(req.params.id) || 0; const m = await db.get('SELECT * FROM messages WHERE id=?', [id]);
+  if (!m || !mediaWants.has(id) || !m.gone || !(await isMember(m.chat_id, req.user.id))) return res.status(403).json({ error: 'forbidden' });
+  const name = path.basename(String(m.file)); if (!String(m.file).startsWith('/uploads/') || !/^[\w.-]+$/.test(name) || !Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: 'bad' });
+  fs.writeFileSync(path.join(UPLOAD_DIR, name), req.body); res.json({ ok: true });
+}));
+app.post('/api/media/restore/done', auth, rateLimit('mrdone', 120, 3600e3), wrap(async (req, res) => {
+  const id = Number(req.body?.id) || 0; const m = await db.get('SELECT * FROM messages WHERE id=?', [id]); const w = mediaWants.get(id);
+  if (!m || !w || !(await isMember(m.chat_id, req.user.id))) return res.status(403).json({ error: 'forbidden' });
+  if (m.gone) {
+    const ok = String(m.file).startsWith('/uploads/') ? fs.existsSync(path.join(UPLOAD_DIR, path.basename(String(m.file)))) : await storage.exists(m.file);
+    if (!ok) return res.status(400).json({ error: 'missing' });
+    await db.run('UPDATE messages SET gone=0, restored_at=? WHERE file=?', [now(), m.file]);
+  }
+  for (const u of w.users) io.to('u' + u).emit('media:back', { id, file: m.file });
+  mediaWants.delete(id);
+  setTimeout(() => sweepRestored().catch(() => {}), RESTORE_GRACE + 5000);
+  res.json({ ok: true });
+}));
+// Qayta tiklangan fayllar 15 daqiqadan so'ng serverdan yana o'chiriladi
+async function sweepRestored() {
+  const rows = await db.all('SELECT DISTINCT file FROM messages WHERE restored_at IS NOT NULL AND restored_at<? AND gone=0 AND file IS NOT NULL LIMIT 100', [now() - RESTORE_GRACE]);
+  for (const { file } of rows) { await storage.remove(file, UPLOAD_DIR); await db.run('UPDATE messages SET gone=1, restored_at=NULL WHERE file=?', [file]); }
+  if (rows.length) console.log(`🧹 ${rows.length} ta qayta tiklangan fayl serverdan yana o‘chirildi`);
+}
+setInterval(() => { sweepRestored().catch(() => {}); for (const [k, w] of mediaWants) if (now() - w.at > 7 * 864e5) mediaWants.delete(k); }, 5 * 60e3);
+// Ilova ochilganda: bu foydalanuvchi qurilmasida bo'lishi mumkin bo'lgan, boshqalar kutayotgan fayllarni so'raymiz
+io.on('connection', (socket) => {
+  setTimeout(async () => {
+    try {
+      if (!mediaWants.size) return;
+      const ids = [...mediaWants.keys()].slice(-200);
+      for (const id of ids) { const m = await db.get('SELECT * FROM messages WHERE id=?', [id]); if (m && m.gone && (await isMember(m.chat_id, socket.uid))) socket.emit('media:need', { id, chatId: Number(m.chat_id), file: m.file, alt: (() => { try { return JSON.parse(m.meta || '{}').alt || null; } catch { return null; } })() }); }
+    } catch {}
+  }, 4000);
+});
+
 // v6 jadval/ustunlari (db.js ga tegmasdan)
 async function extraSchema() {
   await db.run('CREATE TABLE IF NOT EXISTS reactions(message_id BIGINT, user_id BIGINT, emoji TEXT, at BIGINT, PRIMARY KEY(message_id, user_id))');
@@ -3105,6 +3437,9 @@ async function extraSchema() {
   await db.run('CREATE TABLE IF NOT EXISTS native_devices(token TEXT PRIMARY KEY, user_id BIGINT, sid TEXT, model TEXT, created BIGINT, last BIGINT)');
   await db.run('CREATE TABLE IF NOT EXISTS ai_memory(user_id BIGINT, fact TEXT, at BIGINT)');
   await db.run('CREATE INDEX IF NOT EXISTS idx_aimem ON ai_memory(user_id, at)');
+  await db.run('CREATE TABLE IF NOT EXISTS quiz_scores(user_id BIGINT, cat TEXT, pts BIGINT DEFAULT 0, games BIGINT DEFAULT 0, correct BIGINT DEFAULT 0, answered BIGINT DEFAULT 0, best BIGINT DEFAULT 0, updated BIGINT, PRIMARY KEY(user_id, cat))');
+  await db.run('CREATE INDEX IF NOT EXISTS idx_qz_cat ON quiz_scores(cat, pts)');
+  await db.run('CREATE TABLE IF NOT EXISTS quiz_seen(user_id BIGINT, k TEXT, at BIGINT, PRIMARY KEY(user_id, k))');
   await db.run('CREATE TABLE IF NOT EXISTS transcripts(message_id BIGINT PRIMARY KEY, text TEXT, at BIGINT)');
   await db.run('CREATE TABLE IF NOT EXISTS user_stickers(user_id BIGINT, url TEXT, at BIGINT, PRIMARY KEY(user_id, url))');
   await db.run('CREATE TABLE IF NOT EXISTS chat_pins(chat_id BIGINT, message_id BIGINT, by BIGINT, at BIGINT, PRIMARY KEY(chat_id, message_id))');
@@ -3118,7 +3453,7 @@ async function extraSchema() {
   await db.run(`CREATE TABLE IF NOT EXISTS reel_comments(id ${db.kind === 'postgres' ? 'BIGSERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'}, reel_id BIGINT, user_id BIGINT, text TEXT, at BIGINT)`);
   await db.run('CREATE INDEX IF NOT EXISTS idx_rcom ON reel_comments(reel_id, id)');
   await db.run(`CREATE TABLE IF NOT EXISTS game_rooms(id TEXT PRIMARY KEY, game TEXT, chat_id BIGINT, a BIGINT, b BIGINT, moves TEXT, status TEXT, winner INTEGER, claims TEXT, created BIGINT, updated BIGINT)`);
-  const cols = [['users', 'reg_info', 'TEXT'], ['users', 'folders', 'TEXT'], ['users', 'region', 'TEXT'], ['users', 'invite_code', 'TEXT'], ['users', 'invited_by', 'BIGINT'], ['game_rooms', 'secret', 'TEXT'], ['users', 'steps_on', 'INTEGER DEFAULT 0'], ['users', 'banned', 'INTEGER DEFAULT 0'], ['users', 'birthday', 'TEXT'], ['chat_members', 'pinned', 'BIGINT DEFAULT 0'], ['chat_members', 'archived', 'INTEGER DEFAULT 0'], ['users', 'hide_seen', 'INTEGER DEFAULT 0'], ['users', 'deleted', 'INTEGER DEFAULT 0'], ['chat_members', 'del_at', 'BIGINT'], ['users', 'loc_share', 'INTEGER DEFAULT 0'], ['game_rooms', 'pl', 'TEXT'], ['game_rooms', 'chats', 'TEXT'], ['users', 'priv_seen', 'TEXT'], ['users', 'priv_seen_list', 'TEXT'], ['users', 'priv_story', 'TEXT'], ['users', 'priv_story_list', 'TEXT']];
+  const cols = [['users', 'reg_info', 'TEXT'], ['users', 'folders', 'TEXT'], ['users', 'region', 'TEXT'], ['users', 'invite_code', 'TEXT'], ['users', 'invited_by', 'BIGINT'], ['game_rooms', 'secret', 'TEXT'], ['users', 'steps_on', 'INTEGER DEFAULT 0'], ['users', 'banned', 'INTEGER DEFAULT 0'], ['users', 'birthday', 'TEXT'], ['chat_members', 'pinned', 'BIGINT DEFAULT 0'], ['chat_members', 'archived', 'INTEGER DEFAULT 0'], ['users', 'hide_seen', 'INTEGER DEFAULT 0'], ['users', 'deleted', 'INTEGER DEFAULT 0'], ['chat_members', 'del_at', 'BIGINT'], ['users', 'loc_share', 'INTEGER DEFAULT 0'], ['game_rooms', 'pl', 'TEXT'], ['game_rooms', 'chats', 'TEXT'], ['users', 'priv_seen', 'TEXT'], ['users', 'priv_seen_list', 'TEXT'], ['users', 'priv_story', 'TEXT'], ['users', 'priv_story_list', 'TEXT'], ['messages', 'restored_at', 'BIGINT']];
   for (const [t, c, type] of cols) {
     try { await db.get(`SELECT ${c} FROM ${t} LIMIT 1`); } catch { await db.run(`ALTER TABLE ${t} ADD COLUMN ${c} ${type}`); }
   }

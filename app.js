@@ -8448,4 +8448,25 @@ const Privacy = {
 };
 try { const st = document.createElement('style'); st.textContent = `.pv-wrap{display:grid;gap:14px;max-height:60vh;overflow:auto;margin-bottom:12px}.pv-sec h4{margin:4px 0 8px;font-size:15px}.pv-opt{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:12px;background:var(--panel-2);margin-bottom:6px;cursor:pointer}.pv-opt.on{outline:2px solid var(--accent,#2563EB)}.pv-opt small{display:block;color:var(--muted);font-size:12px;margin-top:2px}.pv-opt input{margin-top:3px}.pv-note{font-size:12px;color:var(--muted);margin:2px 4px 0}.pv-pick{display:grid;gap:4px;padding:8px;border-radius:12px;background:var(--panel-2)}.pv-pick small{color:var(--muted)}.pv-u{display:flex;align-items:center;gap:10px;padding:6px;border-radius:10px;cursor:pointer}.pv-u .av{width:32px;height:32px}`; document.head.appendChild(st); } catch {}
 try { if (typeof I18N_PACK !== 'undefined' && I18N_PACK?.x) { if (I18N_PACK.x.inst) INST[LANG] = { ...INST.en, ...I18N_PACK.x.inst }; if (I18N_PACK.x.apk) APK_T[LANG] = { ...APK_T.en, ...I18N_PACK.x.apk }; } } catch {}
+/* ---------- Huquqiy hujjatlar: maxfiylik siyosati va foydalanish shartlari ---------- */
+try {
+  Object.assign(I18N.uz, { lg_priv: 'Maxfiylik siyosati', lg_terms: 'Foydalanish shartlari', lg_docs: 'Huquqiy hujjatlar', lg_agree: 'Davom etish orqali siz {t} va {p}ga rozilik bildirasiz' });
+  Object.assign(I18N.ru, { lg_priv: 'Политика конфиденциальности', lg_terms: 'Условия использования', lg_docs: 'Правовые документы', lg_agree: 'Продолжая, вы принимаете: {t}, {p}' });
+  Object.assign(I18N.en, { lg_priv: 'Privacy Policy', lg_terms: 'Terms of Use', lg_docs: 'Legal', lg_agree: 'By continuing you agree to the {t} and {p}' });
+} catch {}
+const Legal = {
+  lang: () => { const l = String(LANG || 'uz'); return l.startsWith('uz') || l === 'kaa' ? 'uz' : (l === 'ru' || (typeof LANG_FB !== 'undefined' && LANG_FB[l] === 'ru')) ? 'ru' : 'en'; },
+  url: (k) => `/${k}.html#${Legal.lang()}`,
+  a: (k, txt) => `<a href="${Legal.url(k)}" target="_blank" rel="noopener">${esc(txt)}</a>`,
+  put() {
+    const b = $('#btn-send-code'); if (b && !$('#lg-agree')) b.insertAdjacentHTML('afterend', '<p class="tiny muted lg-agree" id="lg-agree"></p>');
+    const ag = $('#lg-agree'); if (ag) ag.innerHTML = LANG_BUILTIN.includes(LANG) ? esc(t('lg_agree')).replace('{t}', this.a('terms', t('lg_terms'))).replace('{p}', this.a('privacy', t('lg_priv'))) : `${esc(t('terms'))}<br>${this.a('terms', t('lg_terms'))} · ${this.a('privacy', t('lg_priv'))}`;
+    const old = document.querySelector('p[data-i18n="terms"]'); if (old) old.style.display = 'none';
+    const pv = $('#set-privacy'); if (pv && !$('#set-legal')) pv.insertAdjacentHTML('afterend', `<button class="row-btn" id="set-legal"><span class="ri c2"><svg><use href="#i-eye"/></svg></span><span><span data-lg="docs"></span><small><span data-lg="priv"></span> · <span data-lg="terms"></span></small></span></button>`);
+    document.querySelectorAll('[data-lg]').forEach((e) => { e.textContent = t('lg_' + e.dataset.lg); });
+    const sl = $('#set-legal'); if (sl) sl.onclick = () => modal(`<h3>📄 ${esc(t('lg_docs'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><div class="lg-list">${this.a('privacy', '🔒 ' + t('lg_priv'))}${this.a('terms', '📜 ' + t('lg_terms'))}</div>`);
+  },
+};
+try { const st = document.createElement('style'); st.textContent = `.lg-agree{text-align:center;margin:10px 4px 0;line-height:1.4}.lg-agree a{color:var(--accent,#3B82F6)}.lg-list{display:grid;gap:10px;margin:8px 0}.lg-list a{display:block;padding:14px;border-radius:12px;background:var(--bg2,#0001);text-decoration:none;color:inherit;font-weight:600}`; document.head.appendChild(st); } catch {}
+try { Legal.put(); setTimeout(() => Legal.put(), 700); const baseRSlg = renderSettings; renderSettings = function (...a) { const r = baseRSlg.apply(this, a); try { Legal.put(); } catch {} return r; }; const baseCLlg = changeLang; changeLang = function (...a) { const r = baseCLlg.apply(this, a); try { Legal.put(); } catch {} return r; }; } catch {}
 boot();

@@ -3255,13 +3255,13 @@ async function airScript(kind) {
   const sys = `Sen "Birga" messenjeri uchun qisqa vertikal video (reels) ssenariy muallifisan. FAQAT o‘zbek tilida (lotin alifbosi, o‘ g‘ harflari bilan) yoz, boshqa til aralashmasin.
 ${AIR_RULES[kind]}
 Javobni FAQAT JSON ko‘rinishida ber, boshqa hech narsa yozma:
-{"title":"qisqa sarlavha (5 so‘zgacha)","slides":[{"text":"ekranda chiqadigan matn, 110 belgigacha","img":"short English prompt for an illustration of this slide, no text"}],"caption":"1-2 gaplik izoh","tags":["3-4 ta xeshteg so‘zi"]}
+{"title":"qisqa sarlavha (5 so‘zgacha)","slides":[{"text":"ekranda chiqadigan matn, 110 belgigacha","q":"2-4 English words to search a real stock video for this slide, concrete and visual (e.g. ocean waves sunset, old man laughing, honey bee flower)","img":"short English prompt for an illustration of this slide, no text"}],"caption":"1-2 gaplik izoh","tags":["3-4 ta xeshteg so‘zi"]}
 Slaydlar soni: 4 yoki 5. Matnlar qisqa, tushunarli, qiziqarli bo‘lsin.`;
   const user = `Mavzu yo‘nalishi: ${topic}. Takrorlanmasin — bu sarlavhalar avval bo‘lgan: ${recent.slice(-30).join('; ') || 'yo‘q'}.`;
   const r = await aiAnswer([{ role: 'user', content: user }], { web: false, rawSys: sys, maxTok: 900 });
   const txt = String(r?.text || r || ''); const m = txt.match(/\{[\s\S]*\}/); if (!m) throw new Error('ssenariy JSON emas');
   const j = JSON.parse(m[0]);
-  const slides = (Array.isArray(j.slides) ? j.slides : []).map((s) => ({ text: String(s.text || '').replace(/\s+/g, ' ').trim().slice(0, 140), img: String(s.img || '').slice(0, 300) })).filter((s) => s.text).slice(0, 5);
+  const slides = (Array.isArray(j.slides) ? j.slides : []).map((s) => ({ text: String(s.text || '').replace(/\s+/g, ' ').trim().slice(0, 140), img: String(s.img || '').slice(0, 300), q: String(s.q || s.img || '').replace(/[^\w\s-]/g, ' ').replace(/\s+/g, ' ').trim().split(' ').slice(0, 5).join(' ') })).filter((s) => s.text).slice(0, 5);
   if (slides.length < 3) throw new Error('slaydlar kam');
   const title = String(j.title || topic).slice(0, 60);
   recent.push(title); await db.run("INSERT INTO meta(k,v) VALUES('air_titles',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", [JSON.stringify(recent.slice(-60))]);
@@ -3291,42 +3291,97 @@ async function airImage(prompt, file, kind) {
   await ffRun(['-f', 'lavfi', '-i', `gradients=s=768x768:c0=${c}:c1=0x0F172A:x0=0:y0=0:x1=768:y1=768:d=1`, '-frames:v', '1', file]).catch(() => ffRun(['-f', 'lavfi', '-i', `color=c=${c}:s=768x768:d=1`, '-frames:v', '1', file]));
   return false;
 }
+// Haqiqiy (tabiiy) videolar — faqat qayta foydalanishga ruxsat berilgan bepul manbalardan: Pexels, Pixabay (kalit bilan), Wikimedia Commons (kalitsiz, CC litsenziya)
+const AIR_UA = 'BirgaMessenger/1.0 (https://birga.onrender.com; reels)';
+async function airDownload(url, file, maxMb = 60) {
+  const r = await fetch(url, { headers: { 'User-Agent': AIR_UA }, signal: AbortSignal.timeout(90000) }); if (!r.ok) throw new Error('yuklab bo‘lmadi ' + r.status);
+  const len = Number(r.headers.get('content-length') || 0); if (len > maxMb * 1048576) throw new Error('juda katta');
+  const buf = Buffer.from(await r.arrayBuffer()); if (buf.length > maxMb * 1048576 || buf.length < 20000) throw new Error('hajm noto‘g‘ri'); fs.writeFileSync(file, buf); return file;
+}
+const stripHtml = (x) => String(x || '').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/\s+/g, ' ').trim();
+async function airFindClip(q, used) {
+  const tries = [];
+  if (process.env.PEXELS_API_KEY) tries.push(async () => {
+    const j = await fetch(`${process.env.AIR_PEXELS_API || 'https://api.pexels.com'}/videos/search?query=${encodeURIComponent(q)}&orientation=portrait&size=medium&per_page=20`, { headers: { Authorization: process.env.PEXELS_API_KEY }, signal: AbortSignal.timeout(20000) }).then((r) => r.json());
+    const vids = shuffle((j.videos || []).filter((v) => !used.has('px' + v.id) && v.duration >= 4));
+    for (const v of vids) {
+      const f = (v.video_files || []).filter((x) => /mp4/.test(x.file_type || '') && x.width && x.height && x.height >= 900).sort((a, b) => Math.abs(a.height - 1280) - Math.abs(b.height - 1280))[0];
+      if (f) return { id: 'px' + v.id, url: f.link, dur: v.duration, credit: `${stripHtml(v.user?.name) || 'Pexels'} / Pexels` };
+    }
+  });
+  if (process.env.PIXABAY_API_KEY) tries.push(async () => {
+    const j = await fetch(`${process.env.AIR_PIXABAY_API || 'https://pixabay.com'}/api/videos/?key=${encodeURIComponent(process.env.PIXABAY_API_KEY)}&q=${encodeURIComponent(q)}&safesearch=true&per_page=20`, { signal: AbortSignal.timeout(20000) }).then((r) => r.json());
+    for (const v of shuffle((j.hits || []).filter((v) => !used.has('pb' + v.id) && v.duration >= 4))) {
+      const f = [v.videos?.medium, v.videos?.small].find((x) => x?.url && (!x.size || x.size < 50 * 1048576));
+      if (f) return { id: 'pb' + v.id, url: f.url, dur: v.duration, credit: `${stripHtml(v.user) || 'Pixabay'} / Pixabay` };
+    }
+  });
+  if (process.env.AIR_COMMONS !== '0') tries.push(async () => {
+    const u = `${process.env.AIR_COMMONS_API || 'https://commons.wikimedia.org'}/w/api.php?action=query&format=json&generator=search&gsrnamespace=6&gsrlimit=20&gsrsearch=${encodeURIComponent(q + ' filetype:video')}&prop=videoinfo&viprop=url|size|mime|derivatives|extmetadata`;
+    const j = await fetch(u, { headers: { 'User-Agent': AIR_UA }, signal: AbortSignal.timeout(20000) }).then((r) => r.json());
+    for (const pg of shuffle(Object.values(j.query?.pages || {}))) {
+      const vi = pg.videoinfo?.[0]; if (!vi || used.has('wc' + pg.pageid)) continue;
+      const m = vi.extmetadata || {}; const lic = stripHtml(m.LicenseShortName?.value); if (!lic || /\bN[CD]\b|non-?commercial|no.?deriv/i.test(lic)) continue;
+      const dur = Number(vi.duration || m.Duration?.value || 0); if (dur && dur < 4) continue;
+      const der = (vi.derivatives || []).filter((d) => d.src && Number(d.height || 0) >= 360 && Number(d.height || 0) <= 1080).sort((a, b) => Math.abs(Number(a.height) - 720) - Math.abs(Number(b.height) - 720))[0];
+      const url = der?.src || (vi.size < 50 * 1048576 ? vi.url : null); if (!url) continue;
+      const by = stripHtml(m.Artist?.value).slice(0, 40) || 'Wikimedia Commons';
+      return { id: 'wc' + pg.pageid, url, dur, credit: `${by}, ${lic} / Wikimedia Commons` };
+    }
+  });
+  for (const t of tries) { try { const r = await t(); if (r) return r; } catch (e) { console.error('AI reels video qidiruv:', e.message); } }
+  return null;
+}
 async function airMake(kind) {
   const sc = await airScript(kind);
   const dir = path.join(UPLOAD_DIR, 'air-' + crypto.randomBytes(6).toString('hex')); fs.mkdirSync(dir, { recursive: true });
+  const usedRow = await db.get("SELECT v FROM meta WHERE k='air_used'"); const usedArr = JSON.parse(usedRow?.v || '[]'); const used = new Set(usedArr);
   try {
-    const clips = []; const chord = AIR_CHORD[kind];
+    const clips = [], credits = []; const chord = AIR_CHORD[kind]; let real = 0;
     for (let i = 0; i < sc.slides.length; i++) {
-      const s = sc.slides[i], img = path.join(dir, `i${i}.jpg`), txt = path.join(dir, `t${i}.txt`), clip = path.join(dir, `c${i}.mp4`);
-      await airImage(s.img || sc.title, img, kind);
+      const s = sc.slides[i], img = path.join(dir, `i${i}.jpg`), vid = path.join(dir, `s${i}.mp4`), txt = path.join(dir, `t${i}.txt`), clip = path.join(dir, `c${i}.mp4`);
       fs.writeFileSync(txt, wrapLines(s.text));
       let voice = null, D = Math.min(7.5, Math.max(3.6, 2.2 + s.text.length / 15));
       if (process.env.AISHA_API_KEY) { try { const o = await aishaTTS(s.text, 'uz'); voice = path.join(dir, `v${i}.${o.type.includes('wav') ? 'wav' : 'mp3'}`); fs.writeFileSync(voice, o.buf); const d = ffDur(voice); if (d) D = Math.max(3, d + 0.7); } catch (e) { console.error('AI reels ovoz:', e.message); voice = null; } }
+      // 1) haqiqiy video;  2) bo'lmasa — AI rasm
+      let src = null;
+      for (const q of [s.q, sc.slides[0].q, AIR_FALLBACK_Q[kind]].filter(Boolean)) {
+        const c = await airFindClip(q, used); if (!c) continue;
+        try { await airDownload(c.url, vid); const dur = ffDur(vid) || c.dur || 0; if (dur < 2) throw new Error('qisqa'); src = { file: vid, dur }; used.add(c.id); usedArr.push(c.id); if (!credits.includes(c.credit)) credits.push(c.credit); real++; break; }
+        catch (e) { console.error('AI reels video:', e.message); used.add(c.id); }
+      }
+      if (!src) await airImage(s.img || sc.title, img, kind);
       const font = AIR_FONT ? `fontfile=${AIR_FONT}:` : '';
       const head = i === 0 ? `,drawtext=${font}text='${AIR_LABEL[kind]}':fontsize=30:fontcolor=white:box=1:boxcolor=${AIR_COL[kind]}@0.9:boxborderw=14:x=(w-text_w)/2:y=90` : '';
-      const vf = `[0:v]scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,boxblur=18:2,eq=brightness=-0.18[bg];` +
-        `[0:v]scale=760:760,crop=700:700:x='30+30*sin(t/${D.toFixed(2)}*3.14)':y='30*t/${D.toFixed(2)}'[fg];` +
-        `[bg][fg]overlay=x=10:y=170${head},drawtext=${font}textfile='${txt}':expansion=none:fontsize=42:line_spacing=12:fontcolor=white:box=1:boxcolor=black@0.55:boxborderw=26:x=(w-text_w)/2:y=h-text_h-150,` +
+      const Ds = D.toFixed(2);
+      const base = src
+        ? `[0:v]fps=24,setpts=PTS-STARTPTS,split[a][b];[a]scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,boxblur=20:2,eq=brightness=-0.22[bg];[b]scale=720:1280:force_original_aspect_ratio=decrease,eq=saturation=1.12:contrast=1.04[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2`
+        : `[0:v]scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,boxblur=18:2,eq=brightness=-0.18[bg];[0:v]scale=760:760,crop=700:700:x='30+30*sin(t/${Ds}*3.14)':y='30*t/${Ds}'[fg];[bg][fg]overlay=x=10:y=170`;
+      const vf = base + `${head},drawtext=${font}textfile='${txt}':expansion=none:fontsize=42:line_spacing=12:fontcolor=white:borderw=2:bordercolor=black@0.6:box=1:boxcolor=black@0.45:boxborderw=26:x=(w-text_w)/2:y=h-text_h-150,` +
         `drawtext=${font}text='Birga AI':fontsize=24:fontcolor=white@0.75:x=w-text_w-24:y=h-50,fade=t=in:st=0:d=0.35,fade=t=out:st=${(D - 0.35).toFixed(2)}:d=0.35,format=yuv420p[v]`;
-      const music = `aevalsrc='0.05*sin(2*PI*${chord[0]}*t)*(0.6+0.4*sin(2*PI*0.25*t))+0.035*sin(2*PI*${chord[1]}*t)+0.03*sin(2*PI*${chord[2]}*t)*(0.5+0.5*sin(2*PI*0.5*t))':s=44100:d=${D.toFixed(2)}`;
-      const args = ['-loop', '1', '-t', D.toFixed(2), '-i', img, '-f', 'lavfi', '-i', music];
-      if (voice) args.push('-i', voice);
-      const af = voice ? `[2:a]apad,atrim=0:${D.toFixed(2)},volume=1.4[vo];[1:a]volume=0.5[mu];[vo][mu]amix=inputs=2:duration=first:normalize=0,aformat=sample_rates=44100:channel_layouts=stereo[a]` : `[1:a]aformat=sample_rates=44100:channel_layouts=stereo,afade=t=in:d=0.3,afade=t=out:st=${(D - 0.4).toFixed(2)}:d=0.4[a]`;
-      args.push('-filter_complex', vf + ';' + af, '-map', '[v]', '-map', '[a]', '-r', '24', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '28', '-c:a', 'aac', '-b:a', '96k', '-t', D.toFixed(2), clip);
-      await ffRun(args); clips.push(clip);
+      const music = `aevalsrc='0.035*sin(2*PI*${chord[0]}*t)*(0.6+0.4*sin(2*PI*0.25*t))+0.025*sin(2*PI*${chord[1]}*t)+0.02*sin(2*PI*${chord[2]}*t)*(0.5+0.5*sin(2*PI*0.5*t))':s=44100:d=${Ds}`;
+      const ss = src && src.dur > D + 1 ? (Math.random() * (src.dur - D - 0.5)).toFixed(2) : '0';
+      const args = src ? ['-ss', ss, '-stream_loop', '-1', '-t', Ds, '-i', src.file] : ['-loop', '1', '-t', Ds, '-i', img];
+      args.push('-f', 'lavfi', '-i', music); if (voice) args.push('-i', voice);
+      const af = voice ? `[2:a]apad,atrim=0:${Ds},volume=1.4[vo];[1:a]volume=0.5[mu];[vo][mu]amix=inputs=2:duration=first:normalize=0,aformat=sample_rates=44100:channel_layouts=stereo[a]` : `[1:a]aformat=sample_rates=44100:channel_layouts=stereo,afade=t=in:d=0.3,afade=t=out:st=${(D - 0.4).toFixed(2)}:d=0.4[a]`;
+      args.push('-filter_complex', vf + ';' + af, '-map', '[v]', '-map', '[a]', '-r', '24', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '27', '-c:a', 'aac', '-b:a', '96k', '-t', Ds, clip);
+      await ffRun(args); clips.push(clip); try { fs.unlinkSync(vid); } catch {}
     }
+    await db.run("INSERT INTO meta(k,v) VALUES('air_used',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", [JSON.stringify(usedArr.slice(-400))]);
     const list = path.join(dir, 'list.txt'); fs.writeFileSync(list, clips.map((c) => `file '${c}'`).join('\n'));
     const name = crypto.randomBytes(16).toString('hex') + '.mp4', out = path.join(UPLOAD_DIR, name);
     await ffRun(['-f', 'concat', '-safe', '0', '-i', list, '-c', 'copy', '-movflags', '+faststart', out]);
     const duration = ffDur(out) || null;
     const url = await storage.save(out, 'video/mp4');
     const bot = await airBot();
-    const cap = `✨ ${sc.title}${sc.caption ? '\n' + sc.caption : ''}${sc.tags.length ? '\n' + sc.tags.join(' ') : ''}\n🤖 AI`.slice(0, 300);
+    const cred = credits.length ? '\n🎬 ' + credits.join('; ') : '';
+    const cap = (`✨ ${sc.title}${sc.caption ? '\n' + sc.caption : ''}${sc.tags.length ? '\n' + sc.tags.join(' ') : ''}`.slice(0, 300 - cred.length - 6) + cred + '\n🤖 AI').slice(0, 300);
     const id = await db.insert('INSERT INTO reels(user_id,kind,file,mime,ig_kind,ig_code,duration,caption,created_at) VALUES(?,?,?,?,?,?,?,?,?)', [bot.id, 'video', url, 'video/mp4', 'ai', kind, duration, cap, now()]);
-    console.log(`✨ AI reels tayyor: #${id} "${sc.title}" (${kind}, ${Math.round(duration || 0)} s)`);
-    return { id: Number(id), title: sc.title, kind };
+    console.log(`✨ AI reels tayyor: #${id} "${sc.title}" (${kind}, ${Math.round(duration || 0)} s, ${real}/${sc.slides.length} haqiqiy video)`);
+    return { id: Number(id), title: sc.title, kind, real };
   } finally { fs.rm(dir, { recursive: true, force: true }, () => {}); }
 }
+const AIR_FALLBACK_Q = { funny: 'people laughing', wisdom: 'sunrise nature', useful: 'healthy lifestyle', fact: 'nature wildlife' };
 async function airTick(force) {
   if (AIR.busy || (!force && !airOn())) return null;
   AIR.busy = true;
@@ -3353,7 +3408,7 @@ app.post('/api/admin/ai-reel', auth, adminOnly, wrap(async (req, res) => {
   if (AIR.busy) return res.json({ busy: true });
   airTick(true).catch(() => {}); res.json({ started: true });
 }));
-app.get('/api/admin/ai-reel', auth, adminOnly, (req, res) => res.json({ on: airOn(), busy: AIR.busy, last: AIR.last, err: AIR.err, done: AIR.done, perDay: airPerDay(), font: !!AIR_FONT, ffmpeg: media.available }));
+app.get('/api/admin/ai-reel', auth, adminOnly, (req, res) => res.json({ sources: ['PEXELS_API_KEY', 'PIXABAY_API_KEY'].filter((k) => process.env[k]).concat(process.env.AIR_COMMONS !== '0' ? ['commons'] : []), on: airOn(), busy: AIR.busy, last: AIR.last, err: AIR.err, done: AIR.done, perDay: airPerDay(), font: !!AIR_FONT, ffmpeg: media.available }));
 
 // ======================= MEDIA QAYTA TIKLASH: serverdan o'chgan faylni boshqa qurilmadan olish =======================
 // Fayl serverdan o'chgan, lekin qurilmangizda yo'q bo'lsa — "↻ Qayta yuklash": server chatdagi boshqa qurilmalardan (yuboruvchi yoki

@@ -282,7 +282,7 @@ const LANG_FB = { kk: 'ru', ky: 'ru', tg: 'ru', tk: 'ru', mn: 'ru', uk: 'ru', ka
 const LANG_LOCALE = { uz: 'uz-UZ', ru: 'ru-RU', en: 'en-GB', kaa: 'uz-UZ', zh: 'zh-CN', pt: 'pt-BR' };
 const locTag = (l = LANG) => LANG_LOCALE[l] || l;
 const srTag = (l = LANG) => ({ en: 'en-US', kaa: 'uz-UZ', zh: 'zh-CN', pt: 'pt-BR', ar: 'ar-SA', fa: 'fa-IR', ur: 'ur-PK', hi: 'hi-IN', bn: 'bn-BD', ms: 'ms-MY' })[l] || (LANG_LOCALE[l] || (l + '-' + l.toUpperCase()));
-const PACK_V = 2;
+const PACK_V = 3;
 let I18N_PACK = null;
 function loadPack(l) {
   if (LANG_BUILTIN.includes(l) || !LANG_NAMES[l]) return null;

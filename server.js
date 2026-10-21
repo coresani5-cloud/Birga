@@ -1428,7 +1428,8 @@ async function aiAnswer(msgs, { web = true, fast = false, sys = '', rawSys = '',
   if (cfOn() && !hasImg && !process.env.GROQ_API_KEY && !process.env.AI_API_URL) { // Cloudflare Llama — Pollinations'dan oldin
     try {
       const j = await cfRun(process.env.CF_TEXT_MODEL || '@cf/meta/llama-3.3-70b-instruct-fp8-fast', { messages: [{ role: 'system', content: (rawSys || aiSys() + sys) }, ...msgs.map((m) => ({ role: m.role, content: m.content || ' ' }))], max_tokens: maxTok || 2500, temperature: fast ? 0.3 : 0.6 });
-      const out = String(j?.response ?? j?.choices?.[0]?.message?.content ?? '').trim(); if (out) return { text: out, sources: [] };
+      const rv = j?.response ?? j?.choices?.[0]?.message?.content ?? ''; // javob JSON bo'lsa Cloudflare uni obyekt qilib qaytaradi
+      const out = (rv && typeof rv === 'object' ? JSON.stringify(rv) : String(rv)).trim(); if (out) return { text: out, sources: [] };
       errs.push('cf: empty');
     } catch (e) { errs.push('cf: ' + e.message); }
   }
@@ -3259,8 +3260,8 @@ Javobni FAQAT JSON ko‘rinishida ber, boshqa hech narsa yozma:
 Slaydlar soni: 4 yoki 5. Matnlar qisqa, tushunarli, qiziqarli bo‘lsin.`;
   const user = `Mavzu yo‘nalishi: ${topic}. Takrorlanmasin — bu sarlavhalar avval bo‘lgan: ${recent.slice(-30).join('; ') || 'yo‘q'}.`;
   const r = await aiAnswer([{ role: 'user', content: user }], { web: false, rawSys: sys, maxTok: 900 });
-  const txt = String(r?.text || r || ''); const m = txt.match(/\{[\s\S]*\}/); if (!m) throw new Error('ssenariy JSON emas');
-  const j = JSON.parse(m[0]);
+  const txt = String(r?.text || r || ''); const m = txt.match(/\{[\s\S]*\}/); if (!m) throw new Error('ssenariy JSON emas: ' + txt.slice(0, 160));
+  let j; try { j = JSON.parse(m[0]); } catch { j = JSON.parse(m[0].replace(/,\s*([}\]])/g, '$1').replace(/[“”]/g, '"')); }
   const slides = (Array.isArray(j.slides) ? j.slides : []).map((s) => ({ text: String(s.text || '').replace(/\s+/g, ' ').trim().slice(0, 140), img: String(s.img || '').slice(0, 300), q: String(s.q || s.img || '').replace(/[^\w\s-]/g, ' ').replace(/\s+/g, ' ').trim().split(' ').slice(0, 5).join(' ') })).filter((s) => s.text).slice(0, 5);
   if (slides.length < 3) throw new Error('slaydlar kam');
   const title = String(j.title || topic).slice(0, 60);
@@ -3384,6 +3385,7 @@ async function airMake(kind) {
 const AIR_FALLBACK_Q = { funny: 'people laughing', wisdom: 'sunrise nature', useful: 'healthy lifestyle', fact: 'nature wildlife' };
 async function airTick(force) {
   if (AIR.busy || (!force && !airOn())) return null;
+  if (!force && AIR.err && now() - AIR.last < 60 * 60e3) return null; // xato bo'lsa 1 soat kutamiz (AI limitini tejash)
   AIR.busy = true;
   try {
     const bot = await airBot();

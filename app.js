@@ -8707,4 +8707,6 @@ try {
   const putAir = () => { if (!S.me?.isAdmin || $('#reels-ai')) return; $('#reels-add')?.insertAdjacentHTML('beforebegin', '<button class="icon-btn" id="reels-ai" title="AI reels">✨</button>'); $('#reels-ai').onclick = async () => { try { const s = await api('/api/admin/ai-reel'); if (s.busy) return toast('⏳ AI reels tayyorlanmoqda…'); await api('/api/admin/ai-reel', { body: {} }); toast('✨ AI reels tayyorlanmoqda — 1–5 daqiqada lentada chiqadi', 4000); } catch (e) { toast(e.message); } }; };
   setInterval(putAir, 3000);
 } catch {}
+// Chatdagi "O'yinga taklif" ro'yxati — o'yinlar bo'limidagi joriy ro'yxatdan (o'chirilgan o'yinlar ko'rinmaydi)
+try { const syncMP = (k = 0) => { const LS = window.BirgaMP?.list; if (!LS) { if (k < 40) setTimeout(() => syncMP(k + 1), 500); return; } for (const x of Object.keys(MPN)) delete MPN[x]; for (const x of Object.keys(MPC)) delete MPC[x]; LS.forEach((m) => { MPN[m.id] = [m.e, m.n.uz, m.n.ru, m.n.en]; MPC[m.id] = m.c; }); }; syncMP(); } catch {}
 boot();

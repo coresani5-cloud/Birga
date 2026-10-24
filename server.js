@@ -1792,9 +1792,9 @@ app.post('/api/ai/image', auth, rateLimit('aiimg', 25, 3600e3), wrap(async (req,
 const GAMES = new Set(['snake', 'penalty', 'aim', '2048', 'flappy', 'blocks', 'memory', 'xo', 'breakout', 'mines', 'run', 'strike', 'football']);
 // 2 kishilik (taklif bilan) o'yinlar — g'alabalar soni 'w_<id>' nomi bilan reytingga yoziladi
 const AI_SECRET = crypto.randomBytes(8).toString('hex');
-const MP_GAMES = new Set(['chess', 'checkers', 'connect4', 'gomoku', 'battleship', 'fb4', 'duel', 'hockey', 'reversi', 'dots', 'race', 'pong', 'tanks', 'sumo']);
+const MP_GAMES = new Set(['chess', 'checkers', 'fb4', 'duel', 'hockey', 'reversi', 'race', 'pong', 'tanks', 'sumo', 'drag', 'shootout', 'traffic', 'fight', 'pool']);
 const N_LOCK = new Set(['chess', 'checkers']); // faqat 2 kishilik
-const RT_GAMES = new Set(['fb4', 'duel', 'hockey', 'race', 'pong', 'tanks', 'sumo']); // jonli (real vaqtda) o'yinlar
+const RT_GAMES = new Set(['fb4', 'duel', 'hockey', 'race', 'pong', 'tanks', 'sumo', 'drag', 'traffic', 'fight']); // jonli (real vaqtda) o'yinlar
 const TOP_GAMES = new Set([...GAMES, ...[...MP_GAMES].map((g) => 'w_' + g)]);
 app.post('/api/games/score', auth, rateLimit('gscore', 600, 3600e3), wrap(async (req, res) => {
   const g = String(req.body?.game || ''); const sc = Math.floor(Number(req.body?.score));
@@ -3255,13 +3255,21 @@ async function airScript(kind) {
   const topic = AIR_TOPICS[kind][rnd(0, AIR_TOPICS[kind].length - 1)];
   const sys = `Sen "Birga" messenjeri uchun qisqa vertikal video (reels) ssenariy muallifisan. FAQAT o‘zbek tilida (lotin alifbosi, o‘ g‘ harflari bilan) yoz, boshqa til aralashmasin.
 ${AIR_RULES[kind]}
-Javobni FAQAT JSON ko‘rinishida ber, boshqa hech narsa yozma:
-{"title":"qisqa sarlavha (5 so‘zgacha)","slides":[{"text":"ekranda chiqadigan matn, 110 belgigacha","q":"2-4 English words to search a real stock video for this slide, concrete and visual (e.g. ocean waves sunset, old man laughing, honey bee flower)","img":"short English prompt for an illustration of this slide, no text"}],"caption":"1-2 gaplik izoh","tags":["3-4 ta xeshteg so‘zi"]}
+Javobni FAQAT quyidagi qatorlar ko‘rinishida ber (JSON emas, boshqa hech narsa yozma):
+SARLAVHA: qisqa sarlavha (5 so‘zgacha)
+IZOH: 1-2 gaplik izoh
+TEG: so‘z1, so‘z2, so‘z3
+SLAYD: ekranda chiqadigan matn (110 belgigacha) || 2-4 English words to search a real stock video (e.g. ocean waves sunset) || short English illustration prompt
+SLAYD: ...
 Slaydlar soni: 4 yoki 5. Matnlar qisqa, tushunarli, qiziqarli bo‘lsin.`;
   const user = `Mavzu yo‘nalishi: ${topic}. Takrorlanmasin — bu sarlavhalar avval bo‘lgan: ${recent.slice(-30).join('; ') || 'yo‘q'}.`;
   const r = await aiAnswer([{ role: 'user', content: user }], { web: false, rawSys: sys, maxTok: 900 });
-  const txt = String(r?.text || r || ''); const m = txt.match(/\{[\s\S]*\}/); if (!m) throw new Error('ssenariy JSON emas: ' + txt.slice(0, 160));
-  let j; try { j = JSON.parse(m[0]); } catch { j = JSON.parse(m[0].replace(/,\s*([}\]])/g, '$1').replace(/[“”]/g, '"')); }
+  const txt = String(r?.text || r || '').replace(/\*\*/g, '');
+  let j = null; // 1) qatorli format (ishonchli);  2) JSON (zaxira)
+  const ln = (k) => (txt.match(new RegExp('^\\s*' + k + '\\s*[:：]\\s*(.+)$', 'im')) || [])[1]?.trim() || '';
+  const sl = [...txt.matchAll(/^\s*(?:SLAYD|SLIDE)\s*\d*\s*[:：]\s*(.+)$/gim)].map((m) => { const p = m[1].split(/\s*\|\|\s*|\s+\|\s+/); return { text: p[0], q: p[1] || '', img: p[2] || p[1] || '' }; });
+  if (sl.length >= 3) j = { title: ln('SARLAVHA') || ln('TITLE'), caption: ln('IZOH') || ln('CAPTION'), tags: (ln('TEG') || ln('TAGS')).split(/[,;]\s*/).filter(Boolean), slides: sl };
+  if (!j) { const m = txt.match(/\{[\s\S]*\}/); if (!m) throw new Error('ssenariy formati noto‘g‘ri: ' + txt.slice(0, 160)); try { j = JSON.parse(m[0]); } catch { j = JSON.parse(m[0].replace(/,\s*([}\]])/g, '$1').replace(/[“”]/g, '"')); } }
   const slides = (Array.isArray(j.slides) ? j.slides : []).map((s) => ({ text: String(s.text || '').replace(/\s+/g, ' ').trim().slice(0, 140), img: String(s.img || '').slice(0, 300), q: String(s.q || s.img || '').replace(/[^\w\s-]/g, ' ').replace(/\s+/g, ' ').trim().split(' ').slice(0, 5).join(' ') })).filter((s) => s.text).slice(0, 5);
   if (slides.length < 3) throw new Error('slaydlar kam');
   const title = String(j.title || topic).slice(0, 60);

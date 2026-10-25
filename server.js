@@ -58,7 +58,7 @@ function publicUser(u, self = false, viewer) {
   if (u.deleted) return { id: u.id, name: null, deleted: true, username: null, bio: '', avatar: null, last_seen: null, online: false };
   const hide = !self && !canSee(u, 'seen', viewer ?? viewerALS.getStore()?.v); // "oxirgi faollik" yashirilgan — boshqalarga "yaqinda" ko'rinadi
   const o = { id: u.id, name: u.name, username: u.username, bio: u.bio, avatar: u.avatar, last_seen: hide ? null : u.last_seen, online: hide ? false : online.has(u.id), country: u.country, birthday: u.birthday || null };
-  if (self) { o.phone = String(u.phone || '').startsWith('mail:') ? null : u.phone; o.email = u.email || null; o.lang = u.lang; o.hide_seen = !!u.hide_seen || u.priv_seen === 'nobody'; o.priv = { seen: u.priv_seen || (u.hide_seen ? 'nobody' : 'all'), story: u.priv_story || 'all' }; o.has2fa = !!u.pass_hash; o.locShare = !!Number(u.loc_share); o.pass_hint = u.pass_hint || ''; o.isAdmin = isAdminUser(u); try { o.region = JSON.parse(u.region || 'null'); } catch { o.region = null; } }
+  if (self) { o.tel = u.tel || null; o.phone = String(u.phone || '').startsWith('mail:') ? null : u.phone; o.email = u.email || null; o.lang = u.lang; o.hide_seen = !!u.hide_seen || u.priv_seen === 'nobody'; o.priv = { seen: u.priv_seen || (u.hide_seen ? 'nobody' : 'all'), story: u.priv_story || 'all' }; o.has2fa = !!u.pass_hash; o.locShare = !!Number(u.loc_share); o.pass_hint = u.pass_hint || ''; o.isAdmin = isAdminUser(u); try { o.region = JSON.parse(u.region || 'null'); } catch { o.region = null; } }
   return o;
 }
 
@@ -782,6 +782,15 @@ async function ratesNow() {
       rateCache = { at: now(), data }; return data;
     } catch (e) { errs.push(e.message); }
   }
+  // Zaxira manbalar (cbu.uz chet eldan sekin/yopiq bo'lsa): xalqaro bozor kursi
+  const NM = { USD: ['AQSH dollari', 'Доллар США', 'US Dollar'], EUR: ['Yevro', 'Евро', 'Euro'], RUB: ['Rossiya rubli', 'Российский рубль', 'Russian Ruble'], GBP: ['Angliya funt sterlingi', 'Фунт стерлингов', 'Pound Sterling'], CNY: ['Xitoy yuani', 'Китайский юань', 'Chinese Yuan'], KZT: ['Qozog‘iston tengesi', 'Казахстанский тенге', 'Kazakhstani Tenge'], TRY: ['Turk lirasi', 'Турецкая лира', 'Turkish Lira'], KRW: ['Janubiy Koreya voni', 'Южнокорейская вона', 'South Korean Won'], AED: ['BAA dirhami', 'Дирхам ОАЭ', 'UAE Dirham'] };
+  const mk = (get, src) => { const list = RATE_CCY.map((c) => { const v = get(c); if (!(v > 0)) return null; const nominal = v < 1 ? (v < 0.1 ? 1000 : 10) : 1; return { c, uz: NM[c][0], ru: NM[c][1], en: NM[c][2], rate: Math.round(v * nominal * 100) / 100, nominal, diff: 0 }; }).filter(Boolean); if (list.length < 3) throw new Error(src + ': kurs yo‘q'); return { date: new Date(now() + 5 * 3600e3).toISOString().slice(0, 10).split('-').reverse().join('.'), list, src }; };
+  for (const [u, f, src] of [
+    ['https://www.floatrates.com/daily/uzs.json', (j) => (c) => j[c.toLowerCase()]?.inverseRate, 'FloatRates (xalqaro bozor kursi)'],
+    ['https://open.er-api.com/v6/latest/USD', (j) => (c) => (j.rates?.UZS && j.rates?.[c] ? j.rates.UZS / j.rates[c] : null), 'ExchangeRate-API (xalqaro bozor kursi)'],
+  ]) {
+    try { const j = await wxFetch(u); const data = mk(f(j), src); rateCache = { at: now(), data }; return data; } catch (e) { errs.push(e.message); }
+  }
   if (rateCache) return { ...rateCache.data, stale: true };
   throw new Error(errs.join(' | '));
 }
@@ -861,7 +870,7 @@ app.post('/api/profile/region', auth, wrap(async (req, res) => {
 }));
 // Ob-havo: bir nechta bepul manba ketma-ket (biri ishlamasa yoki limitga yetsa — keyingisi). Kalit shart emas.
 // 1) Open-Meteo 2) MET Norway (yr.no) 3) wttr.in. Ixtiyoriy: OPENWEATHER_API_KEY (openweathermap.org) — eng birinchi sinab ko'riladi.
-const wxFetch = async (u, headers = {}) => { const r = await fetch(u, { headers: { 'User-Agent': 'Birga/1.0 (https://birga.onrender.com)', ...headers }, signal: AbortSignal.timeout(8000) }); if (!r.ok) throw new Error(u.split('/')[2] + ' ' + r.status); return r.json(); };
+const wxFetch = async (u, headers = {}, ms = /cbu\.uz/.test(u) ? 15000 : 8000) => { const r = await fetch(u, { headers: { 'User-Agent': 'Birga/1.0 (https://birga.onrender.com)', ...headers }, signal: AbortSignal.timeout(ms) }); if (!r.ok) throw new Error(u.split('/')[2] + ' ' + r.status); return r.json(); };
 const tzOffH = (lon) => Math.round(lon / 15); // mahalliy sana uchun taxminiy vaqt mintaqasi
 const localDay = (ms, lon) => new Date(ms + tzOffH(lon) * 3600e3).toISOString().slice(0, 10);
 function daysFromHours(hours, lon) { // [{t, temp, code, rain}] -> 4 kunlik
@@ -969,7 +978,7 @@ app.post('/api/contacts/match', auth, rateLimit('cmatch', 30, 3600e3), wrap(asyn
   for (const x of (Array.isArray(req.body?.emails) ? req.body.emails : []).slice(0, 1000)) { const e = String(x).trim().toLowerCase(); if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) emails.add(e); }
   const found = new Map();
   const chunk = (arr) => { const out = []; for (let i = 0; i < arr.length; i += 100) out.push(arr.slice(i, i + 100)); return out; };
-  for (const part of chunk([...phones])) for (const u of await db.all(`SELECT * FROM users WHERE phone IN (${part.map(() => '?').join(',')})`, part)) found.set(u.id, u);
+  for (const part of chunk([...phones])) for (const u of await db.all(`SELECT * FROM users WHERE phone IN (${part.map(() => '?').join(',')}) OR tel IN (${part.map(() => '?').join(',')})`, [...part, ...part])) found.set(u.id, u);
   for (const part of chunk([...emails])) for (const u of await db.all(`SELECT * FROM users WHERE LOWER(email) IN (${part.map(() => '?').join(',')}) OR phone IN (${part.map(() => '?').join(',')})`, [...part, ...part.map((e) => 'mail:' + e)])) found.set(u.id, u);
   const out = [];
   for (const u of found.values()) {
@@ -2780,8 +2789,14 @@ io.on('connection', async (socket) => {
   });
   on(socket, 'game:mine', async (p, ack) => {
     const rows = await db.all("SELECT id FROM game_rooms WHERE (a=? OR b=? OR pl LIKE ? OR pl LIKE ?) AND status<>'over' AND updated>? ORDER BY updated DESC LIMIT 12", [uid, uid, `%,${uid},%`, `%,${uid}]%`, now() - 14 * 864e5]);
-    const out = []; for (const x of rows) { const r = await loadRoom(x.id); if (r && r.pl.includes(uid)) { const v = await roomView(r); delete v.moves; delete v.secret; out.push(v); } }
+    const out = []; for (const x of rows) { const r = await loadRoom(x.id); if (r && r.pl.includes(uid) && !(r.claims.hidden || []).includes(uid) && !(r.claims.out || []).includes(seatOf(r, uid))) { const v = await roomView(r); delete v.moves; delete v.secret; out.push(v); } }
     ack?.({ rooms: out });
+  });
+  // "Davom etayotgan o'yinlar" ro'yxatidan olib tashlash (✕): avval taslim bo'linadi, keyin xona bu foydalanuvchiga ko'rinmaydi
+  on(socket, 'game:hide', async (p, ack) => {
+    const r = await loadRoom(p?.room); if (!r || seatOf(r, uid) < 0) return ack?.({ error: 'not_found' });
+    const h = r.claims.hidden || (r.claims.hidden = []); if (!h.includes(uid)) h.push(uid);
+    await roomSave(r, ['claims']); ack?.({ ok: true });
   });
   on(socket, 'game:peek', async (p, ack) => {
     const ids = (Array.isArray(p?.ids) ? p.ids : []).slice(0, 60).map(String);
@@ -3095,9 +3110,15 @@ app.get('/api/map/route', auth, rateLimit('maproute', 600, 3600e3), wrap(async (
 const QZ_SCI = ['geography', 'physics', 'chemistry', 'biology', 'astronomy', 'math', 'history', 'literature'];
 const QZ_INT = ['uzbekistan', 'tech', 'sport', 'animals', 'general'];
 const QZ_CATS = [...QZ_SCI, ...QZ_INT, 'mix', 'iq'];
-const QZ_N = 10, QZ_IQ_N = 12;
+const QZ_N = 20, QZ_IQ_N = 20;
 let QZ_BANK = null;
-const qzBank = () => { if (!QZ_BANK) { try { QZ_BANK = JSON.parse(fs.readFileSync(path.join(__dirname, 'quiz-bank.json'), 'utf8')); } catch (e) { console.error('quiz-bank.json:', e.message); QZ_BANK = {}; } } return QZ_BANK; };
+const qzBank = () => { // quiz-bank-1.json, quiz-bank-2.json … (GitHub'da tahrirlash oson bo'lishi uchun bo'laklarga bo'lingan)
+  if (QZ_BANK) return QZ_BANK; QZ_BANK = {};
+  const files = fs.readdirSync(__dirname).filter((f) => /^quiz-bank(-\d+)?\.json$/.test(f)).sort((a, b) => (parseInt(a.split('-')[2]) || 0) - (parseInt(b.split('-')[2]) || 0));
+  const parts = files.some((f) => f !== 'quiz-bank.json') ? files.filter((f) => f !== 'quiz-bank.json') : files;
+  for (const f of parts) { try { for (const [c, arr] of Object.entries(JSON.parse(fs.readFileSync(path.join(__dirname, f), 'utf8')))) (QZ_BANK[c] ||= []).push(...arr); } catch (e) { console.error(f + ':', e.message); } }
+  return QZ_BANK;
+};
 const qzLang = (l) => (String(l || '').startsWith('uz') || l === 'kaa' ? 'uz' : baseLang(l));
 const qzSessions = new Map(); // sid -> sessiya (30 daqiqa)
 const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
@@ -3138,14 +3159,117 @@ function qzGen(kind, lv, l) { // kind: math | iq;  lv: 1..3
   else { const m = rnd(2, 5), c = rnd(1, 7); const f = (x) => x * m + c; const a = rnd(2, 6), b = a + rnd(2, 4), e = b + rnd(2, 5); return mk(fillT('ana', l, { a, b: f(a), c: b, d: f(b), e }), f(e), numOpts(f(e), Math.max(4, m * 2)), Math.max(lv, 2)); }
   return mk(fillT('seq', l, { s: s.join(', ') }), ans, numOpts(ans, Math.max(3, Math.round(Math.abs(ans) * 0.15))), lv);
 }
-async function qzPick(uid, cat, l) {
+// ===== IQ: mantiqiy savollar (faqat matematika emas): sillogizm, tartib, kunlar, o'xshashlik, ortiqcha so'z, harf qatori, shifr =====
+const IQL = {
+  nonce: [['blik', 'блик', 'blick'], ['trok', 'трок', 'trock'], ['zuk', 'зук', 'zook'], ['vak', 'вак', 'wack'], ['gik', 'гик', 'gick'], ['lok', 'лок', 'lock']],
+  names: { uz: ['Ali', 'Bek', 'Doniyor', 'Jasur', 'Sardor', 'Aziz', 'Otabek', 'Umid'], ru: ['Али', 'Бек', 'Данияр', 'Жасур', 'Сардор', 'Азиз', 'Отабек', 'Умид'], en: ['Ali', 'Bek', 'Daniyar', 'Jasur', 'Sardor', 'Aziz', 'Otabek', 'Umid'] },
+  days: { uz: ['dushanba', 'seshanba', 'chorshanba', 'payshanba', 'juma', 'shanba', 'yakshanba'], ru: ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье'], en: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] },
+  // o'xshashlik: [a, b, c, javob, chalg'ituvchi x3] har tilda
+  ana: [
+    { uz: ['qo‘l', 'barmoq', 'oyoq', 'oyoq barmog‘i', 'tizza', 'poyabzal', 'yurish'], ru: ['рука', 'палец', 'нога', 'палец ноги', 'колено', 'обувь', 'ходьба'], en: ['hand', 'finger', 'foot', 'toe', 'knee', 'shoe', 'walking'] },
+    { uz: ['qush', 'uya', 'ari', 'ari uyasi', 'gul', 'asal', 'qanot'], ru: ['птица', 'гнездо', 'пчела', 'улей', 'цветок', 'мёд', 'крыло'], en: ['bird', 'nest', 'bee', 'hive', 'flower', 'honey', 'wing'] },
+    { uz: ['kun', 'tun', 'yoz', 'qish', 'bahor', 'issiq', 'oy'], ru: ['день', 'ночь', 'лето', 'зима', 'весна', 'жара', 'месяц'], en: ['day', 'night', 'summer', 'winter', 'spring', 'heat', 'month'] },
+    { uz: ['ruchka', 'yozish', 'pichoq', 'kesish', 'oshxona', 'temir', 'o‘tkir'], ru: ['ручка', 'писать', 'нож', 'резать', 'кухня', 'железо', 'острый'], en: ['pen', 'write', 'knife', 'cut', 'kitchen', 'iron', 'sharp'] },
+    { uz: ['shifokor', 'kasalxona', 'o‘qituvchi', 'maktab', 'kitob', 'dars', 'o‘quvchi'], ru: ['врач', 'больница', 'учитель', 'школа', 'книга', 'урок', 'ученик'], en: ['doctor', 'hospital', 'teacher', 'school', 'book', 'lesson', 'student'] },
+    { uz: ['baliq', 'suv', 'qush', 'havo', 'daraxt', 'tuxum', 'pat'], ru: ['рыба', 'вода', 'птица', 'воздух', 'дерево', 'яйцо', 'перо'], en: ['fish', 'water', 'bird', 'air', 'tree', 'egg', 'feather'] },
+    { uz: ['kuchukcha', 'it', 'mushukcha', 'mushuk', 'sichqon', 'sut', 'tulki'], ru: ['щенок', 'собака', 'котёнок', 'кошка', 'мышь', 'молоко', 'лиса'], en: ['puppy', 'dog', 'kitten', 'cat', 'mouse', 'milk', 'fox'] },
+    { uz: ['issiq', 'sovuq', 'baland', 'past', 'katta', 'tez', 'uzun'], ru: ['горячий', 'холодный', 'высокий', 'низкий', 'большой', 'быстрый', 'длинный'], en: ['hot', 'cold', 'high', 'low', 'big', 'fast', 'long'] },
+    { uz: ['ko‘z', 'ko‘rish', 'quloq', 'eshitish', 'gapirish', 'hidlash', 'bosh'], ru: ['глаз', 'видеть', 'ухо', 'слышать', 'говорить', 'нюхать', 'голова'], en: ['eye', 'see', 'ear', 'hear', 'speak', 'smell', 'head'] },
+    { uz: ['non', 'novvoy', 'kiyim', 'tikuvchi', 'do‘kon', 'mato', 'quruvchi'], ru: ['хлеб', 'пекарь', 'одежда', 'портной', 'магазин', 'ткань', 'строитель'], en: ['bread', 'baker', 'clothes', 'tailor', 'shop', 'fabric', 'builder'] },
+    { uz: ['sekund', 'minut', 'minut', 'soat', 'kun', 'hafta', 'yil'], ru: ['секунда', 'минута', 'минута', 'час', 'день', 'неделя', 'год'], en: ['second', 'minute', 'minute', 'hour', 'day', 'week', 'year'] },
+    { uz: ['muz', 'suv', 'suv', 'bug‘', 'qor', 'yomg‘ir', 'tuz'], ru: ['лёд', 'вода', 'вода', 'пар', 'снег', 'дождь', 'соль'], en: ['ice', 'water', 'water', 'steam', 'snow', 'rain', 'salt'] },
+    { uz: ['urug‘', 'daraxt', 'tuxum', 'qush', 'meva', 'uya', 'barg'], ru: ['семя', 'дерево', 'яйцо', 'птица', 'плод', 'гнездо', 'лист'], en: ['seed', 'tree', 'egg', 'bird', 'fruit', 'nest', 'leaf'] },
+    { uz: ['Toshkent', 'O‘zbekiston', 'Parij', 'Fransiya', 'Italiya', 'London', 'Yevropa'], ru: ['Ташкент', 'Узбекистан', 'Париж', 'Франция', 'Италия', 'Лондон', 'Европа'], en: ['Tashkent', 'Uzbekistan', 'Paris', 'France', 'Italy', 'London', 'Europe'] },
+    { uz: ['g‘ildirak', 'mashina', 'qanot', 'samolyot', 'yo‘l', 'uchuvchi', 'osmon'], ru: ['колесо', 'машина', 'крыло', 'самолёт', 'дорога', 'пилот', 'небо'], en: ['wheel', 'car', 'wing', 'plane', 'road', 'pilot', 'sky'] },
+  ],
+  // ortiqcha so'z: 3 ta bir guruh + 1 ortiqcha (birinchi — ortiqcha)
+  odd: [
+    { uz: ['sabzi', 'olma', 'nok', 'uzum'], ru: ['морковь', 'яблоко', 'груша', 'виноград'], en: ['carrot', 'apple', 'pear', 'grapes'] },
+    { uz: ['ilon', 'burgut', 'lochin', 'chumchuq'], ru: ['змея', 'орёл', 'сокол', 'воробей'], en: ['snake', 'eagle', 'falcon', 'sparrow'] },
+    { uz: ['stol', 'gitara', 'skripka', 'dutor'], ru: ['стол', 'гитара', 'скрипка', 'дутар'], en: ['table', 'guitar', 'violin', 'dutar'] },
+    { uz: ['Oy', 'Mars', 'Venera', 'Yupiter'], ru: ['Луна', 'Марс', 'Венера', 'Юпитер'], en: ['Moon', 'Mars', 'Venus', 'Jupiter'] },
+    { uz: ['kit', 'akula', 'losos', 'tunets'], ru: ['кит', 'акула', 'лосось', 'тунец'], en: ['whale', 'shark', 'salmon', 'tuna'] },
+    { uz: ['kvadrat', 'qizil', 'yashil', 'ko‘k'], ru: ['квадрат', 'красный', 'зелёный', 'синий'], en: ['square', 'red', 'green', 'blue'] },
+    { uz: ['kilogramm', 'metr', 'santimetr', 'kilometr'], ru: ['килограмм', 'метр', 'сантиметр', 'километр'], en: ['kilogram', 'metre', 'centimetre', 'kilometre'] },
+    { uz: ['yugurish', 'qizil', 'sariq', 'oq'], ru: ['бег', 'красный', 'жёлтый', 'белый'], en: ['running', 'red', 'yellow', 'white'] },
+    { uz: ['shisha', 'oltin', 'kumush', 'mis'], ru: ['стекло', 'золото', 'серебро', 'медь'], en: ['glass', 'gold', 'silver', 'copper'] },
+    { uz: ['ko‘rpa', 'tufli', 'etik', 'krossovka'], ru: ['одеяло', 'туфли', 'сапоги', 'кроссовки'], en: ['blanket', 'shoes', 'boots', 'sneakers'] },
+    { uz: ['Afrika', 'Fransiya', 'Germaniya', 'Ispaniya'], ru: ['Африка', 'Франция', 'Германия', 'Испания'], en: ['Africa', 'France', 'Germany', 'Spain'] },
+    { uz: ['dengiz', 'tog‘', 'tepalik', 'qoya'], ru: ['море', 'гора', 'холм', 'скала'], en: ['sea', 'mountain', 'hill', 'rock'] },
+    { uz: ['bolg‘a', 'tarvuz', 'qovun', 'shaftoli'], ru: ['молоток', 'арбуз', 'дыня', 'персик'], en: ['hammer', 'watermelon', 'melon', 'peach'] },
+    { uz: ['televizor', 'mushuk', 'quyon', 'sigir'], ru: ['телевизор', 'кошка', 'кролик', 'корова'], en: ['television', 'cat', 'rabbit', 'cow'] },
+    { uz: ['quyosh', 'yomg‘ir', 'qor', 'do‘l'], ru: ['солнце', 'дождь', 'снег', 'град'], en: ['sun', 'rain', 'snow', 'hail'] },
+    { uz: ['tez', 'yugurmoq', 'sakramoq', 'suzmoq'], ru: ['быстро', 'бежать', 'прыгать', 'плавать'], en: ['quickly', 'run', 'jump', 'swim'] },
+    { uz: ['kitob', 'qalam', 'ruchka', 'flomaster'], ru: ['книга', 'карандаш', 'ручка', 'фломастер'], en: ['book', 'pencil', 'pen', 'marker'] },
+  ],
+};
+function iqLogic(lv, l) {
+  const L3 = l === 'ru' ? 1 : l === 'en' ? 2 : 0, mk = (q, opts, d) => ({ q, o: opts.map(String), d, src: { uz: 'Mantiqiy fikrlash', ru: 'Логическое мышление', en: 'Logical reasoning' }[l], gen: 1 });
+  const pick = (a) => a[Math.floor(Math.random() * a.length)];
+  const t = rnd(0, 7);
+  if (t === 0) { // sillogizm
+    const [A, B, C] = shuffle(IQL.nonce.slice()).slice(0, 3).map((w) => w[L3]);
+    const P = { uz: (x) => x + 'lar', ru: (x) => x + 'и', en: (x) => x + 's' }[l];
+    if (Math.random() < 0.5) {
+      const q = { uz: `Barcha ${P(A)} — ${P(B)}. Barcha ${P(B)} — ${P(C)}. Qaysi xulosa albatta to‘g‘ri?`, ru: `Все ${P(A)} — ${P(B)}. Все ${P(B)} — ${P(C)}. Какой вывод обязательно верен?`, en: `All ${P(A)} are ${P(B)}. All ${P(B)} are ${P(C)}. Which conclusion must be true?` }[l];
+      const o = { uz: [`Barcha ${P(A)} — ${P(C)}`, `Barcha ${P(C)} — ${P(A)}`, `Hech bir ${A} ${C} emas`, `Barcha ${P(B)} — ${P(A)}`], ru: [`Все ${P(A)} — ${P(C)}`, `Все ${P(C)} — ${P(A)}`, `Ни один ${A} не ${C}`, `Все ${P(B)} — ${P(A)}`], en: [`All ${P(A)} are ${P(C)}`, `All ${P(C)} are ${P(A)}`, `No ${A} is a ${C}`, `All ${P(B)} are ${P(A)}`] }[l];
+      return mk(q, o, Math.max(lv, 2));
+    }
+    const q = { uz: `Hech bir ${A} ${B} emas. Barcha ${P(C)} — ${P(B)}. Qaysi xulosa albatta to‘g‘ri?`, ru: `Ни один ${A} не ${B}. Все ${P(C)} — ${P(B)}. Какой вывод обязательно верен?`, en: `No ${A} is a ${B}. All ${P(C)} are ${P(B)}. Which conclusion must be true?` }[l];
+    const o = { uz: [`Hech bir ${C} ${A} emas`, `Barcha ${P(C)} — ${P(A)}`, `Barcha ${P(A)} — ${P(C)}`, `Barcha ${P(B)} — ${P(C)}`], ru: [`Ни один ${C} не ${A}`, `Все ${P(C)} — ${P(A)}`, `Все ${P(A)} — ${P(C)}`, `Все ${P(B)} — ${P(C)}`], en: [`No ${C} is a ${A}`, `All ${P(C)} are ${P(A)}`, `All ${P(A)} are ${P(C)}`, `All ${P(B)} are ${P(C)}`] }[l];
+    return mk(q, o, 3);
+  }
+  if (t === 1) { // tartib: kim eng baland / eng past
+    const n = lv >= 3 ? 4 : 3, ns = shuffle(IQL.names[l].slice()).slice(0, n); // ns[0] eng baland ... ns[n-1] eng past
+    const pairs = []; for (let i = 0; i < n - 1; i++) pairs.push([ns[i], ns[i + 1]]); shuffle(pairs);
+    const rel = { uz: (a, b) => `${a} ${b}dan baland.`, ru: (a, b) => `${a} выше, чем ${b}.`, en: (a, b) => `${a} is taller than ${b}.` }[l];
+    const askLow = Math.random() < 0.5;
+    const q = pairs.map(([a, b]) => rel(a, b)).join(' ') + ' ' + { uz: askLow ? 'Kim eng past?' : 'Kim eng baland?', ru: askLow ? 'Кто самый низкий?' : 'Кто самый высокий?', en: askLow ? 'Who is the shortest?' : 'Who is the tallest?' }[l];
+    const ans = askLow ? ns[n - 1] : ns[0]; const opts = [ans, ...ns.filter((x) => x !== ans)].slice(0, 4); while (opts.length < 4) opts.push(IQL.names[l].find((x) => !opts.includes(x)));
+    return mk(q, opts, n === 4 ? 3 : 2);
+  }
+  if (t === 2) { // hafta kunlari
+    const D = IQL.days[l], s = rnd(0, 6), k = lv === 1 ? rnd(2, 6) : lv === 2 ? rnd(8, 20) : rnd(25, 100), back = lv === 3 && Math.random() < 0.5;
+    const ans = D[(((s + (back ? -k : k)) % 7) + 7) % 7];
+    const q = { uz: `Bugun ${D[s]}. ${k} kundan ${back ? 'oldin' : 'keyin'} qaysi kun bo‘ladi?`, ru: back ? `Сегодня ${D[s]}. Какой день недели был ${k} дн. назад?` : `Сегодня ${D[s]}. Какой день недели будет через ${k} дн.?`, en: `Today is ${D[s]}. What day ${back ? 'was it ' + k + ' days ago' : 'will it be in ' + k + ' days'}?` }[l];
+    return mk(q, [ans, ...shuffle(D.filter((x) => x !== ans)).slice(0, 3)], lv);
+  }
+  if (t === 3) { // o'xshashlik
+    const a = pick(IQL.ana)[l];
+    const q = { uz: `${a[0]} → ${a[1]}, ${a[2]} → ?`, ru: `${a[0]} → ${a[1]}, ${a[2]} → ?`, en: `${a[0]} → ${a[1]}, ${a[2]} → ?` }[l] + ' ' + { uz: '(qaysi so‘z mos keladi?)', ru: '(какое слово подходит?)', en: '(which word fits?)' }[l];
+    return mk(q, [a[3], a[4], a[5], a[6]], 2);
+  }
+  if (t === 4) { // ortiqcha so'z
+    const g = pick(IQL.odd)[l];
+    return mk({ uz: 'Qaysi so‘z ortiqcha?', ru: 'Какое слово лишнее?', en: 'Which word is the odd one out?' }[l] + ` (${shuffle(g.slice()).join(', ')})`, g, 1);
+  }
+  if (t === 5) { // harf qatori
+    const AB = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', st = rnd(0, 8), step = lv === 1 ? rnd(1, 2) : rnd(2, 4), alt = lv === 3;
+    const seq = []; let p = st; for (let i = 0; i < 5; i++) { seq.push(AB[p % 26]); p += alt ? (i % 2 ? step + 1 : step) : step; }
+    const ans = seq.pop(); const opts = [ans]; for (const dlt of [1, -1, 2, -2, 3]) { const c = AB[(AB.indexOf(ans) + dlt + 26) % 26]; if (!opts.includes(c)) opts.push(c); if (opts.length === 4) break; }
+    return mk({ uz: `Harflar qatorini davom ettiring: ${seq.join(', ')}, ?`, ru: `Продолжите ряд букв: ${seq.join(', ')}, ?`, en: `Continue the letter series: ${seq.join(', ')}, ?` }[l], opts, alt ? 3 : lv);
+  }
+  if (t === 6) { // shifr: har harf k ga suriladi
+    const AB = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', words = ['KITOB', 'QALAM', 'BIRGA', 'DARYO', 'OLMA', 'SAMO', 'TOSH', 'GUL', 'NUR', 'ILM'], k = lv === 1 ? 1 : rnd(1, 3);
+    const enc = (w, kk) => [...w].map((ch) => AB[(AB.indexOf(ch) + kk) % 26]).join('');
+    const [w1, w2] = shuffle(words.slice()).slice(0, 2); const ans = enc(w2, k);
+    const opts = [ans, enc(w2, k + 1), enc(w2, Math.max(0, k - 1)) === ans ? enc(w2, k + 2) : enc(w2, Math.max(0, k - 1)), [...ans].reverse().join('')];
+    const uniq = [...new Set(opts)]; while (uniq.length < 4) uniq.push(enc(w2, uniq.length + 3));
+    return mk({ uz: `Agar ${w1} so‘zi ${enc(w1, k)} deb shifrlansa, ${w2} qanday shifrlanadi?`, ru: `Если слово ${w1} шифруется как ${enc(w1, k)}, как зашифровать ${w2}?`, en: `If ${w1} is coded as ${enc(w1, k)}, how is ${w2} coded?` }[l], uniq.slice(0, 4), Math.max(2, lv));
+  }
+  // qarindoshlik / yosh mantiqi
+  const [a, b] = shuffle(IQL.names[l].slice()).slice(0, 2), x = rnd(3, 9), y = rnd(10, 30);
+  return mk({ uz: `${a} ${b}dan ${x} yosh katta. ${y} yildan keyin ${a} ${b}dan necha yosh katta bo‘ladi?`, ru: `${a} старше, чем ${b}, на ${x} г. На сколько лет ${a} будет старше, чем ${b}, через ${y} л.?`, en: `${a} is ${x} years older than ${b}. In ${y} years, how many years older will ${a} be than ${b}?` }[l], [...new Set([x, x + y, y - x > 0 ? y - x : x + 1, x * 2, x + 1, x - 1])].slice(0, 4), 2);
+}
+async function qzPick(uid, cat, l, level = 0) {
   const items = [];
-  if (cat === 'iq') { for (let i = 0; i < QZ_IQ_N; i++) items.push(qzGen('iq', i < 4 ? 1 : i < 8 ? 2 : 3, l)); return items; }
+  if (cat === 'iq') { for (let i = 0; i < QZ_IQ_N; i++) { const lv = i < 6 ? 1 : i < 13 ? 2 : 3; items.push(i % 5 === 1 || i % 5 === 3 ? qzGen('iq', lv, l) : iqLogic(lv, l)); } return items; } // 60% mantiq, 40% sonlar
   const bank = qzBank(); const cats = cat === 'mix' ? [...QZ_SCI, ...QZ_INT] : [cat];
-  const pool = []; for (const c of cats) (bank[c] || []).forEach((x, i) => pool.push({ ...x, k: c + ':' + i }));
+  const pool = [], qs = new Set(); for (const c of cats) (bank[c] || []).forEach((x, i) => { const nk = String(x.q?.en || '').toLowerCase().replace(/[^a-z0-9]+/g, ''); if (qs.has(nk)) return; qs.add(nk); pool.push({ ...x, k: c + ':' + i }); }); // aralashda bir xil savol ikki marta chiqmasin
   const seen = new Set((await db.all('SELECT k FROM quiz_seen WHERE user_id=?', [uid]).catch(() => [])).map((r) => r.k));
-  const want = cat === 'math' ? 6 : QZ_N;
-  const fresh = shuffle(pool.filter((x) => !seen.has(x.k))), old = shuffle(pool.filter((x) => seen.has(x.k)).map((x) => ({ ...x, seen: 1 })));
+  const want = cat === 'math' ? 13 : QZ_N;
+  const byLv = (a) => (level ? a.sort((x, y) => Math.abs(x.d - level) - Math.abs(y.d - level)) : a); // tanlangan darajaga yaqinlari birinchi
+  const fresh = byLv(shuffle(pool.filter((x) => !seen.has(x.k)))), old = byLv(shuffle(pool.filter((x) => seen.has(x.k)).map((x) => ({ ...x, seen: 1 }))));
   const take = [...fresh, ...old].slice(0, want);
   for (const x of take) items.push({ q: x.q[l] || x.q.en, o: x.o[l] || x.o.en, d: x.d, src: x.src, k: x.k, seen: x.seen, ans: 0 });
   if (cat === 'math') for (let i = items.length; i < QZ_N; i++) items.push(qzGen('math', rnd(1, 3), l));
@@ -3156,7 +3280,7 @@ app.get('/api/quiz/cats', auth, (req, res) => { const b = qzBank(); res.json({ s
 app.post('/api/quiz/start', auth, rateLimit('qzstart', 80, 3600e3), wrap(async (req, res) => {
   const cat = String(req.body?.cat || ''); if (!QZ_CATS.includes(cat)) return res.status(400).json({ error: 'bad cat' });
   const l = qzLang(req.body?.lang || req.user.lang);
-  const raw = await qzPick(req.user.id, cat, l); if (!raw.length) return res.status(503).json({ error: 'no_questions' });
+  const raw = await qzPick(req.user.id, cat, l, Math.max(0, Math.min(4, Number(req.body?.level) || 0))); if (!raw.length) return res.status(503).json({ error: 'no_questions' });
   const items = raw.map((x) => { const perm = shuffle([0, 1, 2, 3]); const o = perm.map((p) => String(x.o[p])); return { q: x.q, o, a: perm.indexOf(0), d: x.d, src: x.src, k: x.k, seen: x.seen }; });
   const sid = crypto.randomBytes(12).toString('hex');
   for (const [k, s] of qzSessions) if (now() - s.at > 1800e3) qzSessions.delete(k);
@@ -3486,6 +3610,53 @@ io.on('connection', (socket) => {
   }, 4000);
 });
 
+
+// ======================= TELEFON RAQAMNI ULASH (Telegram bot orqali tasdiqlash, bepul) =======================
+// Foydalanuvchi Telegram'dagi Birga botiga o'z raqamini "Raqamni ulashish" tugmasi bilan yuboradi — Telegram raqamni tasdiqlaydi.
+// Shundan so'ng uni telefon kontaktlarida saqlagan odamlar Birga'da avtomatik ko'radi. Kalit: TG_BOT_TOKEN (BotFather), ixtiyoriy TG_BOT_NAME.
+const TG = { token: () => process.env.TG_BOT_TOKEN || '', name: process.env.TG_BOT_NAME || '', codes: new Map(), chats: new Map() };
+const tgApi = async (m, body) => { const r = await fetch(`https://api.telegram.org/bot${TG.token()}/${m}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(15000) }); return r.json(); };
+const tgHook = () => crypto.createHash('sha256').update('birga-tg:' + TG.token()).digest('hex').slice(0, 32);
+setTimeout(async () => {
+  if (!TG.token()) return;
+  try {
+    const me = await tgApi('getMe', {}); if (me.ok) TG.name = TG.name || me.result.username;
+    const base = (process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || 'https://birga.onrender.com').replace(/\/$/, '');
+    const r = await tgApi('setWebhook', { url: `${base}/api/tg/${tgHook()}`, secret_token: tgHook(), allowed_updates: ['message'] });
+    console.log('   Telegram bot (raqam tasdiqlash):', TG.name ? '@' + TG.name : '?', r.ok ? 'ulandi' : JSON.stringify(r).slice(0, 120));
+  } catch (e) { console.error('Telegram bot:', e.message); }
+}, 5000);
+app.get('/api/phone', auth, (req, res) => res.json({ tel: req.user.tel || null, bot: !!TG.token() }));
+app.post('/api/phone/link', auth, rateLimit('tglink', 20, 3600e3), wrap(async (req, res) => {
+  if (!TG.token()) return res.status(503).json({ error: tr(req.user.lang, 'Raqam ulash hali sozlanmagan (administrator Telegram botni ulashi kerak)', 'Привязка номера ещё не настроена (администратор должен подключить Telegram-бота)', 'Phone linking is not set up yet (the admin must connect the Telegram bot)') });
+  for (const [k, v] of TG.codes) if (now() - v.at > 15 * 60e3) TG.codes.delete(k);
+  const code = crypto.randomBytes(9).toString('base64url'); TG.codes.set(code, { uid: req.user.id, at: now() });
+  res.json({ url: `https://t.me/${TG.name}?start=${code}`, bot: TG.name });
+}));
+app.post('/api/phone/unlink', auth, wrap(async (req, res) => { await db.run('UPDATE users SET tel=NULL WHERE id=?', [req.user.id]); res.json({ ok: true }); }));
+app.post('/api/tg/:hook', express.json(), wrap(async (req, res) => {
+  if (!TG.token() || req.params.hook !== tgHook() || req.get('x-telegram-bot-api-secret-token') !== tgHook()) return res.status(403).end();
+  res.json({ ok: true }); // Telegram'ga darhol javob
+  const m = req.body?.message; if (!m?.chat?.id) return;
+  const chat = m.chat.id, say = (text, extra = {}) => tgApi('sendMessage', { chat_id: chat, text, ...extra }).catch(() => {});
+  const st = /^\/start(?:\s+(\S+))?/.exec(m.text || '');
+  if (st) {
+    const c = st[1] && TG.codes.get(st[1]);
+    if (!c) return say('Birga ilovasida: Sozlamalar → «Telefon raqamni ulash» tugmasini bosing, so‘ng shu yerga qayting.\nВ Birga: Настройки → «Привязать номер телефона».');
+    TG.chats.set(chat, { uid: c.uid, at: now() }); TG.codes.delete(st[1]);
+    return say('📱 Birga hisobingizga raqamingizni ulash uchun pastdagi tugmani bosing.\nНажмите кнопку ниже, чтобы привязать номер к Birga.', { reply_markup: { keyboard: [[{ text: '📱 Raqamni ulashish / Поделиться номером', request_contact: true }]], resize_keyboard: true, one_time_keyboard: true } });
+  }
+  if (m.contact) {
+    const w = TG.chats.get(chat); if (!w || now() - w.at > 30 * 60e3) return say('Avval Birga ilovasidan «Telefon raqamni ulash» ni bosing.');
+    if (String(m.contact.user_id) !== String(m.from?.id)) return say('❌ Faqat o‘zingizning raqamingizni yuboring (tugma orqali).');
+    const p = parsePhone('+' + String(m.contact.phone_number).replace(/\D/g, '')); if (!p) return say('❌ Raqam noto‘g‘ri.');
+    const other = await db.get('SELECT id FROM users WHERE (tel=? OR phone=?) AND id<>?', [p.e164, p.e164, w.uid]);
+    if (other) await db.run('UPDATE users SET tel=NULL WHERE id=? AND tel=?', [other.id, p.e164]); // raqam endi tasdiqlagan egasiga tegishli
+    await db.run('UPDATE users SET tel=? WHERE id=?', [p.e164, w.uid]); TG.chats.delete(chat);
+    io.to('u' + w.uid).emit('phone:linked', { tel: p.e164 });
+    return say(`✅ ${p.e164} raqami Birga hisobingizga ulandi. Endi sizni kontaktlarida saqlagan do‘stlaringiz Birga’da avtomatik ko‘radi.\n✅ Номер привязан к Birga.`, { reply_markup: { remove_keyboard: true } });
+  }
+}));
 // v6 jadval/ustunlari (db.js ga tegmasdan)
 async function extraSchema() {
   await db.run('CREATE TABLE IF NOT EXISTS reactions(message_id BIGINT, user_id BIGINT, emoji TEXT, at BIGINT, PRIMARY KEY(message_id, user_id))');
@@ -3518,7 +3689,7 @@ async function extraSchema() {
   await db.run(`CREATE TABLE IF NOT EXISTS reel_comments(id ${db.kind === 'postgres' ? 'BIGSERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'}, reel_id BIGINT, user_id BIGINT, text TEXT, at BIGINT)`);
   await db.run('CREATE INDEX IF NOT EXISTS idx_rcom ON reel_comments(reel_id, id)');
   await db.run(`CREATE TABLE IF NOT EXISTS game_rooms(id TEXT PRIMARY KEY, game TEXT, chat_id BIGINT, a BIGINT, b BIGINT, moves TEXT, status TEXT, winner INTEGER, claims TEXT, created BIGINT, updated BIGINT)`);
-  const cols = [['users', 'reg_info', 'TEXT'], ['users', 'folders', 'TEXT'], ['users', 'region', 'TEXT'], ['users', 'invite_code', 'TEXT'], ['users', 'invited_by', 'BIGINT'], ['game_rooms', 'secret', 'TEXT'], ['users', 'steps_on', 'INTEGER DEFAULT 0'], ['users', 'banned', 'INTEGER DEFAULT 0'], ['users', 'birthday', 'TEXT'], ['chat_members', 'pinned', 'BIGINT DEFAULT 0'], ['chat_members', 'archived', 'INTEGER DEFAULT 0'], ['users', 'hide_seen', 'INTEGER DEFAULT 0'], ['users', 'deleted', 'INTEGER DEFAULT 0'], ['chat_members', 'del_at', 'BIGINT'], ['users', 'loc_share', 'INTEGER DEFAULT 0'], ['game_rooms', 'pl', 'TEXT'], ['game_rooms', 'chats', 'TEXT'], ['users', 'priv_seen', 'TEXT'], ['users', 'priv_seen_list', 'TEXT'], ['users', 'priv_story', 'TEXT'], ['users', 'priv_story_list', 'TEXT'], ['messages', 'restored_at', 'BIGINT']];
+  const cols = [['users', 'reg_info', 'TEXT'], ['users', 'folders', 'TEXT'], ['users', 'region', 'TEXT'], ['users', 'invite_code', 'TEXT'], ['users', 'invited_by', 'BIGINT'], ['game_rooms', 'secret', 'TEXT'], ['users', 'steps_on', 'INTEGER DEFAULT 0'], ['users', 'banned', 'INTEGER DEFAULT 0'], ['users', 'birthday', 'TEXT'], ['chat_members', 'pinned', 'BIGINT DEFAULT 0'], ['chat_members', 'archived', 'INTEGER DEFAULT 0'], ['users', 'hide_seen', 'INTEGER DEFAULT 0'], ['users', 'deleted', 'INTEGER DEFAULT 0'], ['chat_members', 'del_at', 'BIGINT'], ['users', 'loc_share', 'INTEGER DEFAULT 0'], ['game_rooms', 'pl', 'TEXT'], ['game_rooms', 'chats', 'TEXT'], ['users', 'priv_seen', 'TEXT'], ['users', 'priv_seen_list', 'TEXT'], ['users', 'priv_story', 'TEXT'], ['users', 'priv_story_list', 'TEXT'], ['messages', 'restored_at', 'BIGINT'], ['users', 'tel', 'TEXT']];
   for (const [t, c, type] of cols) {
     try { await db.get(`SELECT ${c} FROM ${t} LIMIT 1`); } catch { await db.run(`ALTER TABLE ${t} ADD COLUMN ${c} ${type}`); }
   }

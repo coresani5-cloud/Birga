@@ -4493,13 +4493,13 @@ document.head.insertAdjacentHTML('beforeend', `<style id="birga-ig">
 // Lentada faqat foydalanuvchilar O'ZLARI joylagan Reels bor: yuklangan video yoki o'z Instagram havolasi.
 try {
   Object.assign(I18N.uz, { tab_reels: 'Reels', reels_empty: 'Hali hech kim Reels joylamagan. Birinchi bo‘ling!', reels_add: 'Reels joylash', reels_video: 'Video yuklash', reels_video_hint: 'Telefoningizdagi qisqa video',
-    reels_ig: 'Instagram havolasi', reels_ig_hint: 'O‘zingizning Instagram Reels havolangiz', reels_bad: 'Bu Instagram Reels havolasi emas', reels_posted: 'Reels joylandi', reels_more: 'Yana yuklash',
+    reels_ig: 'Instagram yoki YouTube Shorts havolasi', reels_ig_hint: 'O‘zingizning Instagram Reels havolangiz', reels_bad: 'Bu Instagram Reels havolasi emas', reels_posted: 'Reels joylandi', reels_more: 'Yana yuklash',
     reels_del_confirm: 'Bu Reels o‘chirilsinmi?', reels_public: 'Reels Birga’dagi hamma foydalanuvchiga ko‘rinadi.' });
   Object.assign(I18N.ru, { tab_reels: 'Reels', reels_empty: 'Пока никто не опубликовал Reels. Будьте первым!', reels_add: 'Опубликовать Reels', reels_video: 'Загрузить видео', reels_video_hint: 'Короткое видео с телефона',
     reels_ig: 'Ссылка Instagram', reels_ig_hint: 'Ссылка на ваш Instagram Reels', reels_bad: 'Это не ссылка на Instagram Reels', reels_posted: 'Reels опубликован', reels_more: 'Загрузить ещё',
     reels_del_confirm: 'Удалить этот Reels?', reels_public: 'Reels видят все пользователи Birga.' });
   Object.assign(I18N.en, { tab_reels: 'Reels', reels_empty: 'Nobody has posted Reels yet. Be the first!', reels_add: 'Post Reels', reels_video: 'Upload video', reels_video_hint: 'A short video from your phone',
-    reels_ig: 'Instagram link', reels_ig_hint: 'Your own Instagram Reels link', reels_bad: 'This is not an Instagram Reels link', reels_posted: 'Reels posted', reels_more: 'Load more',
+    reels_ig: 'Instagram or YouTube Shorts link', reels_ig_hint: 'A Reels or Shorts link', reels_bad: 'This is not an Instagram Reels link', reels_posted: 'Reels posted', reels_more: 'Load more',
     reels_del_confirm: 'Delete this Reels?', reels_public: 'Reels are visible to everyone on Birga.' });
   $$('[data-i18n="tab_reels"]').forEach((el) => { el.textContent = t('tab_reels'); });
 } catch {}
@@ -4518,7 +4518,7 @@ const Reels = {
     const feed = $('#reels-feed');
     if (!this.items.length) { feed.innerHTML = `<div class="reels-empty">${icon('reels')}<p>${esc(t('reels_empty'))}</p><button class="btn-primary" id="reels-empty-add">${esc(t('reels_add'))}</button></div>`; return; }
     feed.innerHTML = this.items.map((it, i) => `<div class="reel-slot" data-i="${i}"><div class="reel-ph">${icon('reels')}</div>
-      <div class="reel-meta"><button class="reel-user" data-uid="${it.user.id}">${avatar(it.user, 'sm')}<b>${esc(it.user.name || '')}</b></button>
+      <div class="reel-meta"><button class="reel-user" data-uid="${it.user.id}">${avatar(it.user, 'sm')}<b>${esc(it.user.name || '')}</b></button>${it.kind === 'yt' ? `<a class="reel-src yt" href="https://www.youtube.com/shorts/${encodeURIComponent(it.igCode)}" target="_blank" rel="noopener">▶ YouTube</a>` : it.kind === 'ig' ? `<a class="reel-src ig" href="https://www.instagram.com/${esc(it.igKind)}/${encodeURIComponent(it.igCode)}/" target="_blank" rel="noopener">◎ Instagram</a>` : ''}
         ${it.mine ? `<button class="icon-btn light reel-del" title="${esc(t('delete'))}">${icon('trash')}</button>` : ''}</div>
       ${it.caption ? `<div class="reel-cap">${linkify(it.caption)}</div>` : ''}</div>`).join('')
       + (this.next ? `<div class="reel-more"><button class="btn-ghost" id="reels-more">${esc(t('reels_more'))}</button></div>` : '');
@@ -4535,7 +4535,9 @@ const Reels = {
     if (slot.classList.contains('live') || TAB !== 'reels') return;
     const it = this.items[+slot.dataset.i]; if (!it) return;
     slot.classList.add('live');
-    slot.querySelector('.reel-ph').outerHTML = it.kind === 'ig'
+    slot.querySelector('.reel-ph').outerHTML = it.kind === 'yt'
+      ? `<iframe class="reel-frame" src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(it.igCode)}?autoplay=1&mute=${this.muted ? 1 : 0}&loop=1&playlist=${encodeURIComponent(it.igCode)}&playsinline=1&rel=0&modestbranding=1" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`
+      : it.kind === 'ig'
       ? `<iframe class="reel-frame" src="https://www.instagram.com/${it.igKind}/${encodeURIComponent(it.igCode)}/embed/" allow="autoplay; encrypted-media; picture-in-picture; clipboard-write" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`
       : `<video class="reel-frame reel-video" src="${esc(it.file)}" playsinline loop autoplay ${this.muted ? 'muted' : ''}></video>`;
   },
@@ -4575,12 +4577,12 @@ const Reels = {
   },
   addIg() {
     modal(`<h3>${esc(t('reels_ig'))} <button class="icon-btn" data-close>${icon('close')}</button></h3>
-      <input class="field" id="ri-url" type="url" placeholder="https://www.instagram.com/reel/…" autocomplete="off">
+      <input class="field" id="ri-url" type="url" placeholder="instagram.com/reel/…  /  youtube.com/shorts/…" autocomplete="off">
       <input class="field" id="ri-cap" placeholder="${esc(t('story_caption'))}" maxlength="300">
       <button class="btn-primary" id="ri-go">${t('publish')}</button>`);
     $('#ri-url').focus();
     $('#ri-go').onclick = async () => {
-      const ig = $('#ri-url').value.trim(); if (!igParse(ig)) return toast(t('reels_bad'));
+      const ig = $('#ri-url').value.trim(); if (!igParse(ig) && !/youtu\.?be|youtube\.com\/(shorts|watch|embed)/i.test(ig)) return toast(t('reels_bad'));
       try { await api('/api/reels', { body: { ig, caption: $('#ri-cap').value, lang: S.me?.lang } }); this.posted(); } catch (e) { toast(e.message); }
     };
   },
@@ -8711,7 +8713,7 @@ try {
 
 /* ---------- Admin: AI reels'ni hozir yaratish ---------- */
 try {
-  const putAir = () => { if (!S.me?.isAdmin || $('#reels-ai')) return; $('#reels-add')?.insertAdjacentHTML('beforebegin', '<button class="icon-btn" id="reels-ai" title="AI reels">✨</button>'); $('#reels-ai').onclick = async () => { try { const s = await api('/api/admin/ai-reel'); if (s.busy) return toast('⏳ AI reels tayyorlanmoqda…'); await api('/api/admin/ai-reel', { body: {} }); toast('✨ AI reels tayyorlanmoqda — 1–5 daqiqada lentada chiqadi', 4000); } catch (e) { toast(e.message); } }; };
+  const putAir = () => { if (!S.me?.isAdmin || $('#reels-ai')) return; $('#reels-add')?.insertAdjacentHTML('beforebegin', '<button class="icon-btn" id="reels-ai" title="AI reels">✨</button>'); $('#reels-ai').onclick = async () => { try { const s = await api('/api/admin/ai-reel'); if (s.busy) return toast('⏳ AI reels tayyorlanmoqda…'); await api('/api/admin/ai-reel', { body: {} }); api('/api/admin/yt-reel', { body: {} }).then((r) => { if (r?.result) { toast('📺 YouTube Shorts qo‘shildi', 3000); Reels.load(true); } }).catch(() => {}); toast('✨ AI reels tayyorlanmoqda — 1–5 daqiqada lentada chiqadi', 4000); } catch (e) { toast(e.message); } }; };
   setInterval(putAir, 3000);
 } catch {}
 // Chatdagi "O'yinga taklif" ro'yxati — o'yinlar bo'limidagi joriy ro'yxatdan (o'chirilgan o'yinlar ko'rinmaydi)
@@ -8770,4 +8772,5 @@ const PhoneLink = {
   bind() { if (!S.socket || this.sock === S.socket) return; this.sock = S.socket; S.socket.on('phone:linked', (d) => { if (S.me) S.me.tel = d.tel; closeModal(); toast(t('ph_ok', { t: d.tel }), 4000); this.paint(); }); },
 };
 setInterval(() => { PhoneLink.bind(); if ($('#set-privacy') && !$('#set-phone')) PhoneLink.put(); }, 1200);
+try { const st = document.createElement('style'); st.textContent = '.reel-src{margin-left:8px;padding:4px 10px;border-radius:14px;font-size:12px;font-weight:800;color:#fff;text-decoration:none;white-space:nowrap}.reel-src.yt{background:#FF0000}.reel-src.ig{background:linear-gradient(45deg,#F58529,#DD2A7B,#8134AF)}'; document.head.appendChild(st); } catch {}
 boot();

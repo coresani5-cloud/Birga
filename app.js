@@ -554,6 +554,7 @@ function renderChatList() {
   const unreadChats = all.filter((c) => c.unread && c.id !== S.current);
   const totalUnread = all.filter((c) => !c.muted && !c.archived).reduce((n, c) => n + (c.id !== S.current ? c.unread || 0 : 0), 0);
   $('#unread-count').textContent = unreadChats.length || '';
+  try { const tot = totalUnread; document.title = tot ? `(${tot > 999 ? '999+' : tot}) Birga` : 'Birga'; if (navigator.setAppBadge) (tot ? navigator.setAppBadge(tot) : navigator.clearAppBadge()).catch(() => {}); window.BirgaNative?.setBadge?.(tot); } catch {}
   $('#nav-badge').textContent = totalUnread > 99 ? '99+' : totalUnread;
   $('#nav-badge').classList.toggle('hidden', !totalUnread);
   const archived = all.filter((c) => c.archived);
@@ -1100,7 +1101,11 @@ function msgInner(m, c, tail, gap) {
   }
   const prog = m.pending && !m.failed && m.progress != null ? `<div class="upload-ov"${m.type === 'round' ? ' style="border-radius:50%"' : ''}>${m.progress >= 1 ? t('processing') : Math.round(m.progress * 100) + '%'}</div>` : '';
   const src = esc(m.localUrl || mediaSrc(m));
-  if (m.gone && !m.localUrl && !Media.has(m)) return `<div ${attrs}><div class="bubble">${reply}<div class="gone-box">${icon(m.type === 'voice' ? 'mic' : m.type === 'file' ? 'file' : 'image')}<span>${esc(t('media_gone'))}</span></div>${meta()}</div></div>`;
+  if (m.gone && !m.localUrl && !Media.has(m)) { // serverdan o'chgan, qurilmada yo'q: ↓ bosilsa boshqa qurilmadan qayta yuklanadi
+    const dl = `<button class="vplay vdl" data-mr="${m.id}" aria-label="download"><svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M11 4h2v9.2l3.6-3.6 1.4 1.4-6 6-6-6 1.4-1.4 3.6 3.6z"/><path fill="currentColor" d="M5 19h14v2H5z"/></svg></button>`;
+    if (m.type === 'voice' || m.type === 'round') { const wf = m.meta?.waveform || Array.from({ length: 40 }, (_, i) => 0.25 + 0.2 * Math.abs(Math.sin(i * 1.7))); return `<div ${attrs}><div class="bubble">${reply}<div class="voice gone-v">${dl}<div class="vbody"><div class="wave">${wf.map((v) => `<i style="height:${Math.max(12, Math.round(v * 100))}%"></i>`).join('')}</div><span class="vdur">${fmtDur(m.duration)}</span></div></div>${meta()}</div></div>`; }
+    return `<div ${attrs}><div class="bubble">${reply}<div class="voice gone-v">${dl}<div class="vbody"><b class="gone-n">${esc(m.type === 'file' ? m.meta?.name || t('t_file') : m.type === 'video' ? t('t_video') || '🎬' : t('t_photo') || '🖼')}</b><span class="vdur">${esc(t('mr_btn'))}</span></div></div>${meta()}</div></div>`;
+  }
   switch (m.type) {
     case 'image':
       return `<div ${attrs}><div class="bubble media">${reply}<img src="${src}" data-view="image" alt=""${ratioAttr(m, src)}>${prog}
@@ -2128,7 +2133,7 @@ const Speaker = {
     const ra = $('#remote-audio'); const st = ra.srcObject;
     this.teardown();
     // Karnay o'chiq — sokinroq (quloqqa tutib gaplashish kabi); yoqiq — eng baland
-    ra.volume = on ? 1 : 0.4;
+    ra.volume = 1; // karnay o'chiq bo'lsa ham to'liq ovoz (avval 0.4 edi — bir tomonda past eshitilardi)
     if (!on || !st || !st.getAudioTracks().length) { ra.muted = false; this.route(false); return; }
     try {
       const a = ctx(); if (a.state !== 'running') await a.resume().catch(() => {});
@@ -6803,6 +6808,7 @@ const Sounds = {
     if (this.RINGS) return;
     const S2 = this;
     this.RINGS = [
+      ['melody', 'Birga melodiyasi', () => S2.seq([['E5', 0, 0.16], ['G5', 0.17, 0.16], ['B5', 0.34, 0.16], ['E6', 0.51, 0.4], ['D6', 0.98, 0.16], ['B5', 1.15, 0.16], ['G5', 1.32, 0.16], ['A5', 1.49, 0.55], ['E5', 2.3, 0.16], ['G5', 2.47, 0.16], ['B5', 2.64, 0.16], ['E6', 2.81, 0.3], ['G6', 3.14, 0.6]], 'marimba', 4.6, 0.75)],
       ['classic', 'Klassik trel', () => Ring.urls.in_base],
       ['marimba', 'Marimba', () => S2.seq(...S2.arp(['E5', 'G5', 'C6', 'G5', 'E5', 'C6'], 0.15, 'marimba', 2, 0.5))],
       ['bells', 'Qo‘ng‘iroqchalar', () => S2.seq(...S2.arp(['C6', 'G5', 'E5', 'G5'], 0.28, 'bell', 2, 0.4))],
@@ -6851,7 +6857,7 @@ const Sounds = {
   },
   cache: new Map(),
   url(kind, id) { this.defs(); const L = kind === 'in' ? this.RINGS : kind === 'out' ? this.OUTS : this.MSGS; const d = L.find((x) => x[0] === id) || L[0]; const k = kind + ':' + d[0]; if (!this.cache.has(k)) this.cache.set(k, d[2]()); return this.cache.get(k); },
-  cfg() { try { return { in: 'classic', out: 'classic', msg: 'classic', ...JSON.parse(store.get('birga_sounds') || '{}') }; } catch { return { in: 'classic', out: 'classic', msg: 'classic' }; } },
+  cfg() { try { return { in: 'melody', out: 'soft', msg: 'pop', ...JSON.parse(store.get('birga_sounds') || '{}') }; } catch { return { in: 'melody', out: 'soft', msg: 'pop' }; } },
   set(k, v) { const c = this.cfg(); c[k] = v; store.set('birga_sounds', JSON.stringify(c)); this.applyRing(); },
   applyRing() { Ring.build(); const c = this.cfg(); if (!Ring.urls.in_base) { Ring.urls.in_base = Ring.urls.in; Ring.urls.out_base = Ring.urls.out; } Ring.urls.in = c.in === 'off' ? Ring.wav(() => 0, 1) : this.url('in', c.in); Ring.urls.out = c.out === 'off' ? Ring.wav(() => 0, 1) : this.url('out', c.out); },
   msgEl: null,
@@ -8471,19 +8477,19 @@ try { const st = document.createElement('style'); st.textContent = `.lg-agree{te
 try { Legal.put(); setTimeout(() => Legal.put(), 700); const baseRSlg = renderSettings; renderSettings = function (...a) { const r = baseRSlg.apply(this, a); try { Legal.put(); } catch {} return r; }; const baseCLlg = changeLang; changeLang = function (...a) { const r = baseCLlg.apply(this, a); try { Legal.put(); } catch {} return r; }; } catch {}
 /* ======================= BILIM SINOVI: fanlar, qiziqishlar, aralash, IQ + reyting ======================= */
 try {
-  Object.assign(I18N.uz, { qz_title: 'Bilim sinovi', qz_sub: 'Bilimingiz va zehningizni sinang', qz_sci: 'Fanlar', qz_int: 'Qiziqishlar', qz_mix: 'Aralash', qz_mix_d: 'Hamma fanlardan aralash savollar', qz_iq: 'IQ test', qz_iq_d: 'Mantiq va zehn: 12 ta savol', qz_top: 'Reyting', qz_all: 'Umumiy',
+  Object.assign(I18N.uz, { qz_title: 'Bilim sinovi', qz_sub: 'Bilimingiz va zehningizni sinang', qz_sci: 'Fanlar', qz_int: 'Qiziqishlar', qz_mix: 'Aralash', qz_mix_d: 'Hamma fanlardan aralash savollar', qz_iq: 'IQ test', qz_iq_d: 'Mantiq, so‘z va sonlar: 20 ta savol', qz_top: 'Reyting', qz_all: 'Umumiy',
     qz_pts: 'ball', qz_rank: 'O‘rningiz', qz_of: '{n} kishidan', qz_none: 'Hali hech kim o‘ynamagan — birinchi bo‘ling!', qz_again: 'Yana o‘ynash', qz_home: 'Bosh sahifa', qz_src: 'Manba', qz_time: 'Vaqt tugadi', qz_correct: 'To‘g‘ri javoblar', qz_new: 'Yangi', qz_start: 'Boshlash',
-    qz_iq_res: 'Taxminiy IQ', qz_iq_note: 'Bu ko‘ngilochar mantiqiy test, rasmiy psixologik IQ test emas.', qz_acc: 'aniqlik', qz_games: 'o‘yin', qz_q: 'Savol', qz_loading: 'Savollar tayyorlanmoqda…', qz_quit: 'Testdan chiqasizmi? Natija saqlanmaydi.', qz_info: '10 ta savol · har biriga 20 soniya · tez va to‘g‘ri javob — ko‘proq ball',
+    qz_iq_res: 'Taxminiy IQ', qz_iq_note: 'Bu ko‘ngilochar mantiqiy test, rasmiy psixologik IQ test emas.', qz_acc: 'aniqlik', qz_games: 'o‘yin', qz_q: 'Savol', qz_loading: 'Savollar tayyorlanmoqda…', qz_quit: 'Testdan chiqasizmi? Natija saqlanmaydi.', qz_info: '20 ta savol · har biriga 20 soniya · ko‘rilgan savollar takrorlanmaydi', qz_lvl: 'Daraja', qz_l0: 'Aralash', qz_l1: 'Oson', qz_l2: 'O‘rta', qz_l3: 'Qiyin', qz_l4: 'Ekspert',
     qz_geography: 'Geografiya', qz_physics: 'Fizika', qz_chemistry: 'Kimyo', qz_biology: 'Biologiya', qz_astronomy: 'Astronomiya', qz_math: 'Matematika', qz_history: 'Tarix', qz_literature: 'Adabiyot', qz_uzbekistan: 'O‘zbekiston', qz_tech: 'Texnologiya', qz_sport: 'Sport', qz_animals: 'Hayvonot olami', qz_general: 'Umumiy bilim',
     qz_lv0: 'Yangi boshlovchi', qz_lv1: 'Havaskor', qz_lv2: 'Bilimdon', qz_lv3: 'Ekspert', qz_lv4: 'Akademik', qz_lv5: 'Daho', qz_iq0: 'Mashq qiling', qz_iq1: 'O‘rta', qz_iq2: 'O‘rtadan yuqori', qz_iq3: 'Yuqori', qz_iq4: 'Juda yuqori' });
-  Object.assign(I18N.ru, { qz_title: 'Проверка знаний', qz_sub: 'Проверьте свои знания и интеллект', qz_sci: 'Науки', qz_int: 'Интересы', qz_mix: 'Микс', qz_mix_d: 'Вопросы из всех предметов', qz_iq: 'IQ-тест', qz_iq_d: 'Логика и мышление: 12 вопросов', qz_top: 'Рейтинг', qz_all: 'Общий',
+  Object.assign(I18N.ru, { qz_title: 'Проверка знаний', qz_sub: 'Проверьте свои знания и интеллект', qz_sci: 'Науки', qz_int: 'Интересы', qz_mix: 'Микс', qz_mix_d: 'Вопросы из всех предметов', qz_iq: 'IQ-тест', qz_iq_d: 'Логика, слова и числа: 20 вопросов', qz_top: 'Рейтинг', qz_all: 'Общий',
     qz_pts: 'очк.', qz_rank: 'Ваше место', qz_of: 'из {n}', qz_none: 'Пока никто не играл — станьте первым!', qz_again: 'Ещё раз', qz_home: 'На главную', qz_src: 'Источник', qz_time: 'Время вышло', qz_correct: 'Правильных ответов', qz_new: 'Новое', qz_start: 'Начать',
-    qz_iq_res: 'Примерный IQ', qz_iq_note: 'Это развлекательный логический тест, а не официальный психологический IQ-тест.', qz_acc: 'точность', qz_games: 'игр', qz_q: 'Вопрос', qz_loading: 'Готовим вопросы…', qz_quit: 'Выйти из теста? Результат не сохранится.', qz_info: '10 вопросов · 20 секунд на каждый · быстро и верно — больше очков',
+    qz_iq_res: 'Примерный IQ', qz_iq_note: 'Это развлекательный логический тест, а не официальный психологический IQ-тест.', qz_acc: 'точность', qz_games: 'игр', qz_q: 'Вопрос', qz_loading: 'Готовим вопросы…', qz_quit: 'Выйти из теста? Результат не сохранится.', qz_info: '20 вопросов · 20 секунд на каждый · пройденные вопросы не повторяются', qz_lvl: 'Уровень', qz_l0: 'Смешанный', qz_l1: 'Лёгкий', qz_l2: 'Средний', qz_l3: 'Сложный', qz_l4: 'Эксперт',
     qz_geography: 'География', qz_physics: 'Физика', qz_chemistry: 'Химия', qz_biology: 'Биология', qz_astronomy: 'Астрономия', qz_math: 'Математика', qz_history: 'История', qz_literature: 'Литература', qz_uzbekistan: 'Узбекистан', qz_tech: 'Технологии', qz_sport: 'Спорт', qz_animals: 'Мир животных', qz_general: 'Эрудиция',
     qz_lv0: 'Новичок', qz_lv1: 'Любитель', qz_lv2: 'Знаток', qz_lv3: 'Эксперт', qz_lv4: 'Академик', qz_lv5: 'Гений', qz_iq0: 'Тренируйтесь', qz_iq1: 'Средний', qz_iq2: 'Выше среднего', qz_iq3: 'Высокий', qz_iq4: 'Очень высокий' });
-  Object.assign(I18N.en, { qz_title: 'Knowledge test', qz_sub: 'Test your knowledge and brainpower', qz_sci: 'Sciences', qz_int: 'Interests', qz_mix: 'Mixed', qz_mix_d: 'Questions from all subjects', qz_iq: 'IQ test', qz_iq_d: 'Logic and reasoning: 12 questions', qz_top: 'Leaderboard', qz_all: 'Overall',
+  Object.assign(I18N.en, { qz_title: 'Knowledge test', qz_sub: 'Test your knowledge and brainpower', qz_sci: 'Sciences', qz_int: 'Interests', qz_mix: 'Mixed', qz_mix_d: 'Questions from all subjects', qz_iq: 'IQ test', qz_iq_d: 'Logic, words and numbers: 20 questions', qz_top: 'Leaderboard', qz_all: 'Overall',
     qz_pts: 'pts', qz_rank: 'Your rank', qz_of: 'of {n}', qz_none: 'Nobody has played yet — be the first!', qz_again: 'Play again', qz_home: 'Home', qz_src: 'Source', qz_time: 'Time is up', qz_correct: 'Correct answers', qz_new: 'New', qz_start: 'Start',
-    qz_iq_res: 'Estimated IQ', qz_iq_note: 'This is a fun logic test, not an official psychological IQ test.', qz_acc: 'accuracy', qz_games: 'games', qz_q: 'Question', qz_loading: 'Preparing questions…', qz_quit: 'Leave the test? Your result will not be saved.', qz_info: '10 questions · 20 seconds each · fast and correct = more points',
+    qz_iq_res: 'Estimated IQ', qz_iq_note: 'This is a fun logic test, not an official psychological IQ test.', qz_acc: 'accuracy', qz_games: 'games', qz_q: 'Question', qz_loading: 'Preparing questions…', qz_quit: 'Leave the test? Your result will not be saved.', qz_info: '20 questions · 20 seconds each · questions you have seen are not repeated', qz_lvl: 'Level', qz_l0: 'Mixed', qz_l1: 'Easy', qz_l2: 'Medium', qz_l3: 'Hard', qz_l4: 'Expert',
     qz_geography: 'Geography', qz_physics: 'Physics', qz_chemistry: 'Chemistry', qz_biology: 'Biology', qz_astronomy: 'Astronomy', qz_math: 'Mathematics', qz_history: 'History', qz_literature: 'Literature', qz_uzbekistan: 'Uzbekistan', qz_tech: 'Technology', qz_sport: 'Sport', qz_animals: 'Animal world', qz_general: 'General knowledge',
     qz_lv0: 'Beginner', qz_lv1: 'Amateur', qz_lv2: 'Knowledgeable', qz_lv3: 'Expert', qz_lv4: 'Academic', qz_lv5: 'Genius', qz_iq0: 'Keep practising', qz_iq1: 'Average', qz_iq2: 'Above average', qz_iq3: 'High', qz_iq4: 'Very high' });
 } catch {}
@@ -8492,7 +8498,7 @@ const Quiz = {
   INT: ['uzbekistan', 'tech', 'sport', 'animals', 'general'],
   IC: { geography: '🌍', physics: '⚛️', chemistry: '🧪', biology: '🧬', astronomy: '🔭', math: '➗', history: '🏛️', literature: '📚', uzbekistan: '🇺🇿', tech: '💻', sport: '⚽', animals: '🐾', general: '💡', mix: '🔀', iq: '🧠', all: '🏆' },
   LV: [0, 150, 400, 900, 1800, 3500], LVI: ['🌱', '📘', '🎯', '🏅', '🎓', '👑'],
-  me: null, s: null, timer: null,
+  me: null, s: null, timer: null, lvl: (() => { try { return Number(localStorage.getItem('birga_qz_lvl')) || 0; } catch { return 0; } })(),
   name(c) { return c === 'mix' ? t('qz_mix') : c === 'iq' ? t('qz_iq') : c === 'all' ? t('qz_all') : t('qz_' + c); },
   level(pts, all) { const k = all ? 4 : 1; let i = 0; this.LV.forEach((v, j) => { if (pts >= v * k) i = j; }); return { i, ic: this.LVI[i], name: t('qz_lv' + i), next: this.LV[i + 1] ? this.LV[i + 1] * k : null }; },
   iqLevel(iq) { const i = iq >= 130 ? 4 : iq >= 120 ? 3 : iq >= 110 ? 2 : iq >= 90 ? 1 : 0; return { i, name: t('qz_iq' + i), ic: ['🌱', '🙂', '😎', '🚀', '🧠'][i] }; },
@@ -8512,7 +8518,7 @@ const Quiz = {
       <div class="qz-me"><div><small>${esc(t('qz_all'))}</small><b>${all.score || 0} <span>${esc(t('qz_pts'))}</span></b>${this.badge(all.score || 0, true)}</div>
         <div><small>${esc(t('qz_rank'))}</small><b>${all.rank ? '#' + all.rank : '—'}</b><span class="muted tiny">${all.players ? esc(t('qz_of', { n: all.players })) : ''}</span></div>
         <div><small>IQ</small><b>${iq || '—'}</b>${iq ? `<span class="qz-badge">${this.iqLevel(iq).ic} ${esc(this.iqLevel(iq).name)}</span>` : ''}</div></div>
-      <p class="qz-info">${esc(t('qz_info'))}</p>
+      <p class="qz-info">${esc(t('qz_info'))}</p><div class="qz-lvls"><span>${esc(t('qz_lvl'))}:</span>${[0, 1, 2, 3, 4].map((k) => `<button class="chip${this.lvl === k ? ' on' : ''}" data-lvl="${k}">${esc(t('qz_l' + k))}</button>`).join('')}</div>
       <div class="qz-big"><button class="qz-card mix" data-cat="mix"><span>🔀</span><div><b>${esc(t('qz_mix'))}</b><small>${esc(t('qz_mix_d'))}</small></div></button>
         <button class="qz-card iq" data-cat="iq"><span>🧠</span><div><b>${esc(t('qz_iq'))}</b><small>${esc(t('qz_iq_d'))}</small></div></button></div>
       <h3 class="qz-h">📖 ${esc(t('qz_sci'))}</h3><div class="qz-grid">${this.SCI.map(tile).join('')}</div>
@@ -8521,7 +8527,7 @@ const Quiz = {
   async start(cat) {
     const e = this.el(); clearInterval(this.timer);
     e.innerHTML = this.head(`${this.IC[cat]} ${esc(this.name(cat))}`) + `<div class="qz-body"><p class="qz-loading">${esc(t('qz_loading'))}</p></div>`;
-    try { const r = await api('/api/quiz/start', { body: { cat, lang: LANG } }); this.s = { ...r, i: 0, total: 0, ok: 0, lock: false }; this.show(); }
+    try { const r = await api('/api/quiz/start', { body: { cat, lang: LANG, level: cat === 'iq' ? 0 : this.lvl } }); this.s = { ...r, i: 0, total: 0, ok: 0, lock: false }; this.show(); }
     catch (er) { toast(er.message); this.home(); }
   },
   show() {
@@ -8575,6 +8581,7 @@ document.addEventListener('click', (ev) => {
   const ov = ev.target.closest('#quiz-ov'); if (!ov) return;
   const b = ev.target.closest('button'); if (!b) { const u = ev.target.closest('.qz-row[data-uid]'); if (u && +u.dataset.uid !== S.me.id) { try { openProfile(+u.dataset.uid); } catch {} } return; }
   if (b.dataset.pick != null) return Quiz.pick(+b.dataset.pick);
+  if (b.dataset.lvl != null) { Quiz.lvl = +b.dataset.lvl; try { localStorage.setItem('birga_qz_lvl', Quiz.lvl); } catch {} ov.querySelectorAll('[data-lvl]').forEach((x) => x.classList.toggle('on', x === b)); return; }
   if (b.dataset.qz === 'back') { if (Quiz.s && Quiz.s.i < Quiz.s.qs.length && !confirm(t('qz_quit'))) return; return Quiz.s ? (clearInterval(Quiz.timer), (Quiz.s = null), Quiz.home()) : $('#quiz-ov .qz-chips') || $('#quiz-ov .qz-result') ? Quiz.home() : Quiz.close(); }
   if (b.dataset.qz === 'home') return Quiz.home();
   if (b.dataset.qz === 'top') return Quiz.top(b.dataset.tc && b.dataset.tc !== 'mix' ? b.dataset.tc : 'all');
@@ -8599,7 +8606,7 @@ try {
 .qz-me>div{display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:0}
 .qz-me small{opacity:.85;font-size:12px}.qz-me b{font-size:22px;line-height:1.1}.qz-me b span{font-size:12px;font-weight:600;opacity:.85}
 .qz-me .qz-badge{background:rgba(255,255,255,.22);color:#fff;white-space:normal;font-size:11px}
-.qz-info{color:var(--muted);font-size:13px;margin:10px 2px}
+.qz-info{color:var(--muted);font-size:13px;margin:10px 2px}.qz-lvls{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 12px}.qz-lvls span{font-size:13px;font-weight:700}.qz-lvls .chip{padding:6px 12px;border-radius:16px;background:var(--panel);border:1px solid var(--line);color:inherit;font-size:13px}.qz-lvls .chip.on{background:var(--blue);color:#fff;border-color:transparent}
 .qz-badge{display:inline-block;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:12px;background:var(--grad-soft);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .qz-big{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .qz-card{display:flex;gap:10px;align-items:center;text-align:left;padding:14px;border-radius:16px;color:#fff;min-width:0}
@@ -8652,7 +8659,7 @@ const MRestore = {
     try { const r = await api('/api/media/restore', { body: { id, sock: S.socket?.id || '' } }); if (r.ready) return this.back({ id, file: r.file }); toast(r.asked ? t('mr_wait') : t('mr_none'), 4500); }
     catch (e) { this.wait.delete(id); this.paint(id); toast(e.message); }
   },
-  paint(id) { const b = document.querySelector(`[data-mr="${id}"]`); if (b) { b.classList.toggle('busy', this.wait.has(id)); b.disabled = this.wait.has(id); } },
+  paint(id) { document.querySelectorAll(`[data-mr="${id}"]`).forEach((b) => { b.classList.toggle('busy', this.wait.has(id)); b.disabled = this.wait.has(id); }); },
   async back({ id, file }) {
     const m = this.find(id) || { id, file, meta: {} };
     try {
@@ -8688,7 +8695,7 @@ try {
     });
   };
   document.addEventListener('click', (e) => { const b = e.target.closest('[data-mr]'); if (!b) return; e.stopPropagation(); MRestore.ask(Number(b.dataset.mr)); }, true);
-  const st = document.createElement('style'); st.textContent = `.gone-box{flex-wrap:wrap}.mr-btn{margin-top:4px;padding:6px 12px;border-radius:16px;background:var(--grad);color:#fff;font-weight:700;font-size:13px}.mr-btn.busy{opacity:.6;animation:mrp 1.2s infinite}@keyframes mrp{50%{opacity:.35}}`; document.head.appendChild(st);
+  const st = document.createElement('style'); st.textContent = `.gone-v .vdl.busy{animation:mrspin 1s linear infinite}@keyframes mrspin{to{transform:rotate(360deg)}}.gone-n{display:block;font-size:14px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.gone-box{flex-wrap:wrap}.mr-btn{margin-top:4px;padding:6px 12px;border-radius:16px;background:var(--grad);color:#fff;font-weight:700;font-size:13px}.mr-btn.busy{opacity:.6;animation:mrp 1.2s infinite}@keyframes mrp{50%{opacity:.35}}`; document.head.appendChild(st);
 } catch {}
 // Brauzer xotirani tozalab yubormasligi uchun doimiy saqlash; ovozli va video-xabarlar har doim qurilmaga yuklanadi
 try { navigator.storage?.persist?.().catch(() => {}); } catch {}
@@ -8709,4 +8716,58 @@ try {
 } catch {}
 // Chatdagi "O'yinga taklif" ro'yxati — o'yinlar bo'limidagi joriy ro'yxatdan (o'chirilgan o'yinlar ko'rinmaydi)
 try { const syncMP = (k = 0) => { const LS = window.BirgaMP?.list; if (!LS) { if (k < 40) setTimeout(() => syncMP(k + 1), 500); return; } for (const x of Object.keys(MPN)) delete MPN[x]; for (const x of Object.keys(MPC)) delete MPC[x]; LS.forEach((m) => { MPN[m.id] = [m.e, m.n.uz, m.n.ru, m.n.en]; MPC[m.id] = m.c; }); }; syncMP(); } catch {}
+/* ---------- Qo'ng'iroq davomida ilovada yurish: oynani kichraytirish (suzuvchi oyna) ---------- */
+try {
+  Object.assign(I18N.uz, { call_min: 'Kichraytirish', call_back: 'Qo‘ng‘iroqqa qaytish' }); Object.assign(I18N.ru, { call_min: 'Свернуть', call_back: 'Вернуться к звонку' }); Object.assign(I18N.en, { call_min: 'Minimize', call_back: 'Back to call' });
+} catch {}
+const CallMini = {
+  add(el) {
+    if (!el || el.querySelector('.call-minbtn')) return;
+    el.insertAdjacentHTML('afterbegin', `<button class="call-minbtn" type="button" title="${esc(t('call_min'))}" aria-label="${esc(t('call_min'))}"><svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6z"/></svg></button><button class="call-miniend" type="button" aria-label="end"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 9c-1.6 0-3.1.3-4.6.8v3.1c0 .4-.2.7-.6.9-1 .5-1.8 1.1-2.6 1.8-.2.2-.4.3-.7.3s-.5-.1-.7-.3L.3 13.1c-.2-.2-.3-.4-.3-.7s.1-.5.3-.7C3.3 8.8 7.4 7 12 7s8.7 1.8 11.7 4.7c.2.2.3.4.3.7s-.1.5-.3.7l-2.5 2.5c-.2.2-.4.3-.7.3s-.5-.1-.7-.3c-.8-.7-1.7-1.3-2.6-1.8-.3-.2-.6-.5-.6-.9V9.8C15.1 9.3 13.6 9 12 9z"/></svg></button>`);
+    el.querySelector('.call-minbtn').addEventListener('click', (e) => { e.stopPropagation(); this.min(el, true); });
+    el.querySelector('.call-miniend').addEventListener('click', (e) => { e.stopPropagation(); this.min(el, false); (el.id === 'call' ? $('#c-end') : el.querySelector('#gc-leave, .gc-end, [data-gc="leave"]'))?.click(); });
+    el.addEventListener('click', (e) => { if (el.classList.contains('mini') && !e.target.closest('.call-miniend')) { e.preventDefault(); e.stopPropagation(); this.min(el, false); } }, true);
+  },
+  min(el, on) { el.classList.toggle('mini', on); document.body.classList.toggle('call-minimized', on); if (on) { try { closeModal(); } catch {} } },
+  watch() {
+    this.add($('#call'));
+    const g = $('#gcall'); if (g) this.add(g);
+    const c = $('#call'); if (c && c.classList.contains('hidden') && c.classList.contains('mini')) this.min(c, false);
+    if (!g && document.body.classList.contains('call-minimized') && (!c || c.classList.contains('hidden'))) document.body.classList.remove('call-minimized');
+  },
+};
+setInterval(() => CallMini.watch(), 800); CallMini.watch();
+try { const st = document.createElement('style'); st.textContent = `
+.call-minbtn{position:absolute;top:max(14px,env(safe-area-inset-top));left:14px;z-index:5;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:rgba(0,0,0,.28);color:#fff;backdrop-filter:blur(6px)}
+.call-miniend{display:none}
+.call.mini,.gcall.mini{position:fixed!important;inset:auto!important;right:12px!important;bottom:calc(84px + env(safe-area-inset-bottom))!important;top:auto!important;left:auto!important;width:118px!important;height:164px!important;border-radius:22px!important;z-index:80!important;box-shadow:0 10px 30px rgba(0,0,0,.45),0 0 0 3px #22C55E;overflow:hidden!important;cursor:pointer;animation:cmpop .25s ease}
+@keyframes cmpop{from{transform:scale(.6);opacity:0}}
+.call.mini .call-controls,.call.mini #call-incoming,.call.mini .call-minbtn,.call.mini #local-video,.call.mini h2,.gcall.mini .call-minbtn,.gcall.mini footer,.gcall.mini header .gc-n,.gcall.mini .gc-controls{display:none!important}
+.call.mini .call-info{transform:scale(.5);transform-origin:center 30%;margin:0!important;padding-top:6px}
+.call.mini #call-status{font-size:22px;font-weight:700}
+.call.mini #remote-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.call.mini .call-miniend,.gcall.mini .call-miniend{display:grid;place-items:center;position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:40px;height:40px;border-radius:50%;background:#EF4444;color:#fff;z-index:6}
+.gcall.mini .gc-grid{grid-template-columns:1fr!important;height:100%!important}.gcall.mini .gc-tile:not(:first-child){display:none}
+.gcall.mini header{font-size:11px;padding:4px!important}`; document.head.appendChild(st); } catch {}
+/* ---------- Telefon raqamni ulash (Telegram orqali tasdiqlanadi) — kontaktlardagi do'stlar sizni avtomatik topadi ---------- */
+try {
+  Object.assign(I18N.uz, { ph_title: 'Telefon raqamni ulash', ph_sub: 'Raqamingizni saqlagan do‘stlaringiz sizni Birga’da avtomatik ko‘radi', ph_linked: 'Ulangan: {t}', ph_how: 'Telegram ochiladi: «Raqamni ulashish» tugmasini bosing, so‘ng Birga’ga qayting.', ph_ok: '✅ Raqam ulandi: {t}', ph_unlink: 'Raqamni uzish', ph_unlink_q: 'Raqam hisobingizdan uzilsinmi?', ph_open: 'Telegram’da ochish' });
+  Object.assign(I18N.ru, { ph_title: 'Привязать номер телефона', ph_sub: 'Друзья, у которых сохранён ваш номер, увидят вас в Birga автоматически', ph_linked: 'Привязан: {t}', ph_how: 'Откроется Telegram: нажмите «Поделиться номером» и вернитесь в Birga.', ph_ok: '✅ Номер привязан: {t}', ph_unlink: 'Отвязать номер', ph_unlink_q: 'Отвязать номер от аккаунта?', ph_open: 'Открыть в Telegram' });
+  Object.assign(I18N.en, { ph_title: 'Link phone number', ph_sub: 'Friends who saved your number will see you on Birga automatically', ph_linked: 'Linked: {t}', ph_how: 'Telegram opens: tap “Share number”, then come back to Birga.', ph_ok: '✅ Number linked: {t}', ph_unlink: 'Unlink number', ph_unlink_q: 'Unlink the number from your account?', ph_open: 'Open in Telegram' });
+} catch {}
+const PhoneLink = {
+  put() {
+    const anchor = $('#set-privacy'); if (!anchor || $('#set-phone')) { this.paint(); return; }
+    anchor.insertAdjacentHTML('beforebegin', `<button class="row-btn" id="set-phone"><span class="ri c4">📞</span><span><span id="ph-t"></span><small id="ph-v"></small></span></button>`);
+    $('#set-phone').onclick = () => this.open(); this.paint();
+  },
+  paint() { const a = $('#ph-t'), v = $('#ph-v'); if (!a) return; a.textContent = t('ph_title'); v.textContent = S.me?.tel ? t('ph_linked', { t: S.me.tel }) : t('ph_sub'); },
+  async open() {
+    if (S.me?.tel) { if (confirm(t('ph_unlink_q'))) { await api('/api/phone/unlink', { body: {} }).catch(() => {}); S.me.tel = null; this.paint(); } return; }
+    let r; try { r = await api('/api/phone/link', { body: {} }); } catch (e) { return toast(e.message, 4500); }
+    modal(`<h3>📞 ${esc(t('ph_title'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><p class="muted">${esc(t('ph_how'))}</p><a class="btn-primary" style="display:block;text-align:center;text-decoration:none;margin-top:12px" href="${esc(r.url)}" target="_blank" rel="noopener">✈️ ${esc(t('ph_open'))}</a>`);
+  },
+  bind() { if (!S.socket || this.sock === S.socket) return; this.sock = S.socket; S.socket.on('phone:linked', (d) => { if (S.me) S.me.tel = d.tel; closeModal(); toast(t('ph_ok', { t: d.tel }), 4000); this.paint(); }); },
+};
+setInterval(() => { PhoneLink.bind(); if ($('#set-privacy') && !$('#set-phone')) PhoneLink.put(); }, 1200);
 boot();

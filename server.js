@@ -2069,9 +2069,29 @@ const reelOut = async (r, me) => {
   const likes = Number((await db.get('SELECT COUNT(*) AS c FROM reel_likes WHERE reel_id=?', [r.id]))?.c || 0);
   const comments = Number((await db.get('SELECT COUNT(*) AS c FROM reel_comments WHERE reel_id=?', [r.id]))?.c || 0);
   const liked = !!(await db.get('SELECT 1 AS x FROM reel_likes WHERE reel_id=? AND user_id=?', [r.id, me]));
+  const views = Number((await db.get('SELECT COUNT(*) AS c FROM reel_views WHERE reel_id=?', [r.id]).catch(() => null))?.c || 0);
   return { id: Number(r.id), kind: r.kind, file: r.file, mime: r.mime, igKind: r.ig_kind, igCode: r.ig_code, caption: r.caption, duration: r.duration,
-    created_at: r.created_at, user: publicUser(await getUser(r.user_id), r.user_id === me), mine: r.user_id === me, likes, comments, liked };
+    created_at: r.created_at, user: publicUser(await getUser(r.user_id), r.user_id === me), mine: r.user_id === me, likes, comments, liked, views };
 };
+// Ko'rishlar: har foydalanuvchi bir marta hisoblanadi
+app.post('/api/reels/:id/view', auth, rateLimit('reelview', 600, 3600e3), wrap(async (req, res) => {
+  const id = Number(req.params.id); const r = await db.get('SELECT id FROM reels WHERE id=?', [id]); if (!r) return res.status(404).json({ error: 'not found' });
+  await db.run('INSERT INTO reel_views(reel_id,user_id,at) VALUES(?,?,?) ON CONFLICT(reel_id,user_id) DO NOTHING', [id, req.user.id, now()]);
+  const views = Number((await db.get('SELECT COUNT(*) AS c FROM reel_views WHERE reel_id=?', [id]))?.c || 0); res.json({ views });
+}));
+// Kim layk bosgan — faqat Reels egasiga
+app.get('/api/reels/:id/likes', auth, wrap(async (req, res) => {
+  const r = await db.get('SELECT user_id FROM reels WHERE id=?', [Number(req.params.id)]); if (!r) return res.status(404).json({ error: 'not found' });
+  if (Number(r.user_id) !== req.user.id) return res.status(403).json({ error: 'forbidden' });
+  const rows = await db.all('SELECT user_id, at FROM reel_likes WHERE reel_id=? ORDER BY at DESC LIMIT 300', [Number(req.params.id)]);
+  const out = []; for (const x of rows) { const u = await getUser(x.user_id); if (u && u.name) out.push({ user: publicUser(u), at: Number(x.at) || null }); }
+  res.json({ likes: out });
+}));
+// Profildagi Reels
+app.get('/api/users/:id/reels', auth, wrap(async (req, res) => {
+  const rows = await db.all('SELECT * FROM reels WHERE user_id=? ORDER BY id DESC LIMIT 60', [Number(req.params.id) || 0]);
+  res.json({ items: await Promise.all(rows.map((r) => reelOut(r, req.user.id))) });
+}));
 app.get('/api/reels/:id', auth, wrap(async (req, res) => {
   const r = await db.get('SELECT * FROM reels WHERE id=?', [Number(req.params.id)]); if (!r) return res.status(404).json({ error: 'not found' });
   res.json(await reelOut(r, req.user.id));
@@ -2407,6 +2427,8 @@ function cleanMeta(meta) {
   }
   if (meta.ai === 1 && meta._srv === AI_SECRET) o.ai = 1; // faqat server qo'yadi
   if (meta.group === 1 && meta._srv === AI_SECRET) Object.assign(o, { group: 1, gid: String(meta.gid || ''), status: String(meta.status || ''), video: !!meta.video });
+  if (meta.reel && Number.isInteger(Number(meta.reel.id)) && Number(meta.reel.id) > 0) o.reel = { id: Number(meta.reel.id) }; // chatga yuborilgan Reels
+  if (meta.music && typeof meta.music === 'object') o.music = { t: String(meta.music.t || '').slice(0, 120), a: String(meta.music.a || '').slice(0, 80) }; // musiqa
   if (meta.game && typeof meta.game === 'object' && MP_GAMES.has(meta.game.g) && /^[a-f0-9]{12}$/.test(String(meta.game.room))) o.game = { g: meta.game.g, room: meta.game.room };
   for (const k of ['w', 'h']) { const v = Math.round(Number(meta[k])); if (v > 0 && v <= 20000) o[k] = v; }
   if (typeof meta.gif === 'string' && /^https:\/\/media\d*\.tenor\.com\/[\w./-]+$/.test(meta.gif)) { o.gif = meta.gif; o.w = Number(meta.w) || undefined; o.h = Number(meta.h) || undefined; }
@@ -3715,6 +3737,7 @@ async function extraSchema() {
   await db.run('CREATE INDEX IF NOT EXISTS idx_aimem ON ai_memory(user_id, at)');
   await db.run('CREATE TABLE IF NOT EXISTS quiz_scores(user_id BIGINT, cat TEXT, pts BIGINT DEFAULT 0, games BIGINT DEFAULT 0, correct BIGINT DEFAULT 0, answered BIGINT DEFAULT 0, best BIGINT DEFAULT 0, updated BIGINT, PRIMARY KEY(user_id, cat))');
   await db.run('CREATE INDEX IF NOT EXISTS idx_qz_cat ON quiz_scores(cat, pts)');
+  await db.run('CREATE TABLE IF NOT EXISTS reel_views(reel_id BIGINT, user_id BIGINT, at BIGINT, PRIMARY KEY(reel_id, user_id))');
   await db.run('CREATE TABLE IF NOT EXISTS quiz_seen(user_id BIGINT, k TEXT, at BIGINT, PRIMARY KEY(user_id, k))');
   await db.run('CREATE TABLE IF NOT EXISTS transcripts(message_id BIGINT PRIMARY KEY, text TEXT, at BIGINT)');
   await db.run('CREATE TABLE IF NOT EXISTS user_stickers(user_id BIGINT, url TEXT, at BIGINT, PRIMARY KEY(user_id, url))');
@@ -3734,6 +3757,155 @@ async function extraSchema() {
     try { await db.get(`SELECT ${c} FROM ${t} LIMIT 1`); } catch { await db.run(`ALTER TABLE ${t} ADD COLUMN ${c} ${type}`); }
   }
 }
+
+/* ---------- Kutubxona: ochiq (public domain / ruxsat etilgan) manbalardan elektron kitoblar ----------
+   Manbalar: Project Gutenberg (Gutendex orqali), Vikimanba (Wikisource, CC BY-SA), Qur'on — api.alquran.cloud,
+   hadislar — fawazahmed0/hadith-api (jsDelivr). Kitob matnlari ish vaqtida olinadi va diskda keshlanadi. */
+const LIB = {
+  dir: process.env.LIB_DIR || path.join(require('os').tmpdir(), 'birga-lib'),
+  gx: () => process.env.LIB_GUTENDEX || 'https://gutendex.com',
+  gb: () => process.env.LIB_GUTENBERG || 'https://www.gutenberg.org',
+  ws: (l) => (process.env.LIB_WS || 'https://{l}.wikisource.org').replace('{l}', l),
+  qr: () => process.env.LIB_QURAN || 'https://api.alquran.cloud',
+  hd: () => process.env.LIB_HADITH || 'https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1',
+  mem: new Map(), busy: new Map(),
+  CATS: ['uz', 'ar', 'ru', 'en', 'din'],
+  MAIN: new Set(['Bosh sahifa', 'Bosh Sahifa', 'الصفحة الرئيسية', 'Заглавная страница', 'Main Page']),
+  HCOL: [['bukhari', 'Sahih al-Buxoriy', 'Imom Muhammad ibn Ismoil al-Buxoriy'], ['muslim', 'Sahih Muslim', 'Imom Muslim'], ['abudawud', 'Sunan Abu Dovud', 'Imom Abu Dovud'], ['tirmidhi', 'Sunan at-Termiziy', 'Imom Termiziy'], ['nasai', 'Sunan an-Nasoiy', 'Imom Nasoiy'], ['ibnmajah', 'Sunan Ibn Moja', 'Imom Ibn Moja'], ['malik', 'Muvatto', 'Imom Molik'], ['nawawi', '40 hadis (Arbain)', 'Imom Navaviy'], ['qudsi', '40 hadisi qudsiy', ''], ['dehlawi', '40 hadis', 'Shoh Valiyulloh Dehlaviy']],
+};
+const libKey = (k) => path.join(LIB.dir, crypto.createHash('sha1').update(k).digest('hex') + '.json');
+async function libCache(k, ttl, fn) {
+  const m = LIB.mem.get(k); if (m && (!ttl || Date.now() - m.at < ttl)) return m.v;
+  try { const d = JSON.parse(await fs.promises.readFile(libKey(k), 'utf8')); if (!ttl || Date.now() - d.at < ttl) { LIB.mem.set(k, d); return d.v; } } catch {}
+  if (LIB.busy.has(k)) return LIB.busy.get(k);
+  const p = (async () => {
+    const v = await fn(); const d = { at: Date.now(), v };
+    LIB.mem.set(k, d); if (LIB.mem.size > 400) LIB.mem.delete(LIB.mem.keys().next().value);
+    try { await fs.promises.mkdir(LIB.dir, { recursive: true }); await fs.promises.writeFile(libKey(k), JSON.stringify(d)); } catch {}
+    return v;
+  })().finally(() => LIB.busy.delete(k));
+  LIB.busy.set(k, p); return p;
+}
+const libGet = async (u, as = 'json', ms = 25000) => { const r = await fetch(u, { headers: { 'User-Agent': 'BirgaLibrary/1.0 (https://birga.onrender.com)' }, signal: AbortSignal.timeout(ms) }); if (!r.ok) throw new Error(u.split('/')[2] + ' ' + r.status); return as === 'json' ? r.json() : r.text(); };
+const libEnt = (s) => s.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#0*39;|&apos;/g, "'").replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(+n)).replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)));
+const libHtmlText = (h) => libEnt(String(h || '')
+  .replace(/<(style|script|sup|table)[\s\S]*?<\/\1>/gi, '').replace(/<span class="mw-editsection[\s\S]*?<\/span>\s*<\/span>/gi, '')
+  .replace(/<div[^>]*(ws-noexport|noprint|navbox|mw-references)[^>]*>[\s\S]*?<\/div>/gi, '')
+  .replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|h\d|li|dd|dt|blockquote|tr)>/gi, '\n\n').replace(/<[^>]+>/g, ''))
+  .replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+// Gutenberg kitoblari (Gutendex)
+async function libGutendex(q, max) {
+  const out = []; let url = `${LIB.gx()}/books/?${q}`;
+  for (let i = 0; i < 6 && url && out.length < max; i++) {
+    const j = await libGet(url); url = j.next ? j.next.replace(/^https?:\/\/[^/]+/, LIB.gx()) : null;
+    for (const b of j.results || []) {
+      const f = b.formats || {}; const txt = Object.keys(f).find((k) => k.startsWith('text/plain')); if (!txt && !f['text/html']) continue;
+      if (b.copyright === true) continue; // faqat mualliflik huquqi tugagan kitoblar
+      out.push({ id: 'g:' + b.id, t: String(b.title || '').slice(0, 160), a: (b.authors || []).map((x) => x.name.split(', ').reverse().join(' ')).join(', ').slice(0, 120), img: f['image/jpeg'] || '', src: 'Project Gutenberg', dl: b.download_count || 0 });
+      if (out.length >= max) break;
+    }
+  }
+  return out;
+}
+// Vikimanba: eng ko'p o'qilgan + barcha sahifalar (ildiz asarlar bo'yicha)
+async function libWikisource(l, max, skip = new Set()) {
+  const api = `${LIB.ws(l)}/w/api.php?format=json&formatversion=2&origin=*`;
+  const roots = new Map(); const add = (t, w) => { if (!t || LIB.MAIN.has(t)) return; const r = t.split('/')[0]; if (LIB.MAIN.has(r) || skip.has(r)) return; roots.set(r, (roots.get(r) || 0) + w); };
+  try { const j = await libGet(`${api}&action=query&list=mostviewed&pvimlimit=500`); (j.query?.mostviewed || []).forEach((p) => p.ns === 0 && add(p.title, 1 + (p.count || 0) / 10)); } catch (e) { console.warn('[lib] ws mostviewed', l, e.message); }
+  let cont = ''; for (let i = 0; i < 6 && roots.size < max * 3; i++) {
+    const j = await libGet(`${api}&action=query&list=allpages&apnamespace=0&apfilterredir=nonredirects&aplimit=500${cont}`).catch(() => null); if (!j) break;
+    (j.query?.allpages || []).forEach((p) => add(p.title, 0.5)); cont = j.continue?.apcontinue ? '&apcontinue=' + encodeURIComponent(j.continue.apcontinue) : ''; if (!cont) break;
+  }
+  return [...roots.entries()].sort((a, b) => b[1] - a[1]).slice(0, max).map(([t]) => ({ id: `w:${l}:${t}`, t, a: '', src: 'Vikimanba (Wikisource)' }));
+}
+async function libList(cat) {
+  if (!LIB.CATS.includes(cat)) throw new Error('cat');
+  return libCache('list3:' + cat, 24 * 3600e3, async () => {
+    if (cat === 'din') {
+      const q = { id: 'q', t: 'Qur’oni Karim', a: 'Arabcha matn va o‘zbekcha ma’nolar tarjimasi (Muhammad Sodiq Muhammad Yusuf)', src: 'alquran.cloud', ic: '📗' };
+      const h = LIB.HCOL.map(([k, t, a]) => ({ id: 'h:' + k, t, a, src: 'hadith-api (fawazahmed0)', ic: '📘' }));
+      let g = []; try { g = await libGutendex('topic=islam&sort=popular', 60); } catch (e) { console.warn('[lib] din gutenberg', e.message); }
+      return [q, ...h, ...g];
+    }
+    let g = []; if (cat !== 'uz') try { g = await libGutendex(`languages=${cat}&sort=popular`, 100); } catch (e) { console.warn('[lib] gutendex', cat, e.message); }
+    let w = []; if (g.length < 100) try { w = await libWikisource(cat, 100 - g.length); } catch (e) { console.warn('[lib] wikisource', cat, e.message); }
+    const all = [...g, ...w]; if (!all.length) throw new Error('Kitoblar manbasi hozir javob bermadi');
+    return all;
+  });
+}
+// Gutenberg matnini bo'laklarga bo'lish (~14 ming belgi)
+function libSplit(text, size = 14000) {
+  const parts = []; let cur = '';
+  for (const p of text.split(/\n\s*\n/)) { if (cur.length + p.length > size && cur.length > size * 0.4) { parts.push(cur.trim()); cur = ''; } cur += p.replace(/\s*\n\s*/g, ' ').trim() + '\n\n'; }
+  if (cur.trim()) parts.push(cur.trim()); return parts;
+}
+async function libGutText(n) {
+  return libCache('gtxt:' + n, 0, async () => {
+    let txt = '';
+    try { const b = await libGet(`${LIB.gx()}/books/${n}`); const f = b.formats || {}; const k = Object.keys(f).find((x) => x.startsWith('text/plain') && !/zip/.test(f[x])); if (k) txt = await libGet(f[k], 'text', 60000); else if (f['text/html']) txt = libHtmlText(await libGet(f['text/html'], 'text', 60000)); }
+    catch (e) { txt = await libGet(`${LIB.gb()}/cache/epub/${n}/pg${n}.txt`, 'text', 60000); }
+    txt = txt.replace(/\r/g, ''); const s = txt.search(/\*\*\* ?START OF (THE|THIS) PROJECT GUTENBERG[^\n]*\n/i); if (s >= 0) txt = txt.slice(txt.indexOf('\n', s) + 1);
+    const e = txt.search(/\*\*\* ?END OF (THE|THIS) PROJECT GUTENBERG/i); if (e > 0) txt = txt.slice(0, e);
+    return libSplit(txt.trim()).slice(0, 400);
+  });
+}
+async function libBook(id) {
+  return libCache('book2:' + id, 7 * 24 * 3600e3, async () => {
+    if (id === 'q') { const j = await libGet(`${LIB.qr()}/v1/surah`); return { id, t: 'Qur’oni Karim', a: 'Arabcha matn + tarjima', src: 'api.alquran.cloud · tarjima: Muhammad Sodiq Muhammad Yusuf', ch: (j.data || []).map((s) => ({ t: `${s.number}. ${s.englishName} — ${s.name}`, n: s.numberOfAyahs })), tr: ['uz.sodik', 'ru.kuliev', 'en.sahih'] }; }
+    if (id.startsWith('h:')) {
+      const k = id.slice(2); const c = LIB.HCOL.find((x) => x[0] === k); if (!c) throw new Error('id');
+      let sec = null; try { const info = await libGet(`${LIB.hd()}/info.json`, 'json', 40000); sec = info[k]?.metadata?.sections || null; } catch {}
+      if (!sec) { const ed = await libGet(`${LIB.hd()}/editions/eng-${k}.min.json`, 'json', 60000); sec = ed.metadata?.sections || {}; }
+      let eds = []; try { const e = await libGet(`${LIB.hd()}/editions.json`); eds = (e[k]?.collection || []).map((x) => x.name.split('-')[0]); } catch {}
+      const ch = Object.entries(sec).filter(([n, t]) => +n > 0 && t).map(([n, t]) => ({ t: `${n}. ${t}`, k: +n }));
+      return { id, t: c[1], a: c[2], src: 'hadith-api (fawazahmed0) · arabcha matn + tarjima', ch, tr: ['eng', 'rus', 'tur', 'urd'].filter((x) => !eds.length || eds.includes(x)) };
+    }
+    if (id.startsWith('g:')) { const n = Number(id.slice(2)); if (!n) throw new Error('id'); let b = {}; try { b = await libGet(`${LIB.gx()}/books/${n}`); } catch {} const parts = await libGutText(n);
+      return { id, t: b.title || 'Kitob #' + n, a: (b.authors || []).map((x) => x.name.split(', ').reverse().join(' ')).join(', '), src: 'Project Gutenberg (public domain)', ch: parts.map((p, i) => ({ t: `${i + 1}-qism`, c: p.length })) }; }
+    if (id.startsWith('w:')) {
+      const [, l, ...r] = id.split(':'); const t = r.join(':'); if (!/^[a-z]{2,3}$/.test(l) || !t) throw new Error('id');
+      const api = `${LIB.ws(l)}/w/api.php?format=json&formatversion=2&origin=*`;
+      const j = await libGet(`${api}&action=query&list=allpages&apnamespace=0&aplimit=500&apprefix=${encodeURIComponent(t + '/')}`).catch(() => null);
+      const subs = (j?.query?.allpages || []).map((p) => p.title);
+      return { id, t, a: '', src: `Vikimanba (${l}.wikisource.org, CC BY-SA)`, ch: (subs.length ? subs : [t]).map((x) => ({ t: x === t ? t : x.slice(t.length + 1), p: x })) };
+    }
+    throw new Error('id');
+  });
+}
+async function libRead(id, i, tr) {
+  const b = await libBook(id); const c = b.ch[i]; if (!c) throw new Error('bob topilmadi');
+  if (id === 'q') { tr = b.tr.includes(tr) ? tr : 'uz.sodik';
+    return libCache(`q:${i + 1}:${tr}`, 0, async () => { const j = await libGet(`${LIB.qr()}/v1/surah/${i + 1}/editions/quran-uthmani,${tr}`); const [ar, tx] = j.data || []; return { t: c.t, ayat: (ar?.ayahs || []).map((a, k) => ({ n: a.numberInSurah, ar: a.text, tr: tx?.ayahs?.[k]?.text || '' })), lic: 'Matn: Tanzil/alquran.cloud' }; }); }
+  if (id.startsWith('h:')) { const k = id.slice(2); tr = b.tr.includes(tr) ? tr : b.tr[0] || 'eng';
+    return libCache(`h:${k}:${c.k}:${tr}`, 0, async () => {
+      const [ar, tx] = await Promise.all([libGet(`${LIB.hd()}/editions/ara-${k}/sections/${c.k}.min.json`).catch(() => null), libGet(`${LIB.hd()}/editions/${tr}-${k}/sections/${c.k}.min.json`).catch(() => null)]);
+      if (!ar && !tx) throw new Error('manba javob bermadi');
+      const m = new Map(); (tx?.hadiths || []).forEach((h) => m.set(String(h.hadithnumber), h.text));
+      const list = (ar?.hadiths || tx?.hadiths || []).map((h) => ({ n: h.hadithnumber, ar: ar ? h.text : '', tr: m.get(String(h.hadithnumber)) || (ar ? '' : h.text), g: (h.grades || []).map((x) => x.grade).filter(Boolean).slice(0, 2).join(', ') })).filter((h) => h.ar || h.tr);
+      return { t: c.t, hadis: list.slice(0, 800) };
+    }); }
+  if (id.startsWith('g:')) { const parts = await libGutText(Number(id.slice(2))); return { t: c.t, text: parts[i] || '' }; }
+  if (id.startsWith('w:')) { const l = id.split(':')[1];
+    return libCache(`w:${l}:${c.p}`, 30 * 24 * 3600e3, async () => { const j = await libGet(`${LIB.ws(l)}/w/api.php?format=json&formatversion=2&origin=*&action=parse&prop=text&disabletoc=1&disableeditsection=1&redirects=1&page=${encodeURIComponent(c.p)}`); return { t: c.t, text: libHtmlText(j.parse?.text || '').slice(0, 200000) }; }); }
+  throw new Error('id');
+}
+app.get('/api/lib/list', auth, wrap(async (req, res) => {
+  const cat = String(req.query.cat || ''); try { res.json({ items: await libList(cat) }); } catch (e) { res.status(502).json({ error: e.message === 'cat' ? 'cat' : 'Kitoblar manbasi hozir javob bermadi, birozdan so‘ng urinib ko‘ring' }); }
+}));
+app.get('/api/lib/book', auth, wrap(async (req, res) => {
+  try { res.json(await libBook(String(req.query.id || '').slice(0, 300))); } catch (e) { res.status(502).json({ error: 'Kitobni ochib bo‘lmadi: ' + e.message }); }
+}));
+app.get('/api/lib/read', auth, wrap(async (req, res) => {
+  try { res.json(await libRead(String(req.query.id || '').slice(0, 300), Math.max(0, Number(req.query.ch) || 0), String(req.query.tr || ''))); } catch (e) { res.status(502).json({ error: 'Matnni yuklab bo‘lmadi: ' + e.message }); }
+}));
+// ishga tushganda manbalarni tekshirish (Render loglarida ko'rinadi)
+setTimeout(async () => {
+  if (process.env.LIB_SELFTEST === '0') return;
+  const r = []; for (const c of LIB.CATS) { try { const l = await libList(c); r.push(`${c}=${l.length}`); } catch (e) { r.push(`${c}=XATO(${e.message})`); } }
+  try { const q = await libRead('q', 0, 'uz.sodik'); r.push('quron=' + (q.ayat?.length || 0) + 'oyat'); } catch (e) { r.push('quron=XATO(' + e.message + ')'); }
+  try { const h = await libRead('h:bukhari', 0, 'eng'); r.push('buxoriy=' + (h.hadis?.length || 0) + 'hadis'); } catch (e) { r.push('buxoriy=XATO(' + e.message + ')'); }
+  console.log('   Kutubxona: ' + r.join(' · '));
+}, Number(process.env.LIB_SELFTEST_MS) || 45000);
 
 // multer xatolari (juda katta fayl) — tushunarli JSON javob
 app.use((err, req, res, next) => {

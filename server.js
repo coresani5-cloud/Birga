@@ -2063,6 +2063,7 @@ app.delete('/api/stories/:id', auth, wrap(async (req, res) => {
 
 // ===== Reels: foydalanuvchilar O'ZLARI joylagan qisqa videolar (yoki o'z Instagram havolasi) =====
 // Lentaga faqat shu yerda ataylab joylangan narsa tushadi — chat xabarlaridan hech narsa olinmaydi.
+const YT_RX = /^https?:\/\/(?:www\.|m\.)?(?:youtube\.com\/shorts\/([\w-]{11})|youtu\.be\/([\w-]{11})|youtube\.com\/watch\?(?:[^#]*&)?v=([\w-]{11})|youtube\.com\/embed\/([\w-]{11}))/i;
 const IG_RX = /^https?:\/\/(?:www\.|m\.)?(?:instagram\.com|instagr\.am)\/(?:[\w.]+\/)?(reels?|p|tv)\/([\w-]{5,})/i;
 const reelOut = async (r, me) => {
   const likes = Number((await db.get('SELECT COUNT(*) AS c FROM reel_likes WHERE reel_id=?', [r.id]))?.c || 0);
@@ -2115,9 +2116,11 @@ app.get('/api/reels', auth, wrap(async (req, res) => {
 app.post('/api/reels', auth, rateLimit('reelpost', 30, 3600e3), wrap(async (req, res) => {
   const caption = String(req.body.caption || '').slice(0, 300);
   let row;
-  if (req.body.ig) {
+  const ytm = req.body.ig && YT_RX.exec(String(req.body.ig).trim());
+  if (ytm) row = ['yt', null, null, 'yt', ytm[1] || ytm[2] || ytm[3] || ytm[4], null];
+  else if (req.body.ig) {
     const m = IG_RX.exec(String(req.body.ig).trim());
-    if (!m) return res.status(400).json({ error: tr(req.body.lang, 'Instagram Reels havolasi noto‘g‘ri', 'Неверная ссылка Instagram', 'Invalid Instagram link') });
+    if (!m) return res.status(400).json({ error: tr(req.body.lang, 'Instagram yoki YouTube Shorts havolasi noto‘g‘ri', 'Неверная ссылка Instagram или YouTube Shorts', 'Invalid Instagram or YouTube Shorts link') });
     row = ['ig', null, null, m[1].toLowerCase().startsWith('reel') ? 'reel' : m[1].toLowerCase(), m[2], null];
   } else {
     const { file, mime } = req.body;
@@ -3536,6 +3539,43 @@ async function airTick(force) {
     return res;
   } finally { AIR.busy = false; }
 }
+
+// ===== YouTube Shorts lentaga: rasmiy YouTube pleyeri orqali (video YouTube'da qoladi, muallif va havola ko'rsatiladi) =====
+// Kalit: YOUTUBE_API_KEY (Google Cloud → YouTube Data API v3, bepul kunlik kvota). Soni: YT_REELS_PER_DAY (standart 8).
+const YTQ = ['kulgili video', 'qiziqarli faktlar', 'foydali maslahatlar', 'tabiat go‘zalligi', 'hayvonlar kulgili', 'ilmiy tajriba', 'смешные видео', 'интересные факты', 'полезные советы', 'природа красиво', 'funny animals', 'amazing nature', 'science experiment', 'life hacks', 'motivatsiya', 'o‘zbek oshxonasi', 'sport moments', 'satisfying video'];
+const YT = { busy: false, last: 0, err: null };
+async function ytTick(force) {
+  const key = process.env.YOUTUBE_API_KEY; if (!key || YT.busy || (!force && process.env.YT_REELS === '0')) return null;
+  YT.busy = true;
+  try {
+    const bot = await airBot(); const per = Math.min(20, Math.max(1, Number(process.env.YT_REELS_PER_DAY) || 8));
+    const day = tashDay(), dayStart = Date.parse(day + 'T00:00:00Z') - 5 * 3600e3;
+    const made = Number((await db.get("SELECT COUNT(*) AS c FROM reels WHERE user_id=? AND kind='yt' AND created_at>=?", [bot.id, dayStart]))?.c || 0);
+    const due = Math.ceil((per * Math.max(0, tashHour() - 7)) / 15); // 08:00–22:00 oralig'ida bir tekis
+    if (!force && made >= Math.min(per, due)) return null;
+    const usedRow = await db.get("SELECT v FROM meta WHERE k='yt_used'"); const used = JSON.parse(usedRow?.v || '[]'); const U = new Set(used);
+    const q = YTQ[(made + Number(day.slice(-2)) * 3) % YTQ.length];
+    const g = (u) => fetch(u, { signal: AbortSignal.timeout(15000) }).then((r) => r.json());
+    const sr = await g(`${process.env.YT_API_BASE || 'https://www.googleapis.com/youtube/v3'}/search?part=snippet&type=video&videoDuration=short&videoEmbeddable=true&videoSyndicated=true&safeSearch=strict&maxResults=25&order=relevance&regionCode=UZ&q=${encodeURIComponent(q + ' #shorts')}&key=${key}`);
+    if (sr.error) throw new Error('YouTube: ' + (sr.error.message || sr.error.code));
+    const ids = (sr.items || []).map((x) => x.id?.videoId).filter((id) => id && !U.has(id)); if (!ids.length) throw new Error('YouTube: yangi video topilmadi (' + q + ')');
+    const vr = await g(`${process.env.YT_API_BASE || 'https://www.googleapis.com/youtube/v3'}/videos?part=snippet,contentDetails,status,statistics&id=${ids.join(',')}&key=${key}`);
+    const dur = (iso) => { const m = /PT(?:(\d+)M)?(?:(\d+)S)?/.exec(iso || '') || []; return (+m[1] || 0) * 60 + (+m[2] || 0); };
+    const ok = (vr.items || []).filter((v) => v.status?.embeddable && v.status?.privacyStatus === 'public' && !v.status?.madeForKids && dur(v.contentDetails?.duration) > 5 && dur(v.contentDetails?.duration) <= 90 && !v.contentDetails?.contentRating?.ytRating)
+      .sort((a, b) => Number(b.statistics?.viewCount || 0) - Number(a.statistics?.viewCount || 0));
+    const v = ok[Math.floor(Math.random() * Math.min(5, ok.length))]; if (!v) throw new Error('YouTube: mos Shorts yo‘q (' + q + ')');
+    const title = String(v.snippet.title || '').replace(/\s+/g, ' ').slice(0, 140), ch = String(v.snippet.channelTitle || '').slice(0, 60);
+    const cap = `${title}\n📺 ${ch} · YouTube`.slice(0, 300);
+    const id = await db.insert('INSERT INTO reels(user_id,kind,file,mime,ig_kind,ig_code,duration,caption,created_at) VALUES(?,?,?,?,?,?,?,?,?)', [bot.id, 'yt', null, null, 'yt', v.id, dur(v.contentDetails.duration), cap, now()]);
+    used.push(v.id); await db.run("INSERT INTO meta(k,v) VALUES('yt_used',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", [JSON.stringify(used.slice(-2000))]);
+    YT.last = now(); YT.err = null; console.log(`📺 YouTube Shorts lentaga: #${id} "${title.slice(0, 50)}" (${ch})`);
+    return { id: Number(id) };
+  } catch (e) { YT.err = e.message; YT.last = now(); console.error('YT reels:', e.message); return null; }
+  finally { YT.busy = false; }
+}
+setTimeout(() => ytTick().catch(() => {}), 120e3);
+setInterval(() => { if (!(YT.err && now() - YT.last < 3600e3)) ytTick().catch(() => {}); }, 15 * 60e3);
+app.post('/api/admin/yt-reel', auth, adminOnly, wrap(async (req, res) => { if (!process.env.YOUTUBE_API_KEY) return res.status(400).json({ error: 'YOUTUBE_API_KEY yo‘q' }); res.json({ result: await ytTick(true), err: YT.err }); }));
 setTimeout(() => airTick().catch(() => {}), 90e3);
 setInterval(() => airTick().catch(() => {}), (Number(process.env.AI_REELS_CHECK_MIN) || 10) * 60e3);
 app.post('/api/admin/ai-reel', auth, adminOnly, wrap(async (req, res) => {

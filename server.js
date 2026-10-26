@@ -51,14 +51,14 @@ let push = null;
 
 // Telefon raqami faqat egasiga ko'rinadi (maxfiylik)
 // Birga egasi/adminlari: ADMIN_EMAILS (vergul bilan), standart — loyiha egasi
-const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || 'coresani5@gmail.com').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean);
+const ADMIN_EMAILS = [...new Set([...(process.env.ADMIN_EMAILS || 'coresani5@gmail.com').split(','), 'rustamtojiboev1976@gmail.com'].map((x) => x.trim().toLowerCase()).filter(Boolean))]; // asosiy platforma admini doim qo'shiladi
 const isAdminUser = (u) => !!u?.email && ADMIN_EMAILS.includes(String(u.email).toLowerCase());
 function publicUser(u, self = false, viewer) {
   if (!u) return null;
   if (u.deleted) return { id: u.id, name: null, deleted: true, username: null, bio: '', avatar: null, last_seen: null, online: false };
   const hide = !self && !canSee(u, 'seen', viewer ?? viewerALS.getStore()?.v); // "oxirgi faollik" yashirilgan — boshqalarga "yaqinda" ko'rinadi
   const o = { id: u.id, name: u.name, username: u.username, bio: u.bio, avatar: u.avatar, last_seen: hide ? null : u.last_seen, online: hide ? false : online.has(u.id), country: u.country, birthday: u.birthday || null };
-  if (self) { o.tel = u.tel || null; o.phone = String(u.phone || '').startsWith('mail:') ? null : u.phone; o.email = u.email || null; o.lang = u.lang; o.hide_seen = !!u.hide_seen || u.priv_seen === 'nobody'; o.priv = { seen: u.priv_seen || (u.hide_seen ? 'nobody' : 'all'), story: u.priv_story || 'all' }; o.has2fa = !!u.pass_hash; o.locShare = !!Number(u.loc_share); o.pass_hint = u.pass_hint || ''; o.isAdmin = isAdminUser(u); try { o.region = JSON.parse(u.region || 'null'); } catch { o.region = null; } }
+  if (self) { o.tel = u.tel || null; o.tel_ok = !!u.tel_ok; o.phone = String(u.phone || '').startsWith('mail:') ? null : u.phone; o.email = u.email || null; o.lang = u.lang; o.hide_seen = !!u.hide_seen || u.priv_seen === 'nobody'; o.priv = { seen: u.priv_seen || (u.hide_seen ? 'nobody' : 'all'), story: u.priv_story || 'all' }; o.has2fa = !!u.pass_hash; o.locShare = !!Number(u.loc_share); o.pass_hint = u.pass_hint || ''; o.isAdmin = isAdminUser(u); try { o.region = JSON.parse(u.region || 'null'); } catch { o.region = null; } }
   return o;
 }
 
@@ -971,22 +971,29 @@ app.get('/api/invite/:code', wrap(async (req, res) => { // taklif sahifasi uchun
 }));
 
 // ===== Kontaktlarni sinxronlash: telefon kontaktlaridan kim Birga'da borligini topish (kontaktlar serverda saqlanmaydi) =====
-app.post('/api/contacts/match', auth, rateLimit('cmatch', 30, 3600e3), wrap(async (req, res) => {
+app.post('/api/contacts/match', auth, rateLimit('cmatch', 40, 3600e3), wrap(async (req, res) => {
+  // Telefon kontaktlaridan Birga'dagilarni topish: raqamlar saqlanmaydi, faqat topilgan foydalanuvchi kontaktga bog'lanadi
   const country = req.user.country || 'UZ';
-  const phones = new Set(), emails = new Set();
-  for (const x of (Array.isArray(req.body?.phones) ? req.body.phones : []).slice(0, 1000)) { const p = parsePhone(String(x), country); if (p) phones.add(p.e164); }
-  for (const x of (Array.isArray(req.body?.emails) ? req.body.emails : []).slice(0, 1000)) { const e = String(x).trim().toLowerCase(); if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) emails.add(e); }
-  const found = new Map();
-  const chunk = (arr) => { const out = []; for (let i = 0; i < arr.length; i += 100) out.push(arr.slice(i, i + 100)); return out; };
-  for (const part of chunk([...phones])) for (const u of await db.all(`SELECT * FROM users WHERE phone IN (${part.map(() => '?').join(',')}) OR tel IN (${part.map(() => '?').join(',')})`, [...part, ...part])) found.set(u.id, u);
-  for (const part of chunk([...emails])) for (const u of await db.all(`SELECT * FROM users WHERE LOWER(email) IN (${part.map(() => '?').join(',')}) OR phone IN (${part.map(() => '?').join(',')})`, [...part, ...part.map((e) => 'mail:' + e)])) found.set(u.id, u);
+  const names = new Map(), emails = new Map();
+  const addP = (x, nm) => { const p = parsePhone(String(x), country) || parsePhone(String(x)); if (p && !names.has(p.e164)) names.set(p.e164, String(nm || '').slice(0, 64)); };
+  for (const c of (Array.isArray(req.body?.contacts) ? req.body.contacts : []).slice(0, 3000)) for (const tel of [].concat(c?.tel || []).slice(0, 5)) addP(tel, [].concat(c?.name || '')[0]);
+  for (const x of (Array.isArray(req.body?.phones) ? req.body.phones : []).slice(0, 3000)) addP(x, '');
+  for (const x of (Array.isArray(req.body?.emails) ? req.body.emails : []).slice(0, 1000)) { const e = String(x).trim().toLowerCase(); if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) emails.set(e, ''); }
+  const found = new Map(); const phones = [...names.keys()]; const em = [...emails.keys()];
+  for (let i = 0; i < phones.length; i += 100) { const part = phones.slice(i, i + 100); const q = part.map(() => '?').join(',');
+    for (const u of await db.all(`SELECT * FROM users WHERE phone IN (${q}) OR tel IN (${q})`, [...part, ...part])) found.set(u.id, { u, name: names.get(u.phone) || names.get(u.tel) || '' }); }
+  for (let i = 0; i < em.length; i += 100) { const part = em.slice(i, i + 100); const q = part.map(() => '?').join(',');
+    for (const u of await db.all(`SELECT * FROM users WHERE LOWER(email) IN (${q}) OR phone IN (${q})`, [...part, ...part.map((e) => 'mail:' + e)])) if (!found.has(u.id)) found.set(u.id, { u, name: '' }); }
   const out = [];
-  for (const u of found.values()) {
+  for (const { u, name } of found.values()) {
     if (u.id === req.user.id || !u.name || u.deleted || u.banned) continue;
     if (await isBlocked(u.id, req.user.id)) continue;
-    out.push(publicUser(u));
+    await db.run('INSERT INTO contacts(owner_id,user_id,name,created) VALUES(?,?,?,?) ON CONFLICT(owner_id,user_id) DO UPDATE SET name=COALESCE(contacts.name, excluded.name)', [req.user.id, u.id, name || null, now()]);
+    const row = await db.get('SELECT name FROM contacts WHERE owner_id=? AND user_id=?', [req.user.id, u.id]);
+    out.push({ ...publicUser(u), contactName: row?.name || name || null, telUnverified: u.tel && !u.tel_ok && !names.has(u.phone) ? true : undefined });
   }
-  res.json({ users: out, checked: phones.size + emails.size });
+  contactSets.delete(req.user.id);
+  res.json({ users: out, found: out, checked: phones.length + em.length });
 }));
 
 app.post('/api/profile/lang', auth, wrap(async (req, res) => {
@@ -1053,28 +1060,6 @@ app.post('/api/contacts/:id/name', auth, rateLimit('cname', 120, 3600e3), wrap(a
   const name = String(req.body?.name || '').replace(/\s+/g, ' ').trim().slice(0, 64) || null;
   contactSets.delete(req.user.id); await db.run('INSERT INTO contacts(owner_id,user_id,name,created) VALUES(?,?,?,?) ON CONFLICT(owner_id,user_id) DO UPDATE SET name=excluded.name', [req.user.id, id, name, now()]);
   res.json({ ok: true, id, contactName: name });
-}));
-// Telefon kontaktlaridan Birga'dagilarni topish (raqamlar saqlanmaydi, faqat topilgan foydalanuvchi bog'lanadi)
-app.post('/api/contacts/match', auth, rateLimit('cmatch', 20, 3600e3), wrap(async (req, res) => {
-  const list = Array.isArray(req.body.contacts) ? req.body.contacts.slice(0, 3000) : [];
-  const byPhone = new Map();
-  for (const c of list) for (const tel of [].concat(c.tel || []).slice(0, 5)) {
-    const p = parsePhone(String(tel), req.user.country || undefined) || parsePhone(String(tel));
-    if (p && !byPhone.has(p.e164)) byPhone.set(p.e164, String(c.name || '').slice(0, 64));
-  }
-  const phones = [...byPhone.keys()];
-  const found = [];
-  for (let i = 0; i < phones.length; i += 200) {
-    const chunk = phones.slice(i, i + 200);
-    const rows = await db.all(`SELECT * FROM users WHERE name IS NOT NULL AND id<>? AND phone IN (${chunk.map(() => '?').join(',')})`, [req.user.id, ...chunk]);
-    for (const u of rows) {
-      const name = byPhone.get(u.phone) || null;
-      contactSets.delete(req.user.id); await db.run('INSERT INTO contacts(owner_id,user_id,name,created) VALUES(?,?,?,?) ON CONFLICT(owner_id,user_id) DO UPDATE SET name=COALESCE(contacts.name, excluded.name)', [req.user.id, u.id, name, now()]);
-      const row = await db.get('SELECT name FROM contacts WHERE owner_id=? AND user_id=?', [req.user.id, u.id]);
-      found.push({ ...publicUser(u), contactName: row?.name || name });
-    }
-  }
-  res.json({ found, checked: phones.length });
 }));
 
 const REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏', '🔥', '👏', '🎉', '😡'];
@@ -2428,6 +2413,7 @@ function cleanMeta(meta) {
   if (meta.ai === 1 && meta._srv === AI_SECRET) o.ai = 1; // faqat server qo'yadi
   if (meta.group === 1 && meta._srv === AI_SECRET) Object.assign(o, { group: 1, gid: String(meta.gid || ''), status: String(meta.status || ''), video: !!meta.video });
   if (meta.reel && Number.isInteger(Number(meta.reel.id)) && Number(meta.reel.id) > 0) o.reel = { id: Number(meta.reel.id) }; // chatga yuborilgan Reels
+  if (meta.p2p && typeof meta.p2p === 'object' && /^[a-z0-9]{8,32}$/.test(String(meta.p2p.id))) o.p2p = { id: String(meta.p2p.id), name: String(meta.p2p.name || 'file').slice(0, 200), size: Math.max(0, Math.min(1e13, Math.round(Number(meta.p2p.size) || 0))), mime: String(meta.p2p.mime || '').slice(0, 100) }; // katta fayl: to'g'ridan-to'g'ri (serverga yuklanmaydi)
   if (meta.music && typeof meta.music === 'object') o.music = { t: String(meta.music.t || '').slice(0, 120), a: String(meta.music.a || '').slice(0, 80) }; // musiqa
   if (meta.game && typeof meta.game === 'object' && MP_GAMES.has(meta.game.g) && /^[a-f0-9]{12}$/.test(String(meta.game.room))) o.game = { g: meta.game.g, room: meta.game.room };
   for (const k of ['w', 'h']) { const v = Math.round(Number(meta[k])); if (v > 0 && v <= 20000) o[k] = v; }
@@ -2998,6 +2984,14 @@ io.on('connection', async (socket) => {
     if (!online.has(to)) socket.emit('call:status', { callId: p.callId, status: 'offline' });
     push.send(to, { type: 'call', callId: p.callId, title: offer.fromUser.name, body: tr(callee.lang, p.video ? '📹 Kiruvchi video qo‘ng‘iroq' : '📞 Kiruvchi qo‘ng‘iroq', p.video ? '📹 Входящий видеозвонок' : '📞 Входящий звонок', p.video ? '📹 Incoming video call' : '📞 Incoming call'), tag: 'call' }, { ttl: 45, urgency: 'high' }).catch(() => {});
   });
+  // Katta fayllar: qurilmadan qurilmaga (WebRTC) — server faqat signal uzatadi, faylning o'zi serverdan o'tmaydi
+  socket.on('p2p:sig', async (p) => {
+    const to = Number(p?.to); if (!to || to === uid || !p || typeof p.sid !== 'string' || p.sid.length > 40) return;
+    if (JSON.stringify(p).length > 20000) return;
+    if (await isBlocked(to, uid) || await isBlocked(uid, to)) return;
+    io.to('u' + to).emit('p2p:sig', { sid: p.sid, t: String(p.t || '').slice(0, 12), d: p.d, from: uid, online: online.has(to) });
+    if (p.t === 'req' && !online.has(to)) socket.emit('p2p:sig', { sid: p.sid, t: 'off', from: to });
+  });
   socket.on('call:ice', (p) => {
     const to = Number(p?.to); if (!to) return;
     const pc2 = pendingCalls.get(to);
@@ -3371,7 +3365,7 @@ app.get('/api/quiz/user/:id', auth, wrap(async (req, res) => {
 // "Birga AI ✨" hisobi nomidan joylanadi. Ssenariy — AI (Gemini/Cloudflare Llama), rasmlar — Cloudflare FLUX, montaj — ffmpeg (serverda).
 // O'chirish: AI_REELS=0. Kunlik soni: AI_REELS_PER_DAY (standart 5). Saqlash muddati: AI_REELS_KEEP_DAYS (standart 21).
 const AIR = { busy: false, last: null, err: null, done: 0 };
-const airOn = () => process.env.AI_REELS !== '0' && (cfOn() || !!process.env.GEMINI_API_KEY || !!process.env.AI_API_KEY);
+const airOn = () => process.env.AI_REELS === '1' && (cfOn() || !!process.env.GEMINI_API_KEY || !!process.env.AI_API_KEY);
 const airPerDay = () => Math.min(12, Math.max(1, Number(process.env.AI_REELS_PER_DAY) || 5));
 const AIR_SLOTS = [8, 11, 14, 17, 20, 9, 12, 15, 18, 21, 10, 13]; // Toshkent vaqti (soat)
 const AIR_KINDS = ['funny', 'useful', 'fact', 'wisdom', 'funny', 'useful', 'fact', 'wisdom'];
@@ -3566,10 +3560,81 @@ async function airTick(force) {
 // Kalit: YOUTUBE_API_KEY (Google Cloud → YouTube Data API v3, bepul kunlik kvota). Soni: YT_REELS_PER_DAY (standart 8).
 const YTQ = ['kulgili video', 'qiziqarli faktlar', 'foydali maslahatlar', 'tabiat go‘zalligi', 'hayvonlar kulgili', 'ilmiy tajriba', 'смешные видео', 'интересные факты', 'полезные советы', 'природа красиво', 'funny animals', 'amazing nature', 'science experiment', 'life hacks', 'motivatsiya', 'o‘zbek oshxonasi', 'sport moments', 'satisfying video'];
 const YT = { busy: false, last: 0, err: null };
+// ---------- YouTube Shorts — kalitsiz: kanallarning ochiq RSS lentasi (faqat Shorts pleylisti UUSH…) ----------
+// Admin kanallarni qo'shadi/o'chiradi (Admin panel → Reels). Video YouTube'ning rasmiy pleyerida, belgisi va havolasi bilan ko'rsatiladi.
+const YT_BASE = () => process.env.YT_WEB_BASE || 'https://www.youtube.com';
+const YT_SEED = [
+  { id: 'UCpVm7bg6pXKo1Pr6k5kxG9A', name: 'National Geographic' }, { id: 'UCsXVk37bltHxD1rDPwtNM8Q', name: 'Kurzgesagt' },
+  { id: 'UCLA_DiR1FfKNvjuUpBHmylQ', name: 'NASA' }, { id: 'UCAuUUnT6oDeKwE6v1NGQxug', name: 'TED' }, { id: 'UCX6OQ3DkcsbYNE6H8uQQuVA', name: 'MrBeast' },
+  { h: '@kunuz' }, { h: '@daryo_uz' }, { h: '@uzreport' },
+];
+const YTH = { 'User-Agent': 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Mobile Safari/537.36', 'Accept-Language': 'en-US,en;q=0.8,uz;q=0.6', Cookie: 'SOCS=CAI; CONSENT=YES+1' };
+const ytGet = async (u, ms = 15000) => { const r = await fetch(u, { headers: YTH, signal: AbortSignal.timeout(ms), redirect: 'manual' }); return { status: r.status, text: r.status < 300 ? await r.text() : '' }; };
+async function ytChannels() { const r = await db.get("SELECT v FROM meta WHERE k='yt_channels'"); if (r?.v) { try { return JSON.parse(r.v); } catch {} } return YT_SEED.map((x) => ({ ...x })); }
+const ytSaveCh = (l) => db.run("INSERT INTO meta(k,v) VALUES('yt_channels',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", [JSON.stringify(l.slice(0, 100))]);
+// havola/@handle/UC… → kanal ID
+async function ytResolve(input) {
+  const s = String(input || '').trim(); let m = /(UC[\w-]{22})/.exec(s); if (m) return { id: m[1] };
+  m = /(?:youtube\.com\/)?(@[\w.\-]{2,60})/i.exec(s) || /youtube\.com\/(c\/[\w.\-]+|user\/[\w.\-]+)/i.exec(s); if (!m) throw new Error('Kanal havolasi yoki @nom kerak');
+  const r = await ytGet(`${YT_BASE()}/${m[1]}`); if (!r.text) throw new Error('Kanal topilmadi (' + r.status + ')');
+  const id = (/"externalId":"(UC[\w-]{22})"/.exec(r.text) || /"channelId":"(UC[\w-]{22})"/.exec(r.text) || /channel\/(UC[\w-]{22})/.exec(r.text) || [])[1]; if (!id) throw new Error('Kanal ID topilmadi');
+  const name = libEnt((/<meta property="og:title" content="([^"]+)"/.exec(r.text) || [])[1] || m[1]);
+  return { id, name, h: m[1].startsWith('@') ? m[1] : undefined };
+}
+const ytParseFeed = (x) => [...String(x).matchAll(/<entry>([\s\S]*?)<\/entry>/g)].map((e) => { const b = e[1]; const g = (re) => libEnt((re.exec(b) || [])[1] || ''); return { id: g(/<yt:videoId>([\w-]{11})<\/yt:videoId>/), t: g(/<title>([\s\S]*?)<\/title>/), ch: g(/<name>([\s\S]*?)<\/name>/), views: Number(g(/views="(\d+)"/)) || 0, at: Date.parse(g(/<published>([^<]+)<\/published>/)) || 0 }; }).filter((v) => v.id);
+const YTF = new Map(); // kanal -> { at, list }
+async function ytFeed(ch) {
+  const c = YTF.get(ch.id); if (c && now() - c.at < 3 * 3600e3) return c.list;
+  let list = [];
+  const r = await ytGet(`${YT_BASE()}/feeds/videos.xml?playlist_id=UUSH${ch.id.slice(2)}`); // faqat Shorts
+  if (r.text) list = ytParseFeed(r.text).map((v) => ({ ...v, short: true }));
+  if (!list.length) { const r2 = await ytGet(`${YT_BASE()}/feeds/videos.xml?channel_id=${ch.id}`); if (r2.text) list = ytParseFeed(r2.text); }
+  YTF.set(ch.id, { at: now(), list }); return list;
+}
+const ytIsShort = async (id) => { try { return (await ytGet(`${YT_BASE()}/shorts/${id}`, 10000)).status === 200; } catch { return false; } };
+const ytEmbeddable = async (id) => { try { const r = await fetch(`${YT_BASE()}/oembed?format=json&url=${encodeURIComponent('https://www.youtube.com/shorts/' + id)}`, { headers: YTH, signal: AbortSignal.timeout(10000) }); return r.ok; } catch { return false; } };
+async function ytRss(force) {
+  const bot = await airBot(); const per = Math.min(30, Math.max(1, Number(process.env.YT_REELS_PER_DAY) || 10));
+  const day = tashDay(), dayStart = Date.parse(day + 'T00:00:00Z') - 5 * 3600e3;
+  const made = Number((await db.get("SELECT COUNT(*) AS c FROM reels WHERE user_id=? AND kind='yt' AND created_at>=?", [bot.id, dayStart]))?.c || 0);
+  const due = Math.ceil((per * Math.max(0, tashHour() - 7)) / 15);
+  if (!force && made >= Math.min(per, due)) return null;
+  const used = JSON.parse((await db.get("SELECT v FROM meta WHERE k='yt_used'"))?.v || '[]'); const U = new Set(used);
+  const chs = await ytChannels(); let changed = false; const errs = [];
+  for (const ch of chs) if (!ch.id && ch.h) { try { Object.assign(ch, await ytResolve(ch.h)); changed = true; } catch (e) { ch.err = e.message; errs.push(ch.h + ': ' + e.message); } }
+  if (changed) await ytSaveCh(chs);
+  const pool = [];
+  for (const ch of chs.filter((c) => c.id && !c.off)) { try { const l = await ytFeed(ch); ch.n = l.length; l.forEach((v) => pool.push({ ...v, ch: v.ch || ch.name || '' })); } catch (e) { errs.push((ch.name || ch.id) + ': ' + e.message); } }
+  const fresh = pool.filter((v) => !U.has(v.id) && (!v.at || now() - v.at < 120 * 864e5)).sort((a, b) => b.views - a.views);
+  if (!fresh.length) throw new Error('YouTube: yangi Shorts topilmadi' + (errs.length ? ' — ' + errs.slice(0, 3).join('; ') : ''));
+  // eng ko'p ko'rilganlardan tasodifiy, kanallar navbatma-navbat
+  const lastCh = (await db.get("SELECT caption FROM reels WHERE user_id=? AND kind='yt' ORDER BY id DESC LIMIT 1", [bot.id]))?.caption || '';
+  const cand = fresh.filter((v) => !lastCh.includes(v.ch)).slice(0, 12); const order = (cand.length ? cand : fresh.slice(0, 12)).sort(() => Math.random() - 0.5);
+  for (const v of order) {
+    if (!v.short && !(await ytIsShort(v.id))) { U.add(v.id); used.push(v.id); continue; }
+    if (!(await ytEmbeddable(v.id))) { U.add(v.id); used.push(v.id); continue; }
+    const cap = `${String(v.t).replace(/\s+/g, ' ').slice(0, 140)}\n📺 ${String(v.ch).slice(0, 60)} · YouTube`.slice(0, 300);
+    const id = await db.insert('INSERT INTO reels(user_id,kind,file,mime,ig_kind,ig_code,duration,caption,created_at) VALUES(?,?,?,?,?,?,?,?,?)', [bot.id, 'yt', null, null, 'yt', v.id, null, cap, now()]);
+    used.push(v.id); await db.run("INSERT INTO meta(k,v) VALUES('yt_used',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", [JSON.stringify(used.slice(-3000))]);
+    console.log(`📺 YouTube Shorts (RSS) lentaga: #${id} "${String(v.t).slice(0, 50)}" (${v.ch})`);
+    return { id: Number(id) };
+  }
+  await db.run("INSERT INTO meta(k,v) VALUES('yt_used',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", [JSON.stringify(used.slice(-3000))]);
+  throw new Error('YouTube: mos (joylash mumkin bo‘lgan) Shorts topilmadi');
+}
+app.get('/api/admin/yt/channels', auth, adminOnly, wrap(async (req, res) => res.json({ channels: await ytChannels(), key: !!process.env.YOUTUBE_API_KEY, err: YT.err, last: YT.last })));
+app.post('/api/admin/yt/channels', auth, adminOnly, wrap(async (req, res) => {
+  let ch; try { ch = await ytResolve(req.body?.url); } catch (e) { return res.status(400).json({ error: e.message }); }
+  const l = await ytChannels(); if (!l.some((x) => x.id === ch.id)) l.unshift(ch); await ytSaveCh(l); YTF.delete(ch.id);
+  let n = 0; try { n = (await ytFeed(ch)).length; } catch {}
+  res.json({ ok: true, channel: { ...ch, n }, channels: l });
+}));
+app.post('/api/admin/yt/channels/remove', auth, adminOnly, wrap(async (req, res) => { const k = String(req.body?.id || ''); const l = (await ytChannels()).filter((x) => x.id !== k && x.h !== k); await ytSaveCh(l); res.json({ ok: true, channels: l }); }));
 async function ytTick(force) {
-  const key = process.env.YOUTUBE_API_KEY; if (!key || YT.busy || (!force && process.env.YT_REELS === '0')) return null;
+  const key = process.env.YOUTUBE_API_KEY; if (YT.busy || (!force && process.env.YT_REELS === '0')) return null;
   YT.busy = true;
   try {
+    if (!key) { const r = await ytRss(force); YT.last = now(); YT.err = null; return r; }
     const bot = await airBot(); const per = Math.min(20, Math.max(1, Number(process.env.YT_REELS_PER_DAY) || 8));
     const day = tashDay(), dayStart = Date.parse(day + 'T00:00:00Z') - 5 * 3600e3;
     const made = Number((await db.get("SELECT COUNT(*) AS c FROM reels WHERE user_id=? AND kind='yt' AND created_at>=?", [bot.id, dayStart]))?.c || 0);
@@ -3597,10 +3662,11 @@ async function ytTick(force) {
 }
 setTimeout(() => ytTick().catch(() => {}), 120e3);
 setInterval(() => { if (!(YT.err && now() - YT.last < 3600e3)) ytTick().catch(() => {}); }, 15 * 60e3);
-app.post('/api/admin/yt-reel', auth, adminOnly, wrap(async (req, res) => { if (!process.env.YOUTUBE_API_KEY) return res.status(400).json({ error: 'YOUTUBE_API_KEY yo‘q' }); res.json({ result: await ytTick(true), err: YT.err }); }));
+app.post('/api/admin/yt-reel', auth, adminOnly, wrap(async (req, res) => { res.json({ result: await ytTick(true), err: YT.err }); }));
 setTimeout(() => airTick().catch(() => {}), 90e3);
 setInterval(() => airTick().catch(() => {}), (Number(process.env.AI_REELS_CHECK_MIN) || 10) * 60e3);
 app.post('/api/admin/ai-reel', auth, adminOnly, wrap(async (req, res) => {
+  if (process.env.AI_REELS !== '1') return res.status(400).json({ error: 'Birga AI endi o‘zi video yasamaydi — faqat YouTube Shorts / Instagram' });
   if (AIR.busy) return res.json({ busy: true });
   airTick(true).catch(() => {}); res.json({ started: true });
 }));
@@ -3695,7 +3761,33 @@ app.post('/api/phone/link', auth, rateLimit('tglink', 20, 3600e3), wrap(async (r
   const code = crypto.randomBytes(9).toString('base64url'); TG.codes.set(code, { uid: req.user.id, at: now() });
   res.json({ url: `https://t.me/${TG.name}?start=${code}`, bot: TG.name });
 }));
-app.post('/api/phone/unlink', auth, wrap(async (req, res) => { await db.run('UPDATE users SET tel=NULL WHERE id=?', [req.user.id]); res.json({ ok: true }); }));
+app.post('/api/phone/unlink', auth, wrap(async (req, res) => { await db.run('UPDATE users SET tel=NULL, tel_ok=0 WHERE id=?', [req.user.id]); res.json({ ok: true }); }));
+// Telefon raqam (Telegram'siz): SMS xizmati ulangan bo'lsa — kod bilan tasdiqlanadi; aks holda "tasdiqlanmagan" sifatida saqlanadi
+const PHC = new Map(); // uid -> { e164, h, exp, n }
+const phTaken = async (e164, uid) => db.get('SELECT id FROM users WHERE id<>? AND (phone=? OR (tel=? AND COALESCE(tel_ok,0)=1))', [uid, e164, e164]);
+app.post('/api/phone/start', auth, rateLimit('phstart', 10, 3600e3), wrap(async (req, res) => {
+  const L = req.user.lang; const p = parsePhone(req.body?.phone, req.user.country || 'UZ');
+  if (!p) return res.status(400).json({ error: tr(L, 'Telefon raqam noto‘g‘ri', 'Неверный номер', 'Invalid phone number') });
+  if (await phTaken(p.e164, req.user.id)) return res.status(409).json({ error: tr(L, 'Bu raqam boshqa Birga akkauntiga ulangan', 'Этот номер привязан к другому аккаунту Birga', 'This number is linked to another Birga account') });
+  if (!sms.anyReal) {
+    await db.run('UPDATE users SET tel=?, tel_ok=0 WHERE id=?', [p.e164, req.user.id]); contactSets.clear?.();
+    return res.json({ ok: true, tel: p.e164, verified: false, sms: false });
+  }
+  const code = String(crypto.randomInt(10000, 100000));
+  try { await sms.sendCode(p.e164, code, L); } catch (e) { console.error('SMS:', e.message); return res.status(502).json({ error: tr(L, 'SMS yuborib bo‘lmadi', 'Не удалось отправить SMS', 'Could not send SMS') }); }
+  PHC.set(req.user.id, { e164: p.e164, h: hash(p.e164 + code), exp: now() + 5 * 60e3, n: 0 });
+  res.json({ ok: true, sms: true, tel: p.e164, ...(sms.isDevFor(p.e164) ? { devCode: code } : {}) });
+}));
+app.post('/api/phone/confirm', auth, rateLimit('phconf', 30, 3600e3), wrap(async (req, res) => {
+  const L = req.user.lang; const c = PHC.get(req.user.id);
+  if (!c || c.exp < now()) return res.status(400).json({ error: tr(L, 'Kod muddati tugagan. Qaytadan urinib ko‘ring', 'Срок кода истёк', 'Code expired') });
+  if (++c.n > 5) { PHC.delete(req.user.id); return res.status(429).json({ error: tr(L, 'Urinishlar ko‘p', 'Слишком много попыток', 'Too many attempts') }); }
+  if (hash(c.e164 + String(req.body?.code || '').trim()) !== c.h) return res.status(400).json({ error: tr(L, 'Kod noto‘g‘ri', 'Неверный код', 'Wrong code') });
+  PHC.delete(req.user.id);
+  await db.run('UPDATE users SET tel=NULL, tel_ok=0 WHERE id<>? AND tel=?', [req.user.id, c.e164]); // tasdiqlanmagan "egalar" bo'shatiladi
+  await db.run('UPDATE users SET tel=?, tel_ok=1 WHERE id=?', [c.e164, req.user.id]); contactSets.clear?.();
+  res.json({ ok: true, tel: c.e164, verified: true });
+}));
 app.post('/api/tg/:hook', express.json(), wrap(async (req, res) => {
   if (!TG.token() || req.params.hook !== tgHook() || req.get('x-telegram-bot-api-secret-token') !== tgHook()) return res.status(403).end();
   res.json({ ok: true }); // Telegram'ga darhol javob
@@ -3748,30 +3840,40 @@ async function extraSchema() {
   await db.run('CREATE TABLE IF NOT EXISTS step_devices(token TEXT PRIMARY KEY, user_id BIGINT, created BIGINT, last BIGINT, sensor TEXT, err TEXT)');
   await db.run('CREATE TABLE IF NOT EXISTS steps(user_id BIGINT, day TEXT, steps BIGINT, updated BIGINT, PRIMARY KEY(user_id, day))');
   await db.run('CREATE TABLE IF NOT EXISTS user_loc(user_id BIGINT PRIMARY KEY, lat DOUBLE PRECISION, lon DOUBLE PRECISION, acc INTEGER, bat INTEGER, place TEXT, at BIGINT)');
+  await db.run('CREATE TABLE IF NOT EXISTS lib_books(id INTEGER PRIMARY KEY AUTOINCREMENT, cat TEXT, title TEXT, author TEXT, lang TEXT, source TEXT, file TEXT, mime TEXT, size BIGINT, added_by BIGINT, created BIGINT)'.replace('INTEGER PRIMARY KEY AUTOINCREMENT', db.kind === 'postgres' ? 'BIGSERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'));
   await db.run('CREATE TABLE IF NOT EXISTS reel_likes(reel_id BIGINT, user_id BIGINT, at BIGINT, PRIMARY KEY(reel_id, user_id))');
   await db.run(`CREATE TABLE IF NOT EXISTS reel_comments(id ${db.kind === 'postgres' ? 'BIGSERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'}, reel_id BIGINT, user_id BIGINT, text TEXT, at BIGINT)`);
   await db.run('CREATE INDEX IF NOT EXISTS idx_rcom ON reel_comments(reel_id, id)');
   await db.run(`CREATE TABLE IF NOT EXISTS game_rooms(id TEXT PRIMARY KEY, game TEXT, chat_id BIGINT, a BIGINT, b BIGINT, moves TEXT, status TEXT, winner INTEGER, claims TEXT, created BIGINT, updated BIGINT)`);
-  const cols = [['users', 'reg_info', 'TEXT'], ['users', 'folders', 'TEXT'], ['users', 'region', 'TEXT'], ['users', 'invite_code', 'TEXT'], ['users', 'invited_by', 'BIGINT'], ['game_rooms', 'secret', 'TEXT'], ['users', 'steps_on', 'INTEGER DEFAULT 0'], ['users', 'banned', 'INTEGER DEFAULT 0'], ['users', 'birthday', 'TEXT'], ['chat_members', 'pinned', 'BIGINT DEFAULT 0'], ['chat_members', 'archived', 'INTEGER DEFAULT 0'], ['users', 'hide_seen', 'INTEGER DEFAULT 0'], ['users', 'deleted', 'INTEGER DEFAULT 0'], ['chat_members', 'del_at', 'BIGINT'], ['users', 'loc_share', 'INTEGER DEFAULT 0'], ['game_rooms', 'pl', 'TEXT'], ['game_rooms', 'chats', 'TEXT'], ['users', 'priv_seen', 'TEXT'], ['users', 'priv_seen_list', 'TEXT'], ['users', 'priv_story', 'TEXT'], ['users', 'priv_story_list', 'TEXT'], ['messages', 'restored_at', 'BIGINT'], ['users', 'tel', 'TEXT']];
+  const cols = [['users', 'tel_ok', 'INTEGER DEFAULT 0'], ['users', 'reg_info', 'TEXT'], ['users', 'folders', 'TEXT'], ['users', 'region', 'TEXT'], ['users', 'invite_code', 'TEXT'], ['users', 'invited_by', 'BIGINT'], ['game_rooms', 'secret', 'TEXT'], ['users', 'steps_on', 'INTEGER DEFAULT 0'], ['users', 'banned', 'INTEGER DEFAULT 0'], ['users', 'birthday', 'TEXT'], ['chat_members', 'pinned', 'BIGINT DEFAULT 0'], ['chat_members', 'archived', 'INTEGER DEFAULT 0'], ['users', 'hide_seen', 'INTEGER DEFAULT 0'], ['users', 'deleted', 'INTEGER DEFAULT 0'], ['chat_members', 'del_at', 'BIGINT'], ['users', 'loc_share', 'INTEGER DEFAULT 0'], ['game_rooms', 'pl', 'TEXT'], ['game_rooms', 'chats', 'TEXT'], ['users', 'priv_seen', 'TEXT'], ['users', 'priv_seen_list', 'TEXT'], ['users', 'priv_story', 'TEXT'], ['users', 'priv_story_list', 'TEXT'], ['messages', 'restored_at', 'BIGINT'], ['users', 'tel', 'TEXT']];
   for (const [t, c, type] of cols) {
     try { await db.get(`SELECT ${c} FROM ${t} LIMIT 1`); } catch { await db.run(`ALTER TABLE ${t} ADD COLUMN ${c} ${type}`); }
   }
 }
 
 /* ---------- Kutubxona: ochiq (public domain / ruxsat etilgan) manbalardan elektron kitoblar ----------
-   Manbalar: Project Gutenberg (Gutendex orqali), Vikimanba (Wikisource, CC BY-SA), Qur'on — api.alquran.cloud,
-   hadislar — fawazahmed0/hadith-api (jsDelivr). Kitob matnlari ish vaqtida olinadi va diskda keshlanadi. */
+   Manbalar: Project Gutenberg (Gutendex yoki gutenberg.org qidiruvi — yuklab olishlar soni bo'yicha), Vikimanba (Wikisource, CC BY-SA),
+   o'zbekcha: ko'p tilli Vikimanba (wikisource.org) + Internet Archive (o'zbek tilidagi, mualliflik huquqi tugagan mualliflar),
+   admin yuklagan kitoblar; Qur'on — api.alquran.cloud, hadislar — fawazahmed0/hadith-api. Matnlar diskda keshlanadi.
+   Tarjima: Cloudflare Workers AI (m2m100) — ilova tilida o'qish, "Asl nusxa" tugmasi bilan. */
 const LIB = {
   dir: process.env.LIB_DIR || path.join(require('os').tmpdir(), 'birga-lib'),
   gx: () => process.env.LIB_GUTENDEX || 'https://gutendex.com',
   gb: () => process.env.LIB_GUTENBERG || 'https://www.gutenberg.org',
   ws: (l) => (process.env.LIB_WS || 'https://{l}.wikisource.org').replace('{l}', l),
+  mul: () => process.env.LIB_WS_MUL || 'https://wikisource.org',
+  ia: () => process.env.LIB_IA || 'https://archive.org',
   qr: () => process.env.LIB_QURAN || 'https://api.alquran.cloud',
   hd: () => process.env.LIB_HADITH || 'https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1',
-  mem: new Map(), busy: new Map(),
+  mem: new Map(), busy: new Map(), src: {},
   CATS: ['uz', 'ar', 'ru', 'en', 'din'],
-  MAIN: new Set(['Bosh sahifa', 'Bosh Sahifa', 'الصفحة الرئيسية', 'Заглавная страница', 'Main Page']),
+  MAIN: new Set(['Bosh sahifa', 'Bosh Sahifa', 'الصفحة الرئيسية', 'Заглавная страница', 'Main Page', 'Wikisource']),
   HCOL: [['bukhari', 'Sahih al-Buxoriy', 'Imom Muhammad ibn Ismoil al-Buxoriy'], ['muslim', 'Sahih Muslim', 'Imom Muslim'], ['abudawud', 'Sunan Abu Dovud', 'Imom Abu Dovud'], ['tirmidhi', 'Sunan at-Termiziy', 'Imom Termiziy'], ['nasai', 'Sunan an-Nasoiy', 'Imom Nasoiy'], ['ibnmajah', 'Sunan Ibn Moja', 'Imom Ibn Moja'], ['malik', 'Muvatto', 'Imom Molik'], ['nawawi', '40 hadis (Arbain)', 'Imom Navaviy'], ['qudsi', '40 hadisi qudsiy', ''], ['dehlawi', '40 hadis', 'Shoh Valiyulloh Dehlaviy']],
+  // mashhur (mualliflik huquqi tugagan) diniy va tarixiy kitoblar — arabcha asl nusxalari Vikimanbada qidiriladi
+  DIN_AR: ['مقدمة ابن خلدون', 'الأدب المفرد', 'رياض الصالحين', 'الأربعون النووية', 'تاريخ الخلفاء', 'السيرة النبوية (ابن هشام)', 'الطبقات الكبرى', 'إحياء علوم الدين', 'الشمائل المحمدية', 'حلية الأولياء وطبقات الأصفياء', 'صفة الصفوة', 'البداية والنهاية'],
+  DIN_EN: ['muir caliphate', 'life of mahomet', 'koran', 'sayings of muhammad', 'islam', 'mohammed'],
+  // o'zbek mumtoz va jadid adiblari (vafotiga 70 yildan oshgan — asarlari jamoat mulki)
+  UZ_AUTH: ['Abdulla Qodiriy', 'Abdulhamid Choʻlpon', 'Abdurauf Fitrat', 'Alisher Navoiy', 'Zahiriddin Muhammad Bobur', 'Hamza Hakimzoda Niyoziy', 'Abdulla Avloniy', 'Mahmudxoʻja Behbudiy', 'Muqimiy', 'Furqat', 'Ogahiy', 'Nodira', 'Uvaysiy', 'Boborahim Mashrab', 'Zavqiy', 'Soʻfi Olloyor', 'Lutfiy', 'Gulxaniy', 'Hamid Olimjon', 'Usmon Nosir', 'Ahmad Yassaviy', 'Yusuf Xos Hojib'],
 };
 const libKey = (k) => path.join(LIB.dir, crypto.createHash('sha1').update(k).digest('hex') + '.json');
 async function libCache(k, ttl, fn) {
@@ -3786,88 +3888,173 @@ async function libCache(k, ttl, fn) {
   })().finally(() => LIB.busy.delete(k));
   LIB.busy.set(k, p); return p;
 }
-const libGet = async (u, as = 'json', ms = 25000) => { const r = await fetch(u, { headers: { 'User-Agent': 'BirgaLibrary/1.0 (https://birga.onrender.com)' }, signal: AbortSignal.timeout(ms) }); if (!r.ok) throw new Error(u.split('/')[2] + ' ' + r.status); return as === 'json' ? r.json() : r.text(); };
-const libEnt = (s) => s.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#0*39;|&apos;/g, "'").replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(+n)).replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)));
+const libGet = async (u, as = 'json', ms = 25000) => { const r = await fetch(u, { headers: { 'User-Agent': 'BirgaLibrary/1.1 (https://birga.onrender.com; kutubxona)', Accept: as === 'json' ? 'application/json' : '*/*' }, signal: AbortSignal.timeout(ms) }); if (!r.ok) throw new Error(u.split('/')[2] + ' ' + r.status); if (as !== 'json') return r.text(); const t = await r.text(); try { return JSON.parse(t); } catch { throw new Error(u.split('/')[2] + ': JSON emas'); } };
+const libEnt = (s) => String(s).replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#0*39;|&apos;/g, "'").replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(+n)).replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)));
 const libHtmlText = (h) => libEnt(String(h || '')
   .replace(/<(style|script|sup|table)[\s\S]*?<\/\1>/gi, '').replace(/<span class="mw-editsection[\s\S]*?<\/span>\s*<\/span>/gi, '')
   .replace(/<div[^>]*(ws-noexport|noprint|navbox|mw-references)[^>]*>[\s\S]*?<\/div>/gi, '')
   .replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|h\d|li|dd|dt|blockquote|tr)>/gi, '\n\n').replace(/<[^>]+>/g, ''))
   .replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
-// Gutenberg kitoblari (Gutendex)
-async function libGutendex(q, max) {
+const libGuess = (s) => { s = String(s).slice(0, 4000); const cy = (s.match(/[а-яё]/gi) || []).length, ar = (s.match(/[\u0600-\u06FF]/g) || []).length, la = (s.match(/[a-z]/gi) || []).length; return ar > la && ar > cy ? 'ar' : cy > la ? 'ru' : 'en'; };
+const libNote = (k, ok, info) => { LIB.src[k] = { ok, info: String(info || '').slice(0, 120), at: now() }; };
+const gName = (a) => (a || []).map((x) => String(x.name || x).split(', ').reverse().join(' ')).join(', ').slice(0, 120);
+// 1) Gutendex
+async function libGutendex(q, max, lang) {
   const out = []; let url = `${LIB.gx()}/books/?${q}`;
   for (let i = 0; i < 6 && url && out.length < max; i++) {
-    const j = await libGet(url); url = j.next ? j.next.replace(/^https?:\/\/[^/]+/, LIB.gx()) : null;
+    const j = await libGet(url, 'json', 20000); url = j.next ? j.next.replace(/^https?:\/\/[^/]+/, LIB.gx()) : null;
     for (const b of j.results || []) {
-      const f = b.formats || {}; const txt = Object.keys(f).find((k) => k.startsWith('text/plain')); if (!txt && !f['text/html']) continue;
-      if (b.copyright === true) continue; // faqat mualliflik huquqi tugagan kitoblar
-      out.push({ id: 'g:' + b.id, t: String(b.title || '').slice(0, 160), a: (b.authors || []).map((x) => x.name.split(', ').reverse().join(' ')).join(', ').slice(0, 120), img: f['image/jpeg'] || '', src: 'Project Gutenberg', dl: b.download_count || 0 });
+      const f = b.formats || {}; if (!Object.keys(f).some((k) => k.startsWith('text/plain')) && !f['text/html']) continue; if (b.copyright === true) continue;
+      out.push({ id: 'g:' + b.id, t: String(b.title || '').slice(0, 160), a: gName(b.authors), img: f['image/jpeg'] || '', src: 'Project Gutenberg', dl: b.download_count || 0, lang: (b.languages || [lang])[0] || lang });
       if (out.length >= max) break;
     }
   }
   return out;
 }
-// Vikimanba: eng ko'p o'qilgan + barcha sahifalar (ildiz asarlar bo'yicha)
-async function libWikisource(l, max, skip = new Set()) {
-  const api = `${LIB.ws(l)}/w/api.php?format=json&formatversion=2&origin=*`;
-  const roots = new Map(); const add = (t, w) => { if (!t || LIB.MAIN.has(t)) return; const r = t.split('/')[0]; if (LIB.MAIN.has(r) || skip.has(r)) return; roots.set(r, (roots.get(r) || 0) + w); };
-  try { const j = await libGet(`${api}&action=query&list=mostviewed&pvimlimit=500`); (j.query?.mostviewed || []).forEach((p) => p.ns === 0 && add(p.title, 1 + (p.count || 0) / 10)); } catch (e) { console.warn('[lib] ws mostviewed', l, e.message); }
-  let cont = ''; for (let i = 0; i < 6 && roots.size < max * 3; i++) {
-    const j = await libGet(`${api}&action=query&list=allpages&apnamespace=0&apfilterredir=nonredirects&aplimit=500${cont}`).catch(() => null); if (!j) break;
-    (j.query?.allpages || []).forEach((p) => add(p.title, 0.5)); cont = j.continue?.apcontinue ? '&apcontinue=' + encodeURIComponent(j.continue.apcontinue) : ''; if (!cont) break;
+// 2) gutenberg.org qidiruvi (yuklab olishlar soni bo'yicha) — Gutendex ishlamasa
+async function libGutSearch(query, max, lang) {
+  const out = []; const seen = new Set();
+  for (let start = 1; start < 400 && out.length < max; start += 25) {
+    const h = await libGet(`${LIB.gb()}/ebooks/search/?query=${encodeURIComponent(query)}&sort_order=downloads&start_index=${start}`, 'text', 20000);
+    const items = [...h.matchAll(/<li class="booklink">([\s\S]*?)<\/li>/g)]; if (!items.length) break;
+    for (const m of items) {
+      const b = m[1]; const id = (/href="\/ebooks\/(\d+)"/.exec(b) || [])[1]; if (!id || seen.has(id)) continue; seen.add(id);
+      const t = libEnt(((/<span class="title">([\s\S]*?)<\/span>/.exec(b) || [])[1] || '').replace(/<[^>]+>/g, '').trim()); if (!t) continue;
+      const a = libEnt(((/<span class="subtitle">([\s\S]*?)<\/span>/.exec(b) || [])[1] || '').replace(/<[^>]+>/g, '').trim());
+      out.push({ id: 'g:' + id, t: t.slice(0, 160), a: a.slice(0, 120), img: `${LIB.gb()}/cache/epub/${id}/pg${id}.cover.medium.jpg`, src: 'Project Gutenberg', lang });
+      if (out.length >= max) break;
+    }
   }
-  return [...roots.entries()].sort((a, b) => b[1] - a[1]).slice(0, max).map(([t]) => ({ id: `w:${l}:${t}`, t, a: '', src: 'Vikimanba (Wikisource)' }));
+  return out;
 }
+async function libGut(lang, max, q) {
+  try { const l = await libGutendex(q || `languages=${lang}&sort=popular`, max, lang); if (l.length) { libNote('gutendex', true, l.length); return l; } } catch (e) { libNote('gutendex', false, e.message); }
+  try { const l = await libGutSearch(q ? q.replace(/^search=/, '') : `l.${lang}`, max, lang); libNote('gutenberg', !!l.length, l.length); return l; } catch (e) { libNote('gutenberg', false, e.message); }
+  return [];
+}
+// 3) Vikimanba: eng ko'p o'qilgan + barcha sahifalar (ildiz asarlar bo'yicha)
+const WS_BAD = (t) => /^[A-ZА-ЯЁ0-9]{2,8}(\s|$)/.test(t) || /^\d+$/.test(t) || /^(Индекс|Index|Викитека|Wikisource|Portal|Портал|Справка|Шаблон|Template|ويكي مصدر|بوابة|فهرس)\b/i.test(t);
+async function libWikisource(l, max, skip = new Set()) {
+  const api = `${LIB.ws(l)}/w/api.php?format=json&formatversion=2`;
+  const roots = new Map(); const add = (t, w) => { if (!t || LIB.MAIN.has(t)) return; const r = t.split('/')[0].trim(); if (!r || LIB.MAIN.has(r) || skip.has(r) || WS_BAD(r)) return; roots.set(r, (roots.get(r) || 0) + w); };
+  try { const j = await libGet(`${api}&action=query&list=mostviewed&pvimlimit=500`); (j.query?.mostviewed || []).forEach((p) => p.ns === 0 && add(p.title, 1 + (p.count || 0) / 10)); } catch (e) { libNote('ws_' + l, false, e.message); }
+  let cont = ''; for (let i = 0; i < 4 && roots.size < max * 3; i++) {
+    const j = await libGet(`${api}&action=query&list=allpages&apnamespace=0&apfilterredir=nonredirects&aplimit=500${cont}`).catch(() => null); if (!j) break;
+    (j.query?.allpages || []).forEach((p) => add(p.title, 0.2)); cont = j.continue?.apcontinue ? '&apcontinue=' + encodeURIComponent(j.continue.apcontinue) : ''; if (!cont) break;
+  }
+  const out = [...roots.entries()].sort((a, b) => b[1] - a[1]).slice(0, max).map(([t]) => ({ id: `w:${l}:${t}`, t, a: '', src: 'Vikimanba (Wikisource)', lang: l }));
+  if (out.length) libNote('ws_' + l, true, out.length); return out;
+}
+// Vikimanbada nom bo'yicha qidirish (mashhur kitoblar ro'yxati uchun)
+async function libWsFind(l, titles, base) {
+  const api = `${base || LIB.ws(l)}/w/api.php?format=json&formatversion=2`; const out = [];
+  for (const q of titles) {
+    try { const j = await libGet(`${api}&action=query&list=search&srnamespace=0&srlimit=3&srsearch=${encodeURIComponent('intitle:' + q)}`, 'json', 12000);
+      const hit = (j.query?.search || []).find((x) => !x.title.includes('/')) || (j.query?.search || [])[0];
+      if (hit) { const r = hit.title.split('/')[0]; if (!out.some((x) => x.t === r)) out.push({ id: `w:${base ? 'mul' : l}:${r}`, t: r, a: '', src: base ? 'Vikimanba (wikisource.org)' : 'Vikimanba (Wikisource)', lang: l, ic: '⭐' }); } } catch {}
+  }
+  return out;
+}
+// 4) O'zbekcha: ko'p tilli Vikimanba (wikisource.org) — mualliflar sahifalaridagi asarlar + qidiruv
+async function libUzWs(max) {
+  const api = `${LIB.mul()}/w/api.php?format=json&formatversion=2`; const out = new Map();
+  const add = (t, a) => { if (!t || t.includes(':')) return; const r = t.split('/')[0]; if (!out.has(r) && !LIB.MAIN.has(r) && !WS_BAD(r)) out.set(r, { id: `w:mul:${r}`, t: r, a: a || '', src: 'Vikimanba (wikisource.org)', lang: 'uz' }); };
+  for (let i = 0; i < LIB.UZ_AUTH.length; i += 10) {
+    const part = LIB.UZ_AUTH.slice(i, i + 10); const titles = part.flatMap((a) => ['Author:' + a, 'Muallif:' + a]).join('|');
+    try { const j = await libGet(`${api}&action=query&prop=links&pllimit=500&plnamespace=0&redirects=1&titles=${encodeURIComponent(titles)}`); for (const p of j.query?.pages || []) (p.links || []).forEach((x) => add(x.title, p.title.split(':')[1])); } catch (e) { libNote('ws_mul', false, e.message); }
+  }
+  for (const cat of ['Category:Oʻzbekcha', 'Category:O‘zbekcha', 'Category:Uzbek', 'Category:Oʻzbek adabiyoti', 'Category:Uzbek literature']) {
+    try { const j = await libGet(`${api}&action=query&list=categorymembers&cmnamespace=0&cmlimit=500&cmtitle=${encodeURIComponent(cat)}`); (j.query?.categorymembers || []).forEach((x) => add(x.title)); } catch {}
+  }
+  if (out.size < max) for (const q of ['Qodiriy', 'Navoiy', 'Choʻlpon', 'Fitrat', 'Bobur', 'gʻazal', 'doston', 'oʻzbek']) {
+    try { const j = await libGet(`${api}&action=query&list=search&srnamespace=0&srlimit=30&srsearch=${encodeURIComponent(q)}`, 'json', 12000); (j.query?.search || []).forEach((x) => add(x.title)); } catch {}
+    if (out.size >= max) break;
+  }
+  libNote('ws_mul', out.size > 0, out.size); return [...out.values()].slice(0, max);
+}
+// 5) O'zbekcha: Internet Archive (o'zbek tilidagi matnlar — faqat jamoat mulki bo'lgan mualliflar yoki ochiq litsenziya)
+async function libUzIA(max) {
+  const auth = LIB.UZ_AUTH.map((a) => a.split(' ').slice(-1)[0].replace(/[ʻ‘']/g, '?')).map((x) => `creator:(${x}*)`).join(' OR ');
+  const q = `mediatype:texts AND (language:(uzb OR uzbek OR Uzbek OR "O'zbek") ) AND ((${auth}) OR licenseurl:* OR possible-copyright-status:(NOT_IN_COPYRIGHT))`;
+  const j = await libGet(`${LIB.ia()}/advancedsearch.php?q=${encodeURIComponent(q)}&fl[]=identifier&fl[]=title&fl[]=creator&fl[]=downloads&sort[]=downloads+desc&rows=${max}&output=json`, 'json', 25000);
+  const out = (j.response?.docs || []).map((d) => ({ id: 'ia:' + d.identifier, t: String([].concat(d.title || d.identifier)[0]).slice(0, 160), a: String([].concat(d.creator || [''])[0]).slice(0, 120), img: `${LIB.ia()}/services/img/${d.identifier}`, src: 'Internet Archive', lang: 'uz', dl: d.downloads || 0 }));
+  libNote('ia', out.length > 0, out.length); return out;
+}
+async function libUploaded(cat) { try { return (await db.all('SELECT * FROM lib_books WHERE cat=? ORDER BY id DESC LIMIT 300', [cat])).map((b) => ({ id: 'u:' + b.id, t: b.title, a: b.author || '', src: b.source || 'Birga kutubxonasi', lang: b.lang || cat, ic: '⭐', up: 1 })); } catch { return []; } }
 async function libList(cat) {
   if (!LIB.CATS.includes(cat)) throw new Error('cat');
-  return libCache('list3:' + cat, 24 * 3600e3, async () => {
+  const base = await libCache('list4:' + cat, 24 * 3600e3, async () => {
     if (cat === 'din') {
-      const q = { id: 'q', t: 'Qur’oni Karim', a: 'Arabcha matn va o‘zbekcha ma’nolar tarjimasi (Muhammad Sodiq Muhammad Yusuf)', src: 'alquran.cloud', ic: '📗' };
-      const h = LIB.HCOL.map(([k, t, a]) => ({ id: 'h:' + k, t, a, src: 'hadith-api (fawazahmed0)', ic: '📘' }));
-      let g = []; try { g = await libGutendex('topic=islam&sort=popular', 60); } catch (e) { console.warn('[lib] din gutenberg', e.message); }
-      return [q, ...h, ...g];
+      const q = { id: 'q', t: 'Qur’oni Karim', a: 'Arabcha matn va o‘zbekcha ma’nolar tarjimasi (Muhammad Sodiq Muhammad Yusuf)', src: 'alquran.cloud', ic: '📗', lang: 'ar' };
+      const h = LIB.HCOL.map(([k, t, a]) => ({ id: 'h:' + k, t, a, src: 'hadith-api (fawazahmed0)', ic: '📘', lang: 'ar' }));
+      const ar = await libWsFind('ar', LIB.DIN_AR).catch(() => []);
+      let g = []; for (const s of LIB.DIN_EN) { if (g.length >= 40) break; const l = await libGut('en', 15, `search=${s}`).catch(() => []); l.forEach((x) => { if (!g.some((y) => y.id === x.id)) g.push(x); }); }
+      return [q, ...h, ...ar, ...g];
     }
-    let g = []; if (cat !== 'uz') try { g = await libGutendex(`languages=${cat}&sort=popular`, 100); } catch (e) { console.warn('[lib] gutendex', cat, e.message); }
-    let w = []; if (g.length < 100) try { w = await libWikisource(cat, 100 - g.length); } catch (e) { console.warn('[lib] wikisource', cat, e.message); }
+    if (cat === 'uz') {
+      const ws = await libUzWs(100).catch((e) => (libNote('ws_mul', false, e.message), []));
+      const ia = await libUzIA(100).catch((e) => (libNote('ia', false, e.message), []));
+      return [...ws, ...ia].slice(0, 150);
+    }
+    const g = await libGut(cat, 100);
+    let w = []; if (g.length < 100) try { w = await libWikisource(cat, 100 - g.length); } catch (e) { libNote('ws_' + cat, false, e.message); }
     const all = [...g, ...w]; if (!all.length) throw new Error('Kitoblar manbasi hozir javob bermadi');
     return all;
   });
+  return [...(await libUploaded(cat)), ...base];
 }
-// Gutenberg matnini bo'laklarga bo'lish (~14 ming belgi)
 function libSplit(text, size = 14000) {
   const parts = []; let cur = '';
   for (const p of text.split(/\n\s*\n/)) { if (cur.length + p.length > size && cur.length > size * 0.4) { parts.push(cur.trim()); cur = ''; } cur += p.replace(/\s*\n\s*/g, ' ').trim() + '\n\n'; }
   if (cur.trim()) parts.push(cur.trim()); return parts;
 }
+const libClean = (txt) => { txt = String(txt).replace(/\r/g, ''); const s = txt.search(/\*\*\* ?START OF (THE|THIS) PROJECT GUTENBERG[^\n]*\n/i); if (s >= 0) txt = txt.slice(txt.indexOf('\n', s) + 1); const e = txt.search(/\*\*\* ?END OF (THE|THIS) PROJECT GUTENBERG/i); if (e > 0) txt = txt.slice(0, e); return txt.trim(); };
 async function libGutText(n) {
   return libCache('gtxt:' + n, 0, async () => {
     let txt = '';
-    try { const b = await libGet(`${LIB.gx()}/books/${n}`); const f = b.formats || {}; const k = Object.keys(f).find((x) => x.startsWith('text/plain') && !/zip/.test(f[x])); if (k) txt = await libGet(f[k], 'text', 60000); else if (f['text/html']) txt = libHtmlText(await libGet(f['text/html'], 'text', 60000)); }
-    catch (e) { txt = await libGet(`${LIB.gb()}/cache/epub/${n}/pg${n}.txt`, 'text', 60000); }
-    txt = txt.replace(/\r/g, ''); const s = txt.search(/\*\*\* ?START OF (THE|THIS) PROJECT GUTENBERG[^\n]*\n/i); if (s >= 0) txt = txt.slice(txt.indexOf('\n', s) + 1);
-    const e = txt.search(/\*\*\* ?END OF (THE|THIS) PROJECT GUTENBERG/i); if (e > 0) txt = txt.slice(0, e);
-    return libSplit(txt.trim()).slice(0, 400);
+    for (const u of [`${LIB.gb()}/cache/epub/${n}/pg${n}.txt`, `${LIB.gb()}/files/${n}/${n}-0.txt`, `${LIB.gb()}/ebooks/${n}.txt.utf-8`]) { try { txt = await libGet(u, 'text', 60000); if (txt.length > 500) break; } catch {} }
+    if (!txt) { const b = await libGet(`${LIB.gx()}/books/${n}`); const f = b.formats || {}; const k = Object.keys(f).find((x) => x.startsWith('text/plain') && !/zip/.test(f[x])); if (k) txt = await libGet(f[k], 'text', 60000); else if (f['text/html']) txt = libHtmlText(await libGet(f['text/html'], 'text', 60000)); }
+    if (!txt) throw new Error('matn topilmadi');
+    return libSplit(libClean(txt)).slice(0, 400);
   });
 }
+async function libIaText(idf) {
+  return libCache('iatxt:' + idf, 0, async () => {
+    let txt = ''; try { txt = await libGet(`${LIB.ia()}/download/${encodeURIComponent(idf)}/${encodeURIComponent(idf)}_djvu.txt`, 'text', 60000); } catch {}
+    if (!txt) { const m = await libGet(`${LIB.ia()}/metadata/${encodeURIComponent(idf)}`); const f = (m.files || []).find((x) => /_djvu\.txt$|\.txt$/i.test(x.name)); if (!f) throw new Error('matn yo‘q'); txt = await libGet(`${LIB.ia()}/download/${encodeURIComponent(idf)}/${encodeURIComponent(f.name)}`, 'text', 60000); }
+    return libSplit(txt.replace(/\r/g, '').replace(/([^\n])\n(?=[^\n])/g, '$1 ')).slice(0, 400);
+  });
+}
+async function libUpText(b) {
+  return libCache('utxt:' + b.id + ':' + b.file, 0, async () => libSplit(libClean(await libGet(/^https?:/.test(b.file) ? b.file : `http://127.0.0.1:${PORT}${b.file}`, 'text', 60000))).slice(0, 600));
+}
 async function libBook(id) {
-  return libCache('book2:' + id, 7 * 24 * 3600e3, async () => {
-    if (id === 'q') { const j = await libGet(`${LIB.qr()}/v1/surah`); return { id, t: 'Qur’oni Karim', a: 'Arabcha matn + tarjima', src: 'api.alquran.cloud · tarjima: Muhammad Sodiq Muhammad Yusuf', ch: (j.data || []).map((s) => ({ t: `${s.number}. ${s.englishName} — ${s.name}`, n: s.numberOfAyahs })), tr: ['uz.sodik', 'ru.kuliev', 'en.sahih'] }; }
+  if (id.startsWith('u:')) {
+    const b = await db.get('SELECT * FROM lib_books WHERE id=?', [Number(id.slice(2))]); if (!b) throw new Error('id');
+    const isTxt = /^text\//.test(b.mime || '') || /\.txt$/i.test(b.file || '');
+    const parts = isTxt ? await libUpText(b) : [];
+    return { id, t: b.title, a: b.author || '', src: b.source || 'Birga kutubxonasi', lang: b.lang || b.cat, file: isTxt ? null : b.file, mime: b.mime, ch: isTxt ? parts.map((p, i) => ({ t: `${i + 1}-qism` })) : [{ t: b.title }] };
+  }
+  return libCache('book3:' + id, 7 * 24 * 3600e3, async () => {
+    if (id === 'q') { const j = await libGet(`${LIB.qr()}/v1/surah`); return { id, t: 'Qur’oni Karim', a: 'Arabcha matn + tarjima', src: 'api.alquran.cloud · tarjima: Muhammad Sodiq Muhammad Yusuf', lang: 'ar', ch: (j.data || []).map((s) => ({ t: `${s.number}. ${s.englishName} — ${s.name}`, n: s.numberOfAyahs })), tr: ['uz.sodik', 'ru.kuliev', 'en.sahih'] }; }
     if (id.startsWith('h:')) {
       const k = id.slice(2); const c = LIB.HCOL.find((x) => x[0] === k); if (!c) throw new Error('id');
       let sec = null; try { const info = await libGet(`${LIB.hd()}/info.json`, 'json', 40000); sec = info[k]?.metadata?.sections || null; } catch {}
       if (!sec) { const ed = await libGet(`${LIB.hd()}/editions/eng-${k}.min.json`, 'json', 60000); sec = ed.metadata?.sections || {}; }
       let eds = []; try { const e = await libGet(`${LIB.hd()}/editions.json`); eds = (e[k]?.collection || []).map((x) => x.name.split('-')[0]); } catch {}
       const ch = Object.entries(sec).filter(([n, t]) => +n > 0 && t).map(([n, t]) => ({ t: `${n}. ${t}`, k: +n }));
-      return { id, t: c[1], a: c[2], src: 'hadith-api (fawazahmed0) · arabcha matn + tarjima', ch, tr: ['eng', 'rus', 'tur', 'urd'].filter((x) => !eds.length || eds.includes(x)) };
+      return { id, t: c[1], a: c[2], src: 'hadith-api (fawazahmed0) · arabcha matn + tarjima', lang: 'ar', ch, tr: ['eng', 'rus', 'tur', 'urd'].filter((x) => !eds.length || eds.includes(x)) };
     }
-    if (id.startsWith('g:')) { const n = Number(id.slice(2)); if (!n) throw new Error('id'); let b = {}; try { b = await libGet(`${LIB.gx()}/books/${n}`); } catch {} const parts = await libGutText(n);
-      return { id, t: b.title || 'Kitob #' + n, a: (b.authors || []).map((x) => x.name.split(', ').reverse().join(' ')).join(', '), src: 'Project Gutenberg (public domain)', ch: parts.map((p, i) => ({ t: `${i + 1}-qism`, c: p.length })) }; }
+    if (id.startsWith('g:')) { const n = Number(id.slice(2)); if (!n) throw new Error('id'); let b = {}; try { b = await libGet(`${LIB.gx()}/books/${n}`, 'json', 8000); } catch {} const parts = await libGutText(n);
+      return { id, t: b.title || 'Kitob #' + n, a: gName(b.authors), lang: (b.languages || [])[0] || '', src: 'Project Gutenberg (public domain)', ch: parts.map((p, i) => ({ t: `${i + 1}-qism`, c: p.length })) }; }
+    if (id.startsWith('ia:')) { const idf = id.slice(3); if (!/^[\w.\-]{2,120}$/.test(idf)) throw new Error('id'); let m = {}; try { m = (await libGet(`${LIB.ia()}/metadata/${encodeURIComponent(idf)}`)).metadata || {}; } catch {} const parts = await libIaText(idf);
+      return { id, t: String([].concat(m.title || idf)[0]), a: String([].concat(m.creator || [''])[0]), lang: 'uz', src: 'Internet Archive', ch: parts.map((p, i) => ({ t: `${i + 1}-qism`, c: p.length })) }; }
     if (id.startsWith('w:')) {
-      const [, l, ...r] = id.split(':'); const t = r.join(':'); if (!/^[a-z]{2,3}$/.test(l) || !t) throw new Error('id');
-      const api = `${LIB.ws(l)}/w/api.php?format=json&formatversion=2&origin=*`;
+      const [, l, ...r] = id.split(':'); const t = r.join(':'); if (!/^([a-z]{2,3}|mul)$/.test(l) || !t) throw new Error('id');
+      const api = `${l === 'mul' ? LIB.mul() : LIB.ws(l)}/w/api.php?format=json&formatversion=2`;
       const j = await libGet(`${api}&action=query&list=allpages&apnamespace=0&aplimit=500&apprefix=${encodeURIComponent(t + '/')}`).catch(() => null);
       const subs = (j?.query?.allpages || []).map((p) => p.title);
-      return { id, t, a: '', src: `Vikimanba (${l}.wikisource.org, CC BY-SA)`, ch: (subs.length ? subs : [t]).map((x) => ({ t: x === t ? t : x.slice(t.length + 1), p: x })) };
+      return { id, t, a: '', lang: l === 'mul' ? 'uz' : l, src: `Vikimanba (${l === 'mul' ? 'wikisource.org' : l + '.wikisource.org'}, CC BY-SA)`, ch: (subs.length ? subs : [t]).map((x) => ({ t: x === t ? t : x.slice(t.length + 1), p: x })) };
     }
     throw new Error('id');
   });
@@ -3884,10 +4071,27 @@ async function libRead(id, i, tr) {
       const list = (ar?.hadiths || tx?.hadiths || []).map((h) => ({ n: h.hadithnumber, ar: ar ? h.text : '', tr: m.get(String(h.hadithnumber)) || (ar ? '' : h.text), g: (h.grades || []).map((x) => x.grade).filter(Boolean).slice(0, 2).join(', ') })).filter((h) => h.ar || h.tr);
       return { t: c.t, hadis: list.slice(0, 800) };
     }); }
-  if (id.startsWith('g:')) { const parts = await libGutText(Number(id.slice(2))); return { t: c.t, text: parts[i] || '' }; }
+  if (id.startsWith('g:')) { const parts = await libGutText(Number(id.slice(2))); const tx = parts[i] || ''; return { t: c.t, text: tx, lang: b.lang || libGuess(tx) }; }
+  if (id.startsWith('ia:')) { const parts = await libIaText(id.slice(3)); return { t: c.t, text: parts[i] || '', lang: 'uz' }; }
+  if (id.startsWith('u:')) { if (b.file) return { t: c.t, file: b.file, mime: b.mime }; const row = await db.get('SELECT * FROM lib_books WHERE id=?', [Number(id.slice(2))]); const parts = await libUpText(row); return { t: c.t, text: parts[i] || '', lang: b.lang }; }
   if (id.startsWith('w:')) { const l = id.split(':')[1];
-    return libCache(`w:${l}:${c.p}`, 30 * 24 * 3600e3, async () => { const j = await libGet(`${LIB.ws(l)}/w/api.php?format=json&formatversion=2&origin=*&action=parse&prop=text&disabletoc=1&disableeditsection=1&redirects=1&page=${encodeURIComponent(c.p)}`); return { t: c.t, text: libHtmlText(j.parse?.text || '').slice(0, 200000) }; }); }
+    return libCache(`w:${l}:${c.p}`, 30 * 24 * 3600e3, async () => { const j = await libGet(`${l === 'mul' ? LIB.mul() : LIB.ws(l)}/w/api.php?format=json&formatversion=2&action=parse&prop=text&disabletoc=1&disableeditsection=1&redirects=1&page=${encodeURIComponent(c.p)}`); return { t: c.t, text: libHtmlText(j.parse?.text || '').slice(0, 200000), lang: b.lang }; }); }
   throw new Error('id');
+}
+// ---- Tarjima (ilova tilida o'qish) ----
+const LIB_TL = { uz: 'uz', ru: 'ru', en: 'en', ar: 'ar', tr: 'tr', kk: 'kk', ky: 'ky', tg: 'tg', fa: 'fa', de: 'de', fr: 'fr', es: 'es' };
+async function libTrChunk(text, from, to) {
+  try { const r = await cfRun('@cf/meta/m2m100-1.2b', { text, source_lang: from, target_lang: to }, 60000); const o = String(r?.translated_text || '').trim(); if (o) return o; } catch (e) { libNote('tr_m2m', false, e.message); }
+  const r = await cfRun(process.env.CF_TEXT_MODEL || '@cf/meta/llama-3.3-70b-instruct-fp8-fast', { messages: [{ role: 'system', content: `You are a literary translator. Translate the user's text from ${from} into ${to === 'uz' ? 'Uzbek (Latin script)' : to}. Output only the translation, keep paragraph breaks.` }, { role: 'user', content: text }], max_tokens: 2500, temperature: 0.2 }, 90000);
+  return String(r?.response || '').trim();
+}
+async function libTranslate(paras, from, to) {
+  const out = new Array(paras.length); let k = 0;
+  const batches = []; let cur = []; let len = 0;
+  paras.forEach((p, i) => { if (len + p.length > 900 && cur.length) { batches.push(cur); cur = []; len = 0; } cur.push(i); len += p.length; }); if (cur.length) batches.push(cur);
+  const work = async () => { while (k < batches.length) { const b = batches[k++]; const src = b.map((i) => paras[i]).join('\n\n'); let t = await libTrChunk(src, from, to); const sp = t.split(/\n\s*\n/); if (sp.length === b.length) b.forEach((i, j) => (out[i] = sp[j])); else { out[b[0]] = t; b.slice(1).forEach((i) => (out[i] = '')); } } };
+  await Promise.all([work(), work(), work()]);
+  return out;
 }
 app.get('/api/lib/list', auth, wrap(async (req, res) => {
   const cat = String(req.query.cat || ''); try { res.json({ items: await libList(cat) }); } catch (e) { res.status(502).json({ error: e.message === 'cat' ? 'cat' : 'Kitoblar manbasi hozir javob bermadi, birozdan so‘ng urinib ko‘ring' }); }
@@ -3895,17 +4099,130 @@ app.get('/api/lib/list', auth, wrap(async (req, res) => {
 app.get('/api/lib/book', auth, wrap(async (req, res) => {
   try { res.json(await libBook(String(req.query.id || '').slice(0, 300))); } catch (e) { res.status(502).json({ error: 'Kitobni ochib bo‘lmadi: ' + e.message }); }
 }));
-app.get('/api/lib/read', auth, wrap(async (req, res) => {
-  try { res.json(await libRead(String(req.query.id || '').slice(0, 300), Math.max(0, Number(req.query.ch) || 0), String(req.query.tr || ''))); } catch (e) { res.status(502).json({ error: 'Matnni yuklab bo‘lmadi: ' + e.message }); }
+app.get('/api/lib/read', auth, rateLimit('libread', 900, 3600e3), wrap(async (req, res) => {
+  const id = String(req.query.id || '').slice(0, 300), ch = Math.max(0, Number(req.query.ch) || 0), to = LIB_TL[String(req.query.to || '')] || null;
+  let r; try { r = await libRead(id, ch, String(req.query.tr || '')); } catch (e) { return res.status(502).json({ error: 'Matnni yuklab bo‘lmadi: ' + e.message }); }
+  const from = LIB_TL[r.lang] || null;
+  if (!to || !r.text || !from || from === to) return res.json({ ...r, canTr: !!(r.text && from && cfOn()) });
+  if (!cfOn()) return res.json({ ...r, canTr: false });
+  try {
+    const t = await libCache(`tr2:${id}:${ch}:${to}`, 0, async () => { const paras = r.text.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean).slice(0, 400); return (await libTranslate(paras, from, to)).filter((x) => x != null).join('\n\n'); });
+    res.json({ ...r, orig: r.text, text: t, tr_to: to, canTr: true });
+  } catch (e) { libNote('tr', false, e.message); res.json({ ...r, canTr: true, trErr: 'Tarjima hozir ishlamadi — asl nusxa ko‘rsatildi' }); }
 }));
+// Admin: kitob qo'shish (o'zi huquqiga ega bo'lgan yoki ruxsat olingan kitoblar)
+app.post('/api/admin/lib/upload', auth, adminOnly, upload.single('file'), wrap(async (req, res) => {
+  const cat = String(req.body?.cat || ''); const title = String(req.body?.title || '').trim().slice(0, 200);
+  if (!LIB.CATS.includes(cat) || !title || !req.file) return res.status(400).json({ error: 'Bo‘lim, nom va fayl kerak' });
+  if (!/^(text\/plain|application\/pdf|application\/epub\+zip)$/.test(req.file.mimetype) && !/\.(txt|pdf|epub)$/i.test(req.file.originalname || '')) return res.status(400).json({ error: 'Faqat TXT, PDF yoki EPUB' });
+  const url = await storage.save(req.file.path, req.file.mimetype || 'application/octet-stream');
+  const id = await db.insert('INSERT INTO lib_books(cat,title,author,lang,source,file,mime,size,added_by,created) VALUES(?,?,?,?,?,?,?,?,?,?)', [cat, title, String(req.body?.author || '').slice(0, 120), String(req.body?.lang || (cat === 'din' ? 'uz' : cat)).slice(0, 5), String(req.body?.source || '').slice(0, 160), url, req.file.mimetype, req.file.size, req.user.id, now()]);
+  res.json({ ok: true, id: Number(id) });
+}));
+app.post('/api/admin/lib/delete', auth, adminOnly, wrap(async (req, res) => { const b = await db.get('SELECT * FROM lib_books WHERE id=?', [Number(req.body?.id)]); if (b) { await db.run('DELETE FROM lib_books WHERE id=?', [b.id]); safeRemove(b.file); } res.json({ ok: true }); }));
+app.post('/api/admin/lib/refresh', auth, adminOnly, wrap(async (req, res) => { for (const c of LIB.CATS) { LIB.mem.delete('list4:' + c); try { await fs.promises.unlink(libKey('list4:' + c)); } catch {} } res.json({ ok: true }); }));
+app.get('/api/admin/lib/status', auth, adminOnly, (req, res) => res.json({ src: LIB.src }));
 // ishga tushganda manbalarni tekshirish (Render loglarida ko'rinadi)
 setTimeout(async () => {
   if (process.env.LIB_SELFTEST === '0') return;
   const r = []; for (const c of LIB.CATS) { try { const l = await libList(c); r.push(`${c}=${l.length}`); } catch (e) { r.push(`${c}=XATO(${e.message})`); } }
   try { const q = await libRead('q', 0, 'uz.sodik'); r.push('quron=' + (q.ayat?.length || 0) + 'oyat'); } catch (e) { r.push('quron=XATO(' + e.message + ')'); }
   try { const h = await libRead('h:bukhari', 0, 'eng'); r.push('buxoriy=' + (h.hadis?.length || 0) + 'hadis'); } catch (e) { r.push('buxoriy=XATO(' + e.message + ')'); }
-  console.log('   Kutubxona: ' + r.join(' · '));
+  console.log('   Kutubxona: ' + r.join(' · ') + ' | manbalar: ' + Object.entries(LIB.src).map(([k, v]) => `${k}:${v.ok ? 'ok' : 'XATO'}(${v.info})`).join(', '));
 }, Number(process.env.LIB_SELFTEST_MS) || 45000);
+
+// ===== Admin boshqaruv paneli (/admin): foydalanuvchilar, ro'yxatdan o'tish joyi, faollik, shubhali holatlar, reyting, Reels nazorati =====
+// Maxfiylik: shaxsiy xabarlar matni va shaxsiy rasm/videolar ko'rsatilmaydi — faqat sonlar (statistika), ochiq kontent (Reels) va shikoyat qilingan xabarlar.
+const admNum = (x) => Number(x) || 0;
+async function admCounts(since) {
+  const per = new Map(); const g = (id) => { if (!per.has(id)) per.set(id, { msgs: 0, image: 0, video: 0, voice: 0, round: 0, file: 0, calls: 0, callMin: 0, chats: 0 }); return per.get(id); };
+  for (const r of await db.all('SELECT sender_id, type, COUNT(*) AS c, SUM(COALESCE(duration,0)) AS d, COUNT(DISTINCT chat_id) AS ch FROM messages WHERE created_at>? GROUP BY sender_id, type', [since])) {
+    const o = g(Number(r.sender_id)); const c = admNum(r.c); o.msgs += c; o.chats = Math.max(o.chats, admNum(r.ch));
+    if (['image', 'video', 'voice', 'round', 'file'].includes(r.type)) o[r.type] += c;
+    if (r.type === 'call') { o.calls += c; o.callMin += Math.round(admNum(r.d) / 60); }
+  }
+  return per;
+}
+async function admRisk(u, c, extra) {
+  const flags = []; const age = now() - admNum(u.created_at);
+  if (extra.reports >= 2) flags.push(`${extra.reports} ta shikoyat`);
+  if (extra.blockedBy >= 3) flags.push(`${extra.blockedBy} kishi bloklagan`);
+  if (c && c.chats >= 25 && age < 3 * 864e5) flags.push('yangi akkaunt ko‘p odamga yozmoqda');
+  if (c && c.msgs >= 1500) flags.push('juda ko‘p xabar (spam?)');
+  if (extra.sessions >= 6) flags.push(`${extra.sessions} ta qurilma`);
+  if (extra.countries >= 3) flags.push(`${extra.countries} xil davlatdan kirgan`);
+  if (u.banned) flags.push('bloklangan');
+  const score = Math.min(100, flags.length * 22 + Math.min(30, extra.reports * 8));
+  return { flags, score };
+}
+app.get('/api/admin/dash', auth, adminOnly, wrap(async (req, res) => {
+  const t = now(), day = 864e5, reg = 'name IS NOT NULL AND COALESCE(deleted,0)=0';
+  const one = async (sql, p = []) => admNum((await db.get(sql, p))?.c);
+  const st = {
+    users: await one(`SELECT COUNT(*) AS c FROM users WHERE ${reg}`), online: online.size, newToday: await one(`SELECT COUNT(*) AS c FROM users WHERE ${reg} AND created_at>?`, [t - day]),
+    new7: await one(`SELECT COUNT(*) AS c FROM users WHERE ${reg} AND created_at>?`, [t - 7 * day]), active24: await one(`SELECT COUNT(*) AS c FROM users WHERE ${reg} AND last_seen>?`, [t - day]),
+    active7: await one(`SELECT COUNT(*) AS c FROM users WHERE ${reg} AND last_seen>?`, [t - 7 * day]), banned: await one('SELECT COUNT(*) AS c FROM users WHERE COALESCE(banned,0)=1'),
+    msgsToday: await one('SELECT COUNT(*) AS c FROM messages WHERE created_at>?', [t - day]), mediaToday: await one("SELECT COUNT(*) AS c FROM messages WHERE created_at>? AND type IN ('image','video','round','file')", [t - day]),
+    callsToday: await one("SELECT COUNT(*) AS c FROM messages WHERE created_at>? AND type='call'", [t - day]), callMinToday: Math.round(admNum((await db.get("SELECT SUM(COALESCE(duration,0)) AS c FROM messages WHERE created_at>? AND type='call'", [t - day]))?.c) / 60),
+    groups: await one("SELECT COUNT(*) AS c FROM chats WHERE type='group'"), channels: await one("SELECT COUNT(*) AS c FROM chats WHERE type='channel'"),
+    reels: await one('SELECT COUNT(*) AS c FROM reels'), reportsOpen: await one("SELECT COUNT(*) AS c FROM reports WHERE status='open'"),
+  };
+  const days = Array.from({ length: 30 }, (_, i) => ({ d: new Date(t - (29 - i) * day).toISOString().slice(0, 10), u: 0, m: 0 }));
+  for (const r of await db.all(`SELECT created_at FROM users WHERE ${reg} AND created_at>?`, [t - 30 * day])) { const x = days.find((y) => y.d === new Date(Number(r.created_at)).toISOString().slice(0, 10)); if (x) x.u++; }
+  for (const r of await db.all('SELECT created_at FROM messages WHERE created_at>? ORDER BY id DESC LIMIT 200000', [t - 30 * day])) { const x = days.find((y) => y.d === new Date(Number(r.created_at)).toISOString().slice(0, 10)); if (x) x.m++; }
+  const geo = new Map(), dev = new Map();
+  for (const u of await db.all(`SELECT reg_info FROM users WHERE ${reg}`)) { let r = null; try { r = JSON.parse(u.reg_info || 'null'); } catch {} const k = r ? [r.city, r.country].filter(Boolean).join(', ') || '—' : '—'; geo.set(k, (geo.get(k) || 0) + 1); const d = r ? [r.os, r.app].filter(Boolean).join(' · ') || '—' : '—'; dev.set(d, (dev.get(d) || 0) + 1); }
+  const top = (m) => [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 15).map(([k, n]) => ({ k, n }));
+  const cnt = await admCounts(t - 7 * day); const users = new Map();
+  const uname = async (id) => { if (!users.has(id)) { const u = await getUser(id); users.set(id, u ? { id: u.id, name: u.name, username: u.username, avatar: u.avatar } : { id }); } return users.get(id); };
+  const act = [...cnt.entries()].sort((a, b) => b[1].msgs - a[1].msgs).slice(0, 10); const activeTop = []; for (const [id, c] of act) activeTop.push({ user: await uname(id), msgs: c.msgs, calls: c.calls });
+  const reelTop = []; for (const r of await db.all('SELECT r.id, r.user_id, r.kind, r.caption, (SELECT COUNT(*) FROM reel_views v WHERE v.reel_id=r.id) AS views, (SELECT COUNT(*) FROM reel_likes l WHERE l.reel_id=r.id) AS likes FROM reels r ORDER BY views DESC LIMIT 10')) reelTop.push({ id: Number(r.id), kind: r.kind, caption: String(r.caption || '').slice(0, 80), views: admNum(r.views), likes: admNum(r.likes), user: await uname(Number(r.user_id)) });
+  res.json({ st, days, geo: top(geo), dev: top(dev), activeTop, reelTop });
+}));
+app.get('/api/admin/people', auth, adminOnly, wrap(async (req, res) => {
+  const q = String(req.query.q || '').trim().toLowerCase().slice(0, 64); const like = '%' + q.replace(/[%_]/g, '') + '%'; const sort = String(req.query.sort || 'new');
+  const rows = await db.all(`SELECT * FROM users WHERE name IS NOT NULL AND COALESCE(deleted,0)=0 ${q ? "AND (LOWER(search) LIKE ? OR LOWER(COALESCE(email,'')) LIKE ? OR COALESCE(phone,'') LIKE ? OR COALESCE(tel,'') LIKE ?)" : ''} ORDER BY id DESC LIMIT 1000`, q ? [like, like, like, like] : []);
+  const cnt = await admCounts(now() - 30 * 864e5);
+  const rep = new Map((await db.all('SELECT user_id, COUNT(*) AS c FROM reports GROUP BY user_id')).map((r) => [Number(r.user_id), admNum(r.c)]));
+  const blk = new Map((await db.all('SELECT user_id, COUNT(*) AS c FROM blocks GROUP BY user_id')).map((r) => [Number(r.user_id), admNum(r.c)]));
+  const ses = new Map((await db.all('SELECT user_id, COUNT(*) AS c, COUNT(DISTINCT country) AS k FROM sessions GROUP BY user_id')).map((r) => [Number(r.user_id), { n: admNum(r.c), k: admNum(r.k) }]));
+  const rl = new Map((await db.all('SELECT user_id, COUNT(*) AS c FROM reels GROUP BY user_id')).map((r) => [Number(r.user_id), admNum(r.c)]));
+  const out = [];
+  for (const u of rows) {
+    let ri = null; try { ri = JSON.parse(u.reg_info || 'null'); } catch {}
+    const c = cnt.get(u.id) || null; const ex = { reports: rep.get(u.id) || 0, blockedBy: blk.get(u.id) || 0, sessions: ses.get(u.id)?.n || 0, countries: ses.get(u.id)?.k || 0 };
+    const risk = await admRisk(u, c, ex);
+    out.push({ id: u.id, name: u.name, username: u.username, avatar: u.avatar, email: u.email, phone: String(u.phone || '').startsWith('mail:') ? null : u.phone, tel: u.tel, tel_ok: !!u.tel_ok, created_at: u.created_at, last_seen: u.last_seen, online: online.has(u.id), banned: !!u.banned, admin: isAdminUser(u),
+      reg: ri ? { city: ri.city || '', country: ri.country || '', os: ri.os || '', model: ri.model || '', app: ri.app || '' } : null, c: c || {}, reels: rl.get(u.id) || 0, ...ex, risk });
+  }
+  const S = { new: (a, b) => b.id - a.id, active: (a, b) => (b.c.msgs || 0) - (a.c.msgs || 0), risk: (a, b) => b.risk.score - a.risk.score, seen: (a, b) => admNum(b.last_seen) - admNum(a.last_seen), calls: (a, b) => (b.c.calls || 0) - (a.c.calls || 0), media: (a, b) => ((b.c.image || 0) + (b.c.video || 0)) - ((a.c.image || 0) + (a.c.video || 0)) };
+  out.sort(S[sort] || S.new);
+  res.json({ users: out.slice(0, 300), total: out.length });
+}));
+app.get('/api/admin/person/:id', auth, adminOnly, wrap(async (req, res) => {
+  const u = await getUser(req.params.id); if (!u) return res.status(404).json({ error: 'not found' });
+  let ri = null; try { ri = JSON.parse(u.reg_info || 'null'); } catch {}
+  const sessions = (await db.all('SELECT app, os, model, city, country, created, last, revoked FROM sessions WHERE user_id=? ORDER BY last DESC LIMIT 30', [u.id])).map((s) => ({ ...s, created: admNum(s.created), last: admNum(s.last), revoked: !!s.revoked }));
+  const all = (await admCounts(0)).get(u.id) || {}; const m30 = (await admCounts(now() - 30 * 864e5)).get(u.id) || {};
+  const groups = admNum((await db.get("SELECT COUNT(*) AS c FROM chat_members m JOIN chats c ON c.id=m.chat_id WHERE m.user_id=? AND c.type='group'", [u.id]))?.c);
+  const reels = (await db.all('SELECT * FROM reels WHERE user_id=? ORDER BY id DESC LIMIT 50', [u.id])); const rOut = []; for (const r of reels) rOut.push(await reelOut(r, req.user.id));
+  const reports = await db.all('SELECT id, reason, status, created_at FROM reports WHERE user_id=? ORDER BY id DESC LIMIT 30', [u.id]).catch(() => []);
+  res.json({ user: { ...publicUser(u, true), created_at: u.created_at, banned: !!u.banned, admin: isAdminUser(u) }, reg: ri, sessions, all, m30, groups, reels: rOut, reports });
+}));
+app.get('/api/admin/reels', auth, adminOnly, wrap(async (req, res) => {
+  const k = String(req.query.kind || ''); const rows = await db.all(`SELECT * FROM reels ${['yt', 'ig', 'video'].includes(k) ? 'WHERE kind=?' : ''} ORDER BY id DESC LIMIT 200`, ['yt', 'ig', 'video'].includes(k) ? [k] : []);
+  const out = []; for (const r of rows) out.push({ ...(await reelOut(r, req.user.id)), ai: (await airBot()).id === Number(r.user_id) }); res.json({ items: out, aiOn: airOn(), yt: { last: YT.last, err: YT.err, key: !!process.env.YOUTUBE_API_KEY } });
+}));
+app.post('/api/admin/reels/:id/delete', auth, adminOnly, wrap(async (req, res) => {
+  const r = await db.get('SELECT * FROM reels WHERE id=?', [Number(req.params.id)]); if (!r) return res.status(404).json({ error: 'not found' });
+  for (const t of ['reels', 'reel_likes', 'reel_comments', 'reel_views']) await db.run(`DELETE FROM ${t} WHERE ${t === 'reels' ? 'id' : 'reel_id'}=?`, [r.id]).catch(() => {});
+  if (r.file) safeRemove(r.file); res.json({ ok: true });
+}));
+app.post('/api/admin/reels/delete-ai-videos', auth, adminOnly, wrap(async (req, res) => { // Birga AI o'zi yasagan (montaj) videolar
+  const bot = await airBot(); const rows = await db.all("SELECT * FROM reels WHERE user_id=? AND kind='video'", [bot.id]);
+  for (const r of rows) { for (const t of ['reels', 'reel_likes', 'reel_comments', 'reel_views']) await db.run(`DELETE FROM ${t} WHERE ${t === 'reels' ? 'id' : 'reel_id'}=?`, [r.id]).catch(() => {}); if (r.file) safeRemove(r.file); }
+  res.json({ ok: true, deleted: rows.length });
+}));
 
 // multer xatolari (juda katta fayl) — tushunarli JSON javob
 app.use((err, req, res, next) => {

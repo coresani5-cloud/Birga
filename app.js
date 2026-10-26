@@ -9523,7 +9523,7 @@ const AdminDash = {
   open(tab) { if (!S.me?.isAdmin) return toast('403'); const e = this.el(); if (tab) this.tab = tab; if (e.classList.contains('hidden')) { e.classList.remove('hidden'); pushOverlay('admdash'); } this.render(); },
   close(fromBack) { const e = $('#ad-ov'); if (!e || e.classList.contains('hidden')) return; e.classList.add('hidden'); if (!fromBack) popOverlay('admdash'); if (ADM_PATH) history.replaceState(history.state, '', '/'); },
   T: [['over', 'ad_over', '📊'], ['users', 'ad_users', '👥'], ['risk', 'ad_risk', '⚠️'], ['rate', 'ad_rate', '🏆'], ['reels', 'ad_reels', '🎬'], ['rep', 'ad_rep', '🚩'], ['lib', 'ad_lib', '📚']],
-  shell(body) { return `<header class="ad-hd"><button class="icon-btn" data-ad="close">${icon('back')}</button><h2>🛡 ${esc(t('ad_title'))}</h2><button class="icon-btn" data-ad="ref">${icon('refresh')}</button></header><nav class="ad-tabs">${this.T.map(([k, n, ic]) => `<button class="${k === this.tab ? 'on' : ''}" data-adt="${k}">${ic} ${esc(t(n))}</button>`).join('')}</nav><div class="ad-body">${body}</div>`; },
+  shell(body) { return `<header class="ad-hd"><button class="icon-btn" data-ad="close">${icon('back')}</button><h2>🛡 ${esc(t('ad_title'))}</h2><button class="btn-ghost" data-ad="pcode" title="Alohida nazorat paneli">🔐 Panel</button><button class="icon-btn" data-ad="ref">${icon('refresh')}</button></header><nav class="ad-tabs">${this.T.map(([k, n, ic]) => `<button class="${k === this.tab ? 'on' : ''}" data-adt="${k}">${ic} ${esc(t(n))}</button>`).join('')}</nav><div class="ad-body">${body}</div>`; },
   when: (ts) => (ts ? `${fmtDay(+ts)} ${fmtTime(+ts)}` : '—'),
   uRow(u) { const rk = u.risk?.score || 0; const reg = u.reg ? [u.reg.city, u.reg.country].filter(Boolean).join(', ') : ''; const dev = u.reg ? [u.reg.model || u.reg.os, u.reg.app].filter(Boolean).join(' · ') : ''; const c = u.c || {};
     return `<div class="ad-u" data-adu="${u.id}">${avatar({ ...u, online: u.online })}<div class="ad-ub"><b>${esc(u.name)}${u.admin ? ' 🛡' : ''}${u.banned ? ' ⛔' : ''}</b><small>${u.username ? '@' + esc(u.username) + ' · ' : ''}${esc(u.email || fmtPhone(u.phone || u.tel || '') || '')}</small>
@@ -9551,7 +9551,7 @@ const AdminDash = {
         const [r, yc] = await Promise.all([api('/api/admin/reels'), api('/api/admin/yt/channels').catch(() => ({ channels: [] }))]); if (this.tab !== tab) return;
         body().innerHTML = `<div class="ad-box"><b>📺 YouTube Shorts</b><small>${r.yt.key ? 'API kalit bor' : 'Kalitsiz (kanallar RSS lentasi)'} · oxirgi: ${esc(this.when(r.yt.last))}${r.yt.err ? ' · ⚠️ ' + esc(r.yt.err) : ''}</small>
             <div class="ad-tools"><input class="field" id="ad-yt" placeholder="youtube.com/@kanal yoki kanal havolasi"><button class="btn-primary" data-ad="ytadd">＋</button></div>
-            <div class="ad-chs">${yc.channels.map((c) => `<span class="ad-ch${c.err ? ' bad' : ''}" title="${esc(c.err || '')}">${esc(c.name || c.h || c.id)}${c.n != null ? ` · ${c.n}` : ''}<button data-ytdel="${esc(c.id || c.h)}">✕</button></span>`).join('')}</div>
+            <div class="ad-chs">${yc.channels.map((c) => `<span class="ad-ch${c.err ? ' bad' : ''}" title="${esc(c.err || '')}">${esc(c.name || c.q || c.h || c.id)}${c.n != null ? ` · ${c.n}` : ''}<button data-ytdel="${esc(c.id || c.q || c.h)}">✕</button></span>`).join('')}</div>
             <div class="ad-tools"><button class="btn-ghost" data-ad="ytnow">📺 Hozir Shorts qo‘shish</button><button class="btn-ghost danger" data-ad="aidel">🗑 AI yasagan videolarni o‘chirish</button></div><small class="muted">Instagram: avtomatik olish rasmiy ruxsat (API) talab qiladi — Instagram reels havolasini “Reels → ＋ → Instagram/YouTube havola” orqali qo‘shing.</small></div>
           ${r.items.map((it) => `<div class="ad-u"><div class="ad-rth">${reelThumb(it)}</div><div class="ad-ub"><b>${esc(it.user?.name || '')}${it.ai ? ' · Birga AI' : ''} · ${esc(it.kind)}</b><small>${esc((it.caption || '').slice(0, 120))}</small><small>👁 ${it.views} · ❤ ${it.likes} · 💬 ${it.comments} · ${esc(this.when(it.created_at))}</small></div><button class="btn-ghost danger" data-rdel="${it.id}">🗑</button></div>`).join('')}`;
       } else if (tab === 'rep') {
@@ -9562,6 +9562,12 @@ const AdminDash = {
         body().innerHTML = `<div class="ad-box"><b>📚 Manbalar holati</b>${Object.entries(s.src).map(([k, v]) => `<div class="ad-kv"><span>${v.ok ? '✅' : '❌'} ${esc(k)}</span><b>${esc(String(v.info))}</b></div>`).join('') || '—'}<div class="ad-tools"><button class="btn-ghost" data-ad="librf">🔄 Ro‘yxatlarni yangilash</button><button class="btn-primary" data-ad="libadd">＋ ${esc(t('lb_add'))}</button></div></div>`;
       }
     } catch (er) { body().innerHTML = `<p class="empty-note">${esc(er.message)}</p>`; }
+  },
+  pcode() {
+    modal(`<h3>🔐 Alohida nazorat paneli <button class="icon-btn" data-close>${icon('close')}</button></h3><p class="muted tiny">Panel manzili: <b>${esc(location.origin)}/panel</b> — u yerga faqat siz tanlagan kod bilan kiriladi (kamida 8 belgi). Kodni hech kimga bermang.</p>
+      <input class="field" id="pc1" type="password" autocomplete="new-password" placeholder="Yangi panel kodi"><input class="field" id="pc2" type="password" autocomplete="new-password" placeholder="Kodni takrorlang"><p class="err" id="pce"></p>
+      <button class="btn-primary" id="pcs">Kodni saqlash</button><a class="btn-ghost" href="/panel" target="_blank" rel="noopener" style="display:block;text-align:center;margin-top:8px;text-decoration:none">Panelni ochish ↗</a>`);
+    $('#pcs').onclick = async () => { if ($('#pc1').value !== $('#pc2').value) return ($('#pce').textContent = 'Kodlar bir xil emas'); try { await api('/api/panel/code', { body: { code: $('#pc1').value } }); closeModal(); toast('✅ Panel kodi saqlandi', 3000); } catch (e) { $('#pce').textContent = e.message; } };
   },
   async person(id) {
     let d; try { d = await api('/api/admin/person/' + id); } catch (e) { return toast(e.message); }
@@ -9587,11 +9593,17 @@ const AdminDash = {
       if (d.rep) { await api('/api/admin/reports/' + d.rep, { body: { action: d.ra } }); return this.render(); }
       if (d.ad === 'librf') { await api('/api/admin/lib/refresh', { body: {} }); Lib.lists = {}; toast('✓'); return; }
       if (d.ad === 'libadd') return LibAdmin.add('uz');
+      if (d.ad === 'pcode') return this.pcode();
     } catch (e) { toast(e.message); }
   },
 };
 document.addEventListener('click', (ev) => { const b = ev.target.closest('#modal-card [data-rdel], #modal-card [data-uban]'); if (!b) return; ev.stopPropagation(); if (b.dataset.rdel) return AdminDash.click(ev); (async () => { try { await api(`/api/admin/users/${b.dataset.uban}/ban`, { body: { on: b.dataset.on === '1' } }); closeModal(); toast('✓'); AdminDash.render(); } catch (e) { toast(e.message); } })(); }, true);
 OV_CLOSE.admdash = () => AdminDash.close(true);
+document.addEventListener('click', (e) => {
+  if (e.target.closest('[data-pa="edit"]')) setTimeout(() => { const box = $('#pp-edit'); if (!box || box.classList.contains('hidden') || box.querySelector('#pf-g')) return; const g = S.me?.gender || '';
+    box.querySelector('#pf-bio')?.insertAdjacentHTML('afterend', `<select class="field" id="pf-g"><option value=""${!g ? ' selected' : ''}>${esc({ uz: 'Jins (ixtiyoriy)', ru: 'Пол (необязательно)', en: 'Gender (optional)' }[LANG] || 'Gender')}</option><option value="m"${g === 'm' ? ' selected' : ''}>${esc({ uz: 'Erkak', ru: 'Мужской', en: 'Male' }[LANG] || 'Male')}</option><option value="f"${g === 'f' ? ' selected' : ''}>${esc({ uz: 'Ayol', ru: 'Женский', en: 'Female' }[LANG] || 'Female')}</option></select>`); }, 0);
+  if (e.target.closest('#pf-save')) { const g = $('#pf-g')?.value; if (g != null && g !== (S.me?.gender || '')) api('/api/profile/gender', { body: { g } }).then(() => { S.me = { ...S.me, gender: g }; }).catch(() => {}); }
+}, true);
 document.addEventListener('error', (e) => { const el = e.target; if (el?.tagName === 'IMG' && el.closest?.('.lb-cv, .ad-rth, .pp-rgrid, .rm-media')) el.remove(); }, true); // CSP: inline onerror ishlamaydi
 Admin.open = () => AdminDash.open();
 if (ADM_PATH) { const go = (k = 0) => { if (!S.me) return k < 200 && setTimeout(() => go(k + 1), 600); if (S.me.isAdmin) AdminDash.open(); else toast('🛡 403'); }; setTimeout(go, 800); }

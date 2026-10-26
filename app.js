@@ -8363,7 +8363,7 @@ const PhoneCt = {
   async sync(user) {
     const list = await this.read(); if (!list) { if (user) toast(t('kc_perm'), 3000); return; }
     const phones = list.flatMap((c) => c.p || []), emails = list.flatMap((c) => c.e || []);
-    try { const r = await api('/api/contacts/match', { body: { phones, emails } }); const names = new Map(); list.forEach((c) => [...(c.p || []), ...(c.e || [])].forEach((x) => names.set(String(x).replace(/\D/g, '').slice(-9) || String(x).toLowerCase(), c.n)));
+    try { const r = await api('/api/contacts/match', { body: { phones: [], emails, contacts: list.map((c) => ({ name: c.n || '', tel: c.p || [] })) } }); const names = new Map(); list.forEach((c) => [...(c.p || []), ...(c.e || [])].forEach((x) => names.set(String(x).replace(/\D/g, '').slice(-9) || String(x).toLowerCase(), c.n)));
       store.set('birga_pct', JSON.stringify({ at: Date.now(), users: r.users, checked: list.length })); r.users.forEach((u) => S.users.set(u.id, { ...(S.users.get(u.id) || {}), ...u })); this.paint(); } catch (e) { if (user) toast(e.message); }
   },
   paint() {
@@ -8984,7 +8984,7 @@ const musTags = (name) => { const b = String(name || '').replace(/\.[a-z0-9]{2,5
 const MP = {
   q: [], i: -1, a: null, shuffle: false, rep: 0,
   audio() {
-    if (this.a) return this.a; const a = this.a = new Audio(); a.preload = 'auto'; a.id = 'mp-audio'; document.body.appendChild(a);
+    if (this.a) return this.a; const a = this.a = new Audio(); a.preload = 'auto'; a.id = 'mz-audio'; document.body.appendChild(a);
     a.addEventListener('timeupdate', () => this.prog()); a.addEventListener('play', () => this.paint()); a.addEventListener('pause', () => this.paint());
     a.addEventListener('ended', () => { if (this.rep === 2) { a.currentTime = 0; a.play(); } else this.next(true); });
     a.addEventListener('error', () => { if (this.cur()) { toast(t('mp_fail')); setTimeout(() => this.next(true), 600); } });
@@ -9001,7 +9001,7 @@ const MP = {
   toggle() { const a = this.audio(); if (!this.cur()) return; a.paused ? a.play().catch(() => {}) : a.pause(); },
   next(auto) { if (!this.q.length) return; if (this.shuffle && this.q.length > 1) { let j; do j = Math.floor(Math.random() * this.q.length); while (j === this.i); this.i = j; } else if (this.i < this.q.length - 1) this.i++; else if (this.rep === 1 || !auto) this.i = 0; else { this.a.pause(); this.paint(); return; } this.load(); },
   prev() { const a = this.audio(); if (a.currentTime > 4 || this.i <= 0) { a.currentTime = 0; return; } this.i--; this.load(); },
-  stop() { if (this.a) { this.a.pause(); this.a.removeAttribute('src'); this.a.load(); } this.q = []; this.i = -1; $('#mp-bar')?.remove(); try { navigator.mediaSession.metadata = null; navigator.mediaSession.playbackState = 'none'; } catch {} this.paint(); },
+  stop() { if (this.a) { this.a.pause(); this.a.removeAttribute('src'); this.a.load(); } this.q = []; this.i = -1; $('#mz-bar')?.remove(); try { navigator.mediaSession.metadata = null; navigator.mediaSession.playbackState = 'none'; } catch {} this.paint(); },
   ms() {
     const it = this.cur(); if (!it || !('mediaSession' in navigator)) return; const s = navigator.mediaSession;
     try { s.metadata = new MediaMetadata({ title: it.t, artist: it.a || 'Birga', album: 'Birga', artwork: [{ src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' }, { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' }] }); } catch {}
@@ -9011,25 +9011,25 @@ const MP = {
       h('seekto', (d) => { if (d.fastSeek && 'fastSeek' in this.a) this.a.fastSeek(d.seekTime); else this.a.currentTime = d.seekTime; }); }
   },
   bar() {
-    if ($('#mp-bar')) return; document.body.insertAdjacentHTML('beforeend', `<div class="mp-bar" id="mp-bar"><div class="mp-disc">♪</div><div class="mp-txt" data-mp="full"><b></b><small></small></div><button data-mp="prev" class="mp-b">⏮</button><button data-mp="tog" class="mp-b mp-tog">▶</button><button data-mp="next" class="mp-b">⏭</button><button data-mp="close" class="mp-b mp-x">✕</button><i class="mp-line"></i></div>`);
-    const bar = $('#mp-bar'); const pos = lsGet('birga_mp_pos', null); if (pos != null) bar.style.bottom = Math.max(8, Math.min(innerHeight - 70, pos)) + 'px';
+    if ($('#mz-bar')) return; document.body.insertAdjacentHTML('beforeend', `<div class="mz-bar" id="mz-bar"><div class="mz-disc">♪</div><div class="mz-txt" data-mp="full"><b></b><small></small></div><button data-mp="prev" class="mz-b">⏮</button><button data-mp="tog" class="mz-b mz-tog">▶</button><button data-mp="next" class="mz-b">⏭</button><button data-mp="close" class="mz-b mz-x">✕</button><i class="mz-line"></i></div>`);
+    const bar = $('#mz-bar'); const pos = lsGet('birga_mp_pos', null); if (pos != null) bar.style.bottom = Math.max(8, Math.min(innerHeight - 70, pos)) + 'px';
     bar.addEventListener('click', (e) => { const k = e.target.closest('[data-mp]')?.dataset.mp; if (k === 'tog') this.toggle(); if (k === 'next') this.next(); if (k === 'prev') this.prev(); if (k === 'close') this.stop(); if (k === 'full') this.full(); });
     // yuqori-pastga surib joyini o'zgartirish
-    let y0 = null, b0 = 0, moved = false; const disc = bar.querySelector('.mp-disc');
+    let y0 = null, b0 = 0, moved = false; const disc = bar.querySelector('.mz-disc');
     disc.addEventListener('pointerdown', (e) => { y0 = e.clientY; b0 = parseFloat(getComputedStyle(bar).bottom); moved = false; disc.setPointerCapture(e.pointerId); });
     disc.addEventListener('pointermove', (e) => { if (y0 == null) return; const dy = y0 - e.clientY; if (Math.abs(dy) > 4) moved = true; bar.style.bottom = Math.max(8, Math.min(innerHeight - 70, b0 + dy)) + 'px'; });
     disc.addEventListener('pointerup', () => { if (y0 != null && moved) lsSet('birga_mp_pos', parseFloat(bar.style.bottom)); else if (y0 != null) this.full(); y0 = null; });
   },
   paint() {
-    const it = this.cur(); const bar = $('#mp-bar'); const on = it && this.a && !this.a.paused;
-    if (bar && it) { bar.querySelector('.mp-txt b').textContent = it.t; bar.querySelector('.mp-txt small').textContent = it.a || t('mp_unknown'); bar.querySelector('.mp-tog').textContent = on ? '⏸' : '▶'; bar.classList.toggle('on', !!on); }
+    const it = this.cur(); const bar = $('#mz-bar'); const on = it && this.a && !this.a.paused;
+    if (bar && it) { bar.querySelector('.mz-txt b').textContent = it.t; bar.querySelector('.mz-txt small').textContent = it.a || t('mp_unknown'); bar.querySelector('.mz-tog').textContent = on ? '⏸' : '▶'; bar.classList.toggle('on', !!on); }
     try { if ('mediaSession' in navigator && it) navigator.mediaSession.playbackState = on ? 'playing' : 'paused'; } catch {}
     $$('.mus[data-mus]').forEach((el) => { const me = it && String(it.id) === el.dataset.mus; el.classList.toggle('cur', !!me); el.querySelector('.mus-pl').textContent = me && on ? '⏸' : '▶'; if (!me) el.querySelector('.mus-pr i').style.width = '0'; });
     const f = $('#modal-card .mpf'); if (f && it) { f.querySelector('.mpf-t').textContent = it.t; f.querySelector('.mpf-a').textContent = it.a || t('mp_unknown'); f.querySelector('[data-mf="tog"]').textContent = on ? '⏸' : '▶'; f.querySelector('.mpf-disc').classList.toggle('spin', !!on); this.qpaint(); }
   },
   prog() {
     const a = this.a, it = this.cur(); if (!a || !it) return; const p = a.duration ? a.currentTime / a.duration : 0;
-    const l = $('#mp-bar .mp-line'); if (l) l.style.width = (p * 100).toFixed(1) + '%';
+    const l = $('#mz-bar .mz-line'); if (l) l.style.width = (p * 100).toFixed(1) + '%';
     const el = $(`.mus[data-mus="${it.id}"] .mus-pr i`); if (el) el.style.width = (p * 100).toFixed(1) + '%';
     const f = $('#modal-card .mpf'); if (f) { const r = f.querySelector('.mpf-seek'); if (!r._drag) r.value = Math.round(p * 1000); f.querySelector('.mpf-c').textContent = fmtDur(a.currentTime); f.querySelector('.mpf-d').textContent = fmtDur(a.duration || 0); }
     if ('mediaSession' in navigator && a.duration && isFinite(a.duration) && !(this._pt > Date.now() - 4000)) { this._pt = Date.now(); try { navigator.mediaSession.setPositionState({ duration: a.duration, position: Math.min(a.currentTime, a.duration), playbackRate: a.playbackRate }); } catch {} }
@@ -9197,10 +9197,10 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .mus{display:flex;align-items:center;gap:10px;min-width:230px;max-width:290px;cursor:pointer}.mus-pl{width:44px;height:44px;border-radius:50%;flex:none;background:var(--grad,#6D5DF6);color:#fff;font-size:18px;display:grid;place-items:center}.msg.out .mus-pl{background:#fff;color:var(--blue,#3B82F6)}
 .mus-b{flex:1;min-width:0;display:flex;flex-direction:column}.mus-b b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mus-b small{opacity:.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mus-pr{height:3px;border-radius:2px;background:rgba(127,127,127,.3);margin-top:5px;overflow:hidden}.mus-pr i{display:block;height:100%;width:0;background:currentColor}
 .mus-dl{text-decoration:none!important;opacity:.6;font-size:18px;padding:4px}.mus.cur b{color:var(--blue,#3B82F6)}.msg.out .mus.cur b{color:inherit}
-.mp-bar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 132px);z-index:65;width:min(94vw,420px);display:flex;align-items:center;gap:4px;padding:6px 8px;border-radius:18px;background:var(--card,#fff);color:var(--text,#111);box-shadow:0 8px 28px rgba(0,0,0,.25);overflow:hidden;border:1px solid rgba(127,127,127,.18)}
-.mp-disc{width:38px;height:38px;border-radius:50%;flex:none;background:conic-gradient(#6D5DF6,#EC4899,#F59E0B,#6D5DF6);color:#fff;display:grid;place-items:center;font-weight:800;cursor:grab;touch-action:none}.mp-bar.on .mp-disc,.mpf-disc.spin{animation:mpspin 3s linear infinite}@keyframes mpspin{to{transform:rotate(360deg)}}
-.mp-txt{flex:1;min-width:0;cursor:pointer;padding:0 4px}.mp-txt b,.mp-txt small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mp-txt small{opacity:.65;font-size:12px}.mp-b{background:none;color:inherit;font-size:18px;width:34px;height:34px;border-radius:50%}.mp-x{font-size:14px;opacity:.6}
-.mp-line{position:absolute;left:0;bottom:0;height:3px;background:linear-gradient(90deg,#6D5DF6,#EC4899);width:0}
+.mz-bar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 132px);z-index:65;width:min(94vw,420px);display:flex;align-items:center;gap:4px;padding:6px 8px;border-radius:18px;background:var(--card,#fff);color:var(--text,#111);box-shadow:0 8px 28px rgba(0,0,0,.25);overflow:hidden;border:1px solid rgba(127,127,127,.18)}
+.mz-disc{width:38px;height:38px;border-radius:50%;flex:none;background:conic-gradient(#6D5DF6,#EC4899,#F59E0B,#6D5DF6);color:#fff;display:grid;place-items:center;font-weight:800;cursor:grab;touch-action:none}.mz-bar.on .mz-disc,.mpf-disc.spin{animation:mpspin 3s linear infinite}@keyframes mpspin{to{transform:rotate(360deg)}}
+.mz-txt{flex:1;min-width:0;cursor:pointer;padding:0 4px}.mz-txt b,.mz-txt small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mz-txt small{opacity:.65;font-size:12px}.mz-b{background:none;color:inherit;font-size:18px;width:34px;height:34px;border-radius:50%}.mz-x{font-size:14px;opacity:.6}
+.mz-line{position:absolute;left:0;bottom:0;height:3px;background:linear-gradient(90deg,#6D5DF6,#EC4899);width:0}
 .mpf{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}.mpf-disc{width:130px;height:130px;border-radius:50%;background:conic-gradient(#6D5DF6,#EC4899,#F59E0B,#22C55E,#6D5DF6);display:grid;place-items:center;font-size:44px;color:#fff;margin:6px 0 10px;box-shadow:0 10px 30px rgba(109,93,246,.35)}
 .mpf-t{font-size:18px}.mpf-a{opacity:.65}.mpf-seek{width:100%;accent-color:#6D5DF6;margin-top:8px}.mpf-tm{width:100%;display:flex;justify-content:space-between;font-size:12px;opacity:.65}
 .mpf-ctl{display:flex;gap:10px;align-items:center;margin:6px 0}.mpf-ctl button{width:46px;height:46px;border-radius:50%;background:rgba(127,127,127,.12);color:inherit;font-size:20px}.mpf-ctl .big{width:62px;height:62px;background:var(--grad,#6D5DF6);color:#fff;font-size:26px}.mpf-ctl .on{background:rgba(109,93,246,.25)}
@@ -9218,7 +9218,409 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .lb-trs{display:flex;gap:6px;align-items:center;padding:6px 12px;overflow-x:auto;font-size:13px}.lb-trs span{opacity:.7}
 .lb-reader{flex:1;overflow:auto;padding:16px 18px 40px;font-size:var(--lfs,18px);line-height:1.65;font-family:Georgia,'Times New Roman',serif}.lb-reader p{margin:0 0 .9em}.lb-reader.th-sepia{background:#F4ECD8;color:#3B2F1E}.lb-reader.th-dark{background:#111418;color:#D6D9DE}
 .lb-ay{padding:10px 0;border-bottom:1px solid rgba(127,127,127,.18)}.lb-ar{font-family:'Amiri','Scheherazade New','Noto Naskh Arabic',serif;font-size:1.45em;line-height:2;text-align:right;margin:0 0 .4em}.lb-tr{margin:0;font-family:system-ui,sans-serif;font-size:.92em}.lb-n{color:#10B981;font-size:.8em}.lb-bsm{text-align:center;font-size:1.5em;font-family:'Amiri',serif;color:#10B981}.lb-hn{display:block;color:#10B981;font-family:system-ui;font-size:.8em}
-body:has(#mp-bar) .lb-reader,body:has(#mp-bar) .qz-body{padding-bottom:120px}.lb-pn small{white-space:nowrap}.lb-pn{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:20px;font-family:system-ui}.lb-note{margin-top:18px}
+body:has(#mz-bar) .lb-reader,body:has(#mz-bar) .qz-body{padding-bottom:120px}.lb-pn small{white-space:nowrap}.lb-pn{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:20px;font-family:system-ui}.lb-note{margin-top:18px}
+</style>`);
+
+/* ==================== v34: pastki menyu 2 qator, telefon raqam (Telegram'siz), kontaktlar, papka sanoqlari, musiqa tanlash, katta fayllar (qurilmadan qurilmaga), kutubxona tarjimasi, admin panel ==================== */
+const ADM_PATH = /^\/admin\/?$/.test(location.pathname);
+{
+  const D = {
+    uz: { ph_conf: 'Tasdiqlash', ph_title: 'Telefon raqam', ph_sub: 'Raqamingizni saqlagan do‘stlaringiz sizni Birga’da ko‘radi', ph_add: 'Raqam qo‘shish', ph_save: 'Saqlash', ph_send: 'Kod yuborish', ph_code: 'SMS kod', ph_ok2: 'Raqam saqlandi', ph_unver: 'tasdiqlanmagan', ph_unver_h: 'SMS xizmati ulanmaguncha raqam tasdiqlanmagan holda saqlanadi. Kontaktlaringiz sizni Birga’da ko‘radi.', ph_change: 'O‘zgartirish', ph_del: 'Raqamni o‘chirish', ph_sync: 'Kontaktlarni moslash',
+      mz_pick: 'Musiqa yuborish', mz_search: 'Musiqa qidirish', mz_dev: 'Qurilmadagi musiqa', mz_shared: 'Chatlardagi musiqa', mz_files: 'Fayllardan tanlash', mz_files_h: 'Telefon xotirasidagi MP3 va audio fayllar', mz_send: 'Yuborish ({n})', mz_none: 'Musiqa topilmadi', mz_perm: 'Musiqalarni ko‘rish uchun ruxsat bering', mz_app: 'Qurilmadagi barcha musiqani ro‘yxat qilib ko‘rish uchun Birga ilovasining yangi versiyasini o‘rnating',
+      p2_title: 'Katta fayl', p2_dl: 'Qabul qilish', p2_wait: 'Ulanmoqda…', p2_off: 'Yuboruvchi hozir onlayn emas. U Birga’ni ochganda qayta urinib ko‘ring', p2_gone: 'Fayl yuboruvchining qurilmasida topilmadi', p2_done: 'Qabul qilindi ✓', p2_saved: 'Saqlandi: Yuklanmalar', p2_note: 'Serverga yuklanmaydi — to‘g‘ridan-to‘g‘ri qurilmadan qurilmaga. Yuboruvchi onlayn bo‘lishi kerak.', p2_repick: 'Faylni qayta tanlash', p2_mine: 'Siz yubordingiz · qabul qiluvchi yuklab olguncha Birga ochiq tursin', p2_err: 'Uzatish uzildi', p2_play: 'Ko‘rish',
+      lb_trn: 'Tarjima: {l}', lb_orig: 'Asl nusxa', lb_trw: 'Tarjima qilinmoqda… (birinchi marta 1 daqiqagacha)', lb_add: 'Kitob qo‘shish', lb_add_h: 'Faqat sizda huquqi bo‘lgan yoki muallif ruxsat bergan kitoblarni qo‘shing (TXT, PDF, EPUB).', lb_t: 'Kitob nomi', lb_a: 'Muallif', lb_open: 'Ochish',
+      ad_title: 'Boshqaruv paneli', ad_over: 'Umumiy', ad_users: 'Foydalanuvchilar', ad_risk: 'Shubhali', ad_rate: 'Reyting', ad_reels: 'Reels', ad_lib: 'Kutubxona', ad_rep: 'Shikoyatlar' },
+    ru: { ph_conf: 'Подтвердить', ph_title: 'Номер телефона', ph_sub: 'Друзья, сохранившие ваш номер, увидят вас в Birga', ph_add: 'Добавить номер', ph_save: 'Сохранить', ph_send: 'Отправить код', ph_code: 'Код из SMS', ph_ok2: 'Номер сохранён', ph_unver: 'не подтверждён', ph_unver_h: 'Пока SMS-сервис не подключён, номер сохраняется без подтверждения. Ваши контакты увидят вас в Birga.', ph_change: 'Изменить', ph_del: 'Удалить номер', ph_sync: 'Найти контакты',
+      mz_pick: 'Отправить музыку', mz_search: 'Поиск музыки', mz_dev: 'Музыка на устройстве', mz_shared: 'Музыка из чатов', mz_files: 'Выбрать из файлов', mz_files_h: 'MP3 и аудиофайлы в памяти телефона', mz_send: 'Отправить ({n})', mz_none: 'Музыка не найдена', mz_perm: 'Разрешите доступ к музыке', mz_app: 'Чтобы видеть всю музыку устройства списком, установите новую версию приложения Birga',
+      p2_title: 'Большой файл', p2_dl: 'Получить', p2_wait: 'Соединение…', p2_off: 'Отправитель сейчас не в сети. Попробуйте, когда он откроет Birga', p2_gone: 'Файл не найден на устройстве отправителя', p2_done: 'Получено ✓', p2_saved: 'Сохранено: Загрузки', p2_note: 'Не загружается на сервер — напрямую с устройства на устройство. Отправитель должен быть в сети.', p2_repick: 'Выбрать файл снова', p2_mine: 'Вы отправили · держите Birga открытым, пока получатель не скачает', p2_err: 'Передача прервалась', p2_play: 'Смотреть',
+      lb_trn: 'Перевод: {l}', lb_orig: 'Оригинал', lb_trw: 'Переводим… (в первый раз до 1 минуты)', lb_add: 'Добавить книгу', lb_add_h: 'Добавляйте только книги, на которые у вас есть права или разрешение автора (TXT, PDF, EPUB).', lb_t: 'Название', lb_a: 'Автор', lb_open: 'Открыть',
+      ad_title: 'Панель управления', ad_over: 'Обзор', ad_users: 'Пользователи', ad_risk: 'Подозрительные', ad_rate: 'Рейтинг', ad_reels: 'Reels', ad_lib: 'Библиотека', ad_rep: 'Жалобы' },
+    en: { ph_conf: 'Confirm', ph_title: 'Phone number', ph_sub: 'Friends who saved your number will see you on Birga', ph_add: 'Add number', ph_save: 'Save', ph_send: 'Send code', ph_code: 'SMS code', ph_ok2: 'Number saved', ph_unver: 'unverified', ph_unver_h: 'Until an SMS service is connected, the number is saved unverified. Your contacts will see you on Birga.', ph_change: 'Change', ph_del: 'Remove number', ph_sync: 'Find contacts',
+      mz_pick: 'Send music', mz_search: 'Search music', mz_dev: 'Music on device', mz_shared: 'Music from chats', mz_files: 'Choose from files', mz_files_h: 'MP3 and audio files on your phone', mz_send: 'Send ({n})', mz_none: 'No music found', mz_perm: 'Allow access to music', mz_app: 'Install the new Birga app version to list all music on the device',
+      p2_title: 'Large file', p2_dl: 'Receive', p2_wait: 'Connecting…', p2_off: 'The sender is offline. Try again when they open Birga', p2_gone: 'The file is no longer on the sender’s device', p2_done: 'Received ✓', p2_saved: 'Saved to Downloads', p2_note: 'Not uploaded to the server — device to device. The sender must be online.', p2_repick: 'Pick the file again', p2_mine: 'Sent by you · keep Birga open until it is downloaded', p2_err: 'Transfer interrupted', p2_play: 'Watch',
+      lb_trn: 'Translation: {l}', lb_orig: 'Original', lb_trw: 'Translating… (first time up to a minute)', lb_add: 'Add book', lb_add_h: 'Only add books you own the rights to or have the author’s permission for (TXT, PDF, EPUB).', lb_t: 'Title', lb_a: 'Author', lb_open: 'Open',
+      ad_title: 'Control panel', ad_over: 'Overview', ad_users: 'Users', ad_risk: 'Suspicious', ad_rate: 'Ranking', ad_reels: 'Reels', ad_lib: 'Library', ad_rep: 'Reports' },
+  };
+  Object.assign(I18N.uz, D.uz); Object.assign(I18N.ru, D.ru); Object.assign(I18N.en, D.en);
+}
+const LANGN = { uz: 'O‘zbekcha', ru: 'Русский', en: 'English', ar: 'العربية', tr: 'Türkçe', kk: 'Қазақша', ky: 'Кыргызча', tg: 'Тоҷикӣ' };
+
+/* ---------- 1) Kontaktlar: profil nomi + oxirgi faollik aniq ko'rinadi ---------- */
+personHTML = function (u) {
+  const seen = u.online ? `<small class="on">● ${esc(t('online'))}</small>` : `<small>${esc(lastSeen(u))}</small>`;
+  const cn = u.contactName && u.contactName !== u.name ? `<span class="pc-cn">${esc(u.contactName)}</span>` : '';
+  return `<div class="person" data-uid="${u.id}">${avatar(u)}<div style="min-width:0;flex:1"><b>${esc(u.name || '')}</b>${cn}${seen}${u.username ? `<small class="pc-un">@${esc(u.username)}</small>` : ''}</div></div>`;
+};
+
+/* ---------- 2) Chat papkalarida o'qilmaganlar soni (Telegram kabi) ---------- */
+{
+  const baseRCL34 = renderChatList;
+  renderChatList = function (...a) {
+    const r = baseRCL34.apply(this, a);
+    try {
+      const all = [...S.chats.values()].filter((c) => !c.archived && c.unread && c.id !== S.current);
+      const put = (el, n, muted) => { if (!el) return; el.querySelector('.chip-n')?.remove(); if (n) el.insertAdjacentHTML('beforeend', `<span class="chip-n${muted ? ' mu' : ''}">${n > 99 ? '99+' : n}</span>`); };
+      put($('#filters [data-f="all"]'), all.length, all.every((c) => c.muted)); const uc = $('#unread-count'); if (uc) uc.textContent = ''; put($('#filters [data-f="unread"]'), all.length, all.every((c) => c.muted));
+      if (typeof Folders !== 'undefined') $$('#filters [data-fld]').forEach((b) => { const f = Folders.list.find((x) => x.id === b.dataset.fld); const l = f ? all.filter((c) => Folders.has(f, c)) : []; put(b, l.length, l.every((c) => c.muted)); });
+    } catch {}
+    return r;
+  };
+  setTimeout(() => { try { renderChatList(); } catch {} }, 1500);
+}
+
+/* ---------- 3) Telefon raqam — Telegram'siz (SMS xizmati ulangan bo'lsa kod bilan) ---------- */
+PhoneLink.paint = function () { const a = $('#ph-t'), v = $('#ph-v'); if (!a) return; a.textContent = t('ph_title'); const n = S.me?.tel || S.me?.phone; v.textContent = n ? fmtPhone(n) + (S.me?.tel && !S.me?.tel_ok && !S.me?.phone ? ' · ' + t('ph_unver') : '') : t('ph_sub'); };
+PhoneLink.open = function () {
+  const cur = S.me?.tel || S.me?.phone || '';
+  modal(`<h3>📞 ${esc(t('ph_title'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><p class="muted tiny">${esc(t('ph_sub'))}</p>
+    <input class="field" id="ph-in" type="tel" inputmode="tel" autocomplete="tel" placeholder="+998 90 123 45 67" value="${esc(cur || '+998')}"><div id="ph-code-w" class="hidden"><input class="field" id="ph-code" inputmode="numeric" maxlength="6" placeholder="${esc(t('ph_code'))}"></div>
+    <p class="err" id="ph-err"></p><button class="btn-primary" id="ph-go">${esc(t('ph_save'))}</button>${S.me?.tel ? `<button class="link-btn danger" id="ph-del" style="margin-top:8px">${esc(t('ph_del'))}</button>` : ''}`);
+  let step = 'num';
+  $('#ph-go').onclick = async () => {
+    const err = $('#ph-err'); err.textContent = '';
+    try {
+      if (step === 'num') {
+        const r = await api('/api/phone/start', { body: { phone: $('#ph-in').value } });
+        if (r.sms) { step = 'code'; $('#ph-code-w').classList.remove('hidden'); $('#ph-go').textContent = t('ph_conf'); if (r.devCode) $('#ph-code').value = r.devCode; $('#ph-code').focus(); return; }
+        S.me = { ...S.me, tel: r.tel, tel_ok: false }; closeModal(); toast(`✅ ${t('ph_ok2')} — ${t('ph_unver')}`, 3500); afterSet(); return;
+      }
+      const r = await api('/api/phone/confirm', { body: { code: $('#ph-code').value } }); S.me = { ...S.me, tel: r.tel, tel_ok: true }; closeModal(); toast('✅ ' + t('ph_ok2'), 3000); afterSet();
+    } catch (e) { err.textContent = e.message; }
+  };
+  $('#ph-del')?.addEventListener('click', async () => { await api('/api/phone/unlink', { body: {} }).catch(() => {}); S.me = { ...S.me, tel: null, tel_ok: false }; closeModal(); afterSet(); });
+  const afterSet = () => { PhoneLink.paint(); if (PP.user?.id === S.me.id && PP.el) renderProfile(PP.el, S.me, PP.opts); try { if (PhoneCt.can()) PhoneCt.sync(false); } catch {} };
+};
+{
+  const baseRP34 = renderProfile;
+  renderProfile = async function (el, user, opts = {}) {
+    const r = await baseRP34(el, user, opts);
+    if (opts.self && el.querySelector('.pp-card') && !el.querySelector('.pp-phone')) {
+      const n = S.me?.phone || S.me?.tel;
+      el.querySelector('.pp-card').insertAdjacentHTML('afterbegin', `<button class="info-row pp-phone" type="button"><small>📞 ${esc(t('phone') || t('ph_title'))}</small>${n ? esc(fmtPhone(n)) + (S.me?.tel && !S.me?.tel_ok && !S.me?.phone ? ` <span class="ph-unv">${esc(t('ph_unver'))}</span>` : '') : `<span class="ph-add">＋ ${esc(t('ph_add'))}</span>`}</button>`);
+      el.querySelector('.pp-phone').onclick = () => PhoneLink.open();
+    }
+    return r;
+  };
+}
+
+/* ---------- 4) Musiqa tanlash — Telegram kabi ro'yxat (qurilmadagi + chatlardagi), qidiruv ---------- */
+const MusicPick = {
+  sel: new Map(), dev: [], shared: [],
+  async open(chatId) {
+    this.chatId = chatId || S.current; this.sel.clear();
+    modal(`<h3>🎵 ${esc(t('mz_pick'))} <button class="icon-btn" data-close>${icon('close')}</button></h3>
+      <input class="field mzp-q" type="search" placeholder="🔍 ${esc(t('mz_search'))}">
+      <button class="mzp-files" type="button"><span>📁</span><div><b>${esc(t('mz_files'))}</b><small>${esc(t('mz_files_h'))}</small></div></button>
+      <div class="mzp-list"><p class="empty-note">…</p></div><button class="btn-primary mzp-send hidden" type="button"></button>`);
+    const card = $('#modal-card');
+    card.querySelector('.mzp-files').onclick = () => { const inp = Object.assign(document.createElement('input'), { type: 'file', multiple: true }); inp.onchange = () => { const fs = [...inp.files]; if (!fs.length) return; closeModal(); fs.forEach((f) => sendMedia(f, 'file', { chatId: this.chatId, meta: { name: f.name } })); }; inp.click(); };
+    card.querySelector('.mzp-q').oninput = () => this.draw();
+    card.querySelector('.mzp-send').onclick = () => this.send();
+    card.querySelector('.mzp-list').onclick = (e) => {
+      const pl = e.target.closest('[data-mzplay]'); const row = e.target.closest('[data-mzk]'); if (!row) return; const it = this.find(row.dataset.mzk); if (!it) return;
+      if (pl) { if (MP.cur()?.id === it.key) return MP.toggle(); return MP.play([{ id: it.key, src: it.src, t: it.t, a: it.a }], 0); }
+      if (this.sel.has(it.key)) this.sel.delete(it.key); else this.sel.set(it.key, it); row.classList.toggle('on', this.sel.has(it.key)); this.btn();
+    };
+    this.shared = []; const seen = new Set();
+    for (const [, list] of S.msgs) for (const m of list || []) if (isMusic(m) && m.file && !seen.has(m.file)) { seen.add(m.file); const tg = m.meta?.music?.t ? m.meta.music : musTags(m.meta?.name); this.shared.push({ key: 's' + m.id, src: mediaSrc(m) || m.file, t: tg.t || m.meta?.name || 'Audio', a: tg.a || '', size: m.size || 0, msg: m }); }
+    this.dev = []; this.devState = 'none';
+    if (window.BirgaNative?.listAudio) {
+      try {
+        if (window.BirgaNative.audioState?.() === 'ask') { this.devState = 'ask'; window.BirgaNative.requestAudio?.(); window.birgaAudioPerm = () => this.open(this.chatId); }
+        else { this.dev = JSON.parse(window.BirgaNative.listAudio(0, 2000) || '[]').map((x) => ({ key: 'd' + x.id, src: location.origin + '/__nat/media/audio/' + x.id, t: x.title || (x.name || '').replace(/\.[^.]+$/, ''), a: x.artist && x.artist !== '<unknown>' ? x.artist : '', dur: x.dur, size: x.size, name: x.name, mime: x.mime })); this.devState = 'ok'; }
+      } catch {}
+    }
+    this.draw();
+  },
+  find(k) { return this.dev.find((x) => x.key === k) || this.shared.find((x) => x.key === k); },
+  btn() { const b = $('#modal-card .mzp-send'); if (!b) return; b.classList.toggle('hidden', !this.sel.size); b.textContent = t('mz_send', { n: this.sel.size }); },
+  draw() {
+    const box = $('#modal-card .mzp-list'); if (!box) return; const q = ($('#modal-card .mzp-q')?.value || '').trim().toLowerCase();
+    const f = (l) => l.filter((x) => !q || (x.t + ' ' + x.a).toLowerCase().includes(q));
+    const row = (x) => `<div class="mzp-row${this.sel.has(x.key) ? ' on' : ''}" data-mzk="${esc(x.key)}"><button class="mzp-pl" data-mzplay type="button">▶</button><div class="mzp-b"><b>${esc(x.t)}</b><small>${esc(x.a || t('mp_unknown'))}${x.dur ? ' · ' + fmtDur(x.dur / 1000) : x.size ? ' · ' + fmtSize(x.size) : ''}</small></div><i class="mzp-ck">✓</i></div>`;
+    const dev = f(this.dev), sh = f(this.shared);
+    box.innerHTML = (this.devState === 'ok' ? `<h4>📱 ${esc(t('mz_dev'))} · ${dev.length}</h4>${dev.map(row).join('') || `<p class="empty-note">${esc(t('mz_none'))}</p>`}` : this.devState === 'ask' ? `<p class="muted tiny">${esc(t('mz_perm'))}</p>` : (IS_NATIVE ? `<p class="muted tiny">${esc(t('mz_app'))}</p>` : ''))
+      + (sh.length ? `<h4>💬 ${esc(t('mz_shared'))} · ${sh.length}</h4>${sh.map(row).join('')}` : '') + (!dev.length && !sh.length && this.devState !== 'ok' ? `<p class="empty-note">${esc(t('mz_none'))}</p>` : '');
+  },
+  async send() {
+    const items = [...this.sel.values()]; const chatId = this.chatId; closeModal();
+    for (const it of items) {
+      if (it.msg) { try { await emitSend({ chatId, type: 'file', file: it.msg.file, size: it.msg.size, mime: it.msg.mime, text: '', meta: { name: it.msg.meta?.name, music: it.msg.meta?.music || musTags(it.msg.meta?.name) } }); } catch { try { const b = await (await fetch(it.src)).blob(); sendMedia(new File([b], it.msg.meta?.name || 'audio.mp3', { type: b.type || 'audio/mpeg' }), 'file', { chatId, meta: { name: it.msg.meta?.name } }); } catch (e) { toast(e.message); } } continue; }
+      try { const b = await (await fetch(it.src)).blob(); const name = it.name || `${it.a ? it.a + ' - ' : ''}${it.t}.mp3`; sendMedia(new File([b], name, { type: it.mime || b.type || 'audio/mpeg' }), 'file', { chatId, meta: { name, music: { t: it.t, a: it.a } } }); } catch (e) { toast(e.message); }
+    }
+  },
+};
+{
+  // biriktirish menyusidagi "Musiqa" endi ro'yxatni ochadi
+  const baseAtt34 = $('#btn-attach').onclick;
+  $('#btn-attach').onclick = (e) => {
+    baseAtt34(e); const b = $('#modal-card [data-at33="mus"]'); if (!b) return;
+    const nb = b.cloneNode(true); b.replaceWith(nb); nb.addEventListener('click', (ev) => { ev.stopPropagation(); MusicPick.open(S.current); });
+  };
+}
+
+/* ---------- 5) Katta fayllar (video, hujjat, ilova — GB'gacha): serverga yuklanmaydi, qurilmadan qurilmaga (WebRTC) ---------- */
+const P2P = {
+  files: new Map(), runs: new Map(), CH: 64 * 1024,
+  limit: () => Math.min((S.config?.maxUploadMb || 50) * 0.9, 38) * 1048576, // 38 MB dan katta fayllar serverga emas, to'g'ridan-to'g'ri
+  sig(to, sid, t, d) { S.socket?.emit('p2p:sig', { to, sid, t, d }); },
+  async offer(file, chatId, replyTo) {
+    const sid = Array.from(crypto.getRandomValues(new Uint8Array(10)), (b) => b.toString(36).padStart(2, '0')).join('').slice(0, 16);
+    this.files.set(sid, file); this.keep(sid, file);
+    try { await emitSend({ chatId, type: 'text', text: `📦 ${file.name || 'file'} · ${fmtSize(file.size)}`, replyTo, meta: { p2p: { id: sid, name: file.name || 'file', size: file.size, mime: file.type || '' } } }); } catch (e) { toast(e.message); }
+  },
+  keep(sid, file) { try { const r = indexedDB.open('birga-p2p', 1); r.onupgradeneeded = () => r.result.createObjectStore('f'); r.onsuccess = () => { try { r.result.transaction('f', 'readwrite').objectStore('f').put(file, sid); } catch {} }; } catch {} },
+  restore(sid) { return new Promise((res) => { try { const r = indexedDB.open('birga-p2p', 1); r.onupgradeneeded = () => r.result.createObjectStore('f'); r.onsuccess = () => { try { const q = r.result.transaction('f').objectStore('f').get(sid); q.onsuccess = () => res(q.result || null); q.onerror = () => res(null); } catch { res(null); } }; r.onerror = () => res(null); } catch { res(null); } }); },
+  async ice() { try { return (await api('/api/ice')).iceServers; } catch { return [{ urls: 'stun:stun.l.google.com:19302' }]; } },
+  ui(sid, st, p) { const el = $(`.p2p[data-p2="${sid}"]`); if (!el) return; const s = el.querySelector('.p2p-st'); if (s) s.textContent = st; const b = el.querySelector('.p2p-bar i'); if (b && p != null) b.style.width = (p * 100).toFixed(1) + '%'; el.classList.toggle('busy', p != null && p < 1); },
+  // qabul qiluvchi
+  async get(m) {
+    const meta = m.meta.p2p; const sid = meta.id; if (this.runs.has(sid)) return;
+    const run = { sid, from: m.sender_id, meta, got: 0, t0: Date.now(), role: 'rx' }; this.runs.set(sid, run); this.ui(sid, t('p2_wait'), 0);
+    run.sink = await this.sink(meta); if (!run.sink) { this.runs.delete(sid); return; }
+    this.sig(run.from, sid, 'req'); run.tm = setTimeout(() => { if (!run.pc) this.fail(sid, t('p2_off')); }, 25000);
+  },
+  async sink(meta) {
+    const N = window.BirgaNative;
+    if (N?.saveBegin) { const id = N.saveBegin(meta.name, meta.mime || 'application/octet-stream'); if (id) return { kind: 'nat', write: async (u8) => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); N.saveChunk(id, btoa(s)); }, close: async () => N.saveEnd(id, false), abort: () => { try { N.saveEnd(id, true); } catch {} } }; }
+    if (window.showSaveFilePicker && !isTouch()) { try { const h = await showSaveFilePicker({ suggestedName: meta.name }); const w = await h.createWritable(); return { kind: 'fs', write: (u8) => w.write(u8), close: () => w.close(), abort: () => w.abort?.() }; } catch (e) { if (e.name === 'AbortError') return null; } }
+    const ctl = navigator.serviceWorker?.controller;
+    if (ctl && meta.size > 200 * 1048576) {
+      const ch = new MessageChannel(); const id = meta.id + Date.now().toString(36);
+      const ready = new Promise((r) => { ch.port1.onmessage = (e) => { if (e.data?.t === 'ready') r(true); }; setTimeout(() => r(false), 3000); });
+      ctl.postMessage({ t: 'p2p-dl', id, name: meta.name, size: meta.size, mime: meta.mime }, [ch.port2]);
+      if (await ready) { const f = Object.assign(document.createElement('iframe'), { hidden: true, src: '/__p2pdl/' + id }); document.body.appendChild(f); setTimeout(() => f.remove(), 120e3);
+        return { kind: 'sw', write: async (u8) => { const b = u8.slice().buffer; ch.port1.postMessage(b, [b]); }, close: async () => ch.port1.postMessage('end'), abort: () => ch.port1.postMessage('abort') }; }
+    }
+    const parts = []; return { kind: 'mem', write: async (u8) => parts.push(u8.slice()), close: async () => { const b = new Blob(parts, { type: meta.mime || 'application/octet-stream' }); parts.length = 0; return b; }, abort: () => (parts.length = 0) };
+  },
+  fail(sid, msg) { const r = this.runs.get(sid); if (!r) return; clearTimeout(r.tm); try { r.pc?.close(); } catch {} if (r.role === 'rx') try { r.sink?.abort(); } catch {} this.runs.delete(sid); this.ui(sid, msg, null); if (r.role === 'rx') toast(msg, 4000); },
+  async pc(run) {
+    const pc = new RTCPeerConnection({ iceServers: await this.ice() }); run.pc = pc;
+    pc.onicecandidate = (e) => { if (e.candidate) this.sig(run.peer, run.sid, 'ice', e.candidate.toJSON()); };
+    pc.onconnectionstatechange = () => { if (['failed', 'closed'].includes(pc.connectionState) && this.runs.get(run.sid) === run && !run.done) this.fail(run.sid, t('p2_err')); };
+    return pc;
+  },
+  async onSig(d) {
+    const sid = d.sid; let run = this.runs.get(sid);
+    if (d.t === 'req') { // men yuboruvchiman
+      let file = this.files.get(sid) || (await this.restore(sid)); if (!file) return this.sig(d.from, sid, 'gone');
+      this.files.set(sid, file); try { this.runs.get(sid)?.pc?.close(); } catch {}
+      run = { sid, peer: d.from, file, role: 'tx', sent: 0 }; this.runs.set(sid, run);
+      const pc = await this.pc(run); const dc = pc.createDataChannel('f', { ordered: true }); dc.binaryType = 'arraybuffer'; dc.bufferedAmountLowThreshold = 1 << 20;
+      dc.onopen = () => this.push(run, dc);
+      await pc.setLocalDescription(await pc.createOffer()); this.sig(d.from, sid, 'offer', pc.localDescription.toJSON()); return;
+    }
+    if (!run) return;
+    if (d.t === 'offer' && run.role === 'rx') {
+      clearTimeout(run.tm); run.peer = d.from; const pc = await this.pc(run);
+      pc.ondatachannel = (e) => { const dc = e.channel; dc.binaryType = 'arraybuffer'; dc.onmessage = (ev) => this.recv(run, ev.data); };
+      await pc.setRemoteDescription(d.d); await pc.setLocalDescription(await pc.createAnswer()); this.sig(d.from, sid, 'ans', pc.localDescription.toJSON()); (run.iq || []).forEach((c) => pc.addIceCandidate(c).catch(() => {})); return;
+    }
+    if (d.t === 'ans' && run.pc) { await run.pc.setRemoteDescription(d.d); (run.iq || []).forEach((c) => run.pc.addIceCandidate(c).catch(() => {})); return; }
+    if (d.t === 'ice') { if (run.pc?.remoteDescription) run.pc.addIceCandidate(d.d).catch(() => {}); else (run.iq ||= []).push(d.d); return; }
+    if (d.t === 'off') return this.fail(sid, t('p2_off'));
+    if (d.t === 'gone') return this.fail(sid, t('p2_gone'));
+  },
+  async push(run, dc) {
+    const f = run.file; dc.send(JSON.stringify({ h: 1, size: f.size, name: f.name, mime: f.type }));
+    let off = 0; const wait = () => new Promise((r) => { if (dc.bufferedAmount < 4 << 20) return r(); dc.onbufferedamountlow = () => { dc.onbufferedamountlow = null; r(); }; });
+    try {
+      while (off < f.size) { if (dc.readyState !== 'open') throw new Error('closed'); await wait(); const buf = await f.slice(off, off + this.CH).arrayBuffer(); dc.send(buf); off += buf.byteLength; if ((off / this.CH) % 32 === 0) this.ui(run.sid, `⬆ ${Math.round((off / f.size) * 100)}%`, off / f.size); }
+      dc.send(JSON.stringify({ end: 1 })); run.done = true; this.ui(run.sid, t('p2_mine'), 1); setTimeout(() => { try { run.pc.close(); } catch {} this.runs.delete(run.sid); }, 15000);
+    } catch { if (!run.done) this.ui(run.sid, t('p2_err'), null); }
+  },
+  async recv(run, data) {
+    if (typeof data === 'string') { const j = JSON.parse(data); if (j.end) { run.done = true; const out = await run.sink.close(); this.runs.delete(run.sid); try { run.pc.close(); } catch {} this.finish(run, out); } return; }
+    run.q = (run.q || Promise.resolve()).then(() => run.sink.write(new Uint8Array(data))); run.got += data.byteLength;
+    const now2 = Date.now(); if (!run.lu || now2 - run.lu > 300) { run.lu = now2; const sp = run.got / Math.max(1, (now2 - run.t0) / 1000); this.ui(run.sid, `⬇ ${Math.round((run.got / run.meta.size) * 100)}% · ${fmtSize(sp)}/s`, run.got / run.meta.size); }
+  },
+  async finish(run, out) {
+    await run.q; this.ui(run.sid, run.sink.kind === 'mem' ? t('p2_done') : t('p2_saved'), 1);
+    if (out instanceof Blob) { const u = URL.createObjectURL(out); P2P.blobs.set(run.sid, u); const a = document.createElement('a'); a.href = u; a.download = run.meta.name; document.body.appendChild(a); a.click(); a.remove(); renderMessages(); }
+  },
+  blobs: new Map(),
+  html(m) {
+    const p = m.meta.p2p; const mine = m.sender_id === S.me.id; const vid = /^video\//.test(p.mime); const b = this.blobs.get(p.id);
+    return `<div class="p2p" data-p2="${esc(p.id)}"><div class="p2p-top"><span class="p2p-ic">${vid ? '🎬' : /^audio\//.test(p.mime) ? '🎵' : /android|apk/.test(p.mime + p.name) ? '📱' : '📦'}</span><div class="p2p-b"><b>${esc(p.name)}</b><small>${fmtSize(p.size)} · ${esc(t('p2_title'))}</small></div>
+      ${mine ? `<button class="p2p-btn ghost" data-p2re="${esc(p.id)}" type="button" title="${esc(t('p2_repick'))}">↻</button>` : b ? (vid ? `<button class="p2p-btn" data-p2play="${esc(p.id)}" type="button">▶ ${esc(t('p2_play'))}</button>` : '') : `<button class="p2p-btn" data-p2get="${m.id}" type="button">⬇ ${esc(t('p2_dl'))}</button>`}</div>
+      <div class="p2p-bar"><i></i></div><small class="p2p-st">${esc(mine ? t('p2_mine') : b ? t('p2_done') : t('p2_note'))}</small></div>`;
+  },
+};
+{
+  const baseSM34 = sendMedia;
+  sendMedia = function (blob, type, extra = {}) {
+    if (blob && blob.size > P2P.limit() && ['video', 'file', 'image'].includes(type)) return P2P.offer(blob instanceof File ? blob : new File([blob], extra.meta?.name || 'video.mp4', { type: blob.type }), extra.chatId || S.current, extra.replyTo);
+    return baseSM34(blob, type, extra);
+  };
+  const baseMI34 = msgInner;
+  msgInner = function (m, c, tail, gap) {
+    const h = baseMI34(m, c, tail, gap); if (m.deleted || m.type !== 'text' || !m.meta?.p2p) return h;
+    return h.replace(/<span class="txt"[^>]*>[\s\S]*?<\/span>(?=<span class="meta)|<div class="txt"[^>]*>[\s\S]*?<\/div>(?=<span class="meta)/, P2P.html(m));
+  };
+  $('#messages').addEventListener('click', async (e) => {
+    const g = e.target.closest('[data-p2get]'), pl = e.target.closest('[data-p2play]'), re = e.target.closest('[data-p2re]'); if (!g && !pl && !re) return; e.stopImmediatePropagation(); e.preventDefault();
+    if (g) { const m = (S.msgs.get(S.current) || []).find((x) => x.id === +g.dataset.p2get); if (m) P2P.get(m); }
+    if (pl) openViewer('video', P2P.blobs.get(pl.dataset.p2play));
+    if (re) { const inp = Object.assign(document.createElement('input'), { type: 'file' }); inp.onchange = () => { const f = inp.files[0]; if (f) { P2P.files.set(re.dataset.p2re, f); P2P.keep(re.dataset.p2re, f); toast('✓'); } }; inp.click(); }
+  }, true);
+  const baseCS34 = connectSocket;
+  connectSocket = async function (...a) { const r = await baseCS34(...a); const s = S.socket; if (s && !s._p2p) { s._p2p = true; s.on('p2p:sig', (d) => P2P.onSig(d).catch(() => {})); } return r; };
+  // preview: chat ro'yxatida
+  const basePV34 = preview; preview = function (m) { if (m && !m.deleted && m.meta?.p2p) return `<span class="tag">📦 ${esc(t('p2_title'))}</span> ${esc(m.meta.p2p.name)}`; return basePV34(m); };
+}
+
+/* ---------- 6) Kutubxona: ilova tilida o'qish (tarjima) + "Asl nusxa"; admin kitob qo'shadi ---------- */
+{
+  const baseRead = Lib.read.bind(Lib);
+  Lib.read = async function (id, ch, y = 0) {
+    if (!this.b || this.b.id !== id) { try { this.b = await api('/api/lib/book?id=' + encodeURIComponent(id)); } catch (er) { return toast(er.message); } }
+    const b = this.b; if (b.file) return window.open(b.file, '_blank');
+    const meta = Object.values(this.lists).flat().find((x) => x.id === id) || {};
+    const lang = b.lang || meta.lang || ''; const tl = lsGet('birga_lib_tl', {});
+    const can = lang && lang !== LANG && id !== 'q' && !id.startsWith('h:');
+    window.__libTo = can && tl[id] !== 'orig' ? LANG : null;
+    await baseRead(id, ch, y); window.__libTo = null;
+    const head = $('#quiz-ov .lb-rh'); if (!can || !head || $('#quiz-ov .lb-tlbar')) return;
+    const on = tl[id] !== 'orig';
+    head.insertAdjacentHTML('afterend', `<div class="lb-trs lb-tlbar"><span>🌐</span><button class="chip${on ? ' on' : ''}" data-ltl="tr">${esc(t('lb_trn', { l: LANGN[LANG] || LANG }))}</button><button class="chip${on ? '' : ' on'}" data-ltl="orig">${esc(t('lb_orig'))} · ${esc(LANGN[lang] || lang)}</button></div>`);
+  };
+  // /api/lib/read so'roviga ?to= qo'shiladi
+  const baseApi34 = api;
+  api = function (url, opts) { if (typeof url === 'string' && url.startsWith('/api/lib/read?') && window.__libTo) { url += '&to=' + encodeURIComponent(window.__libTo); const rd = $('#quiz-ov .lb-reader'); if (rd) rd.innerHTML = `<p class="qz-loading">🌐 ${esc(t('lb_trw'))}</p>`; } return baseApi34(url, opts).then((r) => { if (r && r.trErr) toast(r.trErr, 3500); return r; }); };
+  document.addEventListener('click', (ev) => {
+    const b = ev.target.closest('#quiz-ov [data-ltl], #quiz-ov [data-lbadd], #quiz-ov [data-lbopen]'); if (!b) return; ev.stopPropagation(); ev.preventDefault();
+    if (b.dataset.ltl) { const tl = lsGet('birga_lib_tl', {}); tl[Lib.b.id] = b.dataset.ltl === 'orig' ? 'orig' : 'tr'; lsSet('birga_lib_tl', tl); Lib.read(Lib.b.id, Lib.ch, 0); }
+    if (b.dataset.lbadd != null) LibAdmin.add(Lib.curCat);
+    if (b.dataset.lbopen) window.open(b.dataset.lbopen, '_blank');
+  }, true);
+  const baseCat = Lib.cat.bind(Lib);
+  Lib.cat = async function (k) { await baseCat(k); if (S.me?.isAdmin && !$('#quiz-ov [data-lbadd]')) $('#quiz-ov .lb-q')?.insertAdjacentHTML('afterend', `<button class="btn-ghost lb-addb" data-lbadd type="button">＋ ${esc(t('lb_add'))}</button>`); };
+  const baseBook = Lib.book.bind(Lib);
+  Lib.book = async function (id) { await baseBook(id); if (this.b?.file) { const p = $('#quiz-ov .lb-hd .btn-primary'); if (p) { p.removeAttribute('data-lch'); p.dataset.lbopen = this.b.file; p.textContent = '📄 ' + t('lb_open'); } } };
+}
+const LibAdmin = {
+  add(cat) {
+    modal(`<h3>📚 ${esc(t('lb_add'))} <button class="icon-btn" data-close>${icon('close')}</button></h3><p class="muted tiny">${esc(t('lb_add_h'))}</p>
+      <input class="field" id="lba-t" placeholder="${esc(t('lb_t'))}" maxlength="200"><input class="field" id="lba-a" placeholder="${esc(t('lb_a'))}" maxlength="120">
+      <select class="field" id="lba-c">${Lib.CATS.map(([k]) => `<option value="${k}"${k === cat ? ' selected' : ''}>${esc(t('lb_' + k))}</option>`).join('')}</select>
+      <input class="field" id="lba-f" type="file" accept=".txt,.pdf,.epub,text/plain,application/pdf,application/epub+zip"><p class="err" id="lba-e"></p><button class="btn-primary" id="lba-go">${esc(t('ph_save'))}</button>`);
+    $('#lba-go').onclick = async () => {
+      const f = $('#lba-f').files[0]; if (!f || !$('#lba-t').value.trim()) return ($('#lba-e').textContent = t('lb_t') + ' + 📄');
+      const fd = new FormData(); fd.append('file', f); fd.append('title', $('#lba-t').value.trim()); fd.append('author', $('#lba-a').value.trim()); fd.append('cat', $('#lba-c').value);
+      $('#lba-go').disabled = true; try { await api('/api/admin/lib/upload', { body: fd }); closeModal(); toast('✓'); delete Lib.lists[$('#lba-c').value]; Lib.cat($('#lba-c').value); } catch (e) { $('#lba-e').textContent = e.message; $('#lba-go').disabled = false; }
+    };
+  },
+};
+
+/* ---------- 7) Reels: admin tugmasi faqat YouTube Shorts qo'shadi (AI o'zi video yasamaydi) ---------- */
+setInterval(() => { const b = $('#reels-ai'); if (!b || b._v34) return; b._v34 = true; b.textContent = '📺'; b.title = 'YouTube Shorts'; b.onclick = async () => { toast('📺 …', 1500); try { const r = await api('/api/admin/yt-reel', { body: {} }); if (r?.result) { toast('📺 YouTube Shorts qo‘shildi', 3000); Reels.load(true); } else toast(r?.err || '—', 4000); } catch (e) { toast(e.message); } }; }, 2000);
+
+/* ---------- 8) Admin boshqaruv paneli: birga.onrender.com/admin ---------- */
+const AdminDash = {
+  tab: 'over', sort: 'new', q: '',
+  el() { let e = $('#ad-ov'); if (!e) { document.body.insertAdjacentHTML('beforeend', '<div class="ad-ov hidden" id="ad-ov"></div>'); e = $('#ad-ov'); e.addEventListener('click', (ev) => this.click(ev)); } return e; },
+  open(tab) { if (!S.me?.isAdmin) return toast('403'); const e = this.el(); if (tab) this.tab = tab; if (e.classList.contains('hidden')) { e.classList.remove('hidden'); pushOverlay('admdash'); } this.render(); },
+  close(fromBack) { const e = $('#ad-ov'); if (!e || e.classList.contains('hidden')) return; e.classList.add('hidden'); if (!fromBack) popOverlay('admdash'); if (ADM_PATH) history.replaceState(history.state, '', '/'); },
+  T: [['over', 'ad_over', '📊'], ['users', 'ad_users', '👥'], ['risk', 'ad_risk', '⚠️'], ['rate', 'ad_rate', '🏆'], ['reels', 'ad_reels', '🎬'], ['rep', 'ad_rep', '🚩'], ['lib', 'ad_lib', '📚']],
+  shell(body) { return `<header class="ad-hd"><button class="icon-btn" data-ad="close">${icon('back')}</button><h2>🛡 ${esc(t('ad_title'))}</h2><button class="icon-btn" data-ad="ref">${icon('refresh')}</button></header><nav class="ad-tabs">${this.T.map(([k, n, ic]) => `<button class="${k === this.tab ? 'on' : ''}" data-adt="${k}">${ic} ${esc(t(n))}</button>`).join('')}</nav><div class="ad-body">${body}</div>`; },
+  when: (ts) => (ts ? `${fmtDay(+ts)} ${fmtTime(+ts)}` : '—'),
+  uRow(u) { const rk = u.risk?.score || 0; const reg = u.reg ? [u.reg.city, u.reg.country].filter(Boolean).join(', ') : ''; const dev = u.reg ? [u.reg.model || u.reg.os, u.reg.app].filter(Boolean).join(' · ') : ''; const c = u.c || {};
+    return `<div class="ad-u" data-adu="${u.id}">${avatar({ ...u, online: u.online })}<div class="ad-ub"><b>${esc(u.name)}${u.admin ? ' 🛡' : ''}${u.banned ? ' ⛔' : ''}</b><small>${u.username ? '@' + esc(u.username) + ' · ' : ''}${esc(u.email || fmtPhone(u.phone || u.tel || '') || '')}</small>
+      <small>📝 ${esc(this.when(u.created_at))}${reg ? ' · 📍 ' + esc(reg) : ''}${dev ? ' · 📱 ' + esc(dev) : ''}</small><small>${u.online ? '🟢 onlayn' : '⏱ ' + esc(this.when(u.last_seen))} · 💬 ${c.msgs || 0} · 🖼 ${(c.image || 0) + (c.video || 0)} · 🎤 ${(c.voice || 0) + (c.round || 0)} · 📞 ${c.calls || 0} (${c.callMin || 0} daq) · 🎬 ${u.reels || 0}</small>
+      ${u.risk?.flags?.length ? `<small class="ad-flags">⚠️ ${esc(u.risk.flags.join(' · '))}</small>` : ''}</div><span class="ad-risk r${rk >= 60 ? 3 : rk >= 30 ? 2 : rk ? 1 : 0}">${rk}</span></div>`; },
+  bars(days, k, col) { const mx = Math.max(1, ...days.map((d) => d[k])); return `<div class="ad-bars">${days.map((d) => `<i style="height:${Math.max(2, (d[k] / mx) * 100)}%;background:${col}" title="${d.d}: ${d[k]}"></i>`).join('')}</div>`; },
+  async render() {
+    const e = this.el(); e.innerHTML = this.shell('<p class="qz-loading">…</p>'); const body = () => e.querySelector('.ad-body'); const tab = this.tab;
+    try {
+      if (tab === 'over' || tab === 'rate') {
+        const d = await api('/api/admin/dash'); if (this.tab !== tab) return; const s = d.st;
+        if (tab === 'over') body().innerHTML = `<div class="ad-cards">${[['👥', 'Foydalanuvchilar', s.users], ['🟢', 'Hozir onlayn', s.online], ['🆕', 'Bugun yangi', s.newToday], ['📈', '7 kunda yangi', s.new7], ['🔥', 'Faol (24 soat)', s.active24], ['📅', 'Faol (7 kun)', s.active7], ['💬', 'Xabarlar (bugun)', s.msgsToday], ['🖼', 'Media (bugun)', s.mediaToday], ['📞', 'Qo‘ng‘iroqlar (bugun)', `${s.callsToday} · ${s.callMinToday} daq`], ['👨‍👩‍👧', 'Guruhlar / kanallar', `${s.groups} / ${s.channels}`], ['🎬', 'Reels', s.reels], ['🚩', 'Ochiq shikoyatlar', s.reportsOpen], ['⛔', 'Bloklangan', s.banned]].map(([i, n, v]) => `<div class="ad-card"><span>${i}</span><b>${esc(String(v))}</b><small>${esc(n)}</small></div>`).join('')}</div>
+          <h3>Ro‘yxatdan o‘tish (30 kun)</h3>${this.bars(d.days, 'u', '#3B82F6')}<h3>Xabarlar (30 kun)</h3>${this.bars(d.days, 'm', '#10B981')}
+          <div class="ad-two"><div><h3>📍 Qayerdan ro‘yxatdan o‘tgan</h3>${d.geo.map((x) => `<div class="ad-kv"><span>${esc(x.k)}</span><b>${x.n}</b></div>`).join('')}</div><div><h3>📱 Qurilmalar</h3>${d.dev.map((x) => `<div class="ad-kv"><span>${esc(x.k)}</span><b>${x.n}</b></div>`).join('')}</div></div>
+          <p class="muted tiny">🔒 Maxfiylik: shaxsiy xabarlar matni, shaxsiy rasm/video va qo‘ng‘iroq mazmuni ko‘rsatilmaydi — faqat statistika, ochiq kontent (Reels) va shikoyat qilingan xabarlar.</p>`;
+        else body().innerHTML = `<h3>🔥 Eng faol (7 kun)</h3>${d.activeTop.map((x, i) => `<div class="ad-kv" data-adu="${x.user.id}"><span>${i + 1}. ${esc(x.user.name || '')}</span><b>💬 ${x.msgs} · 📞 ${x.calls}</b></div>`).join('') || '—'}
+          <h3>🎬 Eng ko‘p ko‘rilgan Reels</h3>${d.reelTop.map((x, i) => `<div class="ad-kv"><span>${i + 1}. ${esc(x.user?.name || '')} — ${esc(x.caption || x.kind)}</span><b>👁 ${x.views} · ❤ ${x.likes}</b></div>`).join('') || '—'}`;
+      } else if (tab === 'users' || tab === 'risk') {
+        const r = await api(`/api/admin/people?sort=${tab === 'risk' ? 'risk' : this.sort}&q=${encodeURIComponent(this.q)}`); if (this.tab !== tab) return;
+        const list = tab === 'risk' ? r.users.filter((u) => u.risk.score > 0) : r.users;
+        body().innerHTML = (tab === 'users' ? `<div class="ad-tools"><input class="field" id="ad-q" type="search" placeholder="🔍 ism, @username, email, telefon" value="${esc(this.q)}"><select class="field" id="ad-sort">${[['new', 'Yangilari'], ['seen', 'Oxirgi faol'], ['active', 'Eng ko‘p yozgan'], ['media', 'Ko‘p media'], ['calls', 'Ko‘p qo‘ng‘iroq'], ['risk', 'Shubhali']].map(([k, n]) => `<option value="${k}"${k === this.sort ? ' selected' : ''}>${n}</option>`).join('')}</select></div><p class="muted tiny">Jami: ${r.total} · faollik — so‘nggi 30 kun</p>` : `<p class="muted tiny">Shubhali belgilar: ko‘p shikoyat, ko‘p bloklangan, yangi akkaunt ko‘p odamga yozishi, juda ko‘p xabar, ko‘p qurilma/davlat.</p>`)
+          + (list.map((u) => this.uRow(u)).join('') || '<p class="empty-note">—</p>');
+        const q = $('#ad-q'); if (q) { let tm; q.oninput = () => { clearTimeout(tm); tm = setTimeout(() => { this.q = q.value.trim(); this.render(); }, 400); }; $('#ad-sort').onchange = (ev) => { this.sort = ev.target.value; this.render(); }; }
+      } else if (tab === 'reels') {
+        const [r, yc] = await Promise.all([api('/api/admin/reels'), api('/api/admin/yt/channels').catch(() => ({ channels: [] }))]); if (this.tab !== tab) return;
+        body().innerHTML = `<div class="ad-box"><b>📺 YouTube Shorts</b><small>${r.yt.key ? 'API kalit bor' : 'Kalitsiz (kanallar RSS lentasi)'} · oxirgi: ${esc(this.when(r.yt.last))}${r.yt.err ? ' · ⚠️ ' + esc(r.yt.err) : ''}</small>
+            <div class="ad-tools"><input class="field" id="ad-yt" placeholder="youtube.com/@kanal yoki kanal havolasi"><button class="btn-primary" data-ad="ytadd">＋</button></div>
+            <div class="ad-chs">${yc.channels.map((c) => `<span class="ad-ch${c.err ? ' bad' : ''}" title="${esc(c.err || '')}">${esc(c.name || c.h || c.id)}${c.n != null ? ` · ${c.n}` : ''}<button data-ytdel="${esc(c.id || c.h)}">✕</button></span>`).join('')}</div>
+            <div class="ad-tools"><button class="btn-ghost" data-ad="ytnow">📺 Hozir Shorts qo‘shish</button><button class="btn-ghost danger" data-ad="aidel">🗑 AI yasagan videolarni o‘chirish</button></div><small class="muted">Instagram: avtomatik olish rasmiy ruxsat (API) talab qiladi — Instagram reels havolasini “Reels → ＋ → Instagram/YouTube havola” orqali qo‘shing.</small></div>
+          ${r.items.map((it) => `<div class="ad-u"><div class="ad-rth">${reelThumb(it)}</div><div class="ad-ub"><b>${esc(it.user?.name || '')}${it.ai ? ' · Birga AI' : ''} · ${esc(it.kind)}</b><small>${esc((it.caption || '').slice(0, 120))}</small><small>👁 ${it.views} · ❤ ${it.likes} · 💬 ${it.comments} · ${esc(this.when(it.created_at))}</small></div><button class="btn-ghost danger" data-rdel="${it.id}">🗑</button></div>`).join('')}`;
+      } else if (tab === 'rep') {
+        const l = await api('/api/admin/reports'); if (this.tab !== tab) return;
+        body().innerHTML = l.map((r) => `<div class="ad-u"><div class="ad-ub"><b>🚩 ${esc(r.reason || '')} → ${esc(r.user?.name || '')}</b><small>${esc(r.reporter?.name || '')} · ${esc(this.when(r.created_at))}</small>${r.snapshot?.text ? `<small>“${esc(String(r.snapshot.text).slice(0, 200))}”</small>` : ''}</div><div class="ad-acts"><button class="btn-ghost" data-rep="${r.id}" data-ra="delete_msg">🗑</button><button class="btn-ghost" data-rep="${r.id}" data-ra="ban">⛔</button><button class="btn-ghost" data-rep="${r.id}" data-ra="dismiss">✓</button></div></div>`).join('') || '<p class="empty-note">—</p>';
+      } else if (tab === 'lib') {
+        const s = await api('/api/admin/lib/status'); if (this.tab !== tab) return;
+        body().innerHTML = `<div class="ad-box"><b>📚 Manbalar holati</b>${Object.entries(s.src).map(([k, v]) => `<div class="ad-kv"><span>${v.ok ? '✅' : '❌'} ${esc(k)}</span><b>${esc(String(v.info))}</b></div>`).join('') || '—'}<div class="ad-tools"><button class="btn-ghost" data-ad="librf">🔄 Ro‘yxatlarni yangilash</button><button class="btn-primary" data-ad="libadd">＋ ${esc(t('lb_add'))}</button></div></div>`;
+      }
+    } catch (er) { body().innerHTML = `<p class="empty-note">${esc(er.message)}</p>`; }
+  },
+  async person(id) {
+    let d; try { d = await api('/api/admin/person/' + id); } catch (e) { return toast(e.message); }
+    const u = d.user; const a = d.all || {}, m = d.m30 || {};
+    modal(`<h3>${esc(u.name || '')} <button class="icon-btn" data-close>${icon('close')}</button></h3><div class="ad-pd">${avatar(u)}<div><small>${u.username ? '@' + esc(u.username) : ''} · ID ${u.id}</small><small>${esc(u.email || '')} ${esc(fmtPhone(u.phone || u.tel || ''))}</small><small>📝 ${esc(this.when(u.created_at))}${d.reg ? ` · 📍 ${esc([d.reg.city, d.reg.country].filter(Boolean).join(', '))} · 📱 ${esc([d.reg.model, d.reg.os, d.reg.app].filter(Boolean).join(' · '))}` : ''}</small></div></div>
+      <div class="ad-cards sm">${[['💬', 'Xabar', a.msgs, m.msgs], ['🖼', 'Rasm', a.image, m.image], ['🎬', 'Video', a.video, m.video], ['🎤', 'Ovozli', (a.voice || 0) + (a.round || 0), (m.voice || 0) + (m.round || 0)], ['📎', 'Fayl', a.file, m.file], ['📞', 'Qo‘ng‘iroq', `${a.calls || 0} · ${a.callMin || 0} daq`, m.calls]].map(([i, n, v, v30]) => `<div class="ad-card"><span>${i}</span><b>${esc(String(v || 0))}</b><small>${n} · 30 kun: ${v30 || 0}</small></div>`).join('')}<div class="ad-card"><span>👨‍👩‍👧</span><b>${d.groups}</b><small>guruh</small></div></div>
+      <h4>📱 Qurilmalar va kirishlar</h4>${d.sessions.map((s) => `<div class="ad-kv"><span>${esc([s.model || s.os, s.app].filter(Boolean).join(' · ') || '—')} · ${esc([s.city, s.country].filter(Boolean).join(', '))}${s.revoked ? ' (chiqqan)' : ''}</span><b>${esc(this.when(s.last))}</b></div>`).join('') || '—'}
+      ${d.reports.length ? `<h4>🚩 Shikoyatlar</h4>${d.reports.map((r) => `<div class="ad-kv"><span>${esc(r.reason || '')}</span><b>${esc(r.status)}</b></div>`).join('')}` : ''}
+      ${d.reels.length ? `<h4>🎬 Reels (${d.reels.length})</h4><div class="pp-rgrid">${d.reels.map((it) => `<div class="cell">${reelThumb(it)}<span class="rg-v">👁 ${it.views}</span><button class="ad-rx" data-rdel="${it.id}">🗑</button></div>`).join('')}</div>` : ''}
+      ${u.admin ? '' : `<button class="btn-ghost danger" data-uban="${u.id}" data-on="${u.banned ? 0 : 1}" style="margin-top:10px">${u.banned ? '✅ Blokdan chiqarish' : '⛔ Bloklash'}</button>`}`);
+  },
+  async click(ev) {
+    const b = ev.target.closest('[data-adt],[data-ad],[data-adu],[data-rdel],[data-ytdel],[data-rep],[data-uban]'); if (!b) return; const d = b.dataset;
+    try {
+      if (d.adt) { this.tab = d.adt; return this.render(); }
+      if (d.ad === 'close') return this.close(); if (d.ad === 'ref') return this.render();
+      if (d.adu) return this.person(+d.adu);
+      if (d.rdel) { if (!confirm('O‘chirilsinmi?')) return; await api(`/api/admin/reels/${d.rdel}/delete`, { body: {} }); toast('🗑'); closeModal(); return this.render(); }
+      if (d.ytdel) { await api('/api/admin/yt/channels/remove', { body: { id: d.ytdel } }); return this.render(); }
+      if (d.ad === 'ytadd') { const r = await api('/api/admin/yt/channels', { body: { url: $('#ad-yt').value } }); toast(`✓ ${r.channel.name || r.channel.id} · ${r.channel.n} Shorts`, 3000); return this.render(); }
+      if (d.ad === 'ytnow') { toast('📺 …'); const r = await api('/api/admin/yt-reel', { body: {} }); toast(r.result ? '✓ Shorts qo‘shildi' : r.err || '—', 4000); return this.render(); }
+      if (d.ad === 'aidel') { if (!confirm('Birga AI yasagan barcha videolar o‘chirilsinmi? (YouTube/Instagram qoladi)')) return; const r = await api('/api/admin/reels/delete-ai-videos', { body: {} }); toast('🗑 ' + r.deleted); return this.render(); }
+      if (d.rep) { await api('/api/admin/reports/' + d.rep, { body: { action: d.ra } }); return this.render(); }
+      if (d.ad === 'librf') { await api('/api/admin/lib/refresh', { body: {} }); Lib.lists = {}; toast('✓'); return; }
+      if (d.ad === 'libadd') return LibAdmin.add('uz');
+    } catch (e) { toast(e.message); }
+  },
+};
+document.addEventListener('click', (ev) => { const b = ev.target.closest('#modal-card [data-rdel], #modal-card [data-uban]'); if (!b) return; ev.stopPropagation(); if (b.dataset.rdel) return AdminDash.click(ev); (async () => { try { await api(`/api/admin/users/${b.dataset.uban}/ban`, { body: { on: b.dataset.on === '1' } }); closeModal(); toast('✓'); AdminDash.render(); } catch (e) { toast(e.message); } })(); }, true);
+OV_CLOSE.admdash = () => AdminDash.close(true);
+document.addEventListener('error', (e) => { const el = e.target; if (el?.tagName === 'IMG' && el.closest?.('.lb-cv, .ad-rth, .pp-rgrid, .rm-media')) el.remove(); }, true); // CSP: inline onerror ishlamaydi
+Admin.open = () => AdminDash.open();
+if (ADM_PATH) { const go = (k = 0) => { if (!S.me) return k < 200 && setTimeout(() => go(k + 1), 600); if (S.me.isAdmin) AdminDash.open(); else toast('🛡 403'); }; setTimeout(go, 800); }
+
+document.head.insertAdjacentHTML('beforeend', `<style>
+.bottom-nav{display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr));gap:2px 2px;overflow:visible!important;mask-image:none!important;-webkit-mask-image:none!important;padding:4px 4px calc(4px + env(safe-area-inset-bottom))!important}
+.bottom-nav button{min-width:0!important;max-width:none!important;padding:4px 0 3px!important;font-size:10.5px!important;gap:1px!important}.bottom-nav .nb{height:24px!important;width:40px!important}.bottom-nav .nb svg{width:22px!important;height:22px!important}.bottom-nav .nb .av{width:23px;height:23px}
+.chip-n{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 5px;margin-left:6px;border-radius:10px;background:var(--blue,#3B82F6);color:#fff;font-size:11.5px;font-weight:800;line-height:1}.chip-n.mu{background:#94A3B8}.chip.on .chip-n{background:#fff;color:var(--blue,#3B82F6)}
+.person .pc-cn{display:block;font-size:12px;color:var(--muted);margin-top:-1px}.person small.on{color:#22C55E;font-weight:700}.person .pc-un{display:block;opacity:.7}
+.pp-phone{width:100%;text-align:left;background:none;color:inherit;cursor:pointer;display:block}.pp-phone .ph-add{color:var(--blue,#3B82F6);font-weight:700}.ph-unv{font-size:11px;background:#F59E0B22;color:#B45309;padding:1px 6px;border-radius:8px;margin-left:6px}
+.mzp-files{display:flex;align-items:center;gap:12px;width:100%;padding:10px 12px;margin:8px 0;border-radius:14px;background:rgba(59,130,246,.1);color:inherit;text-align:left}.mzp-files span{font-size:26px}.mzp-files small{display:block;opacity:.7}
+.mzp-list{max-height:52vh;overflow:auto}.mzp-list h4{margin:10px 2px 4px;font-size:13px;opacity:.7}.mzp-row{display:flex;align-items:center;gap:10px;padding:6px 4px;border-radius:12px;cursor:pointer}.mzp-row.on{background:rgba(59,130,246,.12)}
+.mzp-pl{width:42px;height:42px;border-radius:50%;flex:none;background:var(--grad,#3B82F6);color:#fff;font-size:15px}.mzp-b{flex:1;min-width:0}.mzp-b b,.mzp-b small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mzp-b small{opacity:.65;font-size:12px}
+.mzp-ck{width:24px;height:24px;border-radius:50%;border:2px solid #CBD5E1;display:grid;place-items:center;font-style:normal;color:transparent;font-size:13px;flex:none}.mzp-row.on .mzp-ck{background:var(--blue,#3B82F6);border-color:var(--blue,#3B82F6);color:#fff}.mzp-send{margin-top:8px;width:100%}
+.p2p{min-width:240px;max-width:300px}.p2p-top{display:flex;align-items:center;gap:10px}.p2p-ic{font-size:30px}.p2p-b{flex:1;min-width:0}.p2p-b b,.p2p-b small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.p2p-b small{opacity:.7;font-size:12px}
+.p2p-btn{padding:7px 12px;border-radius:12px;background:var(--grad,#3B82F6);color:#fff;font-weight:700;font-size:13px;white-space:nowrap}.p2p-btn.ghost{background:rgba(127,127,127,.18);color:inherit}.msg.out .p2p-btn{background:#fff;color:var(--blue,#3B82F6)}
+.p2p-bar{height:4px;border-radius:2px;background:rgba(127,127,127,.25);margin:8px 0 4px;overflow:hidden}.p2p-bar i{display:block;height:100%;width:0;background:#22C55E;transition:width .3s}.p2p-st{display:block;font-size:11.5px;opacity:.75}
+.lb-addb{margin:0 0 12px;width:100%}
+.ad-ov{position:fixed;inset:0;z-index:62;background:var(--bg);color:var(--text);display:flex;flex-direction:column}.ad-ov.hidden{display:none}.ad-hd{display:flex;align-items:center;gap:8px;padding:calc(env(safe-area-inset-top) + 8px) 10px 8px;border-bottom:1px solid var(--line)}.ad-hd h2{flex:1;margin:0;font-size:18px}
+.ad-tabs{display:flex;gap:6px;overflow-x:auto;padding:8px 10px;border-bottom:1px solid var(--line)}.ad-tabs button{white-space:nowrap;padding:7px 12px;border-radius:14px;background:rgba(127,127,127,.1);color:inherit;font-weight:700;font-size:13px}.ad-tabs button.on{background:var(--blue,#3B82F6);color:#fff}
+.ad-body{flex:1;overflow:auto;padding:12px 12px 60px;max-width:1100px;width:100%;margin:0 auto;box-sizing:border-box}.ad-body h3{margin:18px 0 8px;font-size:15px}
+.ad-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}.ad-cards.sm{grid-template-columns:repeat(auto-fill,minmax(110px,1fr));margin:10px 0}.ad-card{background:var(--panel,#fff);border:1px solid var(--line);border-radius:14px;padding:10px;display:flex;flex-direction:column;gap:2px}.ad-card span{font-size:20px}.ad-card b{font-size:20px}.ad-card small{opacity:.7;font-size:12px}
+.ad-bars{display:flex;align-items:flex-end;gap:2px;height:90px;padding:6px;border:1px solid var(--line);border-radius:12px;background:var(--panel,#fff)}.ad-bars i{flex:1;border-radius:3px 3px 0 0;min-width:3px}
+.ad-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}.ad-kv{display:flex;justify-content:space-between;gap:10px;padding:6px 8px;border-bottom:1px solid var(--line);font-size:13.5px;cursor:default}.ad-kv[data-adu]{cursor:pointer}.ad-kv span{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.ad-tools{display:flex;gap:8px;margin:8px 0;flex-wrap:wrap}.ad-tools .field{flex:1;min-width:160px;margin:0}.ad-u{display:flex;align-items:flex-start;gap:10px;padding:10px 6px;border-bottom:1px solid var(--line);cursor:pointer}.ad-ub{flex:1;min-width:0}.ad-ub b{display:block}.ad-ub small{display:block;opacity:.75;font-size:12px;line-height:1.45}.ad-flags{color:#DC2626;opacity:1!important;font-weight:600}
+.ad-risk{min-width:34px;height:26px;border-radius:13px;display:grid;place-items:center;font-weight:800;font-size:12px;background:#E2E8F0;color:#334155}.ad-risk.r1{background:#FEF3C7;color:#92400E}.ad-risk.r2{background:#FED7AA;color:#9A3412}.ad-risk.r3{background:#FECACA;color:#991B1B}
+.ad-box{background:var(--panel,#fff);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:12px}.ad-box>small{display:block;opacity:.75;margin-top:2px}.ad-chs{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}.ad-ch{background:rgba(127,127,127,.12);border-radius:12px;padding:4px 4px 4px 10px;font-size:12.5px}.ad-ch.bad{background:#FEE2E2}.ad-ch button{margin-left:4px;background:none;color:inherit;opacity:.6}
+.ad-rth{width:54px;height:90px;border-radius:8px;overflow:hidden;background:#111;flex:none}.ad-rth video,.ad-rth img,.ad-rth .rt-ig{width:100%;height:100%;object-fit:cover}.ad-acts{display:flex;gap:4px}.btn-ghost.danger{color:#DC2626}
+.ad-pd{display:flex;gap:12px;align-items:center}.ad-pd small{display:block;opacity:.75;font-size:12px}.ad-rx{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.55);color:#fff;border-radius:8px;padding:2px 6px}
 </style>`);
 
 boot();

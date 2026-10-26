@@ -2664,6 +2664,7 @@ function cleanMeta(meta) {
   if (meta.group === 1 && meta._srv === AI_SECRET) Object.assign(o, { group: 1, gid: String(meta.gid || ''), status: String(meta.status || ''), video: !!meta.video });
   if (meta.reel && Number.isInteger(Number(meta.reel.id)) && Number(meta.reel.id) > 0) o.reel = { id: Number(meta.reel.id) }; // chatga yuborilgan Reels
   if (meta.p2p && typeof meta.p2p === 'object' && /^[a-z0-9]{8,32}$/.test(String(meta.p2p.id))) o.p2p = { id: String(meta.p2p.id), name: String(meta.p2p.name || 'file').slice(0, 200), size: Math.max(0, Math.min(1e13, Math.round(Number(meta.p2p.size) || 0))), mime: String(meta.p2p.mime || '').slice(0, 100) }; // katta fayl: to'g'ridan-to'g'ri (serverga yuklanmaydi)
+  if (meta.big === 1 && Array.isArray(meta.parts)) { const parts = meta.parts.filter((u) => storage.isOurs(u)).slice(0, 700); if (parts.length) Object.assign(o, { big: 1, parts, vid: meta.vid ? 1 : 0, bmime: String(meta.bmime || '').slice(0, 100) }); } // katta fayl bo'laklari
   if (meta.music && typeof meta.music === 'object') o.music = { t: String(meta.music.t || '').slice(0, 120), a: String(meta.music.a || '').slice(0, 80) }; // musiqa
   if (meta.game && typeof meta.game === 'object' && MP_GAMES.has(meta.game.g) && /^[a-f0-9]{12}$/.test(String(meta.game.room))) o.game = { g: meta.game.g, room: meta.game.room };
   for (const k of ['w', 'h']) { const v = Math.round(Number(meta[k])); if (v > 0 && v <= 20000) o[k] = v; }
@@ -3813,7 +3814,7 @@ const YT = { busy: false, last: 0, err: null };
 // ---------- YouTube Shorts — kalitsiz: kanallarning ochiq RSS lentasi (faqat Shorts pleylisti UUSH…) ----------
 // Admin kanallarni qo'shadi/o'chiradi (Admin panel → Reels). Video YouTube'ning rasmiy pleyerida, belgisi va havolasi bilan ko'rsatiladi.
 const YT_BASE = () => process.env.YT_WEB_BASE || 'https://www.youtube.com';
-const YT_SEED_V = 4;
+const YT_SEED_V = 5;
 const YT_SEED = [
   { id: 'UCX6OQ3DkcsbYNE6H8uQQuVA', name: 'MrBeast' }, { id: 'UCpVm7bg6pXKo1Pr6k5kxG9A', name: 'National Geographic' }, { id: 'UCsXVk37bltHxD1rDPwtNM8Q', name: 'Kurzgesagt' },
   { id: 'UCLA_DiR1FfKNvjuUpBHmylQ', name: 'NASA' }, { id: 'UCAuUUnT6oDeKwE6v1NGQxug', name: 'TED' },
@@ -3826,7 +3827,7 @@ async function ytChannels() {
   const r = await db.get("SELECT v FROM meta WHERE k='yt_channels'"); let l = null; if (r?.v) { try { l = JSON.parse(r.v); } catch {} }
   if (!l) return YT_SEED.map((x) => ({ ...x }));
   const sv = Number((await db.get("SELECT v FROM meta WHERE k='yt_seed_v'"))?.v || 1);
-  if (sv < YT_SEED_V) { if (sv < 4) l = l.filter((y) => y.id); /* topilmagan eski nomlar o'rniga egasi yozgan aniq nomlar */ for (const x of YT_SEED) if (!l.some((y) => (x.id && y.id === x.id) || (x.q && ytNorm(y.q || '') === ytNorm(x.q)))) l.push({ ...x }); await ytSaveCh(l); await db.run("INSERT INTO meta(k,v) VALUES('yt_seed_v',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", [String(YT_SEED_V)]); }
+  if (sv < YT_SEED_V) { if (sv < 5) l = l.filter((y) => !y.q || !y.id || ytMatch(y.q, y)).map((y) => (y.q && !y.id ? { q: y.q } : y)); /* noto'g'ri topilganlar qayta qidiriladi */ if (sv < 4) l = l.filter((y) => y.id); /* topilmagan eski nomlar o'rniga egasi yozgan aniq nomlar */ for (const x of YT_SEED) if (!l.some((y) => (x.id && y.id === x.id) || (x.q && ytNorm(y.q || '') === ytNorm(x.q)))) l.push({ ...x }); await ytSaveCh(l); await db.run("INSERT INTO meta(k,v) VALUES('yt_seed_v',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", [String(YT_SEED_V)]); }
   return l;
 }
 const ytSaveCh = (l) => db.run("INSERT INTO meta(k,v) VALUES('yt_channels',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", [JSON.stringify(l.slice(0, 100))]);
@@ -3835,28 +3836,40 @@ const YTI_CTX = { client: { clientName: 'WEB', clientVersion: '2.20240814.00.00'
 const ytI = async (ep, body) => { const r = await fetch(`${YT_BASE()}/youtubei/v1/${ep}?prettyPrint=false`, { method: 'POST', headers: { ...YTH, 'Content-Type': 'application/json', Origin: 'https://www.youtube.com', 'X-Youtube-Client-Name': '1', 'X-Youtube-Client-Version': YTI_CTX.client.clientVersion }, body: JSON.stringify({ context: YTI_CTX, ...body }), signal: AbortSignal.timeout(15000) }); if (!r.ok) throw new Error('youtubei ' + ep + ' ' + r.status); return r.json(); };
 const ytFindChannels = (o, out = []) => { if (!o || typeof o !== 'object' || out.length > 10) return out; if (o.channelRenderer?.channelId) { const c = o.channelRenderer; out.push({ id: c.channelId, name: c.title?.simpleText || c.title?.runs?.[0]?.text || '', h: (c.navigationEndpoint?.browseEndpoint?.canonicalBaseUrl || '').replace(/^\//, '') || undefined, subs: c.subscriberCountText?.simpleText || c.videoCountText?.simpleText || '' }); } for (const k in o) if (o[k] && typeof o[k] === 'object') ytFindChannels(o[k], out); return out; };
 const ytNorm = (s) => String(s).toLowerCase().normalize('NFKD').replace(/[^a-zа-яё0-9]/gi, '');
+const ytLat = (s) => String(s).toLowerCase().replace(/[ʻ'‘’`]/g, '').replace(/kh/g, 'x').replace(/w/g, 'v').replace(/ph/g, 'f').replace(/oo/g, 'u').replace(/h/g, 'x').replace(/[^a-z0-9а-яё ]/g, ' ');
+// qidiruv natijasi so'ralgan nomga mosmi (noto'g'ri kanal qo'shilmasin)
+const ytMatch = (q, c) => { const hay = ytLat((c.name || '') + ' ' + (c.h || '')).replace(/\s+/g, ''); const words = ytLat(q).split(/\s+/).filter((w) => w.length >= 3 && !['uz', 'tv', 'official', 'channel'].includes(w)); if (!words.length) return true; const hit = words.filter((w) => hay.includes(w) || (w.length >= 5 && hay.includes(w.slice(0, -1)))).length; return hit >= Math.ceil(words.length / 2); };
 async function ytSearchChannel(q) {
-  try { const j = await ytI('search', { query: q, params: 'EgIQAg%3D%3D' }); const l = ytFindChannels(j); if (l.length) { const n = ytNorm(q); return l.find((c) => ytNorm(c.name).includes(n) || n.includes(ytNorm(c.name))) || l[0]; } } catch (e) { console.error('YT qidiruv (innertube):', q, e.message); }
+  try { const j = await ytI('search', { query: q, params: 'EgIQAg%3D%3D' }); const l = ytFindChannels(j); if (l.length) return l.find((c) => ytMatch(q, c)) || null; } catch (e) { console.error('YT qidiruv (innertube):', q, e.message); }
   const r = await fetch(`${YT_BASE()}/results?search_query=${encodeURIComponent(q)}&sp=EgIQAg%253D%253D&hl=en&gl=US&persist_gl=1`, { headers: { ...YTH, Cookie: 'SOCS=CAESEwgDEgk0ODE3Nzk3MjQaAmVuIAEaBgiA_LyaBg; CONSENT=YES+cb' }, signal: AbortSignal.timeout(15000) });
   const t = await r.text(); if (/consent\.youtube\.com/.test(r.url)) throw new Error('YouTube rozilik sahifasi');
   const k = t.indexOf('"channelRenderer"'); const seg = k >= 0 ? t.slice(k, k + 3000) : '';
   const id = (/"channelId":"(UC[\w-]{22})"/.exec(seg) || [])[1]; if (!id) return null;
-  return { id, name: libEnt((/"title":\{"simpleText":"([^"]+)"/.exec(seg) || [])[1] || q), h: (/"canonicalBaseUrl":"\/(@[^"]+)"/.exec(seg) || [])[1] };
+  const c = { id, name: libEnt((/"title":\{"simpleText":"([^"]+)"/.exec(seg) || [])[1] || q), h: (/"canonicalBaseUrl":"\/(@[^"]+)"/.exec(seg) || [])[1] }; return ytMatch(q, c) ? c : null;
 }
 // havola/@handle/UC… → kanal ID
 async function ytResolve(input) {
-  const s = String(input || '').trim(); let m = /(UC[\w-]{22})/.exec(s); if (m) return { id: m[1] };
-  m = /(?:youtube\.com\/)?(@[\w.\-]{2,60})/i.exec(s) || /youtube\.com\/(c\/[\w.\-]+|user\/[\w.\-]+)/i.exec(s);
-  if (!m) { // kanal nomi — YouTube qidiruvi (faqat kanallar)
-    if (s.length < 2) throw new Error('Kanal havolasi, @nom yoki kanal nomi kerak');
-    const c = await ytSearchChannel(s); if (!c) throw new Error('Kanal topilmadi: ' + s);
-    return { id: c.id, name: c.name || s, h: c.h, q: s };
+  let s = String(input || '').trim(); try { s = decodeURIComponent(s); } catch {}
+  let m = /(UC[\w-]{22})/.exec(s); if (m) { let name; try { const r = await ytGet(`${YT_BASE()}/feeds/videos.xml?channel_id=${m[1]}`); name = libEnt((/<author>\s*<name>([^<]+)<\/name>/.exec(r.text || '') || [])[1] || '') || undefined; } catch {} return { id: m[1], name }; }
+  const isUrl = /^(https?:\/\/)?([\w-]+\.)?(youtube\.com|youtu\.be)\//i.test(s);
+  // video/Shorts havolasi → shu videoning kanali
+  const vid = (/(?:youtu\.be\/|[?&]v=|\/shorts\/|\/live\/|\/embed\/)([\w-]{11})/.exec(s) || [])[1];
+  if (vid) { try { const j = await ytI('player', { videoId: vid }); const d = j?.videoDetails; if (/^UC[\w-]{22}$/.test(d?.channelId || '')) return { id: d.channelId, name: d.author || '' }; } catch (e) { console.error('YT player:', e.message); } }
+  // @handle, /c/nom, /user/nom yoki youtube.com/nom
+  let path = (/(@[^\s\/?#&]{2,100})/u.exec(s) || [])[1];
+  if (!path && isUrl) { const u = /youtube\.com\/((?:c|user)\/[^\s\/?#&]+|[^\s\/?#&]{3,100})/i.exec(s); if (u && !/^(watch|shorts|live|embed|playlist|results|feed|channel)$/i.test(u[1])) path = u[1]; }
+  if (path) {
+    try { const j = await ytI('navigation/resolve_url', { url: 'https://www.youtube.com/' + encodeURI(path) }); const id = j?.endpoint?.browseEndpoint?.browseId; if (/^UC[\w-]{22}$/.test(id || '')) return { id, name: path.replace(/^(c|user)\//, ''), h: path.startsWith('@') ? path : undefined }; } catch (e) { console.error('YT resolve_url:', path, e.message); }
+    try { const r = await fetch(`${YT_BASE()}/${encodeURI(path)}?hl=en&gl=US`, { headers: { ...YTH, Cookie: 'SOCS=CAESEwgDEgk0ODE3Nzk3MjQaAmVuIAEaBgiA_LyaBg; CONSENT=YES+cb' }, signal: AbortSignal.timeout(15000) }); const t = await r.text();
+      const id = (/"externalId":"(UC[\w-]{22})"/.exec(t) || /<link rel="canonical" href="https:\/\/www\.youtube\.com\/channel\/(UC[\w-]{22})"/.exec(t) || /"browseId":"(UC[\w-]{22})"/.exec(t) || [])[1];
+      if (id) return { id, name: libEnt((/<meta property="og:title" content="([^"]+)"/.exec(t) || [])[1] || path), h: path.startsWith('@') ? path : undefined }; } catch (e) { console.error('YT sahifa:', path, e.message); }
+    const c = await ytSearchChannel(path.replace(/^@|^(c|user)\//, '')).catch(() => null); if (c) return { id: c.id, name: c.name, h: c.h || (path.startsWith('@') ? path : undefined) };
+    throw new Error('Kanal topilmadi: ' + path + ' — kanalning “youtube.com/channel/UC…” havolasini yoki uning biror videosi havolasini yuboring');
   }
-  try { const j = await ytI('navigation/resolve_url', { url: 'https://www.youtube.com/' + m[1] }); const id = j?.endpoint?.browseEndpoint?.browseId; if (/^UC[\w-]{22}$/.test(id || '')) return { id, name: m[1], h: m[1].startsWith('@') ? m[1] : undefined }; } catch {}
-  const r = await ytGet(`${YT_BASE()}/${m[1]}`); if (!r.text) throw new Error('Kanal topilmadi (' + r.status + ')');
-  const id = (/"externalId":"(UC[\w-]{22})"/.exec(r.text) || /"channelId":"(UC[\w-]{22})"/.exec(r.text) || /channel\/(UC[\w-]{22})/.exec(r.text) || [])[1]; if (!id) throw new Error('Kanal ID topilmadi');
-  const name = libEnt((/<meta property="og:title" content="([^"]+)"/.exec(r.text) || [])[1] || m[1]);
-  return { id, name, h: m[1].startsWith('@') ? m[1] : undefined };
+  if (isUrl) throw new Error('Havoladan kanal aniqlanmadi — kanal sahifasi (youtube.com/@nom) yoki video havolasini yuboring');
+  if (s.length < 2) throw new Error('Kanal havolasi, @nom yoki kanal nomi kerak');
+  const c = await ytSearchChannel(s); if (!c) throw new Error('Kanal topilmadi: ' + s);
+  return { id: c.id, name: c.name || s, h: c.h, q: s };
 }
 const ytParseFeed = (x) => [...String(x).matchAll(/<entry>([\s\S]*?)<\/entry>/g)].map((e) => { const b = e[1]; const g = (re) => libEnt((re.exec(b) || [])[1] || ''); return { id: g(/<yt:videoId>([\w-]{11})<\/yt:videoId>/), t: g(/<title>([\s\S]*?)<\/title>/), ch: g(/<name>([\s\S]*?)<\/name>/), views: Number(g(/views="(\d+)"/)) || 0, at: Date.parse(g(/<published>([^<]+)<\/published>/)) || 0 }; }).filter((v) => v.id);
 const YTF = new Map(); // kanal -> { at, list }
@@ -3906,7 +3919,7 @@ async function ytRss(force) {
 }
 app.get('/api/admin/yt/channels', auth, adminOnly, wrap(async (req, res) => res.json({ channels: await ytChannels(), key: !!process.env.YOUTUBE_API_KEY, err: YT.err, last: YT.last })));
 app.post('/api/admin/yt/channels', auth, adminOnly, wrap(async (req, res) => {
-  let ch; try { ch = await ytResolve(req.body?.url); } catch (e) { return res.status(400).json({ error: e.message }); }
+  let ch; try { ch = await ytResolve(req.body?.url); } catch (e) { console.error('YT kanal qo‘shib bo‘lmadi:', String(req.body?.url || '').slice(0, 200), '—', e.message); return res.status(400).json({ error: e.message }); }
   const l = await ytChannels(); if (!l.some((x) => x.id === ch.id)) l.unshift(ch); await ytSaveCh(l); YTF.delete(ch.id);
   let n = 0; try { n = (await ytFeed(ch)).length; } catch {}
   res.json({ ok: true, channel: { ...ch, n }, channels: l });

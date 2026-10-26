@@ -298,6 +298,7 @@ function passLocked(uid) { const f = passFails.get(uid); return f && f.n >= 5 &&
 function passFail(uid) { const f = passFails.get(uid); const n = f && Date.now() - f.at < 15 * 60e3 ? f.n + 1 : 1; passFails.set(uid, { n, at: Date.now() }); }
 // login muvaffaqiyatli: kod qo'yilgan bo'lsa token o'rniga 10 daqiqalik "chipta" beriladi
 function finishLogin(req, res, user, isNew) {
+  if (PFLAGS.regClosed && !user.name) return res.status(403).json({ error: tr(req.body?.lang, 'Yangi ro‘yxatdan o‘tish vaqtincha yopilgan', 'Регистрация временно закрыта', 'Registration is temporarily closed') });
   if (user.banned) return res.status(403).json({ error: tr(req.body?.lang, 'Bu akkaunt qoidalarni buzgani uchun bloklangan', 'Этот аккаунт заблокирован за нарушение правил', 'This account has been banned for violating the rules') });
   if (user.pass_hash) {
     const ticket = jwt.sign({ t2: user.id }, JWT_SECRET, { expiresIn: '10m' });
@@ -1233,7 +1234,8 @@ app.post('/api/reports', auth, rateLimit('report', 30, 3600e3), wrap(async (req,
 }));
 
 // ===== Admin panel (faqat ADMIN_EMAILS) =====
-const adminOnly = (req, res, next) => (isAdminUser(req.user) ? next() : res.status(403).json({ error: 'forbidden' }));
+const adminOnly = (req, res, next) => (isAdminUser(req.user) || req.user?._panel ? next() : res.status(403).json({ error: 'forbidden' }));
+const panelOnly = (req, res, next) => (req.user?._panel ? next() : res.status(403).json({ error: 'faqat egasi paneli' }));
 app.get('/api/admin/stats', auth, adminOnly, wrap(async (req, res) => {
   const t = now(), day = 864e5;
   const one = async (sql, p = []) => Number((await db.get(sql, p))?.c) || 0;
@@ -2372,19 +2374,18 @@ async function panelUser(req) {
   try {
     const p = jwt.verify(tk, JWT_SECRET); if (!p.pnl) return null;
     const { v } = await panelCodeRow(); if (Number(p.v) !== v) return null;
-    for (const e of ADMIN_EMAILS) { const u = await db.get('SELECT * FROM users WHERE LOWER(email)=? ORDER BY id LIMIT 1', [e]); if (u) return { ...u, _panel: true }; }
-    return { id: 0, email: ADMIN_EMAILS[0], name: 'Panel', _panel: true };
+    return { id: 0, name: 'Egasi', email: '', _panel: true }; // hech qaysi akkauntga bog'lanmagan
   } catch { return null; }
 }
 const panelLog = (req, ok, note) => { PANEL.log.push({ at: now(), ip: req.ip, ok, note: note || '', ua: String(req.get('user-agent') || '').slice(0, 120) }); if (PANEL.log.length > 200) PANEL.log.shift(); };
-app.get('/panel', (req, res) => { res.set('Cache-Control', 'no-store').set('X-Robots-Tag', 'noindex').type('html').send(`<!doctype html><html lang="uz"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Birga — nazorat paneli</title><link rel="icon" href="/icons/icon-192.png"><style>${PANEL_CSS}</style></head><body><div id="app"></div><script src="/panel.js?v=${APP_VERSION}"></script></body></html>`); });
+app.get(['/panel', '/boshqaruv', '/owner'], (req, res) => { res.set('Cache-Control', 'no-store').set('X-Robots-Tag', 'noindex').type('html').send(`<!doctype html><html lang="uz"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>BIRGA — Egasi paneli</title><link rel="icon" href="/icons/icon-192.png"><style>${PANEL_CSS}</style></head><body><div id="app"></div><script src="/panel.js?v=${APP_VERSION}"></script></body></html>`); });
 app.get('/panel.js', (req, res) => { res.set('Cache-Control', 'no-store').type('application/javascript').send(`(${panelClient.toString()})();`); });
 app.post('/api/panel/login', wrap(async (req, res) => {
   const ip = req.ip || '?'; const t = PANEL.tries.get(ip) || { n: 0, at: now() }; if (now() - t.at > 15 * 60e3) { t.n = 0; t.at = now(); }
   if (t.n >= 5) { panelLog(req, false, 'bloklangan'); return res.status(429).json({ error: 'Ko‘p noto‘g‘ri urinish. 15 daqiqadan so‘ng urinib ko‘ring' }); }
   const code = String(req.body?.code || ''); const { h, v } = await panelCodeRow();
-  const envOk = process.env.PANEL_CODE && process.env.PANEL_CODE.length >= 8 && code.length === process.env.PANEL_CODE.length && crypto.timingSafeEqual(Buffer.from(code), Buffer.from(process.env.PANEL_CODE));
-  if (!h && !process.env.PANEL_CODE) return res.status(400).json({ error: 'Panel kodi hali o‘rnatilmagan. Birga ilovasida admin akkaunt bilan kiring → Boshqaruv paneli → 🔐 Panel kodi.' });
+  const EK = process.env.OWNER_KEY || process.env.PANEL_CODE || ''; const envOk = !h && EK.length >= 8 && Buffer.byteLength(code) === Buffer.byteLength(EK) && crypto.timingSafeEqual(Buffer.from(code), Buffer.from(EK));
+  if (!h && !(process.env.OWNER_KEY || process.env.PANEL_CODE)) return res.status(400).json({ error: 'Kirish kodi hali o‘rnatilmagan: Render → Environment → OWNER_KEY qo‘shing (kamida 8 belgi).' });
   let ok = false; try { ok = envOk || (!!h && checkPass(code, h)); } catch {}
   if (!ok) { t.n++; PANEL.tries.set(ip, t); panelLog(req, false, 'noto‘g‘ri kod'); await sleep(600); return res.status(401).json({ error: 'Kod noto‘g‘ri' }); }
   PANEL.tries.delete(ip); panelLog(req, true, 'kirdi');
@@ -2393,13 +2394,14 @@ app.post('/api/panel/login', wrap(async (req, res) => {
 }));
 app.post('/api/panel/logout', (req, res) => { res.clearCookie('birga_p', { path: '/' }); res.json({ ok: true }); });
 app.get('/api/panel/me', auth, adminOnly, (req, res) => res.json({ ok: true, name: req.user.name, panel: !!req.user._panel }));
-// kodni o'rnatish/almashtirish — faqat ilovaga kirgan admin (yoki panelda turib eski kod bilan)
-app.post('/api/panel/code', auth, adminOnly, wrap(async (req, res) => {
-  const code = String(req.body?.code || '');
-  if (code.length < 8 || !/\D/.test(code) && code.length < 10) return res.status(400).json({ error: 'Kod kamida 8 belgi bo‘lsin (faqat raqam bo‘lsa — kamida 10)' });
-  const { h, v } = await panelCodeRow();
-  if (req.user._panel && h && !checkPass(String(req.body?.old || ''), h)) return res.status(403).json({ error: 'Eski kod noto‘g‘ri' });
-  await db.setMeta('panel_code', hashPass(code)); await db.setMeta('panel_v', String(v + 1)); // eski kirishlar bekor bo'ladi
+// kodni almashtirish — faqat panel ichidan, joriy kod bilan
+app.post('/api/panel/code', auth, panelOnly, wrap(async (req, res) => {
+  const code = String(req.body?.code || ''), old = String(req.body?.old || '');
+  if (code.length < 8 || (!/\D/.test(code) && code.length < 10)) return res.status(400).json({ error: 'Kod kamida 8 belgi bo‘lsin (faqat raqam bo‘lsa — kamida 10)' });
+  const { h, v } = await panelCodeRow(); const EK = process.env.OWNER_KEY || process.env.PANEL_CODE || '';
+  const okOld = h ? checkPass(old, h) : (EK && Buffer.byteLength(old) === Buffer.byteLength(EK) && crypto.timingSafeEqual(Buffer.from(old), Buffer.from(EK)));
+  if (!okOld) return res.status(403).json({ error: 'Joriy kod noto‘g‘ri' });
+  await db.setMeta('panel_code', hashPass(code)); await db.setMeta('panel_v', String(v + 1));
   res.json({ ok: true });
 }));
 app.get('/api/panel/health', auth, adminOnly, wrap(async (req, res) => {
@@ -2437,28 +2439,33 @@ app.get('/api/panel/media', auth, adminOnly, wrap(async (req, res) => {
 }));
 // Ixtiyoriy jins (faqat foydalanuvchi o'zi ko'rsatsa) — panelda umumiy statistika uchun
 app.post('/api/profile/gender', auth, wrap(async (req, res) => { const g = ['m', 'f', ''].includes(req.body?.g) ? req.body.g : ''; await db.run('UPDATE users SET gender=? WHERE id=?', [g || null, req.user.id]); res.json({ ok: true, gender: g }); }));
-const PANEL_CSS = `:root{--bg:#F4F7FB;--card:#fff;--fg:#0F172A;--mu:#64748B;--ln:#E2E8F0;--ac:#2563EB;--ok:#16A34A;--bad:#DC2626}@media(prefers-color-scheme:dark){:root{--bg:#0B1220;--card:#121B2E;--fg:#E2E8F0;--mu:#94A3B8;--ln:#1E293B;--ac:#60A5FA}}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
-button,input,select{font:inherit}button{cursor:pointer;border:0;border-radius:10px;padding:8px 12px;background:var(--ac);color:#fff;font-weight:600}button.g{background:transparent;color:var(--ac);border:1px solid var(--ln)}button.d{background:var(--bad)}input,select{padding:9px 11px;border:1px solid var(--ln);border-radius:10px;background:var(--card);color:var(--fg)}
-.top{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--ln);display:flex;align-items:center;gap:10px;padding:10px 14px}.top h1{font-size:17px;margin:0;flex:1}.tabs{display:flex;gap:6px;overflow-x:auto;padding:8px 14px;background:var(--card);border-bottom:1px solid var(--ln)}.tabs button{background:transparent;color:var(--fg);border:1px solid var(--ln);white-space:nowrap}.tabs button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
-main{max-width:1200px;margin:0 auto;padding:14px}h2{font-size:15px;margin:22px 0 8px}.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}.card{background:var(--card);border:1px solid var(--ln);border-radius:14px;padding:12px}.card b{display:block;font-size:22px}.card small{color:var(--mu)}
-.row{display:flex;gap:10px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--ln);background:var(--card)}.row:first-child{border-radius:12px 12px 0 0}.row .f{flex:1;min-width:0}.row small{display:block;color:var(--mu);font-size:12px}.ok{color:var(--ok)}.bad{color:var(--bad)}
-.bars{display:flex;align-items:flex-end;gap:2px;height:100px;background:var(--card);border:1px solid var(--ln);border-radius:12px;padding:6px}.bars i{flex:1;background:var(--ac);border-radius:3px 3px 0 0;min-height:2px}.tbl{width:100%;border-collapse:collapse;background:var(--card);border-radius:12px;overflow:hidden}.tbl td,.tbl th{padding:7px 9px;border-bottom:1px solid var(--ln);text-align:left;font-size:13px;vertical-align:top}.tbl th{color:var(--mu);font-weight:600}
-.pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;font-weight:700;background:#E2E8F0;color:#334155}.pill.r1{background:#FEF3C7;color:#92400E}.pill.r2{background:#FED7AA;color:#9A3412}.pill.r3{background:#FECACA;color:#991B1B}
-.login{max-width:360px;margin:12vh auto;background:var(--card);border:1px solid var(--ln);border-radius:18px;padding:22px;display:grid;gap:12px}.login h1{margin:0;font-size:20px}.err{color:var(--bad);min-height:18px}.mu{color:var(--mu)}pre{white-space:pre-wrap;word-break:break-word;font-size:12px;margin:0}.tools{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}.tools input{flex:1;min-width:180px}
-.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-start;justify-content:center;padding:4vh 10px;z-index:10;overflow:auto}.modal>div{background:var(--card);border-radius:16px;padding:16px;max-width:760px;width:100%}`;
+const PANEL_CSS = `:root{--bg:#060B1F;--bg2:#0B1433;--card:#111B3A;--card2:#16224A;--fg:#E6ECFF;--mu:#8FA0CC;--ln:#22305E;--ac:#3B6CF6;--ac2:#5B4BE8;--ok:#22C55E;--bad:#F87171;--warn:#FBBF24}*{box-sizing:border-box}html,body{min-height:100%}body{margin:0;background:radial-gradient(1200px 500px at 10% -10%,#0E2A6B 0,transparent 60%),radial-gradient(900px 500px at 110% 0,#2A1B6B 0,transparent 55%),var(--bg);color:var(--fg);font:14px/1.5 Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+a{color:#93B4FF}button,input,select,textarea{font:inherit}button{cursor:pointer;border:0;border-radius:12px;padding:9px 14px;background:linear-gradient(90deg,var(--ac),var(--ac2));color:#fff;font-weight:700}button.g{background:transparent;color:#C7D4FF;border:1px solid var(--ln)}button.d{background:#B91C1C}input,select,textarea{padding:11px 13px;border:1px solid var(--ln);border-radius:12px;background:var(--bg2);color:var(--fg);outline:none}input:focus,textarea:focus{border-color:var(--ac)}
+.top{position:sticky;top:0;z-index:5;background:rgba(6,11,31,.85);backdrop-filter:blur(10px);border-bottom:1px solid var(--ln);display:flex;align-items:center;gap:10px;padding:12px 18px}.top h1{font-size:17px;margin:0;flex:1;letter-spacing:.2px}.top h1 b{background:linear-gradient(90deg,#60A5FA,#A78BFA);-webkit-background-clip:text;color:transparent}
+.lay{display:flex;min-height:calc(100vh - 56px)}.side{width:230px;flex:none;border-right:1px solid var(--ln);padding:12px;display:flex;flex-direction:column;gap:4px;position:sticky;top:56px;height:calc(100vh - 56px);overflow:auto}.side button{background:transparent;color:#C7D4FF;text-align:left;font-weight:600;border-radius:10px;padding:10px 12px}.side button.on{background:linear-gradient(90deg,rgba(59,108,246,.35),rgba(91,75,232,.25));color:#fff}
+@media(max-width:820px){.lay{display:block}.side{width:auto;height:auto;position:static;flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--ln)}.side button{white-space:nowrap}}
+main{flex:1;min-width:0;max-width:1200px;padding:18px}h2{font-size:15px;margin:24px 0 10px;color:#C7D4FF}.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}.card{background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--ln);border-radius:16px;padding:14px;box-shadow:0 10px 30px rgba(0,0,0,.25)}.card b{display:block;font-size:24px}.card small{color:var(--mu)}
+.row{display:flex;gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--ln);background:var(--card)}.row:first-of-type{border-top-left-radius:12px;border-top-right-radius:12px}.row .f{flex:1;min-width:0}.row small{display:block;color:var(--mu);font-size:12px}.ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+.bars{display:flex;align-items:flex-end;gap:2px;height:110px;background:var(--card);border:1px solid var(--ln);border-radius:14px;padding:8px}.bars i{flex:1;background:linear-gradient(180deg,#60A5FA,#3B6CF6);border-radius:3px 3px 0 0;min-height:2px}
+.tbl{width:100%;border-collapse:collapse;background:var(--card);border-radius:14px;overflow:hidden;border:1px solid var(--ln)}.tbl td,.tbl th{padding:9px 10px;border-bottom:1px solid var(--ln);text-align:left;font-size:13px;vertical-align:top}.tbl th{color:var(--mu);font-weight:600;background:var(--card2)}.tbl tr[data-u]:hover td{background:var(--card2)}
+.pill{display:inline-block;padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;background:#1E2A55;color:#C7D4FF}.pill.r1{background:#3B2F0B;color:#FCD34D}.pill.r2{background:#4A2208;color:#FDBA74}.pill.r3{background:#4C0F0F;color:#FCA5A5}
+.loginw{min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding-top:14vh;background:linear-gradient(180deg,transparent 0,rgba(37,64,160,.35) 18%,rgba(37,64,160,.35) 40%,transparent 41%)}.login{width:min(480px,92vw);background:rgba(17,27,58,.92);border:1px solid var(--ln);border-radius:20px;padding:26px;display:grid;gap:12px;box-shadow:0 30px 80px rgba(0,0,0,.45)}.login h1{margin:0;font-size:24px}.login label{color:var(--mu);font-size:13px;margin-bottom:-6px}.login button{padding:14px;border-radius:999px;font-size:16px}
+.err{color:var(--bad);min-height:18px;margin:0}.mu{color:var(--mu)}pre{white-space:pre-wrap;word-break:break-word;font-size:12px;margin:0;color:#C7D4FF}.tools{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.tools input,.tools textarea{flex:1;min-width:200px}.tools input[type=checkbox]{flex:none;min-width:0;margin-right:6px}
+.sw{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;background:var(--card);border:1px solid var(--ln);border-radius:14px;margin-bottom:8px}.sw small{display:block;color:var(--mu)}
+.modal{position:fixed;inset:0;background:rgba(2,6,20,.7);display:flex;align-items:flex-start;justify-content:center;padding:4vh 10px;z-index:10;overflow:auto}.modal>div{background:var(--card);border:1px solid var(--ln);border-radius:18px;padding:18px;max-width:780px;width:100%}`;
 function panelClient() {
   const $ = (s) => document.querySelector(s); const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const api = async (u, body) => { const r = await fetch(u, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), credentials: 'same-origin' } : { credentials: 'same-origin' }); const j = await r.json().catch(() => ({})); if (!r.ok) { const e = new Error(j.error || r.status); e.st = r.status; throw e; } return j; };
   const when = (t) => (t ? new Date(+t).toLocaleString('uz-UZ', { hour12: false }) : '—'); const size = (b) => (b > 1e9 ? (b / 1e9).toFixed(2) + ' GB' : b > 1e6 ? (b / 1e6).toFixed(1) + ' MB' : Math.round((b || 0) / 1024) + ' KB'); const dur = (s) => `${Math.floor(s / 86400)}k ${Math.floor((s % 86400) / 3600)}s ${Math.floor((s % 3600) / 60)}d`;
   const bars = (arr, col) => { const mx = Math.max(1, ...arr); return `<div class="bars">${arr.map((v) => `<i style="height:${Math.max(2, (v / mx) * 100)}%;${col ? 'background:' + col : ''}" title="${v}"></i>`).join('')}</div>`; };
-  const TABS = [['health', '🩺 Holat va xatolar'], ['over', '📊 Umumiy'], ['users', '👥 Foydalanuvchilar'], ['risk', '⚠️ Shubhali'], ['media', '🖼 Media va trafik'], ['sec', '🔐 Xavfsizlik'], ['reels', '🎬 Reels'], ['rep', '🚩 Shikoyatlar'], ['set', '⚙️ Sozlamalar']];
+  const TABS = [['health', '🩺 Holat va xatolar'], ['over', '📊 Umumiy'], ['users', '👥 Foydalanuvchilar'], ['risk', '⚠️ Shubhali'], ['groups', '👨‍👩‍👧 Guruh va kanallar'], ['media', '🖼 Media va trafik'], ['sec', '🔐 Xavfsizlik'], ['reels', '🎬 Reels'], ['rep', '🚩 Shikoyatlar'], ['ctl', '🎛 Boshqaruv'], ['set', '⚙️ Kirish kodi']];
   let tab = location.hash.slice(1) || 'health', q = '', sort = 'new', timer = null;
   const app = $('#app');
-  function loginView(msg) { app.innerHTML = `<form class="login" id="lf"><h1>🛡 Birga — nazorat paneli</h1><p class="mu">Ilova egasi uchun. O‘zingiz tanlagan kodni kiriting.</p><input id="code" type="password" autocomplete="current-password" placeholder="Panel kodi" required minlength="8"><p class="err" id="er">${esc(msg || '')}</p><button>Kirish</button><p class="mu" style="font-size:12px">Kod hali yo‘qmi? Birga ilovasida admin akkaunt bilan kiring → Boshqaruv paneli → 🔐 Panel kodi.</p></form>`;
+  function loginView(msg) { app.innerHTML = `<div class="loginw"><form class="login" id="lf"><h1>🔐 BIRGA — Egasi paneli</h1><p class="mu">Bu sahifa faqat platforma egasi uchun. Kirish kodi — Render’dagi <b>OWNER_KEY</b> (yoki panelda o‘zingiz almashtirgan kod).</p><label for="code">Kirish kodi</label><input id="code" type="password" autocomplete="current-password" required minlength="8"><p class="err" id="er">${esc(msg || '')}</p><button>Kirish</button></form></div>`;
     $('#lf').onsubmit = async (e) => { e.preventDefault(); try { await api('/api/panel/login', { code: $('#code').value }); boot(); } catch (er) { $('#er').textContent = er.message; } }; $('#code').focus(); }
   async function boot() { try { await api('/api/panel/me'); } catch { return loginView(); } shell(); render(); }
-  function shell() { app.innerHTML = `<div class="top"><h1>🛡 Birga — nazorat paneli</h1><button class="g" id="rf">↻</button><button class="g" id="lo">Chiqish</button></div><nav class="tabs">${TABS.map(([k, n]) => `<button data-t="${k}" class="${k === tab ? 'on' : ''}">${n}</button>`).join('')}</nav><main id="m"></main>`;
-    $('.tabs').onclick = (e) => { const b = e.target.closest('[data-t]'); if (!b) return; tab = b.dataset.t; location.hash = tab; document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('on', x === b)); render(); };
+  function shell() { app.innerHTML = `<div class="top"><h1>🔐 <b>BIRGA</b> — Egasi paneli</h1><a href="/" target="_blank" rel="noopener" class="mu" style="margin-right:6px">Ilovani ochish ↗</a><button class="g" id="rf">↻</button><button class="g" id="lo">Chiqish</button></div><div class="lay"><nav class="side">${TABS.map(([k, n]) => `<button data-t="${k}" class="${k === tab ? 'on' : ''}">${n}</button>`).join('')}</nav><main id="m"></main></div>`;
+    $('.side').onclick = (e) => { const b = e.target.closest('[data-t]'); if (!b) return; tab = b.dataset.t; location.hash = tab; document.querySelectorAll('.side button').forEach((x) => x.classList.toggle('on', x === b)); render(); };
     $('#rf').onclick = () => render(); $('#lo').onclick = async () => { await api('/api/panel/logout', {}); loginView(); };
     $('#m').addEventListener('click', click); }
   const uRow = (u) => { const rk = u.risk?.score || 0; const c = u.c || {}; const reg = u.reg ? [u.reg.city, u.reg.country].filter(Boolean).join(', ') : '—'; return `<tr data-u="${u.id}" style="cursor:pointer"><td><b>${esc(u.name)}</b>${u.admin ? ' 🛡' : ''}${u.banned ? ' ⛔' : ''}<br><span class="mu">${u.username ? '@' + esc(u.username) : ''} #${u.id}</span></td><td>${esc(u.email || '')}<br>${esc(u.phone || u.tel || '')}${u.tel && !u.tel_ok ? ' <span class="mu">(tasdiqlanmagan)</span>' : ''}</td><td>${esc(when(u.created_at))}<br><span class="mu">📍 ${esc(reg)} · ${esc(u.reg ? [u.reg.model || u.reg.os, u.reg.app].filter(Boolean).join(' · ') : '')}</span></td><td>${u.online ? '<span class="ok">● onlayn</span>' : esc(when(u.last_seen))}</td><td>💬 ${c.msgs || 0} · 🖼 ${(c.image || 0) + (c.video || 0)} · 🎤 ${(c.voice || 0) + (c.round || 0)} · 📎 ${c.file || 0}<br>📞 ${c.calls || 0} (${c.callMin || 0} daq) · 🎬 ${u.reels || 0}</td><td><span class="pill r${rk >= 60 ? 3 : rk >= 30 ? 2 : rk ? 1 : 0}">${rk}</span>${u.risk?.flags?.length ? `<br><span class="bad" style="font-size:12px">${esc(u.risk.flags.join(' · '))}</span>` : ''}</td></tr>`; };
@@ -2506,8 +2513,20 @@ function panelClient() {
       } else if (tab === 'rep') {
         const l = await api('/api/admin/reports');
         m.innerHTML = l.map((r) => `<div class="row"><div class="f"><b>🚩 ${esc(r.reason || '')} → ${esc(r.user?.name || '')}</b><small>${esc(r.reporter?.name || '')} · ${esc(when(r.created_at))}</small>${r.snapshot?.text ? `<pre>“${esc(String(r.snapshot.text).slice(0, 400))}”</pre>` : ''}${r.snapshot?.file ? `<a href="${esc(r.snapshot.file)}" target="_blank" rel="noopener">shikoyat qilingan fayl ↗</a>` : ''}</div><button class="g" data-rp="${r.id}" data-ra="delete_msg">🗑</button><button class="d" data-rp="${r.id}" data-ra="ban">⛔</button><button class="g" data-rp="${r.id}" data-ra="dismiss">✓</button></div>`).join('') || '<p class="ok">Ochiq shikoyat yo‘q ✓</p>';
+      } else if (tab === 'groups') {
+        const d = await api('/api/panel/groups');
+        m.innerHTML = `<p class="mu">Guruh va kanallar a’zolar soni bo‘yicha. Xabarlar mazmuni ko‘rsatilmaydi.</p><table class="tbl"><tr><th>Nomi</th><th>Turi</th><th>A’zolar</th><th>Xabarlar (7 kun)</th><th>Oxirgi faollik</th></tr>${d.items.map((c) => `<tr><td><b>${esc(c.title || '—')}</b><br><span class="mu">#${c.id}</span></td><td>${c.type === 'channel' ? '📢 Kanal' : '👥 Guruh'}</td><td>${c.members}</td><td>${c.msgs7}</td><td>${esc(when(c.last_at))}</td></tr>`).join('')}</table>`;
+      } else if (tab === 'ctl') {
+        const st = await api('/api/panel/settings');
+        m.innerHTML = `<h2 style="margin-top:0">🎛 Platforma sozlamalari</h2>
+          <div class="sw"><div><b>Yangi ro‘yxatdan o‘tish</b><small>Yopilsa, yangi odamlar akkaunt ocholmaydi (mavjudlar ishlayveradi)</small></div><button class="${st.regClosed ? 'd' : ''}" data-a="reg">${st.regClosed ? '🔒 Yopiq — ochish' : '🔓 Ochiq — yopish'}</button></div>
+          <div class="sw"><div><b>YouTube Shorts (kuniga)</b><small>Hozir: ${st.ytPerDay || st.env.ytPerDay} ta</small></div><div style="display:flex;gap:6px"><input id="ytn" type="number" min="1" max="40" value="${st.ytPerDay || st.env.ytPerDay}" style="width:90px"><button data-a="ytper">Saqlash</button></div></div>
+          <div class="sw"><div><b>Birga AI o‘zi video yasashi</b><small>O‘chiq bo‘lsa Reels’ga faqat YouTube/Instagram videolari tushadi</small></div><button class="${st.ai ? '' : 'g'}" data-a="ai">${st.ai ? '✅ Yoqilgan — o‘chirish' : '⛔ O‘chiq — yoqish'}</button></div>
+          <h2>📣 Barcha foydalanuvchilarga e’lon</h2>${st.ann ? `<div class="row"><div class="f">${esc(st.ann.text)}<small>${esc(when(st.ann.at))}</small></div><button class="g" data-a="annclr">Olib tashlash</button></div>` : ''}
+          <div class="tools"><textarea id="ann" rows="3" maxlength="600" placeholder="E’lon matni — ilovada yuqorida ko‘rinadi"></textarea></div><div class="tools"><label class="mu"><input type="checkbox" id="annp" checked style="width:auto"> Push-bildirishnoma ham yuborilsin</label><button data-a="ann">Yuborish</button></div>
+          <h2>🛠 Server</h2><div class="tools"><a href="/api/panel/export.csv"><button class="g" type="button">⬇ Foydalanuvchilar ro‘yxati (CSV)</button></a><button class="d" data-a="restart">🔁 Serverni qayta ishga tushirish</button></div>`;
       } else if (tab === 'set') {
-        m.innerHTML = `<div class="card" style="max-width:460px"><b style="font-size:15px">🔐 Panel kodini almashtirish</b><p class="mu">Kamida 8 belgi. Almashtirilgach, boshqa barcha qurilmalardagi panel kirishlari bekor bo‘ladi.</p><div class="tools" style="flex-direction:column"><input id="o" type="password" placeholder="Eski kod"><input id="n1" type="password" placeholder="Yangi kod"><input id="n2" type="password" placeholder="Yangi kod (takror)"><button data-a="code">Saqlash</button><p class="err" id="ce"></p></div></div>`;
+        m.innerHTML = `<div class="card" style="max-width:460px"><b style="font-size:15px">🔐 Kirish kodini almashtirish</b><p class="mu">Kamida 8 belgi. Almashtirilgach, boshqa barcha qurilmalardagi kirishlar bekor bo‘ladi va OWNER_KEY o‘rniga yangi kod ishlaydi.</p><div class="tools" style="flex-direction:column"><input id="o" type="password" placeholder="Joriy kod"><input id="n1" type="password" placeholder="Yangi kod"><input id="n2" type="password" placeholder="Yangi kod (takror)"><button data-a="code">Saqlash</button><p class="err" id="ce"></p></div></div>`;
       }
     } catch (e) { if (e.st === 401 || e.st === 403) return loginView('Sessiya tugadi — qayta kiring'); m.innerHTML = `<p class="bad">${esc(e.message)}</p>`; }
   }
@@ -2519,10 +2538,10 @@ function panelClient() {
       <h2>Qurilmalar va kirishlar</h2><table class="tbl">${d.sessions.map((s) => `<tr><td>${esc([s.model || s.os, s.app].filter(Boolean).join(' · ') || '—')}${s.revoked ? ' <span class="mu">(chiqqan)</span>' : ''}</td><td>${esc([s.city, s.country].filter(Boolean).join(', '))}</td><td>${esc(when(s.last))}</td></tr>`).join('')}</table>
       ${d.reports.length ? `<h2>Shikoyatlar</h2>${d.reports.map((r) => `<div class="row"><div class="f">${esc(r.reason || '')}</div><b>${esc(r.status)}</b></div>`).join('')}` : ''}
       ${d.reels.length ? `<h2>Reels (${d.reels.length})</h2>${d.reels.map((it) => `<div class="row"><div class="f">${esc((it.caption || it.kind).slice(0, 100))}<small>👁 ${it.views} · ❤ ${it.likes}</small></div><button class="d" data-rd="${it.id}">🗑</button></div>`).join('')}` : ''}
-      ${u.admin ? '' : `<p><button class="${u.banned ? 'g' : 'd'}" data-ban="${u.id}" data-on="${u.banned ? 0 : 1}">${u.banned ? '✅ Blokdan chiqarish' : '⛔ Bloklash'}</button></p>`}`);
+      <p class="tools"><button class="g" data-rv="${u.id}">🚪 Barcha qurilmalardan chiqarish</button>${u.admin ? '' : `<button class="${u.banned ? 'g' : 'd'}" data-ban="${u.id}" data-on="${u.banned ? 0 : 1}">${u.banned ? '✅ Blokdan chiqarish' : '⛔ Bloklash'}</button>`}</p>`);
   }
   async function click(e) {
-    const b = e.target.closest('[data-u],[data-a],[data-rd],[data-yd],[data-rp],[data-ban]'); if (!b) return; const d = b.dataset; if (b.tagName === 'A') e.preventDefault();
+    const b = e.target.closest('[data-u],[data-a],[data-rd],[data-yd],[data-rp],[data-ban],[data-rv]'); if (!b) return; const d = b.dataset; if (b.tagName === 'A') e.preventDefault();
     try {
       if (d.u) return person(+d.u);
       if (d.rd) { if (!confirm('O‘chirilsinmi?')) return; await api(`/api/admin/reels/${d.rd}/delete`, {}); document.querySelector('.modal')?.remove(); return render(); }
@@ -2532,11 +2551,56 @@ function panelClient() {
       if (d.a === 'ytadd') { const r = await api('/api/admin/yt/channels', { url: $('#yt').value }); alert(`✓ ${r.channel.name || r.channel.id} — ${r.channel.n} ta video`); return render(); }
       if (d.a === 'ytnow') { const r = await api('/api/admin/yt-reel', {}); alert(r.result ? '✓ Shorts qo‘shildi' : r.err || '—'); return render(); }
       if (d.a === 'aidel') { if (!confirm('Birga AI yasagan videolar o‘chirilsinmi?')) return; const r = await api('/api/admin/reels/delete-ai-videos', {}); alert('O‘chirildi: ' + r.deleted); return render(); }
+      if (d.rv) { if (!confirm('Bu foydalanuvchi barcha qurilmalardan chiqarilsinmi?')) return; const r = await api(`/api/panel/user/${d.rv}/revoke`, {}); alert('Chiqarildi: ' + r.n + ' sessiya'); return; }
+      if (d.a === 'reg') { const st = await api('/api/panel/settings'); await api('/api/panel/settings', { regClosed: !st.regClosed }); return render(); }
+      if (d.a === 'ai') { const st = await api('/api/panel/settings'); await api('/api/panel/settings', { ai: !st.ai }); return render(); }
+      if (d.a === 'ytper') { await api('/api/panel/settings', { ytPerDay: +$('#ytn').value }); return render(); }
+      if (d.a === 'ann') { const tx = $('#ann').value.trim(); if (!tx) return; const r = await api('/api/panel/announce', { text: tx, push: $('#annp').checked }); alert('✓ E’lon yuborildi' + (r.push ? ` · push: ${r.push}` : '')); return render(); }
+      if (d.a === 'annclr') { await api('/api/panel/announce', { text: '' }); return render(); }
+      if (d.a === 'restart') { if (!confirm('Server qayta ishga tushirilsinmi? (~1 daqiqa ilova ishlamaydi)')) return; await api('/api/panel/restart', {}); alert('Qayta ishga tushirilmoqda — 1 daqiqadan so‘ng yangilang'); return; }
       if (d.a === 'code') { if ($('#n1').value !== $('#n2').value) return ($('#ce').textContent = 'Yangi kodlar bir xil emas'); await api('/api/panel/code', { old: $('#o').value, code: $('#n1').value }); alert('✓ Kod almashtirildi. Qayta kiring.'); return loginView(); }
     } catch (er) { alert(er.message); }
   }
   boot();
 }
+// ---- Egasi paneli: boshqaruv amallari ----
+const PFLAGS = { regClosed: false, ytPerDay: 0, ai: false, ann: null };
+(async () => { for (let i = 0; i < 20; i++) { await new Promise((r) => setTimeout(r, 2000)); try { const v = await db.getMeta('panel_flags'); if (v) Object.assign(PFLAGS, JSON.parse(v)); return; } catch {} } })();
+const savePF = () => db.setMeta('panel_flags', JSON.stringify(PFLAGS));
+app.get('/api/panel/settings', auth, panelOnly, (req, res) => res.json({ ...PFLAGS, env: { ai: process.env.AI_REELS === '1', ytPerDay: Number(process.env.YT_REELS_PER_DAY) || 20 } }));
+app.post('/api/panel/settings', auth, panelOnly, wrap(async (req, res) => {
+  const b = req.body || {};
+  if (b.regClosed != null) PFLAGS.regClosed = !!b.regClosed;
+  if (b.ytPerDay != null) PFLAGS.ytPerDay = Math.max(0, Math.min(40, Number(b.ytPerDay) || 0));
+  if (b.ai != null) PFLAGS.ai = !!b.ai;
+  await savePF(); res.json({ ok: true, ...PFLAGS });
+}));
+// e'lon: barcha foydalanuvchilarga (ilovada banner + push)
+app.post('/api/panel/announce', auth, panelOnly, wrap(async (req, res) => {
+  const text = String(req.body?.text || '').trim().slice(0, 600);
+  if (!text) { PFLAGS.ann = null; await savePF(); return res.json({ ok: true, cleared: true }); }
+  PFLAGS.ann = { id: Date.now().toString(36), text, at: now() }; await savePF();
+  io.emit('birga:announce', PFLAGS.ann);
+  let sent = 0; if (req.body?.push) { for (const u of await db.all('SELECT id FROM users WHERE name IS NOT NULL AND COALESCE(deleted,0)=0 AND COALESCE(banned,0)=0 LIMIT 20000')) { push.send(u.id, { type: 'ann', title: 'Birga', body: text.slice(0, 180), tag: 'ann' }).catch(() => {}); sent++; } }
+  res.json({ ok: true, ann: PFLAGS.ann, push: sent });
+}));
+app.get('/api/announce', (req, res) => res.json({ ann: PFLAGS.ann }));
+app.post('/api/panel/user/:id/revoke', auth, panelOnly, wrap(async (req, res) => {
+  const uid = Number(req.params.id); const ids = (await db.all('SELECT id FROM sessions WHERE user_id=? AND revoked=0', [uid])).map((r) => r.id);
+  if (ids.length) await revokeSessions(uid, ids); io.in('u' + uid).disconnectSockets(true); res.json({ ok: true, n: ids.length });
+}));
+app.get('/api/panel/groups', auth, panelOnly, wrap(async (req, res) => {
+  const rows = await db.all(`SELECT c.*, (SELECT COUNT(*) FROM chat_members m WHERE m.chat_id=c.id) AS members, (SELECT MAX(created_at) FROM messages x WHERE x.chat_id=c.id) AS last_at, (SELECT COUNT(*) FROM messages x WHERE x.chat_id=c.id AND x.created_at>?) AS msgs7 FROM chats c WHERE c.type IN ('group','channel') ORDER BY members DESC LIMIT 300`, [now() - 7 * 864e5]);
+  res.json({ items: rows.map((c) => ({ id: Number(c.id), type: c.type, title: c.title || c.name || '', members: Number(c.members) || 0, last_at: Number(c.last_at) || 0, msgs7: Number(c.msgs7) || 0, created: Number(c.created_at || c.created) || 0 })) });
+}));
+app.get('/api/panel/export.csv', auth, panelOnly, wrap(async (req, res) => {
+  const rows = await db.all('SELECT id, name, username, email, phone, tel, gender, created_at, last_seen, banned, reg_info FROM users WHERE name IS NOT NULL ORDER BY id');
+  const q = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+  const lines = ['id,ism,username,email,telefon,jins,royxatdan,oxirgi_faollik,bloklangan,shahar,davlat,qurilma'];
+  for (const u of rows) { let r = {}; try { r = JSON.parse(u.reg_info || '{}') || {}; } catch {} lines.push([u.id, u.name, u.username, u.email, String(u.phone || '').startsWith('mail:') ? '' : u.phone || u.tel, u.gender, u.created_at ? new Date(Number(u.created_at)).toISOString() : '', u.last_seen ? new Date(Number(u.last_seen)).toISOString() : '', u.banned ? 1 : 0, r.city, r.country, [r.model || r.os, r.app].filter(Boolean).join(' ')].map(q).join(',')); }
+  res.set('Content-Disposition', `attachment; filename="birga-foydalanuvchilar-${new Date().toISOString().slice(0, 10)}.csv"`).type('text/csv; charset=utf-8').send('﻿' + lines.join('\n'));
+}));
+app.post('/api/panel/restart', auth, panelOnly, (req, res) => { res.json({ ok: true }); console.log('🔁 Egasi paneli: server qayta ishga tushirilmoqda'); setTimeout(() => process.exit(0), 500); });
 app.get(/^\/(?!api\/|uploads\/|socket\.io\/|vendor\/|stickers\/).*/, sendIndex);
 
 // ---------- Socket.IO ----------
@@ -3551,7 +3615,7 @@ app.get('/api/quiz/user/:id', auth, wrap(async (req, res) => {
 // "Birga AI ✨" hisobi nomidan joylanadi. Ssenariy — AI (Gemini/Cloudflare Llama), rasmlar — Cloudflare FLUX, montaj — ffmpeg (serverda).
 // O'chirish: AI_REELS=0. Kunlik soni: AI_REELS_PER_DAY (standart 5). Saqlash muddati: AI_REELS_KEEP_DAYS (standart 21).
 const AIR = { busy: false, last: null, err: null, done: 0 };
-const airOn = () => process.env.AI_REELS === '1' && (cfOn() || !!process.env.GEMINI_API_KEY || !!process.env.AI_API_KEY);
+const airOn = () => (process.env.AI_REELS === '1' || PFLAGS.ai) && (cfOn() || !!process.env.GEMINI_API_KEY || !!process.env.AI_API_KEY);
 const airPerDay = () => Math.min(12, Math.max(1, Number(process.env.AI_REELS_PER_DAY) || 5));
 const AIR_SLOTS = [8, 11, 14, 17, 20, 9, 12, 15, 18, 21, 10, 13]; // Toshkent vaqti (soat)
 const AIR_KINDS = ['funny', 'useful', 'fact', 'wisdom', 'funny', 'useful', 'fact', 'wisdom'];
@@ -3796,7 +3860,7 @@ async function ytFeed(ch) {
 const ytIsShort = async (id) => { try { return (await ytGet(`${YT_BASE()}/shorts/${id}`, 10000)).status === 200; } catch { return false; } };
 const ytEmbeddable = async (id) => { try { const r = await fetch(`${YT_BASE()}/oembed?format=json&url=${encodeURIComponent('https://www.youtube.com/shorts/' + id)}`, { headers: YTH, signal: AbortSignal.timeout(10000) }); return r.ok; } catch { return false; } };
 async function ytRss(force) {
-  const bot = await airBot(); const per = Math.min(40, Math.max(1, Number(process.env.YT_REELS_PER_DAY) || 20));
+  const bot = await airBot(); const per = Math.min(40, Math.max(1, PFLAGS.ytPerDay || Number(process.env.YT_REELS_PER_DAY) || 20));
   const day = tashDay(), dayStart = Date.parse(day + 'T00:00:00Z') - 5 * 3600e3;
   const made = Number((await db.get("SELECT COUNT(*) AS c FROM reels WHERE user_id=? AND kind='yt' AND created_at>=?", [bot.id, dayStart]))?.c || 0);
   const due = Math.ceil((per * Math.max(0, tashHour() - 7)) / 15);
@@ -3871,7 +3935,7 @@ app.post('/api/admin/yt-reel', auth, adminOnly, wrap(async (req, res) => { res.j
 setTimeout(() => airTick().catch(() => {}), 90e3);
 setInterval(() => airTick().catch(() => {}), (Number(process.env.AI_REELS_CHECK_MIN) || 10) * 60e3);
 app.post('/api/admin/ai-reel', auth, adminOnly, wrap(async (req, res) => {
-  if (process.env.AI_REELS !== '1') return res.status(400).json({ error: 'Birga AI endi o‘zi video yasamaydi — faqat YouTube Shorts / Instagram' });
+  if (process.env.AI_REELS !== '1' && !PFLAGS.ai) return res.status(400).json({ error: 'Birga AI endi o‘zi video yasamaydi — faqat YouTube Shorts / Instagram' });
   if (AIR.busy) return res.json({ busy: true });
   airTick(true).catch(() => {}); res.json({ started: true });
 }));

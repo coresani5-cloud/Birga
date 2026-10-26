@@ -58,7 +58,7 @@ function publicUser(u, self = false, viewer) {
   if (u.deleted) return { id: u.id, name: null, deleted: true, username: null, bio: '', avatar: null, last_seen: null, online: false };
   const hide = !self && !canSee(u, 'seen', viewer ?? viewerALS.getStore()?.v); // "oxirgi faollik" yashirilgan — boshqalarga "yaqinda" ko'rinadi
   const o = { id: u.id, name: u.name, username: u.username, bio: u.bio, avatar: u.avatar, last_seen: hide ? null : u.last_seen, online: hide ? false : online.has(u.id), country: u.country, birthday: u.birthday || null };
-  if (self) { o.tel = u.tel || null; o.tel_ok = !!u.tel_ok; o.phone = String(u.phone || '').startsWith('mail:') ? null : u.phone; o.email = u.email || null; o.lang = u.lang; o.hide_seen = !!u.hide_seen || u.priv_seen === 'nobody'; o.priv = { seen: u.priv_seen || (u.hide_seen ? 'nobody' : 'all'), story: u.priv_story || 'all' }; o.has2fa = !!u.pass_hash; o.locShare = !!Number(u.loc_share); o.pass_hint = u.pass_hint || ''; o.isAdmin = isAdminUser(u); try { o.region = JSON.parse(u.region || 'null'); } catch { o.region = null; } }
+  if (self) { o.tel = u.tel || null; o.tel_ok = !!u.tel_ok; o.gender = u.gender || ''; o.phone = String(u.phone || '').startsWith('mail:') ? null : u.phone; o.email = u.email || null; o.lang = u.lang; o.hide_seen = !!u.hide_seen || u.priv_seen === 'nobody'; o.priv = { seen: u.priv_seen || (u.hide_seen ? 'nobody' : 'all'), story: u.priv_story || 'all' }; o.has2fa = !!u.pass_hash; o.locShare = !!Number(u.loc_share); o.pass_hint = u.pass_hint || ''; o.isAdmin = isAdminUser(u); try { o.region = JSON.parse(u.region || 'null'); } catch { o.region = null; } }
   return o;
 }
 
@@ -136,6 +136,12 @@ const CSP_HEADER = ["default-src 'self'", "script-src 'self' https://unpkg.com",
   "object-src 'none'", "base-uri 'none'", "form-action 'self'", "frame-ancestors 'self'"].join('; ');
 // ---------- Express ----------
 const app = express();
+// ---- Nazorat paneli uchun: xatolar va so'rovlar statistikasi (xotirada) ----
+const MON = { errs: [], http: [], slow: [], st: { req: 0, e4: 0, e5: 0, r429: 0 }, start: Date.now(), byMin: new Map() };
+{ const ce = console.error.bind(console); console.error = (...a) => { try { MON.errs.push({ at: Date.now(), m: a.map((x) => (x instanceof Error ? x.stack || x.message : typeof x === 'string' ? x : JSON.stringify(x))).join(' ').slice(0, 800) }); if (MON.errs.length > 300) MON.errs.shift(); } catch {} ce(...a); }; }
+app.use((req, res, next) => { const t0 = Date.now(); res.on('finish', () => { const ms = Date.now() - t0, c = res.statusCode; MON.st.req++; const k = Math.floor(t0 / 60000); MON.byMin.set(k, (MON.byMin.get(k) || 0) + 1); if (MON.byMin.size > 1500) MON.byMin.delete(MON.byMin.keys().next().value);
+  if (c === 429) MON.st.r429++; else if (c >= 500) { MON.st.e5++; MON.http.push({ at: t0, c, p: req.method + ' ' + req.path.slice(0, 120), ms }); if (MON.http.length > 200) MON.http.shift(); } else if (c >= 400) MON.st.e4++;
+  if (ms > 3000 && !/socket\.io|\/api\/native\/poll/.test(req.path)) { MON.slow.push({ at: t0, p: req.method + ' ' + req.path.slice(0, 120), ms, c }); if (MON.slow.length > 100) MON.slow.shift(); } }); next(); });
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
 app.use((req, res, next) => {
@@ -305,7 +311,10 @@ const auth = wrap(async (req, res, next) => {
   try { req.user = await userFromToken(bearer); }
   catch {
     try { req.user = await userFromToken(cookieToken(req)); } // localStorage tozalangan bo'lsa ham profil saqlanadi
-    catch { return res.status(401).json({ error: 'unauthorized' }); }
+    catch {
+      const pu = await panelUser(req); if (pu) { req.user = pu; return viewerALS.run({ v: pu.id }, next); }
+      return res.status(401).json({ error: 'unauthorized' });
+    }
   }
   req.sid = req.user._sid; if (req.sid) touchSession(req.sid, req);
   viewerALS.run({ v: req.user.id }, next);
@@ -2351,6 +2360,183 @@ app.get('/api/gifs', auth, wrap(async (req, res) => {
   res.json((j.results || []).map((g) => ({ id: g.id, mp4: g.media_formats?.mp4?.url, preview: g.media_formats?.tinygif?.url, w: g.media_formats?.mp4?.dims?.[0], h: g.media_formats?.mp4?.dims?.[1] })).filter((g) => g.mp4));
 }));
 
+// ===== Alohida nazorat paneli (/panel) — ilova egasi o'zi tanlagan kod bilan kiradi =====
+// Kod: Birga ilovasida admin akkaunt bilan → Boshqaruv paneli → 🔐 Panel kodi (yoki Render env PANEL_CODE). Kod xeshlanib saqlanadi.
+// Maxfiylik: shaxsiy suhbatlardagi xabar matni va rasm/videolar panelda ko'rsatilmaydi — faqat sonlar, hajm, ochiq kontent va shikoyat qilinganlar.
+const PANEL = { tries: new Map(), log: [] };
+const panelCodeRow = async () => { const h = await db.getMeta('panel_code').catch(() => null); const v = Number(await db.getMeta('panel_v').catch(() => 0)) || 0; return { h, v }; };
+const panelCookie = (req) => { const m = String(req.headers.cookie || '').match(/(?:^|;\s*)birga_p=([^;]+)/); return m ? decodeURIComponent(m[1]) : ''; };
+async function panelUser(req) {
+  if (!/^\/api\/(admin|panel)\//.test(req.originalUrl || req.path || '')) return null;
+  const tk = panelCookie(req); if (!tk) return null;
+  try {
+    const p = jwt.verify(tk, JWT_SECRET); if (!p.pnl) return null;
+    const { v } = await panelCodeRow(); if (Number(p.v) !== v) return null;
+    for (const e of ADMIN_EMAILS) { const u = await db.get('SELECT * FROM users WHERE LOWER(email)=? ORDER BY id LIMIT 1', [e]); if (u) return { ...u, _panel: true }; }
+    return { id: 0, email: ADMIN_EMAILS[0], name: 'Panel', _panel: true };
+  } catch { return null; }
+}
+const panelLog = (req, ok, note) => { PANEL.log.push({ at: now(), ip: req.ip, ok, note: note || '', ua: String(req.get('user-agent') || '').slice(0, 120) }); if (PANEL.log.length > 200) PANEL.log.shift(); };
+app.get('/panel', (req, res) => { res.set('Cache-Control', 'no-store').set('X-Robots-Tag', 'noindex').type('html').send(`<!doctype html><html lang="uz"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Birga — nazorat paneli</title><link rel="icon" href="/icons/icon-192.png"><style>${PANEL_CSS}</style></head><body><div id="app"></div><script src="/panel.js?v=${APP_VERSION}"></script></body></html>`); });
+app.get('/panel.js', (req, res) => { res.set('Cache-Control', 'no-store').type('application/javascript').send(`(${panelClient.toString()})();`); });
+app.post('/api/panel/login', wrap(async (req, res) => {
+  const ip = req.ip || '?'; const t = PANEL.tries.get(ip) || { n: 0, at: now() }; if (now() - t.at > 15 * 60e3) { t.n = 0; t.at = now(); }
+  if (t.n >= 5) { panelLog(req, false, 'bloklangan'); return res.status(429).json({ error: 'Ko‘p noto‘g‘ri urinish. 15 daqiqadan so‘ng urinib ko‘ring' }); }
+  const code = String(req.body?.code || ''); const { h, v } = await panelCodeRow();
+  const envOk = process.env.PANEL_CODE && process.env.PANEL_CODE.length >= 8 && code.length === process.env.PANEL_CODE.length && crypto.timingSafeEqual(Buffer.from(code), Buffer.from(process.env.PANEL_CODE));
+  if (!h && !process.env.PANEL_CODE) return res.status(400).json({ error: 'Panel kodi hali o‘rnatilmagan. Birga ilovasida admin akkaunt bilan kiring → Boshqaruv paneli → 🔐 Panel kodi.' });
+  let ok = false; try { ok = envOk || (!!h && checkPass(code, h)); } catch {}
+  if (!ok) { t.n++; PANEL.tries.set(ip, t); panelLog(req, false, 'noto‘g‘ri kod'); await sleep(600); return res.status(401).json({ error: 'Kod noto‘g‘ri' }); }
+  PANEL.tries.delete(ip); panelLog(req, true, 'kirdi');
+  res.cookie('birga_p', jwt.sign({ pnl: 1, v }, JWT_SECRET, { expiresIn: '12h' }), { httpOnly: true, sameSite: 'strict', secure: req.secure, maxAge: 12 * 3600e3, path: '/' });
+  res.json({ ok: true });
+}));
+app.post('/api/panel/logout', (req, res) => { res.clearCookie('birga_p', { path: '/' }); res.json({ ok: true }); });
+app.get('/api/panel/me', auth, adminOnly, (req, res) => res.json({ ok: true, name: req.user.name, panel: !!req.user._panel }));
+// kodni o'rnatish/almashtirish — faqat ilovaga kirgan admin (yoki panelda turib eski kod bilan)
+app.post('/api/panel/code', auth, adminOnly, wrap(async (req, res) => {
+  const code = String(req.body?.code || '');
+  if (code.length < 8 || !/\D/.test(code) && code.length < 10) return res.status(400).json({ error: 'Kod kamida 8 belgi bo‘lsin (faqat raqam bo‘lsa — kamida 10)' });
+  const { h, v } = await panelCodeRow();
+  if (req.user._panel && h && !checkPass(String(req.body?.old || ''), h)) return res.status(403).json({ error: 'Eski kod noto‘g‘ri' });
+  await db.setMeta('panel_code', hashPass(code)); await db.setMeta('panel_v', String(v + 1)); // eski kirishlar bekor bo'ladi
+  res.json({ ok: true });
+}));
+app.get('/api/panel/health', auth, adminOnly, wrap(async (req, res) => {
+  const t0 = Date.now(); await db.get('SELECT 1 AS ok').catch(() => null); const dbMs = Date.now() - t0;
+  const one = async (sql, p = []) => Number((await db.get(sql, p).catch(() => null))?.c) || 0;
+  const mem = process.memoryUsage(); const k = Math.floor(Date.now() / 60000); const perMin = Array.from({ length: 60 }, (_, i) => MON.byMin.get(k - 59 + i) || 0);
+  const svc = [
+    ['Baza', db.kind === 'postgres', db.kind + ` · ${dbMs} ms`], ['Fayl ombori', true, storage.remote ? 'Supabase Storage' : 'disk'], ['ffmpeg (video)', !!media.available, media.available ? 'bor' : 'yo‘q'],
+    ['SMS', !!sms.anyReal, sms.anyReal ? 'ulangan' : 'TEST rejimi — raqamlar tasdiqlanmaydi'], ['Email', !!mailer, mailer ? 'ulangan' : 'yo‘q'], ['Sun’iy intellekt (CF)', cfOn(), cfOn() ? 'ulangan' : 'yo‘q'],
+    ['TURN (qo‘ng‘iroqlar)', !!(process.env.TURN_SECRET || process.env.TURN_URL || process.env.CF_TURN_KEY_ID || process.env.METERED_API_KEY), ''], ['Push bildirishnoma', !!push?.publicKey, ''],
+    ['YouTube Shorts', !YT.err, YT.err ? YT.err : YT.last ? 'oxirgi: ' + new Date(YT.last).toISOString().slice(0, 16).replace('T', ' ') : 'kutilmoqda'],
+    ...Object.entries(LIB.src).map(([n, v]) => ['Kutubxona: ' + n, v.ok, String(v.info)]),
+  ].map(([n, ok, info]) => ({ n, ok, info }));
+  res.json({
+    ver: APP_VERSION, node: process.version, up: Math.round(process.uptime()), started: MON.start, mem: { rss: mem.rss, heap: mem.heapUsed }, load: require('os').loadavg(),
+    sockets: io.engine?.clientsCount || 0, online: online.size, http: MON.st, perMin, errs: MON.errs.slice(-100).reverse(), e5: MON.http.slice(-50).reverse(), slow: MON.slow.slice(-30).reverse(), svc,
+    counts: { users: await one('SELECT COUNT(*) AS c FROM users WHERE name IS NOT NULL'), messages: await one('SELECT COUNT(*) AS c FROM messages'), chats: await one('SELECT COUNT(*) AS c FROM chats'), reels: await one('SELECT COUNT(*) AS c FROM reels'), sessions: await one('SELECT COUNT(*) AS c FROM sessions WHERE revoked=0') },
+  });
+}));
+app.get('/api/panel/security', auth, adminOnly, wrap(async (req, res) => {
+  const day = now() - 864e5; const users = new Map(); const nm = async (id) => { if (!users.has(id)) { const u = await getUser(id); users.set(id, u ? { id: u.id, name: u.name, username: u.username, reg: (() => { try { return JSON.parse(u.reg_info || 'null'); } catch { return null; } })() } : { id }); } return users.get(id); };
+  const logins = []; for (const s of await db.all('SELECT user_id, app, os, model, ip, city, country, created FROM sessions WHERE created>? ORDER BY created DESC LIMIT 150', [day])) { const u = await nm(Number(s.user_id)); logins.push({ ...s, created: Number(s.created), user: { id: u.id, name: u.name, username: u.username }, newCountry: !!(u.reg?.country && s.country && u.reg.country !== s.country) }); }
+  const ips = await db.all('SELECT ip, COUNT(*) AS c FROM sms_log WHERE at>? GROUP BY ip ORDER BY c DESC LIMIT 15', [day]).catch(() => []);
+  const banned = []; for (const u of await db.all('SELECT id, name, username FROM users WHERE COALESCE(banned,0)=1 LIMIT 100')) banned.push(u);
+  const rep = Number((await db.get("SELECT COUNT(*) AS c FROM reports WHERE status='open'"))?.c) || 0;
+  res.json({ logins, codeIps: ips.map((x) => ({ ip: x.ip, c: Number(x.c) })), banned, reportsOpen: rep, r429: MON.st.r429, panelLog: PANEL.log.slice(-60).reverse() });
+}));
+app.get('/api/panel/media', auth, adminOnly, wrap(async (req, res) => {
+  const t = now(), day = 864e5; const days = Array.from({ length: 30 }, (_, i) => ({ d: new Date(t - (29 - i) * day).toISOString().slice(0, 10), image: 0, video: 0, voice: 0, round: 0, file: 0, call: 0, text: 0 }));
+  for (const r of await db.all("SELECT type, created_at FROM messages WHERE created_at>? ORDER BY id DESC LIMIT 300000", [t - 30 * day])) { const x = days.find((y) => y.d === new Date(Number(r.created_at)).toISOString().slice(0, 10)); if (x && x[r.type] != null) x[r.type]++; }
+  const size = (await db.all('SELECT type, COUNT(*) AS c, SUM(COALESCE(size,0)) AS s FROM messages WHERE COALESCE(deleted,0)=0 GROUP BY type')).map((r) => ({ type: r.type, c: Number(r.c) || 0, s: Number(r.s) || 0 }));
+  const gender = (await db.all("SELECT COALESCE(gender,'') AS g, COUNT(*) AS c FROM users WHERE name IS NOT NULL GROUP BY COALESCE(gender,'')").catch(() => [])).map((r) => ({ g: r.g || '', c: Number(r.c) || 0 }));
+  const top = []; for (const r of await db.all("SELECT sender_id, COUNT(*) AS c, SUM(COALESCE(size,0)) AS s FROM messages WHERE created_at>? AND type IN ('image','video','file','round','voice') GROUP BY sender_id ORDER BY c DESC LIMIT 15", [t - 7 * day])) { const u = await getUser(Number(r.sender_id)); top.push({ user: u ? { id: u.id, name: u.name, username: u.username } : { id: r.sender_id }, c: Number(r.c), s: Number(r.s) || 0 }); }
+  res.json({ days, size, gender, top });
+}));
+// Ixtiyoriy jins (faqat foydalanuvchi o'zi ko'rsatsa) — panelda umumiy statistika uchun
+app.post('/api/profile/gender', auth, wrap(async (req, res) => { const g = ['m', 'f', ''].includes(req.body?.g) ? req.body.g : ''; await db.run('UPDATE users SET gender=? WHERE id=?', [g || null, req.user.id]); res.json({ ok: true, gender: g }); }));
+const PANEL_CSS = `:root{--bg:#F4F7FB;--card:#fff;--fg:#0F172A;--mu:#64748B;--ln:#E2E8F0;--ac:#2563EB;--ok:#16A34A;--bad:#DC2626}@media(prefers-color-scheme:dark){:root{--bg:#0B1220;--card:#121B2E;--fg:#E2E8F0;--mu:#94A3B8;--ln:#1E293B;--ac:#60A5FA}}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+button,input,select{font:inherit}button{cursor:pointer;border:0;border-radius:10px;padding:8px 12px;background:var(--ac);color:#fff;font-weight:600}button.g{background:transparent;color:var(--ac);border:1px solid var(--ln)}button.d{background:var(--bad)}input,select{padding:9px 11px;border:1px solid var(--ln);border-radius:10px;background:var(--card);color:var(--fg)}
+.top{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--ln);display:flex;align-items:center;gap:10px;padding:10px 14px}.top h1{font-size:17px;margin:0;flex:1}.tabs{display:flex;gap:6px;overflow-x:auto;padding:8px 14px;background:var(--card);border-bottom:1px solid var(--ln)}.tabs button{background:transparent;color:var(--fg);border:1px solid var(--ln);white-space:nowrap}.tabs button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+main{max-width:1200px;margin:0 auto;padding:14px}h2{font-size:15px;margin:22px 0 8px}.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}.card{background:var(--card);border:1px solid var(--ln);border-radius:14px;padding:12px}.card b{display:block;font-size:22px}.card small{color:var(--mu)}
+.row{display:flex;gap:10px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--ln);background:var(--card)}.row:first-child{border-radius:12px 12px 0 0}.row .f{flex:1;min-width:0}.row small{display:block;color:var(--mu);font-size:12px}.ok{color:var(--ok)}.bad{color:var(--bad)}
+.bars{display:flex;align-items:flex-end;gap:2px;height:100px;background:var(--card);border:1px solid var(--ln);border-radius:12px;padding:6px}.bars i{flex:1;background:var(--ac);border-radius:3px 3px 0 0;min-height:2px}.tbl{width:100%;border-collapse:collapse;background:var(--card);border-radius:12px;overflow:hidden}.tbl td,.tbl th{padding:7px 9px;border-bottom:1px solid var(--ln);text-align:left;font-size:13px;vertical-align:top}.tbl th{color:var(--mu);font-weight:600}
+.pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;font-weight:700;background:#E2E8F0;color:#334155}.pill.r1{background:#FEF3C7;color:#92400E}.pill.r2{background:#FED7AA;color:#9A3412}.pill.r3{background:#FECACA;color:#991B1B}
+.login{max-width:360px;margin:12vh auto;background:var(--card);border:1px solid var(--ln);border-radius:18px;padding:22px;display:grid;gap:12px}.login h1{margin:0;font-size:20px}.err{color:var(--bad);min-height:18px}.mu{color:var(--mu)}pre{white-space:pre-wrap;word-break:break-word;font-size:12px;margin:0}.tools{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}.tools input{flex:1;min-width:180px}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-start;justify-content:center;padding:4vh 10px;z-index:10;overflow:auto}.modal>div{background:var(--card);border-radius:16px;padding:16px;max-width:760px;width:100%}`;
+function panelClient() {
+  const $ = (s) => document.querySelector(s); const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const api = async (u, body) => { const r = await fetch(u, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), credentials: 'same-origin' } : { credentials: 'same-origin' }); const j = await r.json().catch(() => ({})); if (!r.ok) { const e = new Error(j.error || r.status); e.st = r.status; throw e; } return j; };
+  const when = (t) => (t ? new Date(+t).toLocaleString('uz-UZ', { hour12: false }) : '—'); const size = (b) => (b > 1e9 ? (b / 1e9).toFixed(2) + ' GB' : b > 1e6 ? (b / 1e6).toFixed(1) + ' MB' : Math.round((b || 0) / 1024) + ' KB'); const dur = (s) => `${Math.floor(s / 86400)}k ${Math.floor((s % 86400) / 3600)}s ${Math.floor((s % 3600) / 60)}d`;
+  const bars = (arr, col) => { const mx = Math.max(1, ...arr); return `<div class="bars">${arr.map((v) => `<i style="height:${Math.max(2, (v / mx) * 100)}%;${col ? 'background:' + col : ''}" title="${v}"></i>`).join('')}</div>`; };
+  const TABS = [['health', '🩺 Holat va xatolar'], ['over', '📊 Umumiy'], ['users', '👥 Foydalanuvchilar'], ['risk', '⚠️ Shubhali'], ['media', '🖼 Media va trafik'], ['sec', '🔐 Xavfsizlik'], ['reels', '🎬 Reels'], ['rep', '🚩 Shikoyatlar'], ['set', '⚙️ Sozlamalar']];
+  let tab = location.hash.slice(1) || 'health', q = '', sort = 'new', timer = null;
+  const app = $('#app');
+  function loginView(msg) { app.innerHTML = `<form class="login" id="lf"><h1>🛡 Birga — nazorat paneli</h1><p class="mu">Ilova egasi uchun. O‘zingiz tanlagan kodni kiriting.</p><input id="code" type="password" autocomplete="current-password" placeholder="Panel kodi" required minlength="8"><p class="err" id="er">${esc(msg || '')}</p><button>Kirish</button><p class="mu" style="font-size:12px">Kod hali yo‘qmi? Birga ilovasida admin akkaunt bilan kiring → Boshqaruv paneli → 🔐 Panel kodi.</p></form>`;
+    $('#lf').onsubmit = async (e) => { e.preventDefault(); try { await api('/api/panel/login', { code: $('#code').value }); boot(); } catch (er) { $('#er').textContent = er.message; } }; $('#code').focus(); }
+  async function boot() { try { await api('/api/panel/me'); } catch { return loginView(); } shell(); render(); }
+  function shell() { app.innerHTML = `<div class="top"><h1>🛡 Birga — nazorat paneli</h1><button class="g" id="rf">↻</button><button class="g" id="lo">Chiqish</button></div><nav class="tabs">${TABS.map(([k, n]) => `<button data-t="${k}" class="${k === tab ? 'on' : ''}">${n}</button>`).join('')}</nav><main id="m"></main>`;
+    $('.tabs').onclick = (e) => { const b = e.target.closest('[data-t]'); if (!b) return; tab = b.dataset.t; location.hash = tab; document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('on', x === b)); render(); };
+    $('#rf').onclick = () => render(); $('#lo').onclick = async () => { await api('/api/panel/logout', {}); loginView(); };
+    $('#m').addEventListener('click', click); }
+  const uRow = (u) => { const rk = u.risk?.score || 0; const c = u.c || {}; const reg = u.reg ? [u.reg.city, u.reg.country].filter(Boolean).join(', ') : '—'; return `<tr data-u="${u.id}" style="cursor:pointer"><td><b>${esc(u.name)}</b>${u.admin ? ' 🛡' : ''}${u.banned ? ' ⛔' : ''}<br><span class="mu">${u.username ? '@' + esc(u.username) : ''} #${u.id}</span></td><td>${esc(u.email || '')}<br>${esc(u.phone || u.tel || '')}${u.tel && !u.tel_ok ? ' <span class="mu">(tasdiqlanmagan)</span>' : ''}</td><td>${esc(when(u.created_at))}<br><span class="mu">📍 ${esc(reg)} · ${esc(u.reg ? [u.reg.model || u.reg.os, u.reg.app].filter(Boolean).join(' · ') : '')}</span></td><td>${u.online ? '<span class="ok">● onlayn</span>' : esc(when(u.last_seen))}</td><td>💬 ${c.msgs || 0} · 🖼 ${(c.image || 0) + (c.video || 0)} · 🎤 ${(c.voice || 0) + (c.round || 0)} · 📎 ${c.file || 0}<br>📞 ${c.calls || 0} (${c.callMin || 0} daq) · 🎬 ${u.reels || 0}</td><td><span class="pill r${rk >= 60 ? 3 : rk >= 30 ? 2 : rk ? 1 : 0}">${rk}</span>${u.risk?.flags?.length ? `<br><span class="bad" style="font-size:12px">${esc(u.risk.flags.join(' · '))}</span>` : ''}</td></tr>`; };
+  async function render() {
+    clearInterval(timer); const m = $('#m'); m.innerHTML = '<p class="mu">Yuklanmoqda…</p>';
+    try {
+      if (tab === 'health') {
+        const h = await api('/api/panel/health');
+        m.innerHTML = `<div class="cards">${[['Versiya', h.ver], ['Ishlash vaqti', dur(h.up)], ['Onlayn', h.online], ['Ulanishlar', h.sockets], ['So‘rovlar', h.http.req], ['Server xatolari (5xx)', h.http.e5], ['Mijoz xatolari (4xx)', h.http.e4], ['Cheklov (429)', h.http.r429], ['Xotira', size(h.mem.rss)], ['Foydalanuvchilar', h.counts.users], ['Xabarlar', h.counts.messages], ['Faol sessiyalar', h.counts.sessions]].map(([n, v]) => `<div class="card"><b>${esc(v)}</b><small>${n}</small></div>`).join('')}</div>
+          <h2>So‘rovlar (oxirgi 60 daqiqa)</h2>${bars(h.perMin)}
+          <h2>Xizmatlar holati</h2>${h.svc.map((s) => `<div class="row"><span class="${s.ok ? 'ok' : 'bad'}">${s.ok ? '✅' : '❌'}</span><div class="f"><b>${esc(s.n)}</b><small>${esc(s.info)}</small></div></div>`).join('')}
+          <h2>Server xatolari (5xx)</h2>${h.e5.map((x) => `<div class="row"><div class="f"><b class="bad">${x.c}</b> ${esc(x.p)}<small>${esc(when(x.at))} · ${x.ms} ms</small></div></div>`).join('') || '<p class="ok">Yo‘q ✓</p>'}
+          <h2>Sekin so‘rovlar (&gt;3 s)</h2>${h.slow.map((x) => `<div class="row"><div class="f">${esc(x.p)}<small>${esc(when(x.at))} · ${x.ms} ms · ${x.c}</small></div></div>`).join('') || '<p class="ok">Yo‘q ✓</p>'}
+          <h2>Xatolik jurnali (oxirgi 100)</h2>${h.errs.map((x) => `<div class="row"><div class="f"><small>${esc(when(x.at))}</small><pre>${esc(x.m)}</pre></div></div>`).join('') || '<p class="ok">Xatolik yo‘q ✓</p>'}`;
+        timer = setInterval(() => { if (tab === 'health' && !document.hidden) render(); }, 30000);
+      } else if (tab === 'over') {
+        const d = await api('/api/admin/dash'); const s = d.st;
+        m.innerHTML = `<div class="cards">${[['Foydalanuvchilar', s.users], ['Onlayn', s.online], ['Bugun yangi', s.newToday], ['7 kunda yangi', s.new7], ['Faol 24 soat', s.active24], ['Faol 7 kun', s.active7], ['Xabar (bugun)', s.msgsToday], ['Media (bugun)', s.mediaToday], ['Qo‘ng‘iroq (bugun)', `${s.callsToday} · ${s.callMinToday} daq`], ['Guruh/kanal', `${s.groups}/${s.channels}`], ['Reels', s.reels], ['Shikoyat', s.reportsOpen]].map(([n, v]) => `<div class="card"><b>${esc(v)}</b><small>${n}</small></div>`).join('')}</div>
+          <h2>Ro‘yxatdan o‘tish — 30 kun</h2>${bars(d.days.map((x) => x.u))}<h2>Xabarlar — 30 kun</h2>${bars(d.days.map((x) => x.m), '#16A34A')}
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px"><div><h2>📍 Joylashuv (ro‘yxatdan o‘tgan joy)</h2>${d.geo.map((x) => `<div class="row"><div class="f">${esc(x.k)}</div><b>${x.n}</b></div>`).join('')}</div><div><h2>📱 Qurilmalar</h2>${d.dev.map((x) => `<div class="row"><div class="f">${esc(x.k)}</div><b>${x.n}</b></div>`).join('')}</div>
+          <div><h2>🔥 Eng faol (7 kun)</h2>${d.activeTop.map((x, i) => `<div class="row" data-u="${x.user.id}"><div class="f">${i + 1}. ${esc(x.user.name || '')}</div><b>💬 ${x.msgs}</b></div>`).join('')}</div><div><h2>🎬 Top Reels</h2>${d.reelTop.map((x, i) => `<div class="row"><div class="f">${i + 1}. ${esc(x.caption || x.kind)}<small>${esc(x.user?.name || '')}</small></div><b>👁 ${x.views}</b></div>`).join('')}</div></div>`;
+      } else if (tab === 'users' || tab === 'risk') {
+        const r = await api(`/api/admin/people?sort=${tab === 'risk' ? 'risk' : sort}&q=${encodeURIComponent(q)}`); const list = tab === 'risk' ? r.users.filter((u) => u.risk.score > 0) : r.users;
+        m.innerHTML = (tab === 'users' ? `<div class="tools"><input id="q" placeholder="🔍 ism, @username, email, telefon" value="${esc(q)}"><select id="so">${[['new', 'Yangilari'], ['seen', 'Oxirgi faol'], ['active', 'Ko‘p yozgan'], ['media', 'Ko‘p media'], ['calls', 'Ko‘p qo‘ng‘iroq'], ['risk', 'Shubhali']].map(([k, n]) => `<option value="${k}" ${k === sort ? 'selected' : ''}>${n}</option>`).join('')}</select></div><p class="mu">Jami ${r.total} · faollik so‘nggi 30 kun</p>` : '<p class="mu">Belgilar: ko‘p shikoyat, ko‘p bloklangan, yangi akkaunt ko‘p odamga yozishi, juda ko‘p xabar, ko‘p qurilma/davlat.</p>')
+          + `<div style="overflow-x:auto"><table class="tbl"><tr><th>Foydalanuvchi</th><th>Aloqa</th><th>Ro‘yxatdan o‘tgan</th><th>Oxirgi faollik</th><th>Faollik (30 kun)</th><th>Xavf</th></tr>${list.map(uRow).join('')}</table></div>`;
+        const qi = $('#q'); if (qi) { let tm; qi.oninput = () => { clearTimeout(tm); tm = setTimeout(() => { q = qi.value.trim(); render(); }, 400); }; $('#so').onchange = (e) => { sort = e.target.value; render(); }; }
+      } else if (tab === 'media') {
+        const d = await api('/api/panel/media'); const G = { m: 'Erkak', f: 'Ayol', '': 'Ko‘rsatmagan' };
+        m.innerHTML = `<p class="mu">🔒 Shaxsiy suhbatlardagi rasm/video va xabarlar mazmuni ko‘rsatilmaydi — faqat soni va hajmi.</p><h2>Yuborilgan media — 30 kun</h2>${['image', 'video', 'voice', 'file', 'call'].map((k) => `<p style="margin:6px 0 2px"><b>${{ image: '🖼 Rasmlar', video: '🎬 Videolar', voice: '🎤 Ovozli', file: '📎 Fayllar', call: '📞 Qo‘ng‘iroqlar' }[k]}</b> · ${d.days.reduce((n, x) => n + x[k], 0)}</p>${bars(d.days.map((x) => x[k]))}`).join('')}
+          <h2>Turi bo‘yicha (jami)</h2><table class="tbl"><tr><th>Tur</th><th>Soni</th><th>Hajmi</th></tr>${d.size.map((x) => `<tr><td>${esc(x.type)}</td><td>${x.c}</td><td>${size(x.s)}</td></tr>`).join('')}</table>
+          <h2>Jins (foydalanuvchi o‘zi ko‘rsatgan)</h2>${d.gender.map((x) => `<div class="row"><div class="f">${esc(G[x.g] || x.g)}</div><b>${x.c}</b></div>`).join('')}
+          <h2>Ko‘p media yuborganlar (7 kun)</h2>${d.top.map((x) => `<div class="row" data-u="${x.user.id}"><div class="f">${esc(x.user.name || '')}<small>@${esc(x.user.username || '')}</small></div><b>${x.c} · ${size(x.s)}</b></div>`).join('') || '—'}`;
+      } else if (tab === 'sec') {
+        const d = await api('/api/panel/security');
+        m.innerHTML = `<div class="cards"><div class="card"><b>${d.logins.length}</b><small>Kirishlar (24 soat)</small></div><div class="card"><b class="${d.logins.some((x) => x.newCountry) ? 'bad' : ''}">${d.logins.filter((x) => x.newCountry).length}</b><small>Boshqa davlatdan kirish</small></div><div class="card"><b>${d.reportsOpen}</b><small>Ochiq shikoyat</small></div><div class="card"><b>${d.banned.length}</b><small>Bloklangan</small></div><div class="card"><b>${d.r429}</b><small>Cheklovga tushgan so‘rovlar</small></div></div>
+          <h2>So‘nggi kirishlar (24 soat)</h2><div style="overflow-x:auto"><table class="tbl"><tr><th>Vaqt</th><th>Foydalanuvchi</th><th>Qurilma</th><th>Joy / IP</th></tr>${d.logins.map((x) => `<tr data-u="${x.user.id}" style="cursor:pointer"><td>${esc(when(x.created))}</td><td>${esc(x.user.name || '')} ${x.newCountry ? '<span class="bad">⚠️ boshqa davlat</span>' : ''}</td><td>${esc([x.model || x.os, x.app].filter(Boolean).join(' · '))}</td><td>${esc([x.city, x.country].filter(Boolean).join(', '))}<br><span class="mu">${esc(x.ip || '')}</span></td></tr>`).join('')}</table></div>
+          <h2>Ko‘p kod so‘ragan IP manzillar (24 soat)</h2>${d.codeIps.map((x) => `<div class="row"><div class="f">${esc(x.ip)}</div><b class="${x.c > 8 ? 'bad' : ''}">${x.c}</b></div>`).join('') || '—'}
+          <h2>Bloklanganlar</h2>${d.banned.map((u) => `<div class="row" data-u="${u.id}"><div class="f">${esc(u.name || '')} <span class="mu">@${esc(u.username || '')}</span></div></div>`).join('') || '—'}
+          <h2>Panelga kirish urinishlari</h2>${d.panelLog.map((x) => `<div class="row"><div class="f"><b class="${x.ok ? 'ok' : 'bad'}">${x.ok ? '✓' : '✗'} ${esc(x.note)}</b><small>${esc(when(x.at))} · ${esc(x.ip)} · ${esc(x.ua)}</small></div></div>`).join('') || '—'}`;
+      } else if (tab === 'reels') {
+        const [r, yc] = await Promise.all([api('/api/admin/reels'), api('/api/admin/yt/channels').catch(() => ({ channels: [] }))]);
+        m.innerHTML = `<div class="card"><b style="font-size:15px">📺 YouTube Shorts</b><small>${r.yt.err ? '⚠️ ' + esc(r.yt.err) : 'oxirgi: ' + esc(when(r.yt.last))}</small><div class="tools"><input id="yt" placeholder="kanal havolasi, @nom yoki kanal nomi"><button data-a="ytadd">＋ Qo‘shish</button><button class="g" data-a="ytnow">Hozir qo‘shish</button><button class="d" data-a="aidel">AI videolarini o‘chirish</button></div>
+          <div>${yc.channels.map((c) => `<span class="pill" style="margin:2px;${c.err ? 'background:#FEE2E2' : ''}" title="${esc(c.err || '')}">${esc(c.name || c.q || c.h || c.id)}${c.n != null ? ' · ' + c.n : ''} <a href="#" data-yd="${esc(c.id || c.q || c.h)}">✕</a></span>`).join('')}</div></div>
+          <h2>Barcha Reels</h2><table class="tbl"><tr><th>Muallif</th><th>Tavsif</th><th>Statistika</th><th></th></tr>${r.items.map((it) => `<tr><td>${esc(it.user?.name || '')}${it.ai ? ' · Birga AI' : ''}<br><span class="mu">${esc(it.kind)}</span></td><td>${esc((it.caption || '').slice(0, 140))}${it.kind === 'yt' ? `<br><a href="https://www.youtube.com/shorts/${esc(it.igCode)}" target="_blank" rel="noopener">YouTube ↗</a>` : ''}</td><td>👁 ${it.views} · ❤ ${it.likes} · 💬 ${it.comments}<br><span class="mu">${esc(when(it.created_at))}</span></td><td><button class="d" data-rd="${it.id}">🗑</button></td></tr>`).join('')}</table>`;
+      } else if (tab === 'rep') {
+        const l = await api('/api/admin/reports');
+        m.innerHTML = l.map((r) => `<div class="row"><div class="f"><b>🚩 ${esc(r.reason || '')} → ${esc(r.user?.name || '')}</b><small>${esc(r.reporter?.name || '')} · ${esc(when(r.created_at))}</small>${r.snapshot?.text ? `<pre>“${esc(String(r.snapshot.text).slice(0, 400))}”</pre>` : ''}${r.snapshot?.file ? `<a href="${esc(r.snapshot.file)}" target="_blank" rel="noopener">shikoyat qilingan fayl ↗</a>` : ''}</div><button class="g" data-rp="${r.id}" data-ra="delete_msg">🗑</button><button class="d" data-rp="${r.id}" data-ra="ban">⛔</button><button class="g" data-rp="${r.id}" data-ra="dismiss">✓</button></div>`).join('') || '<p class="ok">Ochiq shikoyat yo‘q ✓</p>';
+      } else if (tab === 'set') {
+        m.innerHTML = `<div class="card" style="max-width:460px"><b style="font-size:15px">🔐 Panel kodini almashtirish</b><p class="mu">Kamida 8 belgi. Almashtirilgach, boshqa barcha qurilmalardagi panel kirishlari bekor bo‘ladi.</p><div class="tools" style="flex-direction:column"><input id="o" type="password" placeholder="Eski kod"><input id="n1" type="password" placeholder="Yangi kod"><input id="n2" type="password" placeholder="Yangi kod (takror)"><button data-a="code">Saqlash</button><p class="err" id="ce"></p></div></div>`;
+      }
+    } catch (e) { if (e.st === 401 || e.st === 403) return loginView('Sessiya tugadi — qayta kiring'); m.innerHTML = `<p class="bad">${esc(e.message)}</p>`; }
+  }
+  function modal(html) { const d = document.createElement('div'); d.className = 'modal'; d.innerHTML = `<div>${html}<p style="text-align:right;margin:14px 0 0"><button class="g" data-x>Yopish</button></p></div>`; d.onclick = (e) => { if (e.target === d || e.target.closest('[data-x]')) d.remove(); }; d.addEventListener('click', click); document.body.appendChild(d); return d; }
+  async function person(id) {
+    const d = await api('/api/admin/person/' + id); const u = d.user, a = d.all || {}, m = d.m30 || {};
+    modal(`<h2 style="margin-top:0">${esc(u.name)} <span class="mu">#${u.id}</span></h2><p>${u.username ? '@' + esc(u.username) + ' · ' : ''}${esc(u.email || '')} ${esc(u.phone || u.tel || '')}</p><p class="mu">Ro‘yxatdan o‘tgan: ${esc(when(u.created_at))}${d.reg ? ` · 📍 ${esc([d.reg.city, d.reg.country].filter(Boolean).join(', '))} · 📱 ${esc([d.reg.model, d.reg.os, d.reg.app].filter(Boolean).join(' · '))}` : ''}</p>
+      <table class="tbl"><tr><th></th><th>Jami</th><th>30 kun</th></tr>${[['💬 Xabarlar', 'msgs'], ['🖼 Rasm', 'image'], ['🎬 Video', 'video'], ['🎤 Ovozli', 'voice'], ['⭕ Dumaloq video', 'round'], ['📎 Fayl', 'file'], ['📞 Qo‘ng‘iroq', 'calls'], ['⏱ Qo‘ng‘iroq daqiqasi', 'callMin']].map(([n, k]) => `<tr><td>${n}</td><td>${a[k] || 0}</td><td>${m[k] || 0}</td></tr>`).join('')}<tr><td>👨‍👩‍👧 Guruhlar</td><td>${d.groups}</td><td></td></tr></table>
+      <h2>Qurilmalar va kirishlar</h2><table class="tbl">${d.sessions.map((s) => `<tr><td>${esc([s.model || s.os, s.app].filter(Boolean).join(' · ') || '—')}${s.revoked ? ' <span class="mu">(chiqqan)</span>' : ''}</td><td>${esc([s.city, s.country].filter(Boolean).join(', '))}</td><td>${esc(when(s.last))}</td></tr>`).join('')}</table>
+      ${d.reports.length ? `<h2>Shikoyatlar</h2>${d.reports.map((r) => `<div class="row"><div class="f">${esc(r.reason || '')}</div><b>${esc(r.status)}</b></div>`).join('')}` : ''}
+      ${d.reels.length ? `<h2>Reels (${d.reels.length})</h2>${d.reels.map((it) => `<div class="row"><div class="f">${esc((it.caption || it.kind).slice(0, 100))}<small>👁 ${it.views} · ❤ ${it.likes}</small></div><button class="d" data-rd="${it.id}">🗑</button></div>`).join('')}` : ''}
+      ${u.admin ? '' : `<p><button class="${u.banned ? 'g' : 'd'}" data-ban="${u.id}" data-on="${u.banned ? 0 : 1}">${u.banned ? '✅ Blokdan chiqarish' : '⛔ Bloklash'}</button></p>`}`);
+  }
+  async function click(e) {
+    const b = e.target.closest('[data-u],[data-a],[data-rd],[data-yd],[data-rp],[data-ban]'); if (!b) return; const d = b.dataset; if (b.tagName === 'A') e.preventDefault();
+    try {
+      if (d.u) return person(+d.u);
+      if (d.rd) { if (!confirm('O‘chirilsinmi?')) return; await api(`/api/admin/reels/${d.rd}/delete`, {}); document.querySelector('.modal')?.remove(); return render(); }
+      if (d.yd) { await api('/api/admin/yt/channels/remove', { id: d.yd }); return render(); }
+      if (d.rp) { await api('/api/admin/reports/' + d.rp, { action: d.ra }); return render(); }
+      if (d.ban) { await api(`/api/admin/users/${d.ban}/ban`, { on: d.on === '1' }); document.querySelector('.modal')?.remove(); return render(); }
+      if (d.a === 'ytadd') { const r = await api('/api/admin/yt/channels', { url: $('#yt').value }); alert(`✓ ${r.channel.name || r.channel.id} — ${r.channel.n} ta video`); return render(); }
+      if (d.a === 'ytnow') { const r = await api('/api/admin/yt-reel', {}); alert(r.result ? '✓ Shorts qo‘shildi' : r.err || '—'); return render(); }
+      if (d.a === 'aidel') { if (!confirm('Birga AI yasagan videolar o‘chirilsinmi?')) return; const r = await api('/api/admin/reels/delete-ai-videos', {}); alert('O‘chirildi: ' + r.deleted); return render(); }
+      if (d.a === 'code') { if ($('#n1').value !== $('#n2').value) return ($('#ce').textContent = 'Yangi kodlar bir xil emas'); await api('/api/panel/code', { old: $('#o').value, code: $('#n1').value }); alert('✓ Kod almashtirildi. Qayta kiring.'); return loginView(); }
+    } catch (er) { alert(er.message); }
+  }
+  boot();
+}
 app.get(/^\/(?!api\/|uploads\/|socket\.io\/|vendor\/|stickers\/).*/, sendIndex);
 
 // ---------- Socket.IO ----------
@@ -3563,19 +3749,35 @@ const YT = { busy: false, last: 0, err: null };
 // ---------- YouTube Shorts — kalitsiz: kanallarning ochiq RSS lentasi (faqat Shorts pleylisti UUSH…) ----------
 // Admin kanallarni qo'shadi/o'chiradi (Admin panel → Reels). Video YouTube'ning rasmiy pleyerida, belgisi va havolasi bilan ko'rsatiladi.
 const YT_BASE = () => process.env.YT_WEB_BASE || 'https://www.youtube.com';
+const YT_SEED_V = 2;
 const YT_SEED = [
-  { id: 'UCpVm7bg6pXKo1Pr6k5kxG9A', name: 'National Geographic' }, { id: 'UCsXVk37bltHxD1rDPwtNM8Q', name: 'Kurzgesagt' },
-  { id: 'UCLA_DiR1FfKNvjuUpBHmylQ', name: 'NASA' }, { id: 'UCAuUUnT6oDeKwE6v1NGQxug', name: 'TED' }, { id: 'UCX6OQ3DkcsbYNE6H8uQQuVA', name: 'MrBeast' },
-  { h: '@kunuz' }, { h: '@daryo_uz' }, { h: '@uzreport' },
+  { id: 'UCX6OQ3DkcsbYNE6H8uQQuVA', name: 'MrBeast' }, { id: 'UCpVm7bg6pXKo1Pr6k5kxG9A', name: 'National Geographic' }, { id: 'UCsXVk37bltHxD1rDPwtNM8Q', name: 'Kurzgesagt' },
+  { id: 'UCLA_DiR1FfKNvjuUpBHmylQ', name: 'NASA' }, { id: 'UCAuUUnT6oDeKwE6v1NGQxug', name: 'TED' },
+  // egasi so'ragan kanallar — nomi bo'yicha YouTube qidiruvidan topiladi (ID birinchi marta aniqlanadi va saqlanadi)
+  ...['Jamshidxon Ziyoxonov', 'Mini Amazonka uz', 'Muslimaat uz', 'Ziyokhonov Context', 'Najot Ta\'lim', 'Hasanxon Yahyo', 'Sardor Rahimxon', 'CZN Burak', 'Avaz Oxun', 'Abror Muxtor Aliy', 'Zach King', 'Cristiano Ronaldo UR', 'Davud Akhundzada', 'Орёл и решка', 'Sardor domla', 'Ustazation', 'Xurmo', 'Tarona', 'Rizanova uz'].map((q) => ({ q })),
 ];
 const YTH = { 'User-Agent': 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Mobile Safari/537.36', 'Accept-Language': 'en-US,en;q=0.8,uz;q=0.6', Cookie: 'SOCS=CAI; CONSENT=YES+1' };
 const ytGet = async (u, ms = 15000) => { const r = await fetch(u, { headers: YTH, signal: AbortSignal.timeout(ms), redirect: 'manual' }); return { status: r.status, text: r.status < 300 ? await r.text() : '' }; };
-async function ytChannels() { const r = await db.get("SELECT v FROM meta WHERE k='yt_channels'"); if (r?.v) { try { return JSON.parse(r.v); } catch {} } return YT_SEED.map((x) => ({ ...x })); }
+async function ytChannels() {
+  const r = await db.get("SELECT v FROM meta WHERE k='yt_channels'"); let l = null; if (r?.v) { try { l = JSON.parse(r.v); } catch {} }
+  if (!l) return YT_SEED.map((x) => ({ ...x }));
+  const sv = Number((await db.get("SELECT v FROM meta WHERE k='yt_seed_v'"))?.v || 1);
+  if (sv < YT_SEED_V) { for (const x of YT_SEED) if (!l.some((y) => (x.id && y.id === x.id) || (x.q && y.q === x.q))) l.push({ ...x }); await ytSaveCh(l); await db.run("INSERT INTO meta(k,v) VALUES('yt_seed_v',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", [String(YT_SEED_V)]); }
+  return l;
+}
 const ytSaveCh = (l) => db.run("INSERT INTO meta(k,v) VALUES('yt_channels',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", [JSON.stringify(l.slice(0, 100))]);
 // havola/@handle/UC… → kanal ID
 async function ytResolve(input) {
   const s = String(input || '').trim(); let m = /(UC[\w-]{22})/.exec(s); if (m) return { id: m[1] };
-  m = /(?:youtube\.com\/)?(@[\w.\-]{2,60})/i.exec(s) || /youtube\.com\/(c\/[\w.\-]+|user\/[\w.\-]+)/i.exec(s); if (!m) throw new Error('Kanal havolasi yoki @nom kerak');
+  m = /(?:youtube\.com\/)?(@[\w.\-]{2,60})/i.exec(s) || /youtube\.com\/(c\/[\w.\-]+|user\/[\w.\-]+)/i.exec(s);
+  if (!m) { // kanal nomi — YouTube qidiruvi (faqat kanallar)
+    if (s.length < 2) throw new Error('Kanal havolasi, @nom yoki kanal nomi kerak');
+    const r = await ytGet(`${YT_BASE()}/results?search_query=${encodeURIComponent(s)}&sp=EgIQAg%253D%253D`); if (!r.text) throw new Error('Qidiruv ishlamadi (' + r.status + ')');
+    const k = r.text.indexOf('"channelRenderer"'); const seg = k >= 0 ? r.text.slice(k, k + 3000) : r.text;
+    const id = (/"channelId":"(UC[\w-]{22})"/.exec(seg) || [])[1]; if (!id) throw new Error('Kanal topilmadi: ' + s);
+    const name = libEnt((/"title":\{"simpleText":"([^"]+)"/.exec(seg) || [])[1] || s); const h = (/"canonicalBaseUrl":"\/(@[^"]+)"/.exec(seg) || [])[1];
+    return { id, name, h, q: s };
+  }
   const r = await ytGet(`${YT_BASE()}/${m[1]}`); if (!r.text) throw new Error('Kanal topilmadi (' + r.status + ')');
   const id = (/"externalId":"(UC[\w-]{22})"/.exec(r.text) || /"channelId":"(UC[\w-]{22})"/.exec(r.text) || /channel\/(UC[\w-]{22})/.exec(r.text) || [])[1]; if (!id) throw new Error('Kanal ID topilmadi');
   const name = libEnt((/<meta property="og:title" content="([^"]+)"/.exec(r.text) || [])[1] || m[1]);
@@ -3594,28 +3796,31 @@ async function ytFeed(ch) {
 const ytIsShort = async (id) => { try { return (await ytGet(`${YT_BASE()}/shorts/${id}`, 10000)).status === 200; } catch { return false; } };
 const ytEmbeddable = async (id) => { try { const r = await fetch(`${YT_BASE()}/oembed?format=json&url=${encodeURIComponent('https://www.youtube.com/shorts/' + id)}`, { headers: YTH, signal: AbortSignal.timeout(10000) }); return r.ok; } catch { return false; } };
 async function ytRss(force) {
-  const bot = await airBot(); const per = Math.min(30, Math.max(1, Number(process.env.YT_REELS_PER_DAY) || 10));
+  const bot = await airBot(); const per = Math.min(40, Math.max(1, Number(process.env.YT_REELS_PER_DAY) || 20));
   const day = tashDay(), dayStart = Date.parse(day + 'T00:00:00Z') - 5 * 3600e3;
   const made = Number((await db.get("SELECT COUNT(*) AS c FROM reels WHERE user_id=? AND kind='yt' AND created_at>=?", [bot.id, dayStart]))?.c || 0);
   const due = Math.ceil((per * Math.max(0, tashHour() - 7)) / 15);
   if (!force && made >= Math.min(per, due)) return null;
   const used = JSON.parse((await db.get("SELECT v FROM meta WHERE k='yt_used'"))?.v || '[]'); const U = new Set(used);
   const chs = await ytChannels(); let changed = false; const errs = [];
-  for (const ch of chs) if (!ch.id && ch.h) { try { Object.assign(ch, await ytResolve(ch.h)); changed = true; } catch (e) { ch.err = e.message; errs.push(ch.h + ': ' + e.message); } }
+  for (const ch of chs) if (!ch.id && (ch.h || ch.q) && !(ch.errAt > now() - 6 * 3600e3)) { try { Object.assign(ch, await ytResolve(ch.h || ch.q)); delete ch.err; changed = true; } catch (e) { ch.err = e.message; ch.errAt = now(); changed = true; errs.push((ch.h || ch.q) + ': ' + e.message); } }
   if (changed) await ytSaveCh(chs);
-  const pool = [];
-  for (const ch of chs.filter((c) => c.id && !c.off)) { try { const l = await ytFeed(ch); ch.n = l.length; l.forEach((v) => pool.push({ ...v, ch: v.ch || ch.name || '' })); } catch (e) { errs.push((ch.name || ch.id) + ': ' + e.message); } }
-  const fresh = pool.filter((v) => !U.has(v.id) && (!v.at || now() - v.at < 120 * 864e5)).sort((a, b) => b.views - a.views);
-  if (!fresh.length) throw new Error('YouTube: yangi Shorts topilmadi' + (errs.length ? ' — ' + errs.slice(0, 3).join('; ') : ''));
-  // eng ko'p ko'rilganlardan tasodifiy, kanallar navbatma-navbat
-  const lastCh = (await db.get("SELECT caption FROM reels WHERE user_id=? AND kind='yt' ORDER BY id DESC LIMIT 1", [bot.id]))?.caption || '';
-  const cand = fresh.filter((v) => !lastCh.includes(v.ch)).slice(0, 12); const order = (cand.length ? cand : fresh.slice(0, 12)).sort(() => Math.random() - 0.5);
+  // kanallar navbatma-navbat: eng uzoq vaqt ishlatilmagan kanaldan eng ko'p ko'rilgan yangi Shorts
+  const order = []; const act = chs.filter((c) => c.id && !c.off).sort((a, b) => (a.lastAt || 0) - (b.lastAt || 0));
+  for (const ch of act) {
+    if (order.length >= 12) break;
+    let l = []; try { l = await ytFeed(ch); ch.n = l.length; } catch (e) { errs.push((ch.name || ch.id) + ': ' + e.message); continue; }
+    const fresh = l.filter((v) => !U.has(v.id) && (!v.at || now() - v.at < 180 * 864e5)).sort((a, b) => b.views - a.views).slice(0, 3);
+    fresh.forEach((v) => order.push({ ...v, ch: v.ch || ch.name || '', chRef: ch }));
+  }
+  if (!order.length) throw new Error('YouTube: yangi Shorts topilmadi' + (errs.length ? ' — ' + errs.slice(0, 3).join('; ') : ''));
   for (const v of order) {
     if (!v.short && !(await ytIsShort(v.id))) { U.add(v.id); used.push(v.id); continue; }
     if (!(await ytEmbeddable(v.id))) { U.add(v.id); used.push(v.id); continue; }
     const cap = `${String(v.t).replace(/\s+/g, ' ').slice(0, 140)}\n📺 ${String(v.ch).slice(0, 60)} · YouTube`.slice(0, 300);
     const id = await db.insert('INSERT INTO reels(user_id,kind,file,mime,ig_kind,ig_code,duration,caption,created_at) VALUES(?,?,?,?,?,?,?,?,?)', [bot.id, 'yt', null, null, 'yt', v.id, null, cap, now()]);
     used.push(v.id); await db.run("INSERT INTO meta(k,v) VALUES('yt_used',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", [JSON.stringify(used.slice(-3000))]);
+    v.chRef.lastAt = now(); await ytSaveCh(chs);
     console.log(`📺 YouTube Shorts (RSS) lentaga: #${id} "${String(v.t).slice(0, 50)}" (${v.ch})`);
     return { id: Number(id) };
   }
@@ -3629,7 +3834,7 @@ app.post('/api/admin/yt/channels', auth, adminOnly, wrap(async (req, res) => {
   let n = 0; try { n = (await ytFeed(ch)).length; } catch {}
   res.json({ ok: true, channel: { ...ch, n }, channels: l });
 }));
-app.post('/api/admin/yt/channels/remove', auth, adminOnly, wrap(async (req, res) => { const k = String(req.body?.id || ''); const l = (await ytChannels()).filter((x) => x.id !== k && x.h !== k); await ytSaveCh(l); res.json({ ok: true, channels: l }); }));
+app.post('/api/admin/yt/channels/remove', auth, adminOnly, wrap(async (req, res) => { const k = String(req.body?.id || ''); const l = (await ytChannels()).filter((x) => x.id !== k && x.h !== k && x.q !== k); await ytSaveCh(l); res.json({ ok: true, channels: l }); }));
 async function ytTick(force) {
   const key = process.env.YOUTUBE_API_KEY; if (YT.busy || (!force && process.env.YT_REELS === '0')) return null;
   YT.busy = true;
@@ -3845,7 +4050,7 @@ async function extraSchema() {
   await db.run(`CREATE TABLE IF NOT EXISTS reel_comments(id ${db.kind === 'postgres' ? 'BIGSERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'}, reel_id BIGINT, user_id BIGINT, text TEXT, at BIGINT)`);
   await db.run('CREATE INDEX IF NOT EXISTS idx_rcom ON reel_comments(reel_id, id)');
   await db.run(`CREATE TABLE IF NOT EXISTS game_rooms(id TEXT PRIMARY KEY, game TEXT, chat_id BIGINT, a BIGINT, b BIGINT, moves TEXT, status TEXT, winner INTEGER, claims TEXT, created BIGINT, updated BIGINT)`);
-  const cols = [['users', 'tel_ok', 'INTEGER DEFAULT 0'], ['users', 'reg_info', 'TEXT'], ['users', 'folders', 'TEXT'], ['users', 'region', 'TEXT'], ['users', 'invite_code', 'TEXT'], ['users', 'invited_by', 'BIGINT'], ['game_rooms', 'secret', 'TEXT'], ['users', 'steps_on', 'INTEGER DEFAULT 0'], ['users', 'banned', 'INTEGER DEFAULT 0'], ['users', 'birthday', 'TEXT'], ['chat_members', 'pinned', 'BIGINT DEFAULT 0'], ['chat_members', 'archived', 'INTEGER DEFAULT 0'], ['users', 'hide_seen', 'INTEGER DEFAULT 0'], ['users', 'deleted', 'INTEGER DEFAULT 0'], ['chat_members', 'del_at', 'BIGINT'], ['users', 'loc_share', 'INTEGER DEFAULT 0'], ['game_rooms', 'pl', 'TEXT'], ['game_rooms', 'chats', 'TEXT'], ['users', 'priv_seen', 'TEXT'], ['users', 'priv_seen_list', 'TEXT'], ['users', 'priv_story', 'TEXT'], ['users', 'priv_story_list', 'TEXT'], ['messages', 'restored_at', 'BIGINT'], ['users', 'tel', 'TEXT']];
+  const cols = [['users', 'tel_ok', 'INTEGER DEFAULT 0'], ['users', 'gender', 'TEXT'], ['users', 'reg_info', 'TEXT'], ['users', 'folders', 'TEXT'], ['users', 'region', 'TEXT'], ['users', 'invite_code', 'TEXT'], ['users', 'invited_by', 'BIGINT'], ['game_rooms', 'secret', 'TEXT'], ['users', 'steps_on', 'INTEGER DEFAULT 0'], ['users', 'banned', 'INTEGER DEFAULT 0'], ['users', 'birthday', 'TEXT'], ['chat_members', 'pinned', 'BIGINT DEFAULT 0'], ['chat_members', 'archived', 'INTEGER DEFAULT 0'], ['users', 'hide_seen', 'INTEGER DEFAULT 0'], ['users', 'deleted', 'INTEGER DEFAULT 0'], ['chat_members', 'del_at', 'BIGINT'], ['users', 'loc_share', 'INTEGER DEFAULT 0'], ['game_rooms', 'pl', 'TEXT'], ['game_rooms', 'chats', 'TEXT'], ['users', 'priv_seen', 'TEXT'], ['users', 'priv_seen_list', 'TEXT'], ['users', 'priv_story', 'TEXT'], ['users', 'priv_story_list', 'TEXT'], ['messages', 'restored_at', 'BIGINT'], ['users', 'tel', 'TEXT']];
   for (const [t, c, type] of cols) {
     try { await db.get(`SELECT ${c} FROM ${t} LIMIT 1`); } catch { await db.run(`ALTER TABLE ${t} ADD COLUMN ${c} ${type}`); }
   }

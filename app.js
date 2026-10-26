@@ -9759,17 +9759,17 @@ const BIG = {
   async send(file, type, extra = {}) {
     const chatId = extra.chatId || S.current; if (!chatId) return;
     const vid = type === 'video' || /^video\//.test(file.type); const id = newTempId();
-    const meta = { name: file.name || (vid ? 'video.mp4' : 'file'), big: 1, vid: vid ? 1 : 0, bmime: file.type || '' };
-    const temp = { tempId: id, cid: id, pending: true, progress: 0, chat_id: chatId, sender_id: S.me.id, type: 'file', blob: file, localUrl: URL.createObjectURL(file), text: extra.text || '', meta, size: file.size, reply_to: extra.replyTo, created_at: Date.now() };
+    const V = extra._v || {}; const meta = { name: file.name || (vid ? 'video.mp4' : 'file'), big: 1, vid: vid ? 1 : 0, bmime: file.type || '', ...(V.thumb ? { thumb: V.thumb } : {}), ...(V.w ? { w: V.w, h: V.h } : {}) };
+    const temp = { tempId: id, cid: id, pending: true, progress: 0, chat_id: chatId, sender_id: S.me.id, type: 'file', blob: file, localUrl: URL.createObjectURL(file), text: extra.text || '', meta, size: file.size, duration: V.duration || 0, reply_to: extra.replyTo, created_at: Date.now() };
     pushPending(temp); this.urls.set(id, temp.localUrl);
     try {
-      const PART = Math.max(1048576, Math.min(this.PART, Math.floor((S.config?.maxUploadMb || 50) * 0.8) * 1048576)); const parts = []; const n = Math.ceil(file.size / PART);
+      const PART = Math.max(262144, Math.min(this.PART, Math.floor((S.config?.maxUploadMb || 50) * 0.8 * 1048576))); const parts = []; const n = Math.ceil(file.size / PART);
       for (let i = 0; i < n; i++) {
         const part = new File([file.slice(i * PART, Math.min(file.size, (i + 1) * PART))], `${meta.name}.part${i + 1}`, { type: 'application/octet-stream' });
         let up = null; for (let a = 0; a < 4 && !up; a++) { try { up = await uploadFile(part, (p) => { temp.progress = (i + p) / n; paintProgress(temp); }, ''); } catch (e) { if (e.fatal || a === 3) throw e; await sleep(2000 * (a + 1)); } }
         parts.push(up.url); temp.progress = (i + 1) / n; paintProgress(temp);
       }
-      const m = await emitSend({ chatId, type: 'file', file: parts[0], mime: file.type || 'application/octet-stream', size: file.size, text: temp.text, meta: { ...meta, parts }, replyTo: temp.reply_to, cid: temp.cid });
+      const m = await emitSend({ chatId, type: 'file', file: parts[0], mime: file.type || 'application/octet-stream', size: file.size, duration: V.duration || undefined, text: temp.text, meta: { ...meta, parts }, replyTo: temp.reply_to, cid: temp.cid });
       if (m?.id) this.urls.set(String(m.id), temp.localUrl);
       resolvePending(temp, m);
     } catch (e) { toast(e.message || t('upload_fail'), 4000); dropPending(temp); }
@@ -9853,6 +9853,84 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .bigf{min-width:230px;max-width:290px}.bigf-top{display:flex;align-items:center;gap:10px}.bigf-ic{font-size:30px}.bigf-b{flex:1;min-width:0}.bigf-b b,.bigf-b small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bigf-b small{opacity:.7;font-size:12px}
 .bigf-acts{display:flex;gap:6px;margin-top:8px}.bigf-btn{flex:1;padding:8px 10px;border-radius:12px;background:var(--blue,#3B82F6);color:#fff;font-weight:700;font-size:13px}.bigf-btn.g{background:rgba(127,127,127,.18);color:inherit}.msg.out .bigf-btn{background:#fff;color:var(--blue,#3B82F6)}.msg.out .bigf-btn.g{background:rgba(255,255,255,.22);color:#fff}
 .bigf-bar{height:4px;border-radius:2px;background:rgba(127,127,127,.25);margin:8px 0 3px;overflow:hidden}.bigf-bar i{display:block;height:100%;width:0;background:#22C55E;transition:width .3s}.bigf-st{display:block;font-size:11.5px;opacity:.75}
+</style>`);
+
+/* ==================== v41: ixchamroq menyu va hikoyalar; katta video — oddiy katta video xabar ko'rinishida ==================== */
+// videodan muqova (birinchi kadr) va o'lchamlarni olish
+function videoPoster(file) {
+  return new Promise((res) => {
+    const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.preload = 'auto'; const u = URL.createObjectURL(file); let done = false;
+    const fin = (o) => { if (done) return; done = true; clearTimeout(tm); try { v.removeAttribute('src'); v.load(); } catch {} URL.revokeObjectURL(u); res(o); };
+    const tm = setTimeout(() => fin({}), 15000);
+    v.onloadedmetadata = () => { try { v.currentTime = Math.min(1, (v.duration || 2) / 3); } catch { fin({ w: v.videoWidth, h: v.videoHeight, duration: v.duration }); } };
+    v.onseeked = () => { try { const k = Math.min(1, 640 / Math.max(v.videoWidth, v.videoHeight)); const c = Object.assign(document.createElement('canvas'), { width: Math.round(v.videoWidth * k), height: Math.round(v.videoHeight * k) }); c.getContext('2d').drawImage(v, 0, 0, c.width, c.height); c.toBlob((b) => fin({ w: v.videoWidth, h: v.videoHeight, duration: isFinite(v.duration) ? v.duration : 0, poster: b }), 'image/jpeg', 0.78); } catch { fin({ w: v.videoWidth, h: v.videoHeight, duration: v.duration }); } };
+    v.onerror = () => fin({}); v.src = u;
+  });
+}
+{
+  const baseSend = BIG.send.bind(BIG);
+  BIG.send = async function (file, type, extra = {}) {
+    const vid = type === 'video' || /^video\//.test(file.type);
+    if (!vid) return baseSend(file, type, extra);
+    const info = await videoPoster(file).catch(() => ({}));
+    let thumb = null; if (info.poster) { try { thumb = (await uploadFile(new File([info.poster], 'poster.jpg', { type: 'image/jpeg' }), null, '')).url; } catch {} }
+    return baseSend(file, type, { ...extra, _v: { thumb, w: info.w || 0, h: info.h || 0, duration: info.duration || 0 } });
+  };
+}
+{
+  const dur = (s) => (s ? fmtDur(s) : '');
+  BIG.vhtml = function (m) {
+    const p = m.meta; const id = m.id || m.tempId; const pend = m.pending && !m.id; const local = this.urls.get(String(m.id)) || this.urls.get(m.tempId) || m.localUrl;
+    const w = Number(p.w) || 16, h = Number(p.h) || 9; const ar = Math.max(0.56, Math.min(1.8, w / h));
+    const media = p.thumb ? `<img src="${esc(p.thumb)}" alt="" loading="lazy">` : local ? `<video src="${esc(local)}#t=0.5" muted playsinline preload="metadata"></video>` : `<div class="bigv-ph">🎬</div>`;
+    const run = this.runs.get(String(m.id));
+    const prog = pend ? Math.round((m.progress || 0) * 100) : null;
+    return `<div class="bigv" data-bigv="${id}" style="aspect-ratio:${ar.toFixed(3)}">${media}
+      <button class="bigv-play" ${pend ? '' : `data-bigplay="${m.id}"`} type="button" aria-label="play">${pend || run ? `<svg class="bigv-ring" viewBox="0 0 48 48"><circle cx="24" cy="24" r="21" pathLength="100" style="stroke-dashoffset:${100 - (prog ?? 0)}"/></svg><span class="bigv-pct">${prog ?? 0}%</span>` : MZI.play}</button>
+      <span class="bigv-inf">${pend ? '⬆ ' : ''}${dur(m.duration) ? dur(m.duration) + ' · ' : ''}${fmtSize(m.size || 0)}</span>
+      ${pend ? '' : `<button class="bigv-dl" data-bigsave="${m.id}" type="button" aria-label="save">⬇</button>`}</div>`;
+  };
+  const baseHtml = BIG.html.bind(BIG); BIG.html = function (m) { return m.meta?.vid ? this.vhtml(m) : baseHtml(m); };
+  const baseMI41 = msgInner;
+  msgInner = function (m, c, tail, gap) {
+    const h = baseMI41(m, c, tail, gap); if (m.deleted || m.type !== 'file' || !m.meta?.big || !m.meta.vid) return h;
+    let out = h;
+    out = out.replace('<div class="bubble">', '<div class="bubble media bigv-b">');
+    if (!m.text) { const i = out.lastIndexOf('<span class="meta">'); if (i >= 0) out = out.slice(0, i) + '<span class="meta over">' + out.slice(i + 19); }
+    return out;
+  };
+  // yuklanish jarayoni muqova ustidagi doirada
+  const baseUi = BIG.ui.bind(BIG);
+  BIG.ui = function (id, st, p) {
+    baseUi(id, st, p); const el = $(`.bigv[data-bigv="${id}"]`); if (!el) return;
+    const btn = el.querySelector('.bigv-play');
+    if (p != null && p < 1) { if (!btn.querySelector('.bigv-ring')) btn.innerHTML = '<svg class="bigv-ring" viewBox="0 0 48 48"><circle cx="24" cy="24" r="21" pathLength="100"/></svg><span class="bigv-pct"></span>'; btn.querySelector('circle').style.strokeDashoffset = 100 - p * 100; btn.querySelector('.bigv-pct').textContent = Math.round(p * 100) + '%'; }
+    else btn.innerHTML = MZI.play;
+  };
+  // yuborishda ham doira ichida foiz
+  const basePP = paintProgress;
+  paintProgress = function (m) { const el = m?.meta?.big && m.meta.vid && $(`.bigv[data-bigv="${m.tempId}"]`); if (el) { const p = Math.round((m.progress || 0) * 100); const c = el.querySelector('circle'); if (c) c.style.strokeDashoffset = 100 - p; const t2 = el.querySelector('.bigv-pct'); if (t2) t2.textContent = p + '%'; return; } return basePP(m); };
+  $('#messages').addEventListener('click', (e) => { const v = e.target.closest('.bigv'); if (!v || e.target.closest('[data-bigsave]')) return; const b = v.querySelector('[data-bigplay]'); if (b && !e.target.closest('[data-bigplay]')) { e.stopImmediatePropagation(); b.click(); } }, true);
+}
+
+document.head.insertAdjacentHTML('beforeend', `<style>
+/* ixchamroq pastki menyu */
+.bottom-nav{padding:2px 4px calc(2px + env(safe-area-inset-bottom))!important}
+.bottom-nav button{padding:2px 0 1px!important;font-size:9px!important}.bottom-nav button>span:last-child{font-size:9px}
+.bottom-nav .nb{height:19px!important;width:32px!important}.bottom-nav .nb svg{width:17px!important;height:17px!important}
+.bottom-nav [data-tab="profile"] .nb{height:44px!important;width:44px!important;margin-bottom:2px}.bottom-nav [data-tab="profile"] .nb .av{width:40px!important;height:40px!important;font-size:15px}.bottom-nav [data-tab="profile"]>span:last-child{font-size:10.5px!important}
+/* ixchamroq hikoyalar va qadamlar */
+.stories{gap:10px!important;padding:2px 12px 4px!important;min-height:0!important}.stories.has-steps .st{min-height:0!important}
+.st{width:56px!important;gap:2px!important;font-size:11px!important}.st .ring{width:52px!important;height:52px!important;padding:2.5px!important}.st .ring .av{border-width:2.5px!important;font-size:17px!important}
+.st span.nm{max-width:56px!important}.st .plus{width:19px!important;height:19px!important}.st .plus svg{width:12px!important;height:12px!important}.st .st-n{font-size:10px!important;margin-top:0!important}
+/* katta video — oddiy video xabar kabi */
+.bubble.bigv-b{padding:3px;overflow:hidden}.bigv{position:relative;width:min(70vw,290px);max-height:380px;border-radius:14px;overflow:hidden;background:#0B1220;cursor:pointer}
+.bigv img,.bigv video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}.bigv-ph{position:absolute;inset:0;display:grid;place-items:center;font-size:46px;color:#fff;background:linear-gradient(135deg,#1E293B,#0F172A)}
+.bigv-play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:56px;height:56px;border-radius:50%;background:rgba(0,0,0,.5);color:#fff;display:grid;place-items:center;backdrop-filter:blur(4px)}.bigv-play>svg:not(.bigv-ring){width:24px;height:24px;margin-left:3px}
+.bigv-ring{position:absolute;inset:0;width:56px;height:56px;transform:rotate(-90deg)}.bigv-ring circle{fill:none;stroke:#fff;stroke-width:3;stroke-dasharray:100;stroke-linecap:round;transition:stroke-dashoffset .3s}.bigv-pct{font-size:12px;font-weight:800}
+.bigv-inf{position:absolute;left:8px;top:8px;padding:2px 8px;border-radius:10px;background:rgba(0,0,0,.5);color:#fff;font-size:12px;font-weight:700}
+.bigv-dl{position:absolute;right:8px;top:8px;width:32px;height:32px;border-radius:50%;background:rgba(0,0,0,.5);color:#fff;font-size:15px;display:grid;place-items:center}
+.bigv-b .bigf-st,.bigv-b .bigf-bar{display:none}
 </style>`);
 
 boot();

@@ -1,5 +1,5 @@
 // Birga service worker: ilova qobig'ini keshlash + push bildirishnomalar
-const CACHE = 'birga-v20';
+const CACHE = 'birga-v21';
 const MEDIA = 'birga-media'; // foydalanuvchi mediasi — versiya almashganda O'CHIRILMAYDI
 const SHELL = ['/', '/styles.css', '/app.js', '/i18n.js', '/vendor/phone.js', '/manifest.webmanifest', '/icons/mark.png', '/icons/icon-192.png', '/icons/badge-96.png', '/socket.io/socket.io.js'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).catch(() => {})); self.skipWaiting(); });
@@ -39,6 +39,7 @@ self.addEventListener('fetch', (e) => {
     return;
   }
   if (e.request.method !== 'GET') return;
+  if (u.searchParams.has('bp')) return; // katta fayl bo'laklari keshlanmaydi
   if (isMedia(u)) {
     const key = u.origin + u.pathname;
     e.respondWith((async () => {

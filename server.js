@@ -2567,11 +2567,11 @@ function panelClient() {
 const PFLAGS = { regClosed: false, ytPerDay: 0, ai: false, ann: null };
 (async () => { for (let i = 0; i < 20; i++) { await new Promise((r) => setTimeout(r, 2000)); try { const v = await db.getMeta('panel_flags'); if (v) Object.assign(PFLAGS, JSON.parse(v)); return; } catch {} } })();
 const savePF = () => db.setMeta('panel_flags', JSON.stringify(PFLAGS));
-app.get('/api/panel/settings', auth, panelOnly, (req, res) => res.json({ ...PFLAGS, env: { ai: process.env.AI_REELS === '1', ytPerDay: Number(process.env.YT_REELS_PER_DAY) || 20 } }));
+app.get('/api/panel/settings', auth, panelOnly, (req, res) => res.json({ ...PFLAGS, env: { ai: process.env.AI_REELS === '1', ytPerDay: Number(process.env.YT_REELS_PER_DAY) || 48 } }));
 app.post('/api/panel/settings', auth, panelOnly, wrap(async (req, res) => {
   const b = req.body || {};
   if (b.regClosed != null) PFLAGS.regClosed = !!b.regClosed;
-  if (b.ytPerDay != null) PFLAGS.ytPerDay = Math.max(0, Math.min(40, Number(b.ytPerDay) || 0));
+  if (b.ytPerDay != null) PFLAGS.ytPerDay = Math.max(0, Math.min(120, Number(b.ytPerDay) || 0));
   if (b.ai != null) PFLAGS.ai = !!b.ai;
   await savePF(); res.json({ ok: true, ...PFLAGS });
 }));
@@ -3813,12 +3813,12 @@ const YT = { busy: false, last: 0, err: null };
 // ---------- YouTube Shorts — kalitsiz: kanallarning ochiq RSS lentasi (faqat Shorts pleylisti UUSH…) ----------
 // Admin kanallarni qo'shadi/o'chiradi (Admin panel → Reels). Video YouTube'ning rasmiy pleyerida, belgisi va havolasi bilan ko'rsatiladi.
 const YT_BASE = () => process.env.YT_WEB_BASE || 'https://www.youtube.com';
-const YT_SEED_V = 2;
+const YT_SEED_V = 4;
 const YT_SEED = [
   { id: 'UCX6OQ3DkcsbYNE6H8uQQuVA', name: 'MrBeast' }, { id: 'UCpVm7bg6pXKo1Pr6k5kxG9A', name: 'National Geographic' }, { id: 'UCsXVk37bltHxD1rDPwtNM8Q', name: 'Kurzgesagt' },
   { id: 'UCLA_DiR1FfKNvjuUpBHmylQ', name: 'NASA' }, { id: 'UCAuUUnT6oDeKwE6v1NGQxug', name: 'TED' },
   // egasi so'ragan kanallar — nomi bo'yicha YouTube qidiruvidan topiladi (ID birinchi marta aniqlanadi va saqlanadi)
-  ...['Jamshidxon Ziyoxonov', 'Mini Amazonka uz', 'Muslimaat uz', 'Ziyokhonov Context', 'Najot Ta\'lim', 'Hasanxon Yahyo', 'Sardor Rahimxon', 'CZN Burak', 'Avaz Oxun', 'Abror Muxtor Aliy', 'Zach King', 'Cristiano Ronaldo UR', 'Davud Akhundzada', 'Орёл и решка', 'Sardor domla', 'Ustazation', 'Xurmo', 'Tarona', 'Rizanova uz'].map((q) => ({ q })),
+  ...['jamshidxon ziyoxonov', 'mini amazonka uz', 'muslimaat uz', 'ziyokhonov context', "najot ta'lim", 'hasanxon yahyo', 'Sardor Rahimxon', 'mr beast', 'czn burak', 'avaz oxun', 'abror muhtor aliy', 'zach king', 'cristiano', 'davud akhudzada', 'orelireshka', 'sardor domla', 'ustazation', 'xurmo', 'tarona', 'rizanova uz'].map((q) => ({ q })),
 ];
 const YTH = { 'User-Agent': 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Mobile Safari/537.36', 'Accept-Language': 'en-US,en;q=0.8,uz;q=0.6', Cookie: 'SOCS=CAI; CONSENT=YES+1' };
 const ytGet = async (u, ms = 15000) => { const r = await fetch(u, { headers: YTH, signal: AbortSignal.timeout(ms), redirect: 'manual' }); return { status: r.status, text: r.status < 300 ? await r.text() : '' }; };
@@ -3826,22 +3826,33 @@ async function ytChannels() {
   const r = await db.get("SELECT v FROM meta WHERE k='yt_channels'"); let l = null; if (r?.v) { try { l = JSON.parse(r.v); } catch {} }
   if (!l) return YT_SEED.map((x) => ({ ...x }));
   const sv = Number((await db.get("SELECT v FROM meta WHERE k='yt_seed_v'"))?.v || 1);
-  if (sv < YT_SEED_V) { for (const x of YT_SEED) if (!l.some((y) => (x.id && y.id === x.id) || (x.q && y.q === x.q))) l.push({ ...x }); await ytSaveCh(l); await db.run("INSERT INTO meta(k,v) VALUES('yt_seed_v',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", [String(YT_SEED_V)]); }
+  if (sv < YT_SEED_V) { if (sv < 4) l = l.filter((y) => y.id); /* topilmagan eski nomlar o'rniga egasi yozgan aniq nomlar */ for (const x of YT_SEED) if (!l.some((y) => (x.id && y.id === x.id) || (x.q && ytNorm(y.q || '') === ytNorm(x.q)))) l.push({ ...x }); await ytSaveCh(l); await db.run("INSERT INTO meta(k,v) VALUES('yt_seed_v',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", [String(YT_SEED_V)]); }
   return l;
 }
 const ytSaveCh = (l) => db.run("INSERT INTO meta(k,v) VALUES('yt_channels',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", [JSON.stringify(l.slice(0, 100))]);
+// YouTube ichki API (innertube) — Yevropa serverlarida "cookie roziligi" sahifasiga yo'naltirmaydi
+const YTI_CTX = { client: { clientName: 'WEB', clientVersion: '2.20240814.00.00', hl: 'en', gl: 'US' } };
+const ytI = async (ep, body) => { const r = await fetch(`${YT_BASE()}/youtubei/v1/${ep}?prettyPrint=false`, { method: 'POST', headers: { ...YTH, 'Content-Type': 'application/json', Origin: 'https://www.youtube.com', 'X-Youtube-Client-Name': '1', 'X-Youtube-Client-Version': YTI_CTX.client.clientVersion }, body: JSON.stringify({ context: YTI_CTX, ...body }), signal: AbortSignal.timeout(15000) }); if (!r.ok) throw new Error('youtubei ' + ep + ' ' + r.status); return r.json(); };
+const ytFindChannels = (o, out = []) => { if (!o || typeof o !== 'object' || out.length > 10) return out; if (o.channelRenderer?.channelId) { const c = o.channelRenderer; out.push({ id: c.channelId, name: c.title?.simpleText || c.title?.runs?.[0]?.text || '', h: (c.navigationEndpoint?.browseEndpoint?.canonicalBaseUrl || '').replace(/^\//, '') || undefined, subs: c.subscriberCountText?.simpleText || c.videoCountText?.simpleText || '' }); } for (const k in o) if (o[k] && typeof o[k] === 'object') ytFindChannels(o[k], out); return out; };
+const ytNorm = (s) => String(s).toLowerCase().normalize('NFKD').replace(/[^a-zа-яё0-9]/gi, '');
+async function ytSearchChannel(q) {
+  try { const j = await ytI('search', { query: q, params: 'EgIQAg%3D%3D' }); const l = ytFindChannels(j); if (l.length) { const n = ytNorm(q); return l.find((c) => ytNorm(c.name).includes(n) || n.includes(ytNorm(c.name))) || l[0]; } } catch (e) { console.error('YT qidiruv (innertube):', q, e.message); }
+  const r = await fetch(`${YT_BASE()}/results?search_query=${encodeURIComponent(q)}&sp=EgIQAg%253D%253D&hl=en&gl=US&persist_gl=1`, { headers: { ...YTH, Cookie: 'SOCS=CAESEwgDEgk0ODE3Nzk3MjQaAmVuIAEaBgiA_LyaBg; CONSENT=YES+cb' }, signal: AbortSignal.timeout(15000) });
+  const t = await r.text(); if (/consent\.youtube\.com/.test(r.url)) throw new Error('YouTube rozilik sahifasi');
+  const k = t.indexOf('"channelRenderer"'); const seg = k >= 0 ? t.slice(k, k + 3000) : '';
+  const id = (/"channelId":"(UC[\w-]{22})"/.exec(seg) || [])[1]; if (!id) return null;
+  return { id, name: libEnt((/"title":\{"simpleText":"([^"]+)"/.exec(seg) || [])[1] || q), h: (/"canonicalBaseUrl":"\/(@[^"]+)"/.exec(seg) || [])[1] };
+}
 // havola/@handle/UC… → kanal ID
 async function ytResolve(input) {
   const s = String(input || '').trim(); let m = /(UC[\w-]{22})/.exec(s); if (m) return { id: m[1] };
   m = /(?:youtube\.com\/)?(@[\w.\-]{2,60})/i.exec(s) || /youtube\.com\/(c\/[\w.\-]+|user\/[\w.\-]+)/i.exec(s);
   if (!m) { // kanal nomi — YouTube qidiruvi (faqat kanallar)
     if (s.length < 2) throw new Error('Kanal havolasi, @nom yoki kanal nomi kerak');
-    const r = await ytGet(`${YT_BASE()}/results?search_query=${encodeURIComponent(s)}&sp=EgIQAg%253D%253D`); if (!r.text) throw new Error('Qidiruv ishlamadi (' + r.status + ')');
-    const k = r.text.indexOf('"channelRenderer"'); const seg = k >= 0 ? r.text.slice(k, k + 3000) : r.text;
-    const id = (/"channelId":"(UC[\w-]{22})"/.exec(seg) || [])[1]; if (!id) throw new Error('Kanal topilmadi: ' + s);
-    const name = libEnt((/"title":\{"simpleText":"([^"]+)"/.exec(seg) || [])[1] || s); const h = (/"canonicalBaseUrl":"\/(@[^"]+)"/.exec(seg) || [])[1];
-    return { id, name, h, q: s };
+    const c = await ytSearchChannel(s); if (!c) throw new Error('Kanal topilmadi: ' + s);
+    return { id: c.id, name: c.name || s, h: c.h, q: s };
   }
+  try { const j = await ytI('navigation/resolve_url', { url: 'https://www.youtube.com/' + m[1] }); const id = j?.endpoint?.browseEndpoint?.browseId; if (/^UC[\w-]{22}$/.test(id || '')) return { id, name: m[1], h: m[1].startsWith('@') ? m[1] : undefined }; } catch {}
   const r = await ytGet(`${YT_BASE()}/${m[1]}`); if (!r.text) throw new Error('Kanal topilmadi (' + r.status + ')');
   const id = (/"externalId":"(UC[\w-]{22})"/.exec(r.text) || /"channelId":"(UC[\w-]{22})"/.exec(r.text) || /channel\/(UC[\w-]{22})/.exec(r.text) || [])[1]; if (!id) throw new Error('Kanal ID topilmadi');
   const name = libEnt((/<meta property="og:title" content="([^"]+)"/.exec(r.text) || [])[1] || m[1]);
@@ -3851,41 +3862,43 @@ const ytParseFeed = (x) => [...String(x).matchAll(/<entry>([\s\S]*?)<\/entry>/g)
 const YTF = new Map(); // kanal -> { at, list }
 async function ytFeed(ch) {
   const c = YTF.get(ch.id); if (c && now() - c.at < 3 * 3600e3) return c.list;
-  let list = [];
-  const r = await ytGet(`${YT_BASE()}/feeds/videos.xml?playlist_id=UUSH${ch.id.slice(2)}`); // faqat Shorts
-  if (r.text) list = ytParseFeed(r.text).map((v) => ({ ...v, short: true }));
-  if (!list.length) { const r2 = await ytGet(`${YT_BASE()}/feeds/videos.xml?channel_id=${ch.id}`); if (r2.text) list = ytParseFeed(r2.text); }
+  // Shorts (UUSH… pleylisti) + kanalning barcha yangi videolari (uzun ham) — aralash
+  const [rs, ra] = await Promise.all([ytGet(`${YT_BASE()}/feeds/videos.xml?playlist_id=UUSH${ch.id.slice(2)}`).catch(() => ({})), ytGet(`${YT_BASE()}/feeds/videos.xml?channel_id=${ch.id}`).catch(() => ({}))]);
+  const sh = new Set(); const list = [];
+  if (rs.text) ytParseFeed(rs.text).forEach((v) => { sh.add(v.id); list.push({ ...v, short: true }); });
+  if (ra.text) ytParseFeed(ra.text).forEach((v) => { if (!sh.has(v.id)) list.push({ ...v, short: false }); });
   YTF.set(ch.id, { at: now(), list }); return list;
 }
 const ytIsShort = async (id) => { try { return (await ytGet(`${YT_BASE()}/shorts/${id}`, 10000)).status === 200; } catch { return false; } };
-const ytEmbeddable = async (id) => { try { const r = await fetch(`${YT_BASE()}/oembed?format=json&url=${encodeURIComponent('https://www.youtube.com/shorts/' + id)}`, { headers: YTH, signal: AbortSignal.timeout(10000) }); return r.ok; } catch { return false; } };
+const ytEmbeddable = async (id) => { try { const r = await fetch(`${YT_BASE()}/oembed?format=json&url=${encodeURIComponent('https://www.youtube.com/watch?v=' + id)}`, { headers: YTH, signal: AbortSignal.timeout(10000) }); return r.ok; } catch { return false; } };
 async function ytRss(force) {
-  const bot = await airBot(); const per = Math.min(40, Math.max(1, PFLAGS.ytPerDay || Number(process.env.YT_REELS_PER_DAY) || 20));
+  const bot = await airBot(); const per = Math.min(120, Math.max(1, PFLAGS.ytPerDay || Number(process.env.YT_REELS_PER_DAY) || 48));
   const day = tashDay(), dayStart = Date.parse(day + 'T00:00:00Z') - 5 * 3600e3;
   const made = Number((await db.get("SELECT COUNT(*) AS c FROM reels WHERE user_id=? AND kind='yt' AND created_at>=?", [bot.id, dayStart]))?.c || 0);
   const due = Math.ceil((per * Math.max(0, tashHour() - 7)) / 15);
   if (!force && made >= Math.min(per, due)) return null;
   const used = JSON.parse((await db.get("SELECT v FROM meta WHERE k='yt_used'"))?.v || '[]'); const U = new Set(used);
-  const chs = await ytChannels(); let changed = false; const errs = [];
-  for (const ch of chs) if (!ch.id && (ch.h || ch.q) && !(ch.errAt > now() - 6 * 3600e3)) { try { Object.assign(ch, await ytResolve(ch.h || ch.q)); delete ch.err; changed = true; } catch (e) { ch.err = e.message; ch.errAt = now(); changed = true; errs.push((ch.h || ch.q) + ': ' + e.message); } }
+  let chs = await ytChannels(); let changed = false; const errs = [];
+  for (const ch of chs) if (!ch.id && (ch.h || ch.q) && (force || !(ch.errAt > now() - 3600e3))) { try { Object.assign(ch, await ytResolve(ch.h || ch.q)); delete ch.err; changed = true; } catch (e) { ch.err = e.message; ch.errAt = now(); changed = true; errs.push((ch.h || ch.q) + ': ' + e.message); } }
+  { const seen = new Set(); const n0 = chs.length; chs = chs.filter((c) => !c.id || (!seen.has(c.id) && seen.add(c.id))); if (chs.length !== n0) changed = true; } // bir kanal ikki marta bo'lmasin
   if (changed) await ytSaveCh(chs);
   // kanallar navbatma-navbat: eng uzoq vaqt ishlatilmagan kanaldan eng ko'p ko'rilgan yangi Shorts
   const order = []; const act = chs.filter((c) => c.id && !c.off).sort((a, b) => (a.lastAt || 0) - (b.lastAt || 0));
   for (const ch of act) {
     if (order.length >= 12) break;
     let l = []; try { l = await ytFeed(ch); ch.n = l.length; } catch (e) { errs.push((ch.name || ch.id) + ': ' + e.message); continue; }
-    const fresh = l.filter((v) => !U.has(v.id) && (!v.at || now() - v.at < 180 * 864e5)).sort((a, b) => b.views - a.views).slice(0, 3);
+    const f0 = l.filter((v) => !U.has(v.id) && (!v.at || now() - v.at < 365 * 864e5)).sort((a, b) => b.views - a.views);
+    const fs1 = f0.filter((v) => v.short).slice(0, 2), fl = f0.filter((v) => !v.short).slice(0, 2); const fresh = (Math.random() < 0.5 ? [...fs1, ...fl] : [...fl, ...fs1]);
     fresh.forEach((v) => order.push({ ...v, ch: v.ch || ch.name || '', chRef: ch }));
   }
   if (!order.length) throw new Error('YouTube: yangi Shorts topilmadi' + (errs.length ? ' — ' + errs.slice(0, 3).join('; ') : ''));
   for (const v of order) {
-    if (!v.short && !(await ytIsShort(v.id))) { U.add(v.id); used.push(v.id); continue; }
     if (!(await ytEmbeddable(v.id))) { U.add(v.id); used.push(v.id); continue; }
     const cap = `${String(v.t).replace(/\s+/g, ' ').slice(0, 140)}\n📺 ${String(v.ch).slice(0, 60)} · YouTube`.slice(0, 300);
-    const id = await db.insert('INSERT INTO reels(user_id,kind,file,mime,ig_kind,ig_code,duration,caption,created_at) VALUES(?,?,?,?,?,?,?,?,?)', [bot.id, 'yt', null, null, 'yt', v.id, null, cap, now()]);
+    const id = await db.insert('INSERT INTO reels(user_id,kind,file,mime,ig_kind,ig_code,duration,caption,created_at) VALUES(?,?,?,?,?,?,?,?,?)', [bot.id, 'yt', null, null, v.short ? 'yt' : 'ytl', v.id, null, cap, now()]);
     used.push(v.id); await db.run("INSERT INTO meta(k,v) VALUES('yt_used',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", [JSON.stringify(used.slice(-3000))]);
     v.chRef.lastAt = now(); await ytSaveCh(chs);
-    console.log(`📺 YouTube Shorts (RSS) lentaga: #${id} "${String(v.t).slice(0, 50)}" (${v.ch})`);
+    console.log(`📺 YouTube ${v.short ? 'Shorts' : 'video'} (RSS) lentaga: #${id} "${String(v.t).slice(0, 50)}" (${v.ch})`);
     return { id: Number(id) };
   }
   await db.run("INSERT INTO meta(k,v) VALUES('yt_used',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", [JSON.stringify(used.slice(-3000))]);

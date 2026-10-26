@@ -1,5 +1,5 @@
 // Birga service worker: ilova qobig'ini keshlash + push bildirishnomalar
-const CACHE = 'birga-v19';
+const CACHE = 'birga-v20';
 const MEDIA = 'birga-media'; // foydalanuvchi mediasi — versiya almashganda O'CHIRILMAYDI
 const SHELL = ['/', '/styles.css', '/app.js', '/i18n.js', '/vendor/phone.js', '/manifest.webmanifest', '/icons/mark.png', '/icons/icon-192.png', '/icons/badge-96.png', '/socket.io/socket.io.js'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).catch(() => {})); self.skipWaiting(); });
@@ -21,8 +21,23 @@ async function fromCache(req, cached) {
   return new Response(blob.slice(start, end + 1), { status: 206, statusText: 'Partial Content',
     headers: { 'Content-Type': cached.headers.get('Content-Type') || blob.type, 'Content-Range': `bytes ${start}-${end}/${size}`, 'Content-Length': String(end - start + 1), 'Accept-Ranges': 'bytes' } });
 }
+// Katta fayl (qurilmadan qurilmaga): sahifa bo'laklarni MessagePort orqali beradi, SW ularni to'g'ridan-to'g'ri diskka yuklab olish sifatida uzatadi
+const P2PDL = new Map();
+self.addEventListener('message', (e) => {
+  const d = e.data; if (!d || d.t !== 'p2p-dl' || !e.ports[0]) return;
+  const port = e.ports[0]; let ctl; const stream = new ReadableStream({ start(c) { ctl = c; }, cancel() { try { port.postMessage({ t: 'cancel' }); } catch {} } });
+  port.onmessage = (m) => { const x = m.data; if (x === 'end') { try { ctl.close(); } catch {} } else if (x === 'abort') { try { ctl.error(new Error('abort')); } catch {} } else if (x instanceof ArrayBuffer || ArrayBuffer.isView(x)) ctl.enqueue(new Uint8Array(x.buffer || x)); };
+  P2PDL.set(d.id, { stream, d }); setTimeout(() => P2PDL.delete(d.id), 60e3); port.postMessage({ t: 'ready' });
+});
 self.addEventListener('fetch', (e) => {
   const u = new URL(e.request.url);
+  if (u.origin === location.origin && u.pathname.startsWith('/__p2pdl/')) {
+    const x = P2PDL.get(u.pathname.slice(9)); if (!x) return;
+    P2PDL.delete(u.pathname.slice(9));
+    const name = String(x.d.name || 'file').replace(/["\\\r\n]/g, '_');
+    e.respondWith(new Response(x.stream, { headers: { 'Content-Type': x.d.mime || 'application/octet-stream', 'Content-Disposition': `attachment; filename="${encodeURIComponent(name)}"; filename*=UTF-8''${encodeURIComponent(name)}`, ...(x.d.size ? { 'Content-Length': String(x.d.size) } : {}) } }));
+    return;
+  }
   if (e.request.method !== 'GET') return;
   if (isMedia(u)) {
     const key = u.origin + u.pathname;

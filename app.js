@@ -9644,4 +9644,215 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .ad-pd{display:flex;gap:12px;align-items:center}.ad-pd small{display:block;opacity:.75;font-size:12px}.ad-rx{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.55);color:#fff;border-radius:8px;padding:2px 6px}
 </style>`);
 
+/* ==================== v40: pastki menyu (markazda Profil), Saqlangan xabarlar, musiqa pleyer (tepada ixcham + yangi to'liq pleyer), katta fayllar (bo'lib yuklash) ==================== */
+const MZI = {
+  play: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M8 5.2v13.6a1 1 0 0 0 1.5.86l11-6.8a1 1 0 0 0 0-1.72l-11-6.8A1 1 0 0 0 8 5.2Z"/></svg>',
+  pause: '<svg viewBox="0 0 24 24"><rect x="6" y="4.5" width="4" height="15" rx="1.4" fill="currentColor"/><rect x="14" y="4.5" width="4" height="15" rx="1.4" fill="currentColor"/></svg>',
+  prev: '<svg viewBox="0 0 24 24"><rect x="4.5" y="5" width="2.6" height="14" rx="1.1" fill="currentColor"/><path fill="currentColor" d="M19.5 6.1v11.8a1 1 0 0 1-1.55.83L9.3 12.83a1 1 0 0 1 0-1.66l8.65-5.9a1 1 0 0 1 1.55.83Z"/></svg>',
+  next: '<svg viewBox="0 0 24 24"><rect x="16.9" y="5" width="2.6" height="14" rx="1.1" fill="currentColor"/><path fill="currentColor" d="M4.5 6.1v11.8a1 1 0 0 0 1.55.83l8.65-5.9a1 1 0 0 0 0-1.66l-8.65-5.9A1 1 0 0 0 4.5 6.1Z"/></svg>',
+  rep: '<svg viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M17 2.5 20 5.5l-3 3M4 11V9.5a4 4 0 0 1 4-4h12M7 21.5 4 18.5l3-3M20 13v1.5a4 4 0 0 1-4 4H4"/></svg>',
+  rep1: '<svg viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M17 2.5 20 5.5l-3 3M4 11V9.5a4 4 0 0 1 4-4h12M7 21.5 4 18.5l3-3M20 13v1.5a4 4 0 0 1-4 4H4"/><text x="12" y="14.6" font-size="7.5" font-weight="800" text-anchor="middle" fill="currentColor" font-family="system-ui">1</text></svg>',
+  shuf: '<svg viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>',
+  more: '<svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="19" r="2" fill="currentColor"/></svg>',
+  x: '<svg viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M6 6l12 12M18 6 6 18"/></svg>',
+  note: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M9 17.5V6.6a1 1 0 0 1 .76-.97l9-2.2A1 1 0 0 1 20 4.4v10.6a3 3 0 1 1-2-2.83V7.3l-7 1.7v8.5a3 3 0 1 1-2-2.83Z"/></svg>',
+};
+{
+  const D = { uz: { sv_title: 'Saqlangan xabarlar', sv_sub: 'Eslatmalar, fayllar va havolalarni shu yerda saqlang', mz_shuf: 'Aralash ijro', mz_add: 'Qurilmadan qo‘shish', mz_send: 'Chatga yuborish', bg_watch: 'Ko‘rish', bg_save: 'Saqlash', bg_load: 'Yuklanmoqda {p}%', bg_done: 'Saqlandi ✓', bg_err: 'Yuklab bo‘lmadi' },
+    ru: { sv_title: 'Избранное', sv_sub: 'Сохраняйте заметки, файлы и ссылки здесь', mz_shuf: 'Перемешать', mz_add: 'Добавить с устройства', mz_send: 'Отправить в чат', bg_watch: 'Смотреть', bg_save: 'Сохранить', bg_load: 'Загрузка {p}%', bg_done: 'Сохранено ✓', bg_err: 'Не удалось загрузить' },
+    en: { sv_title: 'Saved Messages', sv_sub: 'Keep notes, files and links here', mz_shuf: 'Shuffle', mz_add: 'Add from device', mz_send: 'Send to chat', bg_watch: 'Watch', bg_save: 'Save', bg_load: 'Loading {p}%', bg_done: 'Saved ✓', bg_err: 'Could not download' } };
+  Object.assign(I18N.uz, D.uz); Object.assign(I18N.ru, D.ru); Object.assign(I18N.en, D.en);
+}
+
+/* ---------- 1) Saqlangan xabarlar — Birga yordamchi ostida ---------- */
+{
+  const baseRCL40 = renderChatList;
+  renderChatList = function (...a) {
+    const r = baseRCL40.apply(this, a);
+    try {
+      const box = $('#chat-list'); if (!box || S.archView || FILTER !== 'all' || (typeof Folders !== 'undefined' && Folders.cur)) { box?.querySelector('.saved-row')?.remove(); return r; }
+      const ai = box.querySelector('.ai-row'); const self = [...S.chats.values()].find((c) => c.self);
+      let li = self ? box.querySelector(`.chat-item[data-id="${self.id}"]`) : null;
+      if (!li) { box.querySelector('.saved-row')?.remove(); box.insertAdjacentHTML('afterbegin', `<li class="chat-item saved-row" data-saved="1"><div class="av sv-av"><svg viewBox="0 0 24 24"><path fill="currentColor" d="M6 3h12a1 1 0 0 1 1 1v16.3a.7.7 0 0 1-1.1.57L12 17l-5.9 3.87A.7.7 0 0 1 5 20.3V4a1 1 0 0 1 1-1Z"/></svg></div><div class="ci-body"><div class="ci-row"><span class="ci-name">${esc(t('sv_title'))}</span></div><div class="ci-row"><span class="ci-sub">${esc(t('sv_sub'))}</span></div></div></li>`); li = box.querySelector('.saved-row'); }
+      else { li.classList.add('saved-row'); const avEl = li.querySelector('.av'); if (avEl && !avEl.classList.contains('sv-av')) { avEl.className = 'av sv-av'; avEl.innerHTML = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M6 3h12a1 1 0 0 1 1 1v16.3a.7.7 0 0 1-1.1.57L12 17l-5.9 3.87A.7.7 0 0 1 5 20.3V4a1 1 0 0 1 1-1Z"/></svg>'; } const nm = li.querySelector('.ci-name'); if (nm) nm.textContent = t('sv_title'); }
+      if (ai) ai.after(li); else box.prepend(li);
+    } catch {}
+    return r;
+  };
+  $('#chat-list').addEventListener('click', (e) => { const li = e.target.closest('[data-saved]'); if (!li) return; e.stopImmediatePropagation(); startChatWith(S.me.id); }, true);
+  setTimeout(() => { try { renderChatList(); } catch {} }, 1800);
+}
+
+/* ---------- 2) Musiqa: tepada ixcham satr (Telegram kabi) + yangi to'liq pleyer ---------- */
+{
+  const ART = (it) => { const g = GRADS[[...String(it?.t || 'a')].reduce((s, c) => s + c.charCodeAt(0), 0) % GRADS.length]; return `<span class="mz-art" style="background:linear-gradient(135deg,${g[0]},${g[1]})">${esc((it?.a || it?.t || '♪').trim().charAt(0).toUpperCase())}</span>`; };
+  MP.bar = function () {
+    if ($('#mz-bar')) return this.place();
+    document.body.insertAdjacentHTML('beforeend', `<div class="mz-top" id="mz-bar"><button class="mz-tg" data-mp="tog" type="button" aria-label="play">${MZI.play}</button><div class="mz-tt" data-mp="full"><b></b><span></span></div><button class="mz-x" data-mp="close" type="button" aria-label="close">${MZI.x}</button><i class="mz-line"></i></div>`);
+    $('#mz-bar').addEventListener('click', (e) => { const k = e.target.closest('[data-mp]')?.dataset.mp; if (k === 'tog') this.toggle(); if (k === 'close') this.stop(); if (k === 'full') this.full(); });
+    this.place(); if (!this._pl) this._pl = setInterval(() => this.place(), 500); window.addEventListener('resize', () => this.place());
+  };
+  // satr ko'rinib turgan sarlavha ostiga joylashadi (chat ichida — chat sarlavhasi ostida)
+  MP.place = function () {
+    const bar = $('#mz-bar'); if (!bar) { clearInterval(this._pl); this._pl = null; return; }
+    const cands = [$('#chat-head'), ...$$('.sidebar .pane:not(.hidden) .pane-head')].filter((h) => h && !h.classList.contains('hidden') && h.offsetParent);
+    let hd = null; for (const h of cands) { const r = h.getBoundingClientRect(); if (r.width < 50 || r.bottom <= 0 || r.top > innerHeight / 2) continue; const el = document.elementsFromPoint(Math.min(innerWidth - 2, r.left + r.width / 2), r.top + Math.min(8, r.height / 2)).find((x) => !bar.contains(x)); if (el && h.contains(el)) { hd = r; break; } }
+    if ($('#mz-sheet')) { bar.style.display = 'none'; return; }
+    const ov = $$('.quiz-ov:not(.hidden), .rv-ov:not(.hidden), .ad-ov:not(.hidden), #call-screen:not(.hidden)').length;
+    if (ov && !hd) { bar.style.display = 'none'; return; } bar.style.display = '';
+    const top = hd ? hd.bottom : 0, left = hd ? hd.left : 0, w = hd ? hd.width : innerWidth;
+    bar.style.top = top + 'px'; bar.style.left = left + 'px'; bar.style.width = w + 'px'; bar.classList.toggle('safe', !hd);
+  };
+  MP.paint = function () {
+    const it = this.cur(); const on = it && this.a && !this.a.paused; const bar = $('#mz-bar');
+    if (bar && it) { bar.querySelector('.mz-tt b').textContent = it.a || t('mp_unknown'); bar.querySelector('.mz-tt span').textContent = ' – ' + it.t; bar.querySelector('.mz-tg').innerHTML = on ? MZI.pause : MZI.play; bar.classList.toggle('on', !!on); }
+    try { if ('mediaSession' in navigator && it) navigator.mediaSession.playbackState = on ? 'playing' : 'paused'; } catch {}
+    $$('.mus[data-mus]').forEach((el) => { const me = it && String(it.id) === el.dataset.mus; el.classList.toggle('cur', !!me); el.querySelector('.mus-pl').textContent = me && on ? '⏸' : '▶'; if (!me) el.querySelector('.mus-pr i').style.width = '0'; });
+    const sh = $('#mz-sheet'); if (sh && it) { sh.querySelector('.mzs-t').textContent = it.t; sh.querySelector('.mzs-a').textContent = it.a || t('mp_unknown'); sh.querySelector('[data-ms="tog"]').innerHTML = on ? MZI.pause : MZI.play; sh.querySelector('[data-ms="rep"]').innerHTML = this.rep === 2 ? MZI.rep1 : MZI.rep; sh.querySelector('[data-ms="rep"]').classList.toggle('on', !!this.rep); this.qpaint(); }
+  };
+  MP.prog = function () {
+    const a = this.a, it = this.cur(); if (!a || !it) return; const p = a.duration ? a.currentTime / a.duration : 0;
+    const l = $('#mz-bar .mz-line'); if (l) l.style.width = (p * 100).toFixed(1) + '%';
+    const el = $(`.mus[data-mus="${it.id}"] .mus-pr i`); if (el) el.style.width = (p * 100).toFixed(1) + '%';
+    const sh = $('#mz-sheet'); if (sh) { const r = sh.querySelector('.mzs-seek'); if (!r._drag) { r.value = Math.round(p * 1000); r.style.setProperty('--p', (p * 100).toFixed(1) + '%'); } sh.querySelector('.mzs-c').textContent = fmtDur(a.currentTime); sh.querySelector('.mzs-d').textContent = fmtDur(a.duration || 0); }
+    if ('mediaSession' in navigator && a.duration && isFinite(a.duration) && !(this._pt > Date.now() - 4000)) { this._pt = Date.now(); try { navigator.mediaSession.setPositionState({ duration: a.duration, position: Math.min(a.currentTime, a.duration), playbackRate: a.playbackRate }); } catch {} }
+  };
+  MP.qpaint = function () {
+    const b = $('#mz-sheet .mzs-q'); if (!b) return;
+    b.innerHTML = this.q.map((x, i) => `<button class="mzs-row${i === this.i ? ' on' : ''}" data-qi="${i}" type="button">${ART(x)}<span class="mzs-pi">${i === this.i && this.a && !this.a.paused ? MZI.pause : MZI.play}</span><span class="mzs-rb"><b>${esc(x.t)}</b><small>${esc(x.a || t('mp_unknown'))}</small></span></button>`).join('') || `<p class="empty-note">${esc(t('mp_empty'))}</p>`;
+    const on = b.querySelector('.on'); if (on && !b._sc) { b._sc = 1; on.scrollIntoView({ block: 'nearest' }); }
+  };
+  MP.full = function () {
+    if (!this.cur()) return; $('#mz-sheet')?.remove();
+    document.body.insertAdjacentHTML('beforeend', `<div class="mzs-bd" id="mz-sheet"><div class="mzs" role="dialog" aria-label="${esc(t('mp_title'))}"><div class="mzs-grip"></div>
+      <div class="mzs-q"></div>
+      <div class="mzs-now"><div class="mzs-tw"><b class="mzs-t"></b></div><span class="mzs-a"></span></div>
+      <input class="mzs-seek" type="range" min="0" max="1000" value="0" aria-label="seek"><div class="mzs-tm"><span class="mzs-c">0:00</span><span class="mzs-d">0:00</span></div>
+      <div class="mzs-ctl"><button data-ms="rep" class="sm" type="button" aria-label="repeat">${MZI.rep}</button><button data-ms="prev" type="button" aria-label="prev">${MZI.prev}</button><button data-ms="tog" class="big" type="button" aria-label="play">${MZI.play}</button><button data-ms="next" type="button" aria-label="next">${MZI.next}</button><button data-ms="more" class="sm" type="button" aria-label="more">${MZI.more}</button></div>
+      <div class="mzs-menu hidden"><button data-ms="shuf" type="button">${MZI.shuf}<span>${esc(t('mz_shuf'))}</span></button><button data-ms="add" type="button">${MZI.note}<span>${esc(t('mz_add'))}</span></button><button data-ms="stop" type="button">${MZI.x}<span>${esc({ uz: 'Yopish', ru: 'Закрыть', en: 'Close' }[LANG] || 'Close')}</span></button></div></div></div>`);
+    const bd = $('#mz-sheet'), sh = bd.querySelector('.mzs'); requestAnimationFrame(() => bd.classList.add('in'));
+    const close = () => { bd.classList.remove('in'); setTimeout(() => bd.remove(), 220); popOverlay('mzsheet'); };
+    pushOverlay('mzsheet'); OV_CLOSE.mzsheet = () => { bd.classList.remove('in'); setTimeout(() => bd.remove(), 220); };
+    bd.addEventListener('click', (e) => {
+      if (e.target === bd) return close();
+      const q = e.target.closest('[data-qi]'); if (q) { if (+q.dataset.qi === this.i) return this.toggle(); this.i = +q.dataset.qi; return this.load(); }
+      const k = e.target.closest('[data-ms]')?.dataset.ms; if (!k) return;
+      if (k === 'tog') this.toggle(); if (k === 'next') this.next(); if (k === 'prev') this.prev();
+      if (k === 'rep') { this.rep = (this.rep + 1) % 3; this.paint(); }
+      if (k === 'more') sh.querySelector('.mzs-menu').classList.toggle('hidden');
+      if (k === 'shuf') { this.shuffle = !this.shuffle; e.target.closest('button').classList.toggle('on', this.shuffle); }
+      if (k === 'add') this.pickLocal();
+      if (k === 'stop') { close(); this.stop(); }
+    });
+    sh.querySelector('[data-ms="shuf"]').classList.toggle('on', this.shuffle);
+    const r = sh.querySelector('.mzs-seek'); r.addEventListener('input', () => { r._drag = true; r.style.setProperty('--p', r.value / 10 + '%'); }); r.addEventListener('change', () => { r._drag = false; if (this.a?.duration) this.a.currentTime = (r.value / 1000) * this.a.duration; });
+    let y0 = null; sh.querySelector('.mzs-grip').addEventListener('pointerdown', (e) => { y0 = e.clientY; }); window.addEventListener('pointerup', (e) => { if (y0 != null && e.clientY - y0 > 60) close(); y0 = null; }, { once: false });
+    this.paint(); this.prog();
+  };
+  if ($('#mz-bar')) { $('#mz-bar').remove(); if (MP.cur()) MP.bar(); }
+}
+
+/* ---------- 3) Katta video/fayllar: bo'laklarga bo'lib to'g'ridan-to'g'ri omborga yuklanadi — oddiy xabar kabi (GB'lab ham) ---------- */
+const BIG = {
+  PART: 30 * 1048576, urls: new Map(), runs: new Map(),
+  limit: () => Math.min((S.config?.maxUploadMb || 50) * 0.9, 38) * 1048576,
+  async send(file, type, extra = {}) {
+    const chatId = extra.chatId || S.current; if (!chatId) return;
+    const vid = type === 'video' || /^video\//.test(file.type); const id = newTempId();
+    const meta = { name: file.name || (vid ? 'video.mp4' : 'file'), big: 1, vid: vid ? 1 : 0, bmime: file.type || '' };
+    const temp = { tempId: id, cid: id, pending: true, progress: 0, chat_id: chatId, sender_id: S.me.id, type: 'file', blob: file, localUrl: URL.createObjectURL(file), text: extra.text || '', meta, size: file.size, reply_to: extra.replyTo, created_at: Date.now() };
+    pushPending(temp); this.urls.set(id, temp.localUrl);
+    try {
+      const PART = Math.max(1048576, Math.min(this.PART, Math.floor((S.config?.maxUploadMb || 50) * 0.8) * 1048576)); const parts = []; const n = Math.ceil(file.size / PART);
+      for (let i = 0; i < n; i++) {
+        const part = new File([file.slice(i * PART, Math.min(file.size, (i + 1) * PART))], `${meta.name}.part${i + 1}`, { type: 'application/octet-stream' });
+        let up = null; for (let a = 0; a < 4 && !up; a++) { try { up = await uploadFile(part, (p) => { temp.progress = (i + p) / n; paintProgress(temp); }, ''); } catch (e) { if (e.fatal || a === 3) throw e; await sleep(2000 * (a + 1)); } }
+        parts.push(up.url); temp.progress = (i + 1) / n; paintProgress(temp);
+      }
+      const m = await emitSend({ chatId, type: 'file', file: parts[0], mime: file.type || 'application/octet-stream', size: file.size, text: temp.text, meta: { ...meta, parts }, replyTo: temp.reply_to, cid: temp.cid });
+      if (m?.id) this.urls.set(String(m.id), temp.localUrl);
+      resolvePending(temp, m);
+    } catch (e) { toast(e.message || t('upload_fail'), 4000); dropPending(temp); }
+  },
+  html(m) {
+    const p = m.meta; const vid = !!p.vid; const run = this.runs.get(String(m.id)); const pend = m.pending && !m.id;
+    return `<div class="bigf${vid ? ' v' : ''}" data-big="${m.id || m.tempId}"><div class="bigf-top"><span class="bigf-ic">${vid ? '🎬' : /\.(apk)$/i.test(p.name) ? '📱' : /\.(zip|rar|7z)$/i.test(p.name) ? '🗜' : '📄'}</span><div class="bigf-b"><b>${esc(p.name)}</b><small>${fmtSize(m.size || 0)}${pend ? ' · ' + Math.round((m.progress || 0) * 100) + '%' : ''}</small></div></div>
+      ${pend ? `<div class="bigf-bar"><i style="width:${Math.round((m.progress || 0) * 100)}%"></i></div>` : `<div class="bigf-acts">${vid ? `<button class="bigf-btn" data-bigplay="${m.id}" type="button">▶ ${esc(t('bg_watch'))}</button>` : ''}<button class="bigf-btn g" data-bigsave="${m.id}" type="button">⬇ ${esc(t('bg_save'))}</button></div><div class="bigf-bar${run ? '' : ' hidden'}"><i></i></div><small class="bigf-st">${run ? esc(run.st || '') : ''}</small>`}</div>`;
+  },
+  ui(id, st, p) { const el = $(`.bigf[data-big="${id}"]`); if (!el) return; const b = el.querySelector('.bigf-bar'); b?.classList.remove('hidden'); if (b && p != null) b.querySelector('i').style.width = (p * 100).toFixed(1) + '%'; const s = el.querySelector('.bigf-st'); if (s) s.textContent = st; },
+  async get(m, play) {
+    const key = String(m.id); if (this.runs.has(key)) return; const meta = m.meta; const total = m.size || 0;
+    if (play && this.urls.has(key)) return openViewer('video', this.urls.get(key), m, meta.name);
+    const sink = play ? null : await P2P.sink({ id: key + 'b', name: meta.name, size: total, mime: meta.bmime }); if (!play && !sink) return;
+    const run = { st: '' }; this.runs.set(key, run); const chunks = []; let got = 0;
+    try {
+      for (const u of meta.parts) {
+        const r = await fetch(u + (u.includes('?') ? '&' : '?') + 'bp=1', { cache: 'no-store' }); if (!r.ok || !r.body) throw new Error(r.status);
+        const rd = r.body.getReader(); for (;;) { const { done, value } = await rd.read(); if (done) break; got += value.length; if (play) chunks.push(value); else await sink.write(value); const now2 = Date.now(); if (!run.lu || now2 - run.lu > 250) { run.lu = now2; run.st = tf('bg_load', { p: Math.round((got / Math.max(1, total)) * 100) }); this.ui(key, run.st, got / Math.max(1, total)); } }
+      }
+      if (play) { const url = URL.createObjectURL(new Blob(chunks, { type: meta.bmime || 'video/mp4' })); chunks.length = 0; this.urls.set(key, url); this.ui(key, '', 1); openViewer('video', url, m, meta.name); }
+      else { const out = await sink.close(); if (out instanceof Blob) { const a = document.createElement('a'); a.href = URL.createObjectURL(out); a.download = meta.name; document.body.appendChild(a); a.click(); a.remove(); } this.ui(key, t('bg_done'), 1); }
+    } catch (e) { try { sink?.abort(); } catch {} this.ui(key, t('bg_err'), null); toast(t('bg_err'), 3000); }
+    finally { this.runs.delete(key); }
+  },
+};
+{
+  const baseSM40 = sendMedia;
+  sendMedia = function (blob, type, extra = {}) {
+    if (blob && blob.size > BIG.limit() && ['video', 'file', 'image'].includes(type)) return BIG.send(blob instanceof File ? blob : new File([blob], extra.meta?.name || 'video.mp4', { type: blob.type }), type, extra);
+    return baseSM40(blob, type, extra);
+  };
+  const baseMI40 = msgInner;
+  msgInner = function (m, c, tail, gap) {
+    const h = baseMI40(m, c, tail, gap); if (m.deleted || m.type !== 'file' || !m.meta?.big) return h;
+    return h.replace(/<a class="filebox"[\s\S]*?<\/a>/, BIG.html(m));
+  };
+  $('#messages').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-bigplay],[data-bigsave]'); if (!b) return; e.preventDefault(); e.stopImmediatePropagation();
+    const id = +(b.dataset.bigplay || b.dataset.bigsave); const m = (S.msgs.get(S.current) || []).find((x) => x.id === id); if (m) BIG.get(m, !!b.dataset.bigplay);
+  }, true);
+  const basePV40 = preview; preview = function (m) { if (m && !m.deleted && m.meta?.big) return `<span class="tag">${m.meta.vid ? '🎬 ' + esc(t('t_video') || 'Video') : '📄 ' + esc(t('t_file'))}</span> ${esc(m.meta.name || '')}`; return basePV40(m); };
+}
+
+document.head.insertAdjacentHTML('beforeend', `<style>
+/* pastki menyu: 2 qator, markazda katta Profil */
+.bottom-nav{grid-template-columns:1fr 1fr 1.25fr 1fr 1fr!important;grid-auto-rows:auto;gap:0 2px!important;padding:3px 4px calc(3px + env(safe-area-inset-bottom))!important;align-items:center}
+.bottom-nav button{padding:3px 0 2px!important;font-size:9.5px!important;font-weight:600!important;gap:0!important;letter-spacing:0!important}.bottom-nav button>span:last-child{font-size:9.5px}
+.bottom-nav .nb{height:22px!important;width:36px!important;border-radius:11px!important}.bottom-nav .nb svg{width:19px!important;height:19px!important}
+.bottom-nav [data-tab="chats"]{grid-column:1;grid-row:1}.bottom-nav [data-tab="calls"]{grid-column:2;grid-row:1}.bottom-nav [data-tab="reels"]{grid-column:4;grid-row:1}.bottom-nav [data-tab="contacts"]{grid-column:5;grid-row:1}
+.bottom-nav [data-tab="life"]{grid-column:1;grid-row:2}.bottom-nav [data-tab="map"]{grid-column:2;grid-row:2}.bottom-nav [data-tab="settings"]{grid-column:4;grid-row:2}.bottom-nav [data-tab="games"]{grid-column:5;grid-row:2}
+.bottom-nav [data-tab="profile"]{grid-column:3;grid-row:1 / span 2;align-self:center;padding:4px 0!important}
+.bottom-nav [data-tab="profile"] .nb{height:50px!important;width:50px!important;border-radius:50%!important;box-shadow:0 0 0 2px var(--blue,#3B82F6),0 6px 18px rgba(59,130,246,.35);margin-bottom:3px}
+.bottom-nav [data-tab="profile"] .nb .av{width:46px!important;height:46px!important;font-size:16px}.bottom-nav [data-tab="profile"]>span:last-child{font-size:11.5px!important;font-weight:800}
+.bottom-nav [data-tab="profile"].on .nb{background:none!important;box-shadow:0 0 0 2.5px var(--blue,#3B82F6),0 6px 22px rgba(59,130,246,.55)}
+/* Saqlangan xabarlar */
+.sv-av{display:grid;place-items:center;background:linear-gradient(135deg,#38BDF8,#2563EB)!important;color:#fff}.sv-av svg{width:26px;height:26px}
+/* musiqa: tepada ixcham satr */
+.mz-top{position:fixed;z-index:58;height:40px;display:flex;align-items:center;gap:6px;padding:0 6px 0 8px;background:var(--panel,#fff);color:var(--text,#111);border-bottom:1px solid var(--line,rgba(127,127,127,.2));box-shadow:0 4px 14px rgba(0,0,0,.12);box-sizing:border-box}
+.mz-top.safe{padding-top:env(safe-area-inset-top);height:calc(40px + env(safe-area-inset-top))}
+.mz-top button{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:none;color:var(--blue,#3B82F6);flex:none}.mz-top button svg{width:18px;height:18px}.mz-top .mz-x{color:var(--muted,#94A3B8)}
+.mz-tt{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px;cursor:pointer}.mz-tt b{font-weight:700}.mz-tt span{color:var(--muted,#94A3B8)}
+.mz-line{position:absolute;left:0;bottom:-1px;height:2px;background:var(--blue,#3B82F6);width:0}
+/* musiqa: to'liq pleyer (pastdan chiqadigan oyna) */
+.mzs-bd{position:fixed;inset:0;z-index:66;background:rgba(2,6,23,0);transition:background .2s;display:flex;align-items:flex-end;justify-content:center}.mzs-bd.in{background:rgba(2,6,23,.55)}
+.mzs{width:min(100%,560px);max-height:92vh;display:flex;flex-direction:column;background:var(--panel,#fff);color:var(--text,#111);border-radius:22px 22px 0 0;padding:8px 16px calc(14px + env(safe-area-inset-bottom));transform:translateY(100%);transition:transform .22s ease-out;box-shadow:0 -10px 40px rgba(0,0,0,.3)}.mzs-bd.in .mzs{transform:none}
+.mzs-grip{width:44px;height:5px;border-radius:3px;background:var(--line,rgba(127,127,127,.35));margin:2px auto 10px;cursor:grab;touch-action:none}
+.mzs-q{overflow:auto;max-height:38vh;margin:0 -8px;display:flex;flex-direction:column}
+.mzs-row{display:flex;align-items:center;gap:12px;padding:7px 8px;border-radius:12px;background:none;color:inherit;text-align:left;position:relative}.mzs-row.on{background:rgba(59,130,246,.1)}.mzs-row+.mzs-row .mzs-rb{border-top:1px solid var(--line,rgba(127,127,127,.15))}
+.mz-art{width:48px;height:48px;border-radius:50%;flex:none;display:grid;place-items:center;color:#fff;font-weight:800;font-size:18px}
+.mzs-pi{position:absolute;left:8px;width:48px;height:48px;display:grid;place-items:center;color:#fff}.mzs-pi svg{width:18px;height:18px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.4))}
+.mzs-rb{flex:1;min-width:0;padding:4px 0}.mzs-rb b,.mzs-rb small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mzs-rb b{font-size:15px}.mzs-rb small{color:var(--muted,#94A3B8);font-size:13px;margin-top:1px}.mzs-row.on .mzs-rb b{color:var(--blue,#3B82F6)}
+.mzs-now{margin-top:12px;padding-top:12px;border-top:1px solid var(--line,rgba(127,127,127,.15))}.mzs-tw{overflow:hidden;white-space:nowrap}.mzs-t{display:inline-block;font-size:19px;font-weight:800;padding-right:30px}.mzs-a{display:block;color:var(--muted,#94A3B8);font-size:14px;margin-top:2px}
+.mzs-seek{-webkit-appearance:none;appearance:none;width:100%;height:4px;margin:16px 0 6px;border-radius:2px;background:linear-gradient(90deg,var(--blue,#3B82F6) var(--p,0%),var(--line,rgba(127,127,127,.3)) var(--p,0%));outline:none}
+.mzs-seek::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--blue,#3B82F6);box-shadow:0 0 0 4px rgba(59,130,246,.2)}.mzs-seek::-moz-range-thumb{width:16px;height:16px;border:0;border-radius:50%;background:var(--blue,#3B82F6)}
+.mzs-tm{display:flex;justify-content:space-between;font-size:12px;color:var(--muted,#94A3B8);font-variant-numeric:tabular-nums}
+.mzs-ctl{display:flex;align-items:center;justify-content:space-between;margin:10px 4px 2px}.mzs-ctl button{width:52px;height:52px;border-radius:50%;display:grid;place-items:center;background:none;color:var(--text,#111)}.mzs-ctl button svg{width:30px;height:30px}
+.mzs-ctl .sm svg{width:24px;height:24px}.mzs-ctl .sm{color:var(--muted,#94A3B8)}.mzs-ctl .sm.on{color:var(--blue,#3B82F6)}.mzs-ctl .big{width:66px;height:66px;background:var(--blue,#3B82F6);color:#fff;box-shadow:0 8px 22px rgba(59,130,246,.4)}.mzs-ctl .big svg{width:30px;height:30px}
+.mzs-menu{display:flex;gap:8px;justify-content:center;margin-top:10px;flex-wrap:wrap}.mzs-menu button{display:flex;align-items:center;gap:6px;padding:8px 12px;border-radius:12px;background:rgba(127,127,127,.12);color:inherit;font-size:13px}.mzs-menu button svg{width:16px;height:16px}.mzs-menu button.on{color:var(--blue,#3B82F6)}
+/* katta fayl kartasi */
+.bigf{min-width:230px;max-width:290px}.bigf-top{display:flex;align-items:center;gap:10px}.bigf-ic{font-size:30px}.bigf-b{flex:1;min-width:0}.bigf-b b,.bigf-b small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bigf-b small{opacity:.7;font-size:12px}
+.bigf-acts{display:flex;gap:6px;margin-top:8px}.bigf-btn{flex:1;padding:8px 10px;border-radius:12px;background:var(--blue,#3B82F6);color:#fff;font-weight:700;font-size:13px}.bigf-btn.g{background:rgba(127,127,127,.18);color:inherit}.msg.out .bigf-btn{background:#fff;color:var(--blue,#3B82F6)}.msg.out .bigf-btn.g{background:rgba(255,255,255,.22);color:#fff}
+.bigf-bar{height:4px;border-radius:2px;background:rgba(127,127,127,.25);margin:8px 0 3px;overflow:hidden}.bigf-bar i{display:block;height:100%;width:0;background:#22C55E;transition:width .3s}.bigf-st{display:block;font-size:11.5px;opacity:.75}
+</style>`);
+
 boot();

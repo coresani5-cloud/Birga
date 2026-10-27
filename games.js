@@ -673,20 +673,21 @@
   addEventListener('keyup', (e) => keysDown.delete(e.key.toLowerCase()));
   addEventListener('blur', () => keysDown.clear());
 
-  /* ---------- opsGL: Birga Strike uchun Three.js (r149) renderer ----------
+  /* ---------- strikeGL: Birga Strike uchun Three.js (r149) renderer ----------
      Assetlar public/ops/ da (manba va litsenziyalar: public/ops/LICENSES.txt). Askarlar GLTFLoader bilan yuklanadi va
      AnimationMixer bilan jonlanadi (idle, run, shoot, hit, death). WebGL yo'q bo'lsa yoki fayllar yuklanmasa,
      o'yin eski raycasting rejimida qoladi. Xarita: 1 katak = 1 birlik (~2 m); x → X, y → Z. */
-  const OPS = '/ops/', OPS_H = 0.9, OPS_EYE = 0.78, OPS_WALL = 1.5;
-  let opsLib = null;
-  function opsLoad() {
-    if (opsLib) return opsLib;
-    opsLib = (async () => {
+  const OPSA = '/ops/', OPS_H = 0.9, OPS_EYE = 0.78, OPS_WALL = 1.5;
+  let opsAssetP = null;
+  function opsAssets() {
+    if (opsAssetP) return opsAssetP;
+    opsAssetP = (async () => {
       const tc = document.createElement('canvas'); if (!(tc.getContext('webgl2') || tc.getContext('webgl'))) throw new Error('webgl');
-      if (!window.THREE?.GLTFLoader) await new Promise((ok, no) => { const s = document.createElement('script'); s.src = OPS + 'three-ops.min.js'; s.onload = ok; s.onerror = () => no(new Error('three')); document.head.appendChild(s); });
+      if (window.THREE && !window.THREE.GLTFLoader) throw new Error('three-no-gltf'); // boshqa THREE nusxasi bilan aralashtirmaymiz
+      if (!window.THREE) await new Promise((ok, no) => { const s = document.createElement('script'); s.src = OPSA + 'three-ops.min.js'; s.onload = ok; s.onerror = () => no(new Error('three')); document.head.appendChild(s); });
       const T = window.THREE, gl = new T.GLTFLoader(), tl = new T.TextureLoader();
-      const tex = (f, srgb) => tl.loadAsync(OPS + 'tex/' + f).then((t) => { t.wrapS = t.wrapT = T.RepeatWrapping; t.anisotropy = 4; if (srgb) t.encoding = T.sRGBEncoding; return t; });
-      const [sol, reb, sky, wd, wn, cd, cn, fd, fn] = await Promise.all([gl.loadAsync(OPS + 'models/soldier.glb'), gl.loadAsync(OPS + 'models/rebel.glb'), new T.RGBELoader().loadAsync(OPS + 'sky_quarry_1k.hdr'),
+      const tex = (f, srgb) => tl.loadAsync(OPSA + 'tex/' + f).then((t) => { t.wrapS = t.wrapT = T.RepeatWrapping; t.anisotropy = 4; if (srgb) t.encoding = T.sRGBEncoding; return t; });
+      const [sol, reb, sky, wd, wn, cd, cn, fd, fn] = await Promise.all([gl.loadAsync(OPSA + 'models/soldier.glb'), gl.loadAsync(OPSA + 'models/rebel.glb'), new T.RGBELoader().loadAsync(OPSA + 'sky_quarry_1k.hdr'),
         tex('wall_d.jpg', 1), tex('wall_n.jpg'), tex('concrete_d.jpg', 1), tex('concrete_n.jpg'), tex('floor_d.jpg', 1), tex('floor_n.jpg')]);
       sky.mapping = T.EquirectangularReflectionMapping;
       // AK (Quaternius askari qo'lidagi): geometriyada stvol +X, tepa +Z. Kanonik shakl: stvol −Z, tepa +Y, uzunligi 1
@@ -703,8 +704,8 @@
       };
       prep(sol); const op = prep(reb, true);
       // ---- askarlar: o'yinchilar yuzi (public/ops/faces), 2 xil harbiy kamuflyaj, dubulg'a ----
-      const faces = await fetch(OPS + 'faces/faces.json').then((r) => r.json())
-        .then((list) => Promise.all(list.map((f) => tl.loadAsync(OPS + 'faces/' + f.file).then((t) => { t.encoding = T.sRGBEncoding; t.anisotropy = 4; return { t, skin: f.skin }; })))).catch(() => []);
+      const faces = await fetch(OPSA + 'faces/faces.json').then((r) => r.json())
+        .then((list) => Promise.all(list.map((f) => tl.loadAsync(OPSA + 'faces/' + f.file).then((t) => { t.encoding = T.sRGBEncoding; t.anisotropy = 4; return { t, skin: f.skin }; })))).catch(() => []);
       const lin = (h) => new T.Color(h).convertSRGBToLinear();
       const gb = new T.Box3(); op.scene.traverse((n) => { if (n.isSkinnedMesh) { n.geometry.computeBoundingBox(); gb.union(n.geometry.boundingBox); } });
       const cf = 16 / Math.max(1e-6, ...gb.getSize(new T.Vector3()).toArray());
@@ -717,8 +718,6 @@
             + sh.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\n{ vec3 q = vCp * cf; float a = vn(q) * .65 + vn(q * 2.3) * .35, b = vn(q * 1.7 + 9.) * .6 + vn(q * 3.1) * .4; vec3 cc = c0; cc = mix(cc, c1, step(.55, a)); cc = mix(cc, c2, step(.6, b)); cc = mix(cc, c3, step(.68, a) * step(.42, b)); diffuseColor.rgb = cc; }'); };
         m.customProgramCacheKey = () => 'opsCamo'; return m; };
       // CT uslubi: to'q ko'k forma (0) va kulrang-ko'k "urban" forma (1); nimcha, dubulg'a, qo'lqop — qora
-      const TEAM = [{ camo: camo(['#27304a', '#1b2235', '#343f5c', '#121827']) }, { camo: camo(['#3a414d', '#2a3039', '#4b5361', '#1c2027']) }];
-      const sleeve = new T.MeshStandardMaterial({ color: lin('#1a1f2b'), roughness: 0.9 }); // yeng, qo'lqop, bo'yinbog'
       const blk = (h, r = 0.75, m = 0.1) => new T.MeshStandardMaterial({ color: lin(h), roughness: r, metalness: m });
       const mHelm = blk('#202227', 0.6, 0.15), mVest = blk('#1d1f24', 0.85), mPouch = blk('#26292f', 0.9), mCup = blk('#141518', 0.5, 0.2);
       // AK: yog'och va kulrang qismlar qora "taktik" rangga
@@ -753,16 +752,63 @@
           const ct = new T.Mesh(new T.PlaneGeometry(0.1, 0.044), patchMat(ctTex)); ct.position.set(0.005, 1.37, 0.2302); g.add(ct);
           const eg = new T.Mesh(new T.PlaneGeometry(0.036, 0.04), patchMat(eagleTex)); eg.position.set(0.085, 1.41, 0.2302); g.add(eg); }),
       ].filter(Boolean);
-      const palm = await gl.loadAsync(OPS + 'models/palm.glb').then((g) => { g.scene.traverse((n) => { if (n.isMesh) n.castShadow = true; }); return g.scene; }).catch(() => null);
-      return { T, op, TEAM, FACE, sleeve, mkGun, sky, palm, tx: { wd, wn, cd, cn, fd, fn } };
+      const palm = await gl.loadAsync(OPSA + 'models/palm.glb').then((g) => { g.scene.traverse((n) => { if (n.isMesh) n.castShadow = true; }); return g.scene; }).catch(() => null);
+      // o'yinchi avatari (Image) → yuz materiali: markazdan qirqiladi, oval yumshoq chet, teri rangi o'rtachadan
+      const faceOf = (img) => { const cv = document.createElement('canvas'); cv.width = 256; cv.height = 288; const x = cv.getContext('2d'), k = Math.max(256 / img.width, 288 / img.height) * 1.12, w = img.width * k, h = img.height * k;
+        x.drawImage(img, (256 - w) / 2, (288 - h) / 2 + 6, w, h); let skin = '#b98b6d';
+        try { const d = x.getImageData(88, 110, 80, 80).data; let r = 0, g2 = 0, b2 = 0; for (let i = 0; i < d.length; i += 4) { r += d[i]; g2 += d[i + 1]; b2 += d[i + 2]; } const n = d.length / 4; skin = '#' + [r, g2, b2].map((v) => Math.round(v / n).toString(16).padStart(2, '0')).join(''); } catch {}
+        x.globalCompositeOperation = 'destination-in'; x.save(); x.translate(128, 144); x.scale(1, 288 / 256 * 1.04); const gr = x.createRadialGradient(0, 0, 70, 0, 0, 106); gr.addColorStop(0, '#000'); gr.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = gr; x.fillRect(-140, -140, 280, 280); x.restore();
+        const t = new T.CanvasTexture(cv); t.encoding = T.sRGBEncoding;
+        return { skin: Object.assign(skinBase.clone(), { color: lin(skin) }), mat: new T.MeshStandardMaterial({ map: t, emissiveMap: t, emissive: new T.Color(0.22, 0.22, 0.22), transparent: true, roughness: 0.75, polygonOffset: true, polygonOffsetFactor: -2 }) }; };
+      return { T, op, FACE, faceOf, camo, blk, km: { helm: mHelm, vest: mVest, pouch: mPouch }, mkGun, sky, palm, tx: { wd, wn, cd, cn, fd, fn } };
     })();
-    opsLib.catch((e) => { console.warn('opsGL:', e?.message || e); opsLib = null; });
-    return opsLib;
+    opsAssetP.catch((e) => { console.warn('opsGL:', e?.message || e); opsAssetP = null; });
+    return opsAssetP;
+  }
+  // ---- GLTF askar (strikeGL va Birga Strike 3D opsGL uchun umumiy) ----
+  // L — kiyim ranglari (OPS_C[].L kabi: top/top2/pants/pants2/vest/hc/gl), face — {skin, mat} yoki null, h — bo'yi.
+  // Qaytadi: g (guruh, oldi −Z), gun (qurol guruhi, har kadrda qo'lga qo'yiladi), tick(holat, dt)
+  const CT_L = [{ top: '#27304a', top2: '#1b2235', pants: '#27304a', pants2: '#1b2235', vest: '#1d1f24', hc: '#202227', gl: '#1a1f2b' },
+    { top: '#3a414d', top2: '#2a3039', pants: '#3a414d', pants2: '#2a3039', vest: '#1d1f24', hc: '#202227', gl: '#1a1f2b' }];
+  const glbLook = new WeakMap();
+  function glbSoldier(lib, L, face, h) {
+    const { T, op } = lib;
+    let M = glbLook.get(L);
+    if (!M) { const sh = (c, k) => '#' + new T.Color(c).offsetHSL(0, 0, k).getHexString();
+      M = { top: lib.camo([L.top, L.top2, sh(L.top, 0.06), sh(L.top2, -0.05)]), pants: lib.camo([L.pants || L.top, L.pants2 || L.top2, sh(L.pants || L.top, 0.06), sh(L.pants2 || L.top2, -0.05)]),
+        sleeve: lib.blk(L.gl || L.top2, 0.9, 0), helm: lib.blk(L.hc || '#202227', 0.6, 0.15), vest: lib.blk(L.vest || '#1d1f24', 0.85, 0.05), pouch: lib.blk(sh(L.vest || '#1d1f24', 0.04), 0.9, 0) };
+      glbLook.set(L, M); }
+    const o = T.SkeletonUtils.clone(op.scene), g = new T.Group(); o.scale.setScalar((op.k * h) / OPS_H); o.rotation.y = Math.PI; g.add(o);
+    const bones = {};
+    o.traverse((n) => { if (n.isBone) bones[n.name] = n; if (!n.isMesh) return; const nm = n.material.name;
+      if (/Backpack/.test(n.name)) n.visible = false; else if (nm === 'Green' || nm === 'LightGreen') n.material = M.top; else if (nm === 'Brown' || nm === 'Brown2') n.material = M.pants;
+      else if (nm === 'Skin' && /Body/.test(n.name)) n.material = M.sleeve; else if (face && nm === 'Skin') n.material = face.skin; else if (face && (nm === 'Eye' || nm === 'Eyebrows')) n.visible = false; });
+    const KM = new Map([[lib.km.helm, M.helm], [lib.km.vest, M.vest], [lib.km.pouch, M.pouch]]);
+    for (const k of op.kits) { const b = bones[k.bone]; if (!b) continue; const q = k.obj.clone(); q.traverse((n) => { if (n.isMesh && KM.has(n.material)) n.material = KM.get(n.material); }); q.matrixAutoUpdate = false; q.matrix.copy(k.m); b.add(q); }
+    if (bones.Head && face) { const fm = new T.Mesh(op.faceGeo, face.mat); fm.matrixAutoUpdate = false; fm.matrix.copy(op.faceM); bones.Head.add(fm); }
+    const mx = new T.AnimationMixer(o), acts = {}; for (const k in op.clips) acts[k] = mx.clipAction(op.clips[k]);
+    for (const k of ['death', 'hit']) if (acts[k]) { acts[k].setLoop(T.LoopOnce); acts[k].clampWhenFinished = true; }
+    const gun = new T.Group(); g.add(gun);
+    const S = { g, o, mx, gun, cur: null, hand: bones.Index1R || bones.WristR, deadT: 0, hitT: 0, wasHit: 0, px: null, py: 0, sp: 0, v: new T.Vector3() };
+    S.play = (k, fade = 0.18) => { if (S.cur === k || !acts[k]) return; const n = acts[k], p = S.cur && acts[S.cur]; n.reset(); n.setEffectiveWeight(1); n.play(); if (p) n.crossFadeFrom(p, k === 'death' ? 0.1 : fade, false); S.cur = k; };
+    // q: { x, y, dead, fire, hit, mv } — mv bo'lmasa yugurish joy o'zgarishidan aniqlanadi
+    S.tick = (q, dt) => {
+      if (S.px === null || Math.hypot(q.x - S.px, q.y - S.py) > 1.5) { S.px = q.x; S.py = q.y; }
+      const sp = Math.hypot(q.x - S.px, q.y - S.py) / Math.max(dt, 1e-3); S.sp += (sp - S.sp) * Math.min(1, dt * 10); S.px = q.x; S.py = q.y;
+      const run = q.mv != null ? !!q.mv : S.sp > 0.4;
+      if (q.hit && !S.wasHit) S.hitT = 0.35; S.wasHit = q.hit; if (S.hitT > 0) S.hitT -= dt;
+      if (q.dead) { S.deadT += dt; S.play('death'); } else { S.deadT = 0; S.play(S.hitT > 0 && !run ? 'hit' : run ? 'run' : q.fire ? 'shoot' : 'idle'); }
+      mx.update(dt);
+      if (S.hand) { g.updateMatrixWorld(true); S.hand.getWorldPosition(S.v); g.worldToLocal(S.v); gun.position.copy(S.v); // qurol qo'lda, stvoli oldinga; o'lganda yerda
+        if (q.dead) { gun.position.y = Math.max(0.03, S.v.y * 0.3); gun.rotation.set(0, 0.6, Math.PI / 2); } else gun.rotation.set(0, 0, 0); }
+    };
+    S.dispose = () => { mx.stopAllAction(); mx.uncacheRoot(o); };
+    return S;
   }
   // stage: o'yin maydoni, c: 2D canvas (HUD uchun ustida qoladi), MAP: xarita satrlari
-  function opsGL(stage, c, MAP) {
+  function strikeGL(stage, c, MAP) {
     const R = { ok: false, dead: false };
-    opsLoad().then((lib) => { if (!R.dead) build(lib); }).catch(() => {});
+    opsAssets().then((lib) => { if (!R.dead) build(lib); }).catch(() => {});
     function build(lib) {
       const { T } = lib, N = MAP.length, wallAt = (x, y) => x < 0 || y < 0 || x >= N || y >= N || MAP[y][x] === '#';
       let rd;
@@ -817,21 +863,10 @@
       // askarlar
       const A = new Map(), tmp = new T.Vector3();
       const mkActor = (team, face) => {
-        const t = lib.op, tm = lib.TEAM[team % 2], F = lib.FACE.length ? lib.FACE[(face | 0) % lib.FACE.length] : null, o = T.SkeletonUtils.clone(t.scene); o.scale.setScalar(t.k); sc.add(o);
-        let head = null; o.traverse((n) => { if (n.isBone && n.name === 'Head') head = n; if (!n.isMesh) return; const nm = n.material.name;
-          if (/Backpack/.test(n.name)) n.visible = false; else if (/^(Green|LightGreen|Brown|Brown2)$/.test(nm)) n.material = tm.camo;
-          else if (nm === 'Skin' && /Body/.test(n.name)) n.material = lib.sleeve; else if (F && nm === 'Skin') n.material = F.skin; else if (F && (nm === 'Eye' || nm === 'Eyebrows')) n.visible = false; });
-        const bones = {}; o.traverse((n) => { if (n.isBone) bones[n.name] = n; });
-        for (const k of t.kits) { const b = bones[k.bone]; if (!b) continue; const q = k.obj.clone(); q.matrixAutoUpdate = false; q.matrix.copy(k.m); b.add(q); }
-        if (head) {
-          if (F) { const fm = new T.Mesh(t.faceGeo, F.mat); fm.matrixAutoUpdate = false; fm.matrix.copy(t.faceM); head.add(fm); } }
-        const mx = new T.AnimationMixer(o), acts = {}; for (const k in t.clips) acts[k] = mx.clipAction(t.clips[k]);
-        for (const k of ['death', 'hit']) if (acts[k]) { acts[k].setLoop(T.LoopOnce); acts[k].clampWhenFinished = true; }
-        const fl = mkFlash(0.17); sc.add(fl);
-        let gun = null, hand = null; if (t.follow) { gun = lib.mkGun(0.85); gun.traverse((n) => { if (n.isMesh) n.castShadow = true; }); o.add(gun); hand = o.getObjectByName('Index1R') || o.getObjectByName('WristR'); }
-        return { o, mx, acts, cur: null, fl, muz: gun ? gun.userData.muz : o.getObjectByName('opsMuz'), gun, hand, px: null, py: 0, sp: 0, hitT: 0, wasHit: 0, deadT: 0, team };
+        const F = lib.FACE.length ? lib.FACE[(face | 0) % lib.FACE.length] : null, S = glbSoldier(lib, CT_L[team % 2], F, OPS_H), gm = lib.mkGun(0.45);
+        gm.traverse((n) => { if (n.isMesh) n.castShadow = true; }); S.gun.add(gm); sc.add(S.g); const fl = mkFlash(0.17); sc.add(fl);
+        return { S, fl, muz: gm.userData.muz };
       };
-      const play = (a, k, fade = 0.18) => { if (a.cur === k || !a.acts[k]) return; const n = a.acts[k], o = a.cur && a.acts[a.cur]; n.reset(); n.setEffectiveWeight(1); n.play(); if (o) n.crossFadeFrom(o, k === 'death' ? 0.1 : fade, false); a.cur = k; };
       let W0 = 0, H0 = 0;
       R.ok = true; R.gc = gc;
       R.draw = (v) => {
@@ -853,26 +888,17 @@
         const seen = new Set();
         for (const q of v.actors) {
           seen.add(q.key); let a = A.get(q.key); if (!a) { a = mkActor(q.team | 0, q.face); A.set(q.key, a); }
-          if (a.px === null || Math.hypot(q.x - a.px, q.y - a.py) > 1.5) { a.px = q.x; a.py = q.y; }
-          const sp = Math.hypot(q.x - a.px, q.y - a.py) / Math.max(dt, 1e-3); a.sp += (sp - a.sp) * Math.min(1, dt * 10); a.px = q.x; a.py = q.y;
-          a.o.position.set(q.x, 0, q.y); a.o.visible = true;
-          const ang = q.a ?? Math.atan2(v.y - q.y, v.x - q.x); a.o.rotation.y = Math.PI / 2 - ang;
-          if (q.hit && !a.wasHit) a.hitT = 0.35; a.wasHit = q.hit; if (a.hitT > 0) a.hitT -= dt;
-          if (q.dead) { a.deadT += dt; play(a, 'death'); if (a.deadT > 3) a.o.position.y = -Math.min(1, (a.deadT - 3) * 0.5); if (a.deadT > 5) a.o.visible = false; }
-          else { a.deadT = 0; play(a, a.hitT > 0 && a.sp < 0.4 ? 'hit' : a.sp > 0.4 ? 'run' : q.fire ? 'shoot' : 'idle'); }
-          a.mx.update(dt);
-          if (a.gun && a.hand) { // qurol: qo'l turgan joyda, stvoli doim oldinga (o'lganda — yerda yotadi)
-            a.o.updateMatrixWorld(true); a.hand.getWorldPosition(tmp); a.o.worldToLocal(tmp); a.gun.position.copy(tmp);
-            if (q.dead) { a.gun.position.y = Math.max(0.06, tmp.y * 0.3); a.gun.rotation.set(0, Math.PI * 0.8, Math.PI / 2); } else a.gun.rotation.set(0, Math.PI, 0);
-          }
-          a.fl.visible = !!q.fire && !q.dead && !!a.muz; if (a.fl.visible) { a.o.updateMatrixWorld(true); a.muz.getWorldPosition(a.fl.position); a.fl.material.rotation = Math.random() * 6; }
+          const g = a.S.g, ang = q.a ?? Math.atan2(v.y - q.y, v.x - q.x); g.position.set(q.x, 0, q.y); g.rotation.y = -ang - Math.PI / 2; g.visible = true;
+          a.S.tick(q, dt);
+          if (q.dead) { if (a.S.deadT > 3) g.position.y = -Math.min(1, (a.S.deadT - 3) * 0.5); if (a.S.deadT > 5) g.visible = false; }
+          a.fl.visible = !!q.fire && !q.dead; if (a.fl.visible) { g.updateMatrixWorld(true); a.muz.getWorldPosition(a.fl.position); a.fl.material.rotation = Math.random() * 6; }
         }
-        for (const [k, a] of A) if (!seen.has(k)) { sc.remove(a.o, a.fl); a.mx.stopAllAction(); A.delete(k); }
+        for (const [k, a] of A) if (!seen.has(k)) { sc.remove(a.S.g, a.fl); a.S.dispose(); A.delete(k); }
         rd.setClearColor(0x000000, 1); rd.clear(); rd.render(sc, cam); rd.clearDepth(); rd.render(vs, vc);
       };
       // 2D HUD uchun: xarita nuqtasi (x, y, balandlik h) → ekran koordinatasi
       R.proj = (x, y, h) => { tmp.set(x, h, y).project(cam); if (tmp.z > 1 || tmp.z < -1) return null; return [((tmp.x + 1) / 2) * c.W, ((1 - tmp.y) / 2) * c.H]; };
-      R.dispose = () => { for (const [, a] of A) a.mx.stopAllAction(); A.clear(); sc.traverse((n) => { if (n.isMesh && n.geometry && !n.isSkinnedMesh) n.geometry.dispose(); }); env.dispose(); rd.dispose(); rd.forceContextLoss?.(); gc.remove(); };
+      R.dispose = () => { for (const [, a] of A) a.S.dispose(); A.clear(); sc.traverse((n) => { if (n.isMesh && n.geometry && !n.isSkinnedMesh) n.geometry.dispose(); }); env.dispose(); rd.dispose(); rd.forceContextLoss?.(); gc.remove(); };
     }
     R.stop = () => { R.dead = true; R.ok = false; R.dispose?.(); };
     return R;
@@ -884,7 +910,7 @@
     const { c, g, fit } = canvasIn(stage, null);
     const MAP = ['################', '#......#.......#', '#.##...#..###..#', '#.#.......#....#', '#.#..##...#.##.#', '#....#.........#', '###..#..####...#', '#.......#......#', '#..##...#..##..#', '#..#.......#...#', '#..#..###..#..##', '#......#.......#', '#.###..#..###..#', '#..............#', '#..##......##..#', '################'];
     const N = 16, wall = (x, y) => x < 0 || y < 0 || x >= N || y >= N || MAP[y | 0][x | 0] === '#';
-    const ops = opsGL(stage, c, MAP); let lpx = 0, lpy = 0;
+    const ops = strikeGL(stage, c, MAP); let lpx = 0, lpy = 0;
     const pad = padUI(stage, [{ id: 'fire', t: '🔫', cls: 'big' }, { id: 'reload', t: '🔄' }]);
     let P, en, wave, kills, ammo, reloadT, fireT, flash, hurt, dead, items, msg, msgT, look = null, lookX = 0;
     c.addEventListener('pointerdown', (e) => { look = e.pointerId; lookX = e.clientX; });
@@ -1821,7 +1847,7 @@
     const { c, g, fit } = canvasIn(stage, null);
     const MAP = ['################', '#......#.......#', '#.##...#..###..#', '#.#.......#....#', '#.#..##...#.##.#', '#....#.........#', '###..#..####...#', '#.......#......#', '#..##...#..##..#', '#...#......#...#', '#...#..##..#...#', '#.......##.....#', '#.###......###.#', '#...#..#.......#', '#......#...#...#', '################'];
     const N = 16, wall = (x, y) => x < 0 || y < 0 || x >= N || y >= N || MAP[y | 0][x | 0] === '#';
-    const ops = opsGL(stage, c, MAP); let lpx = 0, lpy = 0;
+    const ops = strikeGL(stage, c, MAP); let lpx = 0, lpy = 0;
     const pad = padUI(stage, [{ id: 'fire', t: '🔫', cls: 'big' }, { id: 'reload', t: '🔄' }]);
     // n>2: hamma hammaga qarshi (FFA) — har kim o'z holatini hammaga yuboradi, tegish nishonga yuboriladi
     const NP = Math.max(2, ctx.n | 0), FFA = NP > 2, COL = ctx.col || ['#3B82F6', '#EF4444', '#22C55E', '#F59E0B'];
@@ -5714,7 +5740,9 @@
   }
   // ================= v43: haqiqiy 3D (Three.js / WebGL): yorug'lik, soyalar, 3D personajlar va qurollar =================
   let OPS3P = null;
-  const loadThree = () => OPS3P || (OPS3P = (window.THREE ? Promise.resolve(window.THREE) : loadScript('https://unpkg.com/three@0.149.0/build/three.min.js').then(() => window.THREE || null)).catch(() => { OPS3P = null; return null; }));
+  // three r149: avval o'zimizdagi /ops/three-ops.min.js (GLTFLoader bilan — askar modellari uchun), bo'lmasa unpkg
+  const loadThree = () => OPS3P || (OPS3P = (window.THREE ? Promise.resolve(window.THREE) : loadScript(OPSA + 'three-ops.min.js').then(() => window.THREE || Promise.reject(new Error('three')))
+    .catch(() => loadScript('https://unpkg.com/three@0.149.0/build/three.min.js').then(() => window.THREE || null))).catch(() => { OPS3P = null; return null; }));
   const u32rgb = (c) => ((c & 255) << 16) | (((c >> 8) & 255) << 8) | ((c >> 16) & 255);
   function opsGL(T, cv, Mp) {
     let R; try { R = new T.WebGLRenderer({ canvas: cv, antialias: true, powerPreference: 'high-performance' }); if (!R.getContext()) return null; } catch { return null; }
@@ -5824,9 +5852,18 @@
       return { g: g0, root, lL, lR, aL, aR, head, gun, gunId: null, fl, dT: 0 };
     }
     let fTex = null; const flashTexGL = () => fTex || (fTex = (() => { const cnv = document.createElement('canvas'); cnv.width = cnv.height = 64; const g2 = cnv.getContext('2d'); const rg = g2.createRadialGradient(32, 32, 2, 32, 32, 32); rg.addColorStop(0, 'rgba(255,255,240,1)'); rg.addColorStop(0.3, 'rgba(255,200,90,.9)'); rg.addColorStop(1, 'rgba(255,120,20,0)'); g2.fillStyle = rg; g2.beginPath(); for (let i = 0; i < 16; i++) { const a = (i / 16) * Math.PI * 2, r = i % 2 ? 12 : 32; g2.lineTo(32 + Math.cos(a) * r, 32 + Math.sin(a) * r); } g2.fill(); return new T.CanvasTexture(cnv); })());
+    // GLTF askarlar (public/ops): yuklansa mkChar o'rniga animatsiyali model; yuz — o'yinchi avatari yoki ops/faces
+    let GLB = null; opsAssets().then((lib) => { if (lib.T === T) GLB = lib; }).catch(() => {});
+    const GFACE = new Map(), glbChar = (e, img) => {
+      const C = OPS_C.find((x) => x.id === e.ch) || OPS_C[0];
+      let face = null; if (img) { face = GFACE.get(img); if (!face) { try { face = GLB.faceOf(img); } catch {} if (face) GFACE.set(img, face); } }
+      if (!face && GLB.FACE.length) face = GLB.FACE[(e.s | 0) % GLB.FACE.length];
+      const S = glbSoldier(GLB, C.L, face, 0.74);
+      const fl = new T.Sprite(new T.SpriteMaterial({ map: flashTexGL(), color: 0xffd27a, blending: T.AdditiveBlending, depthWrite: false, transparent: true })); fl.scale.set(0.16, 0.16, 1); fl.visible = false; S3.add(fl);
+      return { g: S.g, glb: S, gun: S.gun, gunId: null, fl, dT: 0 }; };
     const CHS = new Map(); const imgs = {};
-    const charFor = (e) => { const key = e.ch + '|' + (e.url || ''); let o = CHS.get(e.s); if (o && o.key === key) return o; if (o) { S3.remove(o.c.g); S3.remove(o.c.fl); }
-      const c = mkChar(e.ch, e.url ? imgs[e.url] : null); o = { key, c }; CHS.set(e.s, o); S3.add(c.g);
+    const charFor = (e) => { const key = e.ch + '|' + (e.url || '') + (GLB ? '|g' : ''); let o = CHS.get(e.s); if (o && o.key === key) return o; if (o) { S3.remove(o.c.g); S3.remove(o.c.fl); o.c.glb?.dispose(); }
+      const img = e.url ? imgs[e.url] : null, c = GLB ? glbChar(e, img) : mkChar(e.ch, img); o = { key, c }; CHS.set(e.s, o); S3.add(c.g);
       if (e.url && !imgs[e.url]) { const im = OPSK.img[e.url] || (OPSK.img[e.url] = new Promise((res) => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => res(i); i.onerror = () => res(null); i.src = e.url; })); im.then((i) => { if (i) { imgs[e.url] = i; const cur = CHS.get(e.s); if (cur && cur.key === key) { S3.remove(cur.c.g); S3.remove(cur.c.fl); CHS.delete(e.s); } } }); }
       return o; };
     // dori qutilari
@@ -5858,6 +5895,11 @@
       flashL.intensity = st.flash > 0 ? 2.2 : 0; flashL.position.set(st.x + Math.cos(st.a) * 0.4, st.eye - 0.05, st.y + Math.sin(st.a) * 0.4);
       const seen = new Set();
       for (const e of st.ents) { if (e.me) continue; seen.add(e.s); const { c } = charFor(e); const g0 = c.g; g0.visible = true; g0.position.set(e.x, 0, e.y); g0.rotation.y = -e.a - Math.PI / 2;
+        if (c.glb) { // animatsiyali askar: idle / run / shoot / death
+          if (c.gunId !== e.w && OW[e.w]) { c.gun.clear(); c.gun.add(gunModel(OW[e.w], 0.62)); c.gunId = e.w; }
+          c.glb.tick({ x: e.x, y: e.y, dead: !!e.dead, fire: e.fl > 0, mv: e.mv }, st.dt);
+          const sh = e.fl > 0 && !e.dead; c.fl.visible = sh; if (sh) { const tp = new T.Vector3(0, 0, -0.3); c.gun.localToWorld(tp); c.fl.position.copy(tp); c.fl.material.rotation = Math.random() * 3; }
+          continue; }
         if (c.gunId !== e.w && OW[e.w]) { c.gun.clear(); c.gun.add(gunModel(OW[e.w], 0.62)); c.gunId = e.w; }
         if (e.dead) { c.dT = Math.min(1, c.dT + st.dt * 3); c.root.rotation.x = c.dT * 1.45; c.root.position.y = 0.02 * c.dT; c.fl.visible = false; }
         else { c.dT = 0; c.root.rotation.x = 0; const ph = st.T0 * 9 + e.s; const sw = e.mv ? Math.sin(ph) * 0.65 : 0; c.lL.rotation.x = sw; c.lR.rotation.x = -sw; c.root.position.y = e.mv ? Math.abs(Math.cos(ph)) * 0.012 : Math.sin(st.T0 * 2 + e.s) * 0.002; c.head.rotation.x = 0;

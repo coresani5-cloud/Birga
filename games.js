@@ -701,7 +701,33 @@
         s.updateMatrixWorld(true); let top = 0; s.traverse((n) => { if (n.isBone) top = Math.max(top, n.getWorldPosition(v).y); });
         return { scene: s, clips, k: OPS_H / (top * 1.1), follow: !!gun };
       };
-      return { T, chars: [prep(sol), prep(reb, true)], mkGun, sky, tx: { wd, wn, cd, cn, fd, fn } };
+      prep(sol); const op = prep(reb, true);
+      // ---- askarlar: o'yinchilar yuzi (public/ops/faces), 2 xil harbiy kamuflyaj, dubulg'a ----
+      const faces = await fetch(OPS + 'faces/faces.json').then((r) => r.json())
+        .then((list) => Promise.all(list.map((f) => tl.loadAsync(OPS + 'faces/' + f.file).then((t) => { t.encoding = T.sRGBEncoding; t.anisotropy = 4; return { t, skin: f.skin }; })))).catch(() => []);
+      const lin = (h) => new T.Color(h).convertSRGBToLinear();
+      const gb = new T.Box3(); op.scene.traverse((n) => { if (n.isSkinnedMesh) { n.geometry.computeBoundingBox(); gb.union(n.geometry.boundingBox); } });
+      const cf = 16 / Math.max(1e-6, ...gb.getSize(new T.Vector3()).toArray());
+      // kamuflyaj: modelda UV yo'q — dog'lar bog'lanish holatidagi (bind) koordinatadan 3D shovqin bilan chiziladi, kiyim bilan birga harakatlanadi
+      const camo = (pal) => { const m = new T.MeshStandardMaterial({ roughness: 0.92 }), U = { c0: { value: lin(pal[0]) }, c1: { value: lin(pal[1]) }, c2: { value: lin(pal[2]) }, c3: { value: lin(pal[3]) }, cf: { value: cf } };
+        m.onBeforeCompile = (sh) => { Object.assign(sh.uniforms, U);
+          sh.vertexShader = 'varying vec3 vCp;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvCp = position;');
+          sh.fragmentShader = 'varying vec3 vCp; uniform vec3 c0, c1, c2, c3; uniform float cf;\nfloat h3(vec3 p){return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453);}\n'
+            + 'float vn(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(mix(h3(i),h3(i+vec3(1,0,0)),f.x),mix(h3(i+vec3(0,1,0)),h3(i+vec3(1,1,0)),f.x),f.y),mix(mix(h3(i+vec3(0,0,1)),h3(i+vec3(1,0,1)),f.x),mix(h3(i+vec3(0,1,1)),h3(i+vec3(1,1,1)),f.x),f.y),f.z);}\n'
+            + sh.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\n{ vec3 q = vCp * cf; float a = vn(q) * .65 + vn(q * 2.3) * .35, b = vn(q * 1.7 + 9.) * .6 + vn(q * 3.1) * .4; vec3 cc = c0; cc = mix(cc, c1, step(.55, a)); cc = mix(cc, c2, step(.6, b)); cc = mix(cc, c3, step(.68, a) * step(.42, b)); diffuseColor.rgb = cc; }'); };
+        m.customProgramCacheKey = () => 'opsCamo'; return m; };
+      const TEAM = [{ camo: camo(['#4b5320', '#2f3a1e', '#6b6a43', '#1c2114']), helm: lin('#4a5230') }, { camo: camo(['#a08a62', '#7a6544', '#c4b087', '#574833']), helm: lin('#8f7a55') }];
+      TEAM.forEach((t) => (t.helmMat = new T.MeshStandardMaterial({ color: t.helm, roughness: 0.7, metalness: 0.05 })));
+      op.scene.traverse((n) => { if (n.isMesh && n.material.name === 'Hair') n.material.color = lin('#17110d'); });
+      const skinBase = (() => { let m = null; op.scene.traverse((n) => { if (n.isMesh && n.material.name === 'Skin') m = n.material; }); return m; })();
+      const FACE = faces.map((f) => ({ skin: Object.assign(skinBase.clone(), { color: lin(f.skin) }),
+        mat: new T.MeshStandardMaterial({ map: f.t, emissiveMap: f.t, emissive: new T.Color(0.22, 0.22, 0.22), transparent: true, roughness: 0.75, polygonOffset: true, polygonOffsetFactor: -2 }) }));
+      // dubulg'a va yuz sirti: "Head" suyagiga bog'lanadi (dam holatidagi bosh o'lchamlari bo'yicha)
+      const hb = (() => { let b = null; op.scene.traverse((n) => { if (n.isBone && n.name === 'Head') b = n; }); return b; })();
+      const local = (pos, sc) => hb.matrixWorld.clone().invert().multiply(new T.Matrix4().compose(pos, new T.Quaternion(), sc || new T.Vector3(1, 1, 1)));
+      op.helmGeo = new T.SphereGeometry(0.162, 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.5); op.helmM = local(new T.Vector3(0.005, 1.695, 0.09), new T.Vector3(1.05, 1.0, 1.12));
+      op.faceGeo = new T.CylinderGeometry(0.13, 0.13, 0.26, 18, 1, true, -0.92, 1.84); op.faceM = local(new T.Vector3(0.005, 1.6, 0.11));
+      return { T, op, TEAM, FACE, mkGun, sky, tx: { wd, wn, cd, cn, fd, fn } };
     })();
     opsLib.catch((e) => { console.warn('opsGL:', e?.message || e); opsLib = null; });
     return opsLib;
@@ -753,11 +779,15 @@
       const vflash = mkFlash(0.16); vs.add(vflash); const vlight = new T.PointLight(0xffc860, 0, 4, 2); sc.add(vlight);
       // askarlar
       const A = new Map(), tmp = new T.Vector3();
-      const mkActor = (team) => {
-        const t = lib.chars[team % 2], o = T.SkeletonUtils.clone(t.scene); o.scale.setScalar(t.k); sc.add(o);
+      const mkActor = (team, face) => {
+        const t = lib.op, tm = lib.TEAM[team % 2], F = lib.FACE.length ? lib.FACE[(face | 0) % lib.FACE.length] : null, o = T.SkeletonUtils.clone(t.scene); o.scale.setScalar(t.k); sc.add(o);
+        let head = null; o.traverse((n) => { if (n.isBone && n.name === 'Head') head = n; if (!n.isMesh) return; const nm = n.material.name;
+          if (/^(Green|LightGreen|Brown|Brown2)$/.test(nm)) n.material = tm.camo; else if (F && nm === 'Skin') n.material = F.skin; else if (F && (nm === 'Eye' || nm === 'Eyebrows')) n.visible = false; });
+        if (head) { const hm = new T.Mesh(t.helmGeo, tm.helmMat); hm.matrixAutoUpdate = false; hm.matrix.copy(t.helmM); hm.castShadow = true; head.add(hm);
+          if (F) { const fm = new T.Mesh(t.faceGeo, F.mat); fm.matrixAutoUpdate = false; fm.matrix.copy(t.faceM); head.add(fm); } }
         const mx = new T.AnimationMixer(o), acts = {}; for (const k in t.clips) acts[k] = mx.clipAction(t.clips[k]);
         for (const k of ['death', 'hit']) if (acts[k]) { acts[k].setLoop(T.LoopOnce); acts[k].clampWhenFinished = true; }
-        const fl = mkFlash(0.28); sc.add(fl);
+        const fl = mkFlash(0.17); sc.add(fl);
         let gun = null, hand = null; if (t.follow) { gun = lib.mkGun(0.85); gun.traverse((n) => { if (n.isMesh) n.castShadow = true; }); o.add(gun); hand = o.getObjectByName('Index1R') || o.getObjectByName('WristR'); }
         return { o, mx, acts, cur: null, fl, muz: gun ? gun.userData.muz : o.getObjectByName('opsMuz'), gun, hand, px: null, py: 0, sp: 0, hitT: 0, wasHit: 0, deadT: 0, team };
       };
@@ -782,7 +812,7 @@
         // askarlar
         const seen = new Set();
         for (const q of v.actors) {
-          seen.add(q.key); let a = A.get(q.key); if (!a) { a = mkActor(q.team | 0); A.set(q.key, a); }
+          seen.add(q.key); let a = A.get(q.key); if (!a) { a = mkActor(q.team | 0, q.face); A.set(q.key, a); }
           if (a.px === null || Math.hypot(q.x - a.px, q.y - a.py) > 1.5) { a.px = q.x; a.py = q.y; }
           const sp = Math.hypot(q.x - a.px, q.y - a.py) / Math.max(dt, 1e-3); a.sp += (sp - a.sp) * Math.min(1, dt * 10); a.px = q.x; a.py = q.y;
           a.o.position.set(q.x, 0, q.y); a.o.visible = true;
@@ -872,7 +902,7 @@
       if (ops.ok) { // 3D: Three.js sahnasi; 2D canvas faqat HUD uchun
         g.clearRect(0, 0, W, H); const mv = Math.hypot(P.x - lpx, P.y - lpy) > 1e-4; lpx = P.x; lpy = P.y;
         ops.draw({ dt, x: P.x, y: P.y, a: P.a, moving: mv, fire: flash > 0, kick: fireT > 0, reload: reloadT > 0, hurt, dead,
-          actors: en.map((e) => ({ key: e, team: ['#B91C1C', '#1D4ED8', '#047857', '#7C2D12'].indexOf(e.col) % 2 ? 0 : 1, x: e.x, y: e.y, dead: !!e.dead, fire: e.fl > 0, hit: e.hit > 0 })) });
+          actors: en.map((e, i, _, k = ['#B91C1C', '#1D4ED8', '#047857', '#7C2D12'].indexOf(e.col)) => ({ key: e, team: k % 2 ? 0 : 1, face: k, x: e.x, y: e.y, dead: !!e.dead, fire: e.fl > 0, hit: e.hit > 0 })) });
         if (flash > 0) flash -= dt;
         for (const it of items) { const d = Math.hypot(it.x - P.x, it.y - P.y), q = los(P.x, P.y, it.x, it.y) && ops.proj(it.x, it.y, 0.12); if (q) text(g, it.t === 'med' ? '🩹' : '📦', q[0], q[1], Math.max(12, Math.min(60, (H * 0.16) / Math.max(0.3, d)))); }
       } else {
@@ -1883,9 +1913,9 @@
       spr.sort((a, b) => Math.hypot(b.x - P.x, b.y - P.y) - Math.hypot(a.x - P.x, a.y - P.y));
       if (ops.ok) { // 3D: o'yinchilar modellar bilan; o'lganlar ham (yiqilish animatsiyasi uchun)
         g.clearRect(-60, -60, W + 120, H + 120); const mv = Math.hypot(P.x - lpx, P.y - lpy) > 1e-4; lpx = P.x; lpy = P.y;
-        const acts = spr.map((q) => ({ key: q.s, team: q.s % 2, x: q.x, y: q.y, a: q.a, fire: q.fl }));
-        if (FFA) { for (const k in OS) { const o = OS[k]; if (+k !== ctx.me && !gone.has(+k) && o.cur?.dead) acts.push({ key: +k, team: +k % 2, x: o.cur.x, y: o.cur.y, a: o.cur.a, dead: true }); } }
-        else if (O?.dead) acts.push({ key: 1 - me, team: (1 - me) % 2, x: O.x, y: O.y, a: O.a, dead: true });
+        const acts = spr.map((q) => ({ key: q.s, team: q.s % 2, face: q.s, x: q.x, y: q.y, a: q.a, fire: q.fl }));
+        if (FFA) { for (const k in OS) { const o = OS[k]; if (+k !== ctx.me && !gone.has(+k) && o.cur?.dead) acts.push({ key: +k, team: +k % 2, face: +k, x: o.cur.x, y: o.cur.y, a: o.cur.a, dead: true }); } }
+        else if (O?.dead) acts.push({ key: 1 - me, team: (1 - me) % 2, face: 1 - me, x: O.x, y: O.y, a: O.a, dead: true });
         ops.draw({ dt, x: P.x, y: P.y, a: P.a, moving: mv, fire: flash > 0, kick: fireT > 0, reload: reloadT > 0, hurt, dead: P.dead > 0, actors: acts });
         for (const sp of spr) { const q = los(P.x, P.y, sp.x, sp.y) && ops.proj(sp.x, sp.y, OPS_H + 0.14); if (!q) continue;
           const d = Math.hypot(sp.x - P.x, sp.y - P.y), bw = Math.max(30, Math.min(70, 90 / Math.max(0.5, d))); g.fillStyle = 'rgba(0,0,0,.5)'; g.fillRect(q[0] - bw / 2, q[1] - 4, bw, 5); g.fillStyle = '#22C55E'; g.fillRect(q[0] - bw / 2, q[1] - 4, bw * Math.max(0, sp.hp) / 100, 5);

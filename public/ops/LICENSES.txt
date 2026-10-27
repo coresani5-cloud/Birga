@@ -21,12 +21,18 @@ models/rebel.glb — "Adventurer" (adventurer with a backpack, gun poses) — o'
               (sha256 05a9210725e5e6c154b4c0bcba6ac1ae8d185501e85a196c69f3b8a92ba3194d)
   O'zgarishlar: meshopt siqish ochildi; animatsiyalar: Idle_Gun→idle, Run_Shoot→run,
               Idle_Gun_Shoot→shoot, HitRecieve→hit, Death→death.
-  O'yinda: kiyim 2 xil kamuflyaj bilan qayta bo'yaladi (o'rmon / cho'l, shader), boshiga dubulg'a qo'shiladi.
+  O'yinda (CT uslubi): forma to'q ko'k / kulrang-ko'k kamuflyajga bo'yaladi (shader), yeng va qo'lqop qora,
+  ryukzak yashiriladi; dubulg'a (quloqchin, relslar), nimcha, "CT" va burgut nishonlari — Birga kodida yasalgan (CC0).
 
 faces/face1.png … face4.png, faces/faces.json — askarlarning yuzlari
   Manba: Birga egasi taqdim etgan guruh surati (4 kishi), ularning roziligi bilan ishlatiladi.
   Bu fayllar CC0 EMAS: shaxsiy suratlar, faqat Birga o'yini ichida ishlatish uchun. Boshqa joyda ishlatmang.
   Tayyorlash: tools/ops/make-faces.py (qirqish, rang muvozanati, oval alfa).
+
+models/palm.glb — "tree_palmTall" (Nature Kit)
+  Muallif:    Kenney (https://kenney.nl/assets/nature-kit)
+  Litsenziya: CC0 1.0 Universal (Public Domain)
+  Olingan nusxa: npm @netforge/asset-library-files@0.2.0 → library/lowpoly/tree_palm.glb; meshopt siqish ochildi.
 
 sky_quarry_1k.hdr — "Quarry 01" HDRI (1K)
   Muallif:    Poly Haven (https://polyhaven.com/a/quarry_01)

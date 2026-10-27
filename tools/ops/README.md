@@ -12,6 +12,7 @@ Bu papkadagi skriptlar `public/ops/` fayllarini qayta yaratadi. Manbalar va lits
      'Revolver,Sniper,Revolver_Small,Pistol,SMG,GrenadeLauncher,ShortCannon,Shotgun,Sniper_2,RocketLauncher,Shovel,Knife_2,Knife_1'
    node tools/ops/convert-models.mjs $L/adventurer.glb public/ops/models/rebel.glb \
      '{"idle":"CharacterArmature|Idle_Gun","run":"CharacterArmature|Run_Shoot","shoot":"CharacterArmature|Idle_Gun_Shoot","death":"CharacterArmature|Death","hit":"CharacterArmature|HitRecieve"}'
+   node tools/ops/convert-models.mjs $L/tree_palm.glb public/ops/models/palm.glb
    ```
    Manba fayllar allaqachon GLB bo'lgani uchun Blender kerak emas: FBX/OBJ dan aylantirish talab qilinmadi.
 2. **Three.js.** r148 dan boshlab `examples/js` olib tashlangan, shuning uchun three@0.149.0 va uning `examples/jsm` dagi GLTFLoader, RGBELoader, SkeletonUtils bitta IIFE faylga yig'iladi (global `THREE`, `THREE.GLTFLoader` …):

@@ -716,8 +716,18 @@
             + 'float vn(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(mix(h3(i),h3(i+vec3(1,0,0)),f.x),mix(h3(i+vec3(0,1,0)),h3(i+vec3(1,1,0)),f.x),f.y),mix(mix(h3(i+vec3(0,0,1)),h3(i+vec3(1,0,1)),f.x),mix(h3(i+vec3(0,1,1)),h3(i+vec3(1,1,1)),f.x),f.y),f.z);}\n'
             + sh.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\n{ vec3 q = vCp * cf; float a = vn(q) * .65 + vn(q * 2.3) * .35, b = vn(q * 1.7 + 9.) * .6 + vn(q * 3.1) * .4; vec3 cc = c0; cc = mix(cc, c1, step(.55, a)); cc = mix(cc, c2, step(.6, b)); cc = mix(cc, c3, step(.68, a) * step(.42, b)); diffuseColor.rgb = cc; }'); };
         m.customProgramCacheKey = () => 'opsCamo'; return m; };
-      const TEAM = [{ camo: camo(['#4b5320', '#2f3a1e', '#6b6a43', '#1c2114']), helm: lin('#4a5230') }, { camo: camo(['#a08a62', '#7a6544', '#c4b087', '#574833']), helm: lin('#8f7a55') }];
-      TEAM.forEach((t) => (t.helmMat = new T.MeshStandardMaterial({ color: t.helm, roughness: 0.7, metalness: 0.05 })));
+      // CT uslubi: to'q ko'k forma (0) va kulrang-ko'k "urban" forma (1); nimcha, dubulg'a, qo'lqop — qora
+      const TEAM = [{ camo: camo(['#27304a', '#1b2235', '#343f5c', '#121827']) }, { camo: camo(['#3a414d', '#2a3039', '#4b5361', '#1c2027']) }];
+      const sleeve = new T.MeshStandardMaterial({ color: lin('#1a1f2b'), roughness: 0.9 }); // yeng, qo'lqop, bo'yinbog'
+      const blk = (h, r = 0.75, m = 0.1) => new T.MeshStandardMaterial({ color: lin(h), roughness: r, metalness: m });
+      const mHelm = blk('#202227', 0.6, 0.15), mVest = blk('#1d1f24', 0.85), mPouch = blk('#26292f', 0.9), mCup = blk('#141518', 0.5, 0.2);
+      // AK: yog'och va kulrang qismlar qora "taktik" rangga
+      akSrc.traverse((n) => { if (!n.isMesh) return; const nm = n.material.name; n.material = nm === 'Wood' ? blk('#1c1d20', 0.75, 0) : nm === 'Grey' ? blk('#2c2f35', 0.6, 0.1) : n.material.clone(); n.material.envMapIntensity = 0.35; });
+      const patchTex = (w, h, draw) => { const q = document.createElement('canvas'); q.width = w; q.height = h; draw(q.getContext('2d'), w, h); const t = new T.CanvasTexture(q); t.encoding = T.sRGBEncoding; t.anisotropy = 4; return t; };
+      const ctTex = patchTex(128, 56, (x, w, h) => { x.fillStyle = '#2a2d33'; x.fillRect(0, 0, w, h); x.strokeStyle = '#7b8088'; x.lineWidth = 4; x.strokeRect(3, 3, w - 6, h - 6); x.fillStyle = '#f2f2f2'; x.font = '900 38px system-ui, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('CT', w / 2, h / 2 + 2); });
+      const eagleTex = patchTex(64, 72, (x, w, h) => { x.fillStyle = '#1f2a44'; x.beginPath(); x.moveTo(4, 4); x.lineTo(60, 4); x.lineTo(60, 44); x.lineTo(32, 68); x.lineTo(4, 44); x.closePath(); x.fill(); x.strokeStyle = '#c9ced8'; x.lineWidth = 3; x.stroke();
+        x.fillStyle = '#e8ebf0'; x.beginPath(); x.moveTo(32, 18); x.lineTo(10, 14); x.lineTo(16, 24); x.lineTo(8, 26); x.lineTo(18, 32); x.lineTo(26, 32); x.lineTo(28, 50); x.lineTo(32, 56); x.lineTo(36, 50); x.lineTo(38, 32); x.lineTo(46, 32); x.lineTo(56, 26); x.lineTo(48, 24); x.lineTo(54, 14); x.closePath(); x.fill(); x.beginPath(); x.arc(32, 16, 5, 0, 7); x.fill(); });
+      const patchMat = (t) => new T.MeshStandardMaterial({ map: t, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -2 });
       op.scene.traverse((n) => { if (n.isMesh && n.material.name === 'Hair') n.material.color = lin('#17110d'); });
       const skinBase = (() => { let m = null; op.scene.traverse((n) => { if (n.isMesh && n.material.name === 'Skin') m = n.material; }); return m; })();
       const FACE = faces.map((f) => ({ skin: Object.assign(skinBase.clone(), { color: lin(f.skin) }),
@@ -725,9 +735,26 @@
       // dubulg'a va yuz sirti: "Head" suyagiga bog'lanadi (dam holatidagi bosh o'lchamlari bo'yicha)
       const hb = (() => { let b = null; op.scene.traverse((n) => { if (n.isBone && n.name === 'Head') b = n; }); return b; })();
       const local = (pos, sc) => hb.matrixWorld.clone().invert().multiply(new T.Matrix4().compose(pos, new T.Quaternion(), sc || new T.Vector3(1, 1, 1)));
-      op.helmGeo = new T.SphereGeometry(0.162, 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.5); op.helmM = local(new T.Vector3(0.005, 1.695, 0.09), new T.Vector3(1.05, 1.0, 1.12));
       op.faceGeo = new T.CylinderGeometry(0.13, 0.13, 0.26, 18, 1, true, -0.92, 1.84); op.faceM = local(new T.Vector3(0.005, 1.6, 0.11));
-      return { T, op, TEAM, FACE, mkGun, sky, tx: { wd, wn, cd, cn, fd, fn } };
+      // jihozlar dam holatidagi (bind) dunyo koordinatasida yasaladi va suyakka nisbatan matritsa bilan bog'lanadi
+      const boneOf = (root, nm) => { let b = null; root.traverse((n) => { if (n.isBone && n.name === nm) b = n; }); return b; };
+      const box = (g, m, w, h, d, x, y, z, ry = 0) => { const q = new T.Mesh(new T.BoxGeometry(w, h, d), m); q.position.set(x, y, z); q.rotation.y = ry; q.castShadow = true; g.add(q); return q; };
+      const kit = (bone, build) => { const b = boneOf(op.scene, bone); if (!b) return null; const g = new T.Group(); build(g); return { bone, obj: g, m: b.matrixWorld.clone().invert() }; };
+      op.kits = [
+        kit('Head', (g) => { // taktik dubulg'a: qobiq, quloqchinlar, yon relslar, old tomonda NVG ushlagich
+          const hm = new T.Mesh(new T.SphereGeometry(0.162, 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.5), mHelm); hm.position.set(0.005, 1.695, 0.09); hm.scale.set(1.05, 1.0, 1.12); hm.castShadow = true; g.add(hm);
+          for (const sx of [-1, 1]) { const cup = new T.Mesh(new T.CylinderGeometry(0.048, 0.048, 0.04, 16), mCup); cup.rotation.z = Math.PI / 2; cup.position.set(0.005 + sx * 0.128, 1.625, 0.085); g.add(cup);
+            box(g, mHelm, 0.012, 0.03, 0.17, 0.005 + sx * 0.168, 1.71, 0.09); box(g, mCup, 0.016, 0.09, 0.02, 0.005 + sx * 0.14, 1.67, 0.085); }
+          box(g, mCup, 0.05, 0.035, 0.025, 0.005, 1.775, 0.262); }),
+        kit('Chest', (g) => { // nimcha: old/orqa plastinalar, yon kamar, yelka tasmalari, cho'ntaklar, "CT" va burgut nishonlari
+          box(g, mVest, 0.25, 0.27, 0.035, 0.005, 1.31, 0.212); box(g, mVest, 0.25, 0.26, 0.03, 0.005, 1.31, -0.092);
+          for (const sx of [-1, 1]) { box(g, mVest, 0.025, 0.13, 0.3, 0.005 + sx * 0.135, 1.23, 0.06); box(g, mVest, 0.055, 0.025, 0.31, 0.005 + sx * 0.08, 1.46, 0.06); }
+          for (const x of [-0.075, 0, 0.075]) box(g, mPouch, 0.062, 0.08, 0.032, 0.005 + x, 1.22, 0.244);
+          const ct = new T.Mesh(new T.PlaneGeometry(0.1, 0.044), patchMat(ctTex)); ct.position.set(0.005, 1.37, 0.2302); g.add(ct);
+          const eg = new T.Mesh(new T.PlaneGeometry(0.036, 0.04), patchMat(eagleTex)); eg.position.set(0.085, 1.41, 0.2302); g.add(eg); }),
+      ].filter(Boolean);
+      const palm = await gl.loadAsync(OPS + 'models/palm.glb').then((g) => { g.scene.traverse((n) => { if (n.isMesh) n.castShadow = true; }); return g.scene; }).catch(() => null);
+      return { T, op, TEAM, FACE, sleeve, mkGun, sky, palm, tx: { wd, wn, cd, cn, fd, fn } };
     })();
     opsLib.catch((e) => { console.warn('opsGL:', e?.message || e); opsLib = null; });
     return opsLib;
@@ -770,6 +797,16 @@
       const fd = tx.fd.clone(), fnm = tx.fn.clone(); fd.needsUpdate = fnm.needsUpdate = true; fd.repeat.set(N / 2, N / 2); fnm.repeat.set(N / 2, N / 2);
       const floor = new T.Mesh(new T.PlaneGeometry(N, N), new T.MeshStandardMaterial({ map: fd, normalMap: fnm, roughness: 0.95, envMapIntensity: 0.5 })); floor.rotation.x = -Math.PI / 2; floor.position.set(N / 2, 0, N / 2); floor.receiveShadow = true; sc.add(floor);
       const ground = new T.Mesh(new T.PlaneGeometry(200, 200), new T.MeshStandardMaterial({ color: 0xb59a74, roughness: 1 })); ground.rotation.x = -Math.PI / 2; ground.position.set(N / 2, -0.01, N / 2); sc.add(ground);
+      // de_dust kayfiyati: devor ortida palmalar (Kenney Nature Kit), devorlarda "A" / "B" belgilari
+      if (lib.palm) { const pb = new T.Box3().setFromObject(lib.palm), ph = Math.max(0.1, pb.max.y - pb.min.y);
+        [[-1.6, 3], [-2.4, 9], [-1.4, 14], [N + 1.5, 2], [N + 2.3, 7.5], [N + 1.4, 12.5], [4, -1.6], [11, -2.2], [6.5, N + 1.8], [13, N + 1.5]].forEach(([x, z], i) => {
+          const q = lib.palm.clone(); q.scale.setScalar((3.2 + (i % 3) * 0.6) / ph); q.position.set(x, 0, z); q.rotation.y = i * 1.7; sc.add(q); }); }
+      const sign = (txt, x, z, ry) => { const q = document.createElement('canvas'); q.width = q.height = 256; const g2 = q.getContext('2d'); g2.fillStyle = 'rgba(178,34,34,.92)'; g2.font = '900 170px system-ui, sans-serif'; g2.textAlign = 'center'; g2.textBaseline = 'middle'; g2.fillText(txt, 128, 112);
+        g2.strokeStyle = 'rgba(178,34,34,.92)'; g2.lineWidth = 14; g2.lineCap = 'round'; g2.beginPath(); g2.moveTo(200, 226); g2.lineTo(60, 226); g2.moveTo(96, 200); g2.lineTo(60, 226); g2.lineTo(96, 252); g2.stroke();
+        const t = new T.CanvasTexture(q); t.encoding = T.sRGBEncoding; const m = new T.Mesh(new T.PlaneGeometry(0.75, 0.75), new T.MeshStandardMaterial({ map: t, transparent: true, roughness: 1, polygonOffset: true, polygonOffsetFactor: -2 }));
+        m.position.set(x, 0.85, z); m.rotation.y = ry; m.receiveShadow = true; sc.add(m); };
+      for (let x = 3; x < N - 1; x++) if (!wallAt(x, 1)) { sign('A', x + 0.5, 1.005, 0); break; }
+      for (let x = N - 4; x > 0; x--) if (!wallAt(x, N - 2)) { sign('B', x + 0.5, N - 1.005, Math.PI); break; }
       // kamera + qo'ldagi qurol (alohida sahnada — devorga kirib ketmaydi)
       const cam = new T.PerspectiveCamera(70, 1, 0.03, 80), vs = new T.Scene(), vc = new T.PerspectiveCamera(60, 1, 0.01, 5);
       vs.environment = env; vs.add(new T.HemisphereLight(0xfff1d6, 0x5a4a38, 0.9)); const vl = new T.DirectionalLight(0xffffff, 1.6); vl.position.set(1, 2, 1); vs.add(vl);
@@ -782,8 +819,11 @@
       const mkActor = (team, face) => {
         const t = lib.op, tm = lib.TEAM[team % 2], F = lib.FACE.length ? lib.FACE[(face | 0) % lib.FACE.length] : null, o = T.SkeletonUtils.clone(t.scene); o.scale.setScalar(t.k); sc.add(o);
         let head = null; o.traverse((n) => { if (n.isBone && n.name === 'Head') head = n; if (!n.isMesh) return; const nm = n.material.name;
-          if (/^(Green|LightGreen|Brown|Brown2)$/.test(nm)) n.material = tm.camo; else if (F && nm === 'Skin') n.material = F.skin; else if (F && (nm === 'Eye' || nm === 'Eyebrows')) n.visible = false; });
-        if (head) { const hm = new T.Mesh(t.helmGeo, tm.helmMat); hm.matrixAutoUpdate = false; hm.matrix.copy(t.helmM); hm.castShadow = true; head.add(hm);
+          if (/Backpack/.test(n.name)) n.visible = false; else if (/^(Green|LightGreen|Brown|Brown2)$/.test(nm)) n.material = tm.camo;
+          else if (nm === 'Skin' && /Body/.test(n.name)) n.material = lib.sleeve; else if (F && nm === 'Skin') n.material = F.skin; else if (F && (nm === 'Eye' || nm === 'Eyebrows')) n.visible = false; });
+        const bones = {}; o.traverse((n) => { if (n.isBone) bones[n.name] = n; });
+        for (const k of t.kits) { const b = bones[k.bone]; if (!b) continue; const q = k.obj.clone(); q.matrixAutoUpdate = false; q.matrix.copy(k.m); b.add(q); }
+        if (head) {
           if (F) { const fm = new T.Mesh(t.faceGeo, F.mat); fm.matrixAutoUpdate = false; fm.matrix.copy(t.faceM); head.add(fm); } }
         const mx = new T.AnimationMixer(o), acts = {}; for (const k in t.clips) acts[k] = mx.clipAction(t.clips[k]);
         for (const k of ['death', 'hit']) if (acts[k]) { acts[k].setLoop(T.LoopOnce); acts[k].clampWhenFinished = true; }

@@ -1,0 +1,52 @@
+Birga Strike — 3D assetlar va litsenziyalar (public/ops/)
+==========================================================
+Faqat CC0 1.0 (public domain) va MIT litsenziyali fayllar ishlatilgan.
+Qayta yaratish skriptlari: tools/ops/ (README.md).
+
+models/soldier.glb — "Soldier" (armored trooper with a rifle)
+  Muallif:    Quaternius (https://quaternius.com)
+  Litsenziya: CC0 1.0 Universal (Public Domain) — https://creativecommons.org/publicdomain/zero/1.0/
+  Manba:      https://poly.pizza/m/PpLF4rt4ah (model sahifasida "Public Domain (CC0)")
+              olingan nusxa: npm @netforge/asset-library-files@0.2.0 → library/lowpoly/soldier.glb
+              (sha256 a462f808c29ac6e20fed9d0713990c3edf6f6e61f66f3476d35a2ffb2935d93b)
+  O'zgarishlar: meshopt siqish ochildi; AK dan boshqa 13 ta qurol olib tashlandi;
+              animatsiyalar: Idle→idle, Run_Gun→run, Idle_Shoot→shoot, HitReact→hit, Death→death.
+  AK modeli (shu fayl ichida) o'yinchining qo'lidagi qurol (first-person) va rebel qurolida ham ishlatiladi.
+
+models/rebel.glb — "Adventurer" (adventurer with a backpack, gun poses)
+  Muallif:    Quaternius (https://quaternius.com)
+  Litsenziya: CC0 1.0 Universal (Public Domain)
+  Manba:      https://poly.pizza/m/5EGWBMpuXq (model sahifasida "Public Domain (CC0)")
+              olingan nusxa: npm @netforge/asset-library-files@0.2.0 → library/lowpoly/adventurer.glb
+              (sha256 05a9210725e5e6c154b4c0bcba6ac1ae8d185501e85a196c69f3b8a92ba3194d)
+  O'zgarishlar: meshopt siqish ochildi; animatsiyalar: Idle_Gun→idle, Run_Shoot→run,
+              Idle_Gun_Shoot→shoot, HitRecieve→hit, Death→death.
+
+sky_quarry_1k.hdr — "Quarry 01" HDRI (1K)
+  Muallif:    Poly Haven (https://polyhaven.com/a/quarry_01)
+  Litsenziya: CC0 1.0 Universal (Public Domain)
+  Olingan joyi: github.com/mrdoob/three.js, teg r149 → examples/textures/equirectangular/quarry_01_1k.hdr
+
+tex/wall_d.jpg, tex/wall_n.jpg, tex/concrete_d.jpg, tex/concrete_n.jpg, tex/floor_d.jpg, tex/floor_n.jpg
+  1024×1024 tikiluvchi teksturalar (rang + normal xarita), Birga uchun protsedural yaratilgan:
+  tools/ops/gen-textures.py
+  Litsenziya: CC0 1.0 Universal (Public Domain)
+
+three-ops.min.js — three.js r149 (three@0.149.0) + examples/jsm: GLTFLoader, RGBELoader, SkeletonUtils
+  Litsenziya: MIT License
+  Copyright © 2010-2023 three.js authors
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+  associated documentation files (the "Software"), to deal in the Software without restriction,
+  including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
+  and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
+  subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies or substantial
+  portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+  LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+  NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

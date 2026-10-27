@@ -673,12 +673,148 @@
   addEventListener('keyup', (e) => keysDown.delete(e.key.toLowerCase()));
   addEventListener('blur', () => keysDown.clear());
 
-  // 12) Birga Strike — oddiy 3D otishma (CS uslubida, raycasting)
+  /* ---------- opsGL: Birga Strike uchun Three.js (r149) renderer ----------
+     Assetlar public/ops/ da (manba va litsenziyalar: public/ops/LICENSES.txt). Askarlar GLTFLoader bilan yuklanadi va
+     AnimationMixer bilan jonlanadi (idle, run, shoot, hit, death). WebGL yo'q bo'lsa yoki fayllar yuklanmasa,
+     o'yin eski raycasting rejimida qoladi. Xarita: 1 katak = 1 birlik (~2 m); x → X, y → Z. */
+  const OPS = '/ops/', OPS_H = 0.9, OPS_EYE = 0.78, OPS_WALL = 1.5;
+  let opsLib = null;
+  function opsLoad() {
+    if (opsLib) return opsLib;
+    opsLib = (async () => {
+      const tc = document.createElement('canvas'); if (!(tc.getContext('webgl2') || tc.getContext('webgl'))) throw new Error('webgl');
+      if (!window.THREE?.GLTFLoader) await new Promise((ok, no) => { const s = document.createElement('script'); s.src = OPS + 'three-ops.min.js'; s.onload = ok; s.onerror = () => no(new Error('three')); document.head.appendChild(s); });
+      const T = window.THREE, gl = new T.GLTFLoader(), tl = new T.TextureLoader();
+      const tex = (f, srgb) => tl.loadAsync(OPS + 'tex/' + f).then((t) => { t.wrapS = t.wrapT = T.RepeatWrapping; t.anisotropy = 4; if (srgb) t.encoding = T.sRGBEncoding; return t; });
+      const [sol, reb, sky, wd, wn, cd, cn, fd, fn] = await Promise.all([gl.loadAsync(OPS + 'models/soldier.glb'), gl.loadAsync(OPS + 'models/rebel.glb'), new T.RGBELoader().loadAsync(OPS + 'sky_quarry_1k.hdr'),
+        tex('wall_d.jpg', 1), tex('wall_n.jpg'), tex('concrete_d.jpg', 1), tex('concrete_n.jpg'), tex('floor_d.jpg', 1), tex('floor_n.jpg')]);
+      sky.mapping = T.EquirectangularReflectionMapping;
+      // AK (Quaternius askari qo'lidagi): geometriyada stvol +X, tepa +Z. Kanonik shakl: stvol −Z, tepa +Y, uzunligi 1
+      const akSrc = sol.scene.getObjectByName('AK'); if (!akSrc) throw new Error('ak');
+      const BASIS = new T.Matrix4().makeBasis(new T.Vector3(0, 0, -1), new T.Vector3(-1, 0, 0), new T.Vector3(0, 1, 0));
+      const addMuz = (m) => { const q = new T.Object3D(); q.name = 'opsMuz'; q.position.set(1.04, 0, 0.28); m.add(q); return q; }; // stvol uchi (AK geometriyasi koordinatasida)
+      const mkGun = (len) => { const m = akSrc.clone(); m.children.filter((q) => q.name === 'opsMuz').forEach((q) => m.remove(q)); m.matrixAutoUpdate = false; m.matrix.copy(BASIS).multiply(new T.Matrix4().makeScale(len / 2, len / 2, len / 2)).multiply(new T.Matrix4().makeTranslation(0.25, 0, 0.1)); const g = new T.Group(); g.add(m); g.userData.muz = addMuz(m); return g; };
+      const prep = (g, gun) => {
+        const s = g.scene, clips = {}, v = new T.Vector3(); g.animations.forEach((a) => (clips[a.name] = a));
+        s.traverse((n) => { if (n.isMesh) { n.castShadow = true; n.frustumCulled = false; } });
+        if (!gun) addMuz(s.getObjectByName('AK')); // askar: AK modelda bor; rebel: AK har kadrda qo'lga qo'yiladi (mkActor)
+        s.updateMatrixWorld(true); let top = 0; s.traverse((n) => { if (n.isBone) top = Math.max(top, n.getWorldPosition(v).y); });
+        return { scene: s, clips, k: OPS_H / (top * 1.1), follow: !!gun };
+      };
+      return { T, chars: [prep(sol), prep(reb, true)], mkGun, sky, tx: { wd, wn, cd, cn, fd, fn } };
+    })();
+    opsLib.catch((e) => { console.warn('opsGL:', e?.message || e); opsLib = null; });
+    return opsLib;
+  }
+  // stage: o'yin maydoni, c: 2D canvas (HUD uchun ustida qoladi), MAP: xarita satrlari
+  function opsGL(stage, c, MAP) {
+    const R = { ok: false, dead: false };
+    opsLoad().then((lib) => { if (!R.dead) build(lib); }).catch(() => {});
+    function build(lib) {
+      const { T } = lib, N = MAP.length, wallAt = (x, y) => x < 0 || y < 0 || x >= N || y >= N || MAP[y][x] === '#';
+      let rd;
+      try { rd = new T.WebGLRenderer({ antialias: (devicePixelRatio || 1) < 2, powerPreference: 'high-performance' }); } catch { return; }
+      rd.setPixelRatio(Math.min(1.5, devicePixelRatio || 1)); rd.outputEncoding = T.sRGBEncoding; rd.toneMapping = T.ACESFilmicToneMapping; rd.toneMappingExposure = 1.05;
+      rd.shadowMap.enabled = true; rd.shadowMap.type = T.PCFSoftShadowMap; rd.autoClear = false;
+      const gc = rd.domElement; gc.className = 'gm-cv'; Object.assign(gc.style, { position: 'absolute', pointerEvents: 'none', boxShadow: 'none' });
+      stage.insertBefore(gc, c); if (getComputedStyle(c).position === 'static') c.style.position = 'relative';
+      const sc = new T.Scene(), pm = new T.PMREMGenerator(rd), env = pm.fromEquirectangular(lib.sky).texture; pm.dispose();
+      sc.background = lib.sky; sc.environment = env; sc.fog = new T.Fog(0xd9c7a6, 9, 30);
+      sc.add(new T.HemisphereLight(0xfff1d6, 0x6b5a45, 0.55));
+      const sun = new T.DirectionalLight(0xfff0d0, 2.2); sun.position.set(N / 2 + 7, 14, N / 2 - 5); sun.target.position.set(N / 2, 0, N / 2); sun.castShadow = true;
+      Object.assign(sun.shadow.camera, { left: -N * 0.75, right: N * 0.75, top: N * 0.75, bottom: -N * 0.75, near: 1, far: 40 }); sun.shadow.mapSize.set(1024, 1024); sun.shadow.bias = -0.0008; sun.shadow.normalBias = 0.02;
+      sc.add(sun, sun.target);
+      // devorlar: faqat ochiq tomonga qaragan yuzlar (2 xil material: qumtosh va beton), UV — 1 birlik = 1 tekstura
+      const mat = (d, n) => new T.MeshStandardMaterial({ map: d, normalMap: n, roughness: 0.92, metalness: 0, envMapIntensity: 0.6 });
+      const P2 = [[], []], U2 = [[], []], N2 = [[], []];
+      const quad = (k, a, b, nrm) => { const H = OPS_WALL, v = [[a[0], 0, a[1]], [b[0], 0, b[1]], [b[0], H, b[1]], [a[0], H, a[1]]], uv = [[0, 0], [1, 0], [1, H], [0, H]];
+        for (const i of [0, 1, 2, 0, 2, 3]) { P2[k].push(...v[i]); U2[k].push(...uv[i]); N2[k].push(...nrm); } };
+      for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+        if (!wallAt(x, y)) continue; const k = x === 0 || y === 0 || x === N - 1 || y === N - 1 || (x + y) % 3 !== 0 ? 0 : 1;
+        if (!wallAt(x, y + 1)) quad(k, [x, y + 1], [x + 1, y + 1], [0, 0, 1]);
+        if (!wallAt(x, y - 1)) quad(k, [x + 1, y], [x, y], [0, 0, -1]);
+        if (!wallAt(x + 1, y)) quad(k, [x + 1, y + 1], [x + 1, y], [1, 0, 0]);
+        if (!wallAt(x - 1, y)) quad(k, [x, y], [x, y + 1], [-1, 0, 0]);
+      }
+      const tx = lib.tx;
+      [[tx.wd, tx.wn], [tx.cd, tx.cn]].forEach(([d, n], k) => { if (!P2[k].length) return; const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(P2[k], 3)); g.setAttribute('uv', new T.Float32BufferAttribute(U2[k], 2)); g.setAttribute('normal', new T.Float32BufferAttribute(N2[k], 3)); const m = new T.Mesh(g, mat(d, n)); m.castShadow = m.receiveShadow = true; sc.add(m); });
+      // devor tepasidagi qopqoq (soya to'g'ri tushishi uchun) va pol
+      const cap = new T.Mesh(new T.BoxGeometry(1, 0.06, 1), new T.MeshStandardMaterial({ color: 0x9c8466, roughness: 1 })), caps = new T.InstancedMesh(cap.geometry, cap.material, N * N); let ci = 0; const cm = new T.Matrix4();
+      for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (wallAt(x, y)) caps.setMatrixAt(ci++, cm.makeTranslation(x + 0.5, OPS_WALL + 0.03, y + 0.5)); caps.count = ci; caps.castShadow = true; sc.add(caps);
+      const fd = tx.fd.clone(), fnm = tx.fn.clone(); fd.needsUpdate = fnm.needsUpdate = true; fd.repeat.set(N / 2, N / 2); fnm.repeat.set(N / 2, N / 2);
+      const floor = new T.Mesh(new T.PlaneGeometry(N, N), new T.MeshStandardMaterial({ map: fd, normalMap: fnm, roughness: 0.95, envMapIntensity: 0.5 })); floor.rotation.x = -Math.PI / 2; floor.position.set(N / 2, 0, N / 2); floor.receiveShadow = true; sc.add(floor);
+      const ground = new T.Mesh(new T.PlaneGeometry(200, 200), new T.MeshStandardMaterial({ color: 0xb59a74, roughness: 1 })); ground.rotation.x = -Math.PI / 2; ground.position.set(N / 2, -0.01, N / 2); sc.add(ground);
+      // kamera + qo'ldagi qurol (alohida sahnada — devorga kirib ketmaydi)
+      const cam = new T.PerspectiveCamera(70, 1, 0.03, 80), vs = new T.Scene(), vc = new T.PerspectiveCamera(60, 1, 0.01, 5);
+      vs.environment = env; vs.add(new T.HemisphereLight(0xfff1d6, 0x5a4a38, 0.9)); const vl = new T.DirectionalLight(0xffffff, 1.6); vl.position.set(1, 2, 1); vs.add(vl);
+      const vm = lib.mkGun(0.5); vm.rotation.y = 0.05; vs.add(vm);
+      const flashTex = (() => { const q = document.createElement('canvas'); q.width = q.height = 64; const x = q.getContext('2d'), gr = x.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,230,1)'); gr.addColorStop(0.25, 'rgba(255,214,90,.9)'); gr.addColorStop(1, 'rgba(255,140,0,0)'); x.fillStyle = gr; x.fillRect(0, 0, 64, 64); return new T.CanvasTexture(q); })();
+      const mkFlash = (s) => { const f = new T.Sprite(new T.SpriteMaterial({ map: flashTex, blending: T.AdditiveBlending, depthWrite: false, transparent: true })); f.scale.setScalar(s); f.visible = false; return f; };
+      const vflash = mkFlash(0.16); vs.add(vflash); const vlight = new T.PointLight(0xffc860, 0, 4, 2); sc.add(vlight);
+      // askarlar
+      const A = new Map(), tmp = new T.Vector3();
+      const mkActor = (team) => {
+        const t = lib.chars[team % 2], o = T.SkeletonUtils.clone(t.scene); o.scale.setScalar(t.k); sc.add(o);
+        const mx = new T.AnimationMixer(o), acts = {}; for (const k in t.clips) acts[k] = mx.clipAction(t.clips[k]);
+        for (const k of ['death', 'hit']) if (acts[k]) { acts[k].setLoop(T.LoopOnce); acts[k].clampWhenFinished = true; }
+        const fl = mkFlash(0.28); sc.add(fl);
+        let gun = null, hand = null; if (t.follow) { gun = lib.mkGun(0.85); gun.traverse((n) => { if (n.isMesh) n.castShadow = true; }); o.add(gun); hand = o.getObjectByName('Index1R') || o.getObjectByName('WristR'); }
+        return { o, mx, acts, cur: null, fl, muz: gun ? gun.userData.muz : o.getObjectByName('opsMuz'), gun, hand, px: null, py: 0, sp: 0, hitT: 0, wasHit: 0, deadT: 0, team };
+      };
+      const play = (a, k, fade = 0.18) => { if (a.cur === k || !a.acts[k]) return; const n = a.acts[k], o = a.cur && a.acts[a.cur]; n.reset(); n.setEffectiveWeight(1); n.play(); if (o) n.crossFadeFrom(o, k === 'death' ? 0.1 : fade, false); a.cur = k; };
+      let W0 = 0, H0 = 0;
+      R.ok = true; R.gc = gc;
+      R.draw = (v) => {
+        const W = c.W, H = c.H, dt = v.dt;
+        if (W !== W0 || H !== H0) { W0 = W; H0 = H; rd.setSize(W, H, false); gc.style.width = W + 'px'; gc.style.height = H + 'px'; const asp = W / H; cam.aspect = vc.aspect = asp;
+          cam.fov = Math.max(48, Math.min(82, (2 * Math.atan(Math.tan(0.62) / asp) * 180) / Math.PI)); cam.updateProjectionMatrix(); vc.fov = asp < 1 ? 62 : 52; vc.updateProjectionMatrix();
+          vm.position.set(Math.tan((vc.fov * Math.PI) / 360) * asp * 0.42 * 0.5, asp < 1 ? -0.2 : -0.18, -0.42); vm.userData.y = vm.position.y; }
+        gc.style.left = c.offsetLeft + 'px'; gc.style.top = c.offsetTop + 'px';
+        // kamera
+        const t = performance.now() / 1000, bob = v.moving ? Math.sin(t * 11) * 0.012 : 0, sh = v.hurt > 0 ? v.hurt * 0.05 : 0;
+        cam.position.set(v.x + (Math.random() - 0.5) * sh, v.dead ? 0.25 : OPS_EYE + bob, v.y + (Math.random() - 0.5) * sh);
+        cam.rotation.set(v.dead ? 0.6 : 0, -v.a - Math.PI / 2, v.dead ? 0.4 : 0, 'YXZ');
+        // qurol: tebranish va orqaga tepish
+        const kick = v.kick ? 0.05 : 0; vm.position.z += ((-0.42 + kick) - vm.position.z) * Math.min(1, dt * 25); vm.position.y = vm.userData.y + (v.moving ? Math.abs(Math.sin(t * 5.5)) * -0.012 : Math.sin(t * 1.6) * 0.003) + (v.reload ? -0.12 : 0);
+        vm.rotation.x = v.kick ? 0.06 : vm.rotation.x * 0.8; vm.visible = !v.dead;
+        vflash.visible = !!v.fire; if (v.fire) { vm.updateMatrixWorld(true); vm.userData.muz.getWorldPosition(vflash.position); vflash.material.rotation = Math.random() * 6; vflash.scale.setScalar(0.12 + Math.random() * 0.08); }
+        vlight.intensity = v.fire ? 1.6 : 0; vlight.position.set(v.x + Math.cos(v.a) * 0.4, OPS_EYE, v.y + Math.sin(v.a) * 0.4);
+        // askarlar
+        const seen = new Set();
+        for (const q of v.actors) {
+          seen.add(q.key); let a = A.get(q.key); if (!a) { a = mkActor(q.team | 0); A.set(q.key, a); }
+          if (a.px === null || Math.hypot(q.x - a.px, q.y - a.py) > 1.5) { a.px = q.x; a.py = q.y; }
+          const sp = Math.hypot(q.x - a.px, q.y - a.py) / Math.max(dt, 1e-3); a.sp += (sp - a.sp) * Math.min(1, dt * 10); a.px = q.x; a.py = q.y;
+          a.o.position.set(q.x, 0, q.y); a.o.visible = true;
+          const ang = q.a ?? Math.atan2(v.y - q.y, v.x - q.x); a.o.rotation.y = Math.PI / 2 - ang;
+          if (q.hit && !a.wasHit) a.hitT = 0.35; a.wasHit = q.hit; if (a.hitT > 0) a.hitT -= dt;
+          if (q.dead) { a.deadT += dt; play(a, 'death'); if (a.deadT > 3) a.o.position.y = -Math.min(1, (a.deadT - 3) * 0.5); if (a.deadT > 5) a.o.visible = false; }
+          else { a.deadT = 0; play(a, a.hitT > 0 && a.sp < 0.4 ? 'hit' : a.sp > 0.4 ? 'run' : q.fire ? 'shoot' : 'idle'); }
+          a.mx.update(dt);
+          if (a.gun && a.hand) { // qurol: qo'l turgan joyda, stvoli doim oldinga (o'lganda — yerda yotadi)
+            a.o.updateMatrixWorld(true); a.hand.getWorldPosition(tmp); a.o.worldToLocal(tmp); a.gun.position.copy(tmp);
+            if (q.dead) { a.gun.position.y = Math.max(0.06, tmp.y * 0.3); a.gun.rotation.set(0, Math.PI * 0.8, Math.PI / 2); } else a.gun.rotation.set(0, Math.PI, 0);
+          }
+          a.fl.visible = !!q.fire && !q.dead && !!a.muz; if (a.fl.visible) { a.o.updateMatrixWorld(true); a.muz.getWorldPosition(a.fl.position); a.fl.material.rotation = Math.random() * 6; }
+        }
+        for (const [k, a] of A) if (!seen.has(k)) { sc.remove(a.o, a.fl); a.mx.stopAllAction(); A.delete(k); }
+        rd.setClearColor(0x000000, 1); rd.clear(); rd.render(sc, cam); rd.clearDepth(); rd.render(vs, vc);
+      };
+      // 2D HUD uchun: xarita nuqtasi (x, y, balandlik h) → ekran koordinatasi
+      R.proj = (x, y, h) => { tmp.set(x, h, y).project(cam); if (tmp.z > 1 || tmp.z < -1) return null; return [((tmp.x + 1) / 2) * c.W, ((1 - tmp.y) / 2) * c.H]; };
+      R.dispose = () => { for (const [, a] of A) a.mx.stopAllAction(); A.clear(); sc.traverse((n) => { if (n.isMesh && n.geometry && !n.isSkinnedMesh) n.geometry.dispose(); }); env.dispose(); rd.dispose(); rd.forceContextLoss?.(); gc.remove(); };
+    }
+    R.stop = () => { R.dead = true; R.ok = false; R.dispose?.(); };
+    return R;
+  }
+
+  // 12) Birga Strike — 3D otishma (CS uslubida): opsGL (Three.js) bo'lsa — modellar bilan, aks holda raycasting
   IMPL.strike = (stage, ui) => {
     stage.classList.add('gm-stage-pad');
     const { c, g, fit } = canvasIn(stage, null);
     const MAP = ['################', '#......#.......#', '#.##...#..###..#', '#.#.......#....#', '#.#..##...#.##.#', '#....#.........#', '###..#..####...#', '#.......#......#', '#..##...#..##..#', '#..#.......#...#', '#..#..###..#..##', '#......#.......#', '#.###..#..###..#', '#..............#', '#..##......##..#', '################'];
     const N = 16, wall = (x, y) => x < 0 || y < 0 || x >= N || y >= N || MAP[y | 0][x | 0] === '#';
+    const ops = opsGL(stage, c, MAP); let lpx = 0, lpy = 0;
     const pad = padUI(stage, [{ id: 'fire', t: '🔫', cls: 'big' }, { id: 'reload', t: '🔄' }]);
     let P, en, wave, kills, ammo, reloadT, fireT, flash, hurt, dead, items, msg, msgT, look = null, lookX = 0;
     c.addEventListener('pointerdown', (e) => { look = e.pointerId; lookX = e.clientX; });
@@ -733,6 +869,13 @@
       }
       // ---- render ----
       const hz = H / 2;
+      if (ops.ok) { // 3D: Three.js sahnasi; 2D canvas faqat HUD uchun
+        g.clearRect(0, 0, W, H); const mv = Math.hypot(P.x - lpx, P.y - lpy) > 1e-4; lpx = P.x; lpy = P.y;
+        ops.draw({ dt, x: P.x, y: P.y, a: P.a, moving: mv, fire: flash > 0, kick: fireT > 0, reload: reloadT > 0, hurt, dead,
+          actors: en.map((e) => ({ key: e, team: ['#B91C1C', '#1D4ED8', '#047857', '#7C2D12'].indexOf(e.col) % 2 ? 0 : 1, x: e.x, y: e.y, dead: !!e.dead, fire: e.fl > 0, hit: e.hit > 0 })) });
+        if (flash > 0) flash -= dt;
+        for (const it of items) { const d = Math.hypot(it.x - P.x, it.y - P.y), q = los(P.x, P.y, it.x, it.y) && ops.proj(it.x, it.y, 0.12); if (q) text(g, it.t === 'med' ? '🩹' : '📦', q[0], q[1], Math.max(12, Math.min(60, (H * 0.16) / Math.max(0.3, d)))); }
+      } else {
       let gr = g.createLinearGradient(0, 0, 0, hz); gr.addColorStop(0, '#7DD3FC'); gr.addColorStop(1, '#E0F2FE'); g.fillStyle = gr; g.fillRect(0, 0, W, hz);
       gr = g.createLinearGradient(0, hz, 0, H); gr.addColorStop(0, '#A8A29E'); gr.addColorStop(1, '#57534E'); g.fillStyle = gr; g.fillRect(0, hz, W, hz);
       const FOV = 1.05, cols = Math.ceil(W / 2), dirx = Math.cos(P.a), diry = Math.sin(P.a), plx = -diry * Math.tan(FOV / 2), ply = dirx * Math.tan(FOV / 2);
@@ -779,6 +922,7 @@
       g.fillStyle = '#1F2937'; g.beginPath(); g.moveTo(gx - 30, gy); g.lineTo(gx - 8, gy - 120); g.lineTo(gx + 14, gy - 120); g.lineTo(gx + 40, gy); g.fill();
       g.fillStyle = '#4B5563'; g.fillRect(gx - 4, gy - 150, 14, 40); g.fillStyle = '#92400E'; g.beginPath(); g.moveTo(gx + 10, gy); g.lineTo(gx + 26, gy - 60); g.lineTo(gx + 50, gy - 50); g.lineTo(gx + 46, gy); g.fill();
       if (flash > 0) { flash -= dt; g.fillStyle = '#FDE047'; g.beginPath(); g.arc(gx + 3, gy - 158, 18, 0, 7); g.fill(); g.fillStyle = '#fff'; g.beginPath(); g.arc(gx + 3, gy - 158, 8, 0, 7); g.fill(); }
+      } // raycasting tugadi
       g.strokeStyle = '#22C55E'; g.lineWidth = 2; g.beginPath(); g.moveTo(W / 2 - 12, hz); g.lineTo(W / 2 - 4, hz); g.moveTo(W / 2 + 4, hz); g.lineTo(W / 2 + 12, hz); g.moveTo(W / 2, hz - 12); g.lineTo(W / 2, hz - 4); g.moveTo(W / 2, hz + 4); g.lineTo(W / 2, hz + 12); g.stroke();
       // mini xarita
       const ms = 5; g.globalAlpha = 0.75; for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { g.fillStyle = MAP[y][x] === '#' ? '#1F2937' : '#E5E7EB'; g.fillRect(8 + x * ms, 8 + y * ms, ms, ms); }
@@ -788,7 +932,7 @@
       if (msgT > 0) { msgT -= dt; text(g, msg, W / 2, hz - 60, 30, '#fff'); }
       if (kills === 0 && wave === 1 && !pad.on && msgT <= 0) text(g, tg('hint_strike'), W / 2, hz + 70, 14);
     });
-    return { stop, restart: reset, resize: fit };
+    return { stop: () => { stop(); ops.stop(); }, restart: reset, resize: fit };
   };
 
   // 13) Birga Futbol — 4x4 futbol (PES uslubida, yuqoridan ko'rinish)
@@ -1607,6 +1751,7 @@
     const { c, g, fit } = canvasIn(stage, null);
     const MAP = ['################', '#......#.......#', '#.##...#..###..#', '#.#.......#....#', '#.#..##...#.##.#', '#....#.........#', '###..#..####...#', '#.......#......#', '#..##...#..##..#', '#...#......#...#', '#...#..##..#...#', '#.......##.....#', '#.###......###.#', '#...#..#.......#', '#......#...#...#', '################'];
     const N = 16, wall = (x, y) => x < 0 || y < 0 || x >= N || y >= N || MAP[y | 0][x | 0] === '#';
+    const ops = opsGL(stage, c, MAP); let lpx = 0, lpy = 0;
     const pad = padUI(stage, [{ id: 'fire', t: '🔫', cls: 'big' }, { id: 'reload', t: '🔄' }]);
     // n>2: hamma hammaga qarshi (FFA) — har kim o'z holatini hammaga yuboradi, tegish nishonga yuboriladi
     const NP = Math.max(2, ctx.n | 0), FFA = NP > 2, COL = ctx.col || ['#3B82F6', '#EF4444', '#22C55E', '#F59E0B'];
@@ -1715,10 +1860,10 @@
       ctx.turn(-1, FFA ? `❤️ ${Math.max(0, Math.round(P.hp))} · 🔫 ${reloadT > 0 ? '…' : ammo} · ${rt('kills')} ${frags[me]}/${WIN}` : `❤️ ${Math.max(0, Math.round(P.hp))} · 🔫 ${reloadT > 0 ? '…' : ammo} · ${rt('you')} ${frags[me]} : ${frags[1 - me]} ${rt('opp')}`);
       // ---- render ----
       const hz = H / 2; g.save(); if (hurt > 0) { const q = hurt * 22; g.translate((Math.random() - 0.5) * q, (Math.random() - 0.5) * q); }
-      let gr = g.createLinearGradient(0, 0, 0, hz); gr.addColorStop(0, '#0EA5E9'); gr.addColorStop(1, '#BAE6FD'); g.fillStyle = gr; g.fillRect(0, 0, W, hz);
-      gr = g.createLinearGradient(0, hz, 0, H); gr.addColorStop(0, '#A8A29E'); gr.addColorStop(1, '#44403C'); g.fillStyle = gr; g.fillRect(0, hz, W, hz);
+      if (!ops.ok) { let gr = g.createLinearGradient(0, 0, 0, hz); gr.addColorStop(0, '#0EA5E9'); gr.addColorStop(1, '#BAE6FD'); g.fillStyle = gr; g.fillRect(0, 0, W, hz);
+      gr = g.createLinearGradient(0, hz, 0, H); gr.addColorStop(0, '#A8A29E'); gr.addColorStop(1, '#44403C'); g.fillStyle = gr; g.fillRect(0, hz, W, hz); }
       const FOV = 1.05, cols = Math.ceil(W / 2), dirx = Math.cos(P.a), diry = Math.sin(P.a), plx = -diry * Math.tan(FOV / 2), ply = dirx * Math.tan(FOV / 2);
-      for (let i = 0; i < cols; i++) {
+      if (!ops.ok) for (let i = 0; i < cols; i++) {
         const cam = (2 * i) / cols - 1, rx = dirx + plx * cam, ry = diry + ply * cam;
         let mx = P.x | 0, my = P.y | 0; const ddx = Math.abs(1 / rx), ddy = Math.abs(1 / ry); let sxs, sys, sdx, sdy, side = 0;
         if (rx < 0) { sxs = -1; sdx = (P.x - mx) * ddx; } else { sxs = 1; sdx = (mx + 1 - P.x) * ddx; }
@@ -1733,10 +1878,20 @@
       }
       // raqib(lar) (oraliq holat bilan silliq); FFA: uzoqdan yaqinga, o'rin rangida
       const spr = [];
-      if (FFA) { for (const k in OS) { const s = +k, o = OS[s]; if (gone.has(s) || s === ctx.me || !o.cur || o.cur.dead) continue; const kk = o.prev ? Math.min(1, (performance.now() - o.T) / 50) : 1; spr.push({ x: o.prev ? o.prev.x + (o.cur.x - o.prev.x) * kk : o.cur.x, y: o.prev ? o.prev.y + (o.cur.y - o.prev.y) * kk : o.cur.y, hp: o.cur.hp, fl: o.fl > 0, col: COL[s], nm: ctx.names?.[s] || rt('opp') }); if (o.fl > 0) o.fl -= dt; } }
-      else if (O && !O.dead) { const kk = Oprev ? Math.min(1, (performance.now() - OT) / 50) : 1; spr.push({ x: Oprev ? Oprev.x + (O.x - Oprev.x) * kk : O.x, y: Oprev ? Oprev.y + (O.y - Oprev.y) * kk : O.y, hp: O.hp, fl: oFlash > 0, col: ctx.me === 0 ? '#DC2626' : '#2563EB', nm: ctx.names?.[1 - me] || rt('opp') }); }
+      if (FFA) { for (const k in OS) { const s = +k, o = OS[s]; if (gone.has(s) || s === ctx.me || !o.cur || o.cur.dead) continue; const kk = o.prev ? Math.min(1, (performance.now() - o.T) / 50) : 1; spr.push({ s, a: o.cur.a, x: o.prev ? o.prev.x + (o.cur.x - o.prev.x) * kk : o.cur.x, y: o.prev ? o.prev.y + (o.cur.y - o.prev.y) * kk : o.cur.y, hp: o.cur.hp, fl: o.fl > 0, col: COL[s], nm: ctx.names?.[s] || rt('opp') }); if (o.fl > 0) o.fl -= dt; } }
+      else if (O && !O.dead) { const kk = Oprev ? Math.min(1, (performance.now() - OT) / 50) : 1; spr.push({ s: 1 - me, a: O.a, x: Oprev ? Oprev.x + (O.x - Oprev.x) * kk : O.x, y: Oprev ? Oprev.y + (O.y - Oprev.y) * kk : O.y, hp: O.hp, fl: oFlash > 0, col: ctx.me === 0 ? '#DC2626' : '#2563EB', nm: ctx.names?.[1 - me] || rt('opp') }); }
       spr.sort((a, b) => Math.hypot(b.x - P.x, b.y - P.y) - Math.hypot(a.x - P.x, a.y - P.y));
-      for (const sp of spr) {
+      if (ops.ok) { // 3D: o'yinchilar modellar bilan; o'lganlar ham (yiqilish animatsiyasi uchun)
+        g.clearRect(-60, -60, W + 120, H + 120); const mv = Math.hypot(P.x - lpx, P.y - lpy) > 1e-4; lpx = P.x; lpy = P.y;
+        const acts = spr.map((q) => ({ key: q.s, team: q.s % 2, x: q.x, y: q.y, a: q.a, fire: q.fl }));
+        if (FFA) { for (const k in OS) { const o = OS[k]; if (+k !== ctx.me && !gone.has(+k) && o.cur?.dead) acts.push({ key: +k, team: +k % 2, x: o.cur.x, y: o.cur.y, a: o.cur.a, dead: true }); } }
+        else if (O?.dead) acts.push({ key: 1 - me, team: (1 - me) % 2, x: O.x, y: O.y, a: O.a, dead: true });
+        ops.draw({ dt, x: P.x, y: P.y, a: P.a, moving: mv, fire: flash > 0, kick: fireT > 0, reload: reloadT > 0, hurt, dead: P.dead > 0, actors: acts });
+        for (const sp of spr) { const q = los(P.x, P.y, sp.x, sp.y) && ops.proj(sp.x, sp.y, OPS_H + 0.14); if (!q) continue;
+          const d = Math.hypot(sp.x - P.x, sp.y - P.y), bw = Math.max(30, Math.min(70, 90 / Math.max(0.5, d))); g.fillStyle = 'rgba(0,0,0,.5)'; g.fillRect(q[0] - bw / 2, q[1] - 4, bw, 5); g.fillStyle = '#22C55E'; g.fillRect(q[0] - bw / 2, q[1] - 4, bw * Math.max(0, sp.hp) / 100, 5);
+          text(g, sp.nm, q[0], q[1] - 14, 12, FFA ? sp.col : undefined); }
+      }
+      if (!ops.ok) for (const sp of spr) {
         const dx = sp.x - P.x, dy = sp.y - P.y; const inv = 1 / (plx * diry - dirx * ply), tx = inv * (diry * dx - dirx * dy), ty = inv * (-ply * dx + plx * dy);
         if (ty > 0.2) {
           const scx = (W / 2) * (1 + tx / ty), sh = H / ty, col = Math.floor(scx / 2);
@@ -1755,9 +1910,11 @@
       if (oFlash > 0) oFlash -= dt;
       for (let i = SPK.length - 1; i >= 0; i--) { const q = SPK[i]; q.t -= dt; if (q.t <= 0) { SPK.splice(i, 1); continue; } q.x += q.vx * dt; q.y += q.vy * dt; g.globalAlpha = Math.min(1, q.t * 4); g.fillStyle = q.col; g.fillRect(W / 2 + q.x - 2, hz + q.y - 2, 4, 4); } g.globalAlpha = 1;
       const bob = Math.sin(performance.now() / 120) * (Math.abs(pad.x) + Math.abs(pad.y) > 0.1 ? 4 : 0.8), kick = fireT > 0 ? 8 : 0, gx = W * 0.62, gy = H - 10 + bob + kick;
+      if (ops.ok) { if (flash > 0) { flash -= dt; g.fillStyle = 'rgba(253,224,71,.08)'; g.fillRect(0, 0, W, H); } } else {
       g.fillStyle = '#1F2937'; g.beginPath(); g.moveTo(gx - 30, gy); g.lineTo(gx - 8, gy - 120); g.lineTo(gx + 14, gy - 120); g.lineTo(gx + 40, gy); g.fill();
       g.fillStyle = '#4B5563'; g.fillRect(gx - 4, gy - 150, 14, 40); g.fillStyle = '#92400E'; g.beginPath(); g.moveTo(gx + 10, gy); g.lineTo(gx + 26, gy - 60); g.lineTo(gx + 50, gy - 50); g.lineTo(gx + 46, gy); g.fill();
       if (flash > 0) { flash -= dt; g.fillStyle = 'rgba(253,224,71,.12)'; g.fillRect(0, 0, W, H); g.fillStyle = '#FDE047'; g.beginPath(); g.arc(gx + 3, gy - 158, 18, 0, 7); g.fill(); g.fillStyle = '#FFF'; g.beginPath(); g.arc(gx + 3, gy - 158, 8, 0, 7); g.fill(); }
+      }
       g.restore();
       g.strokeStyle = hitMk > 0 ? '#EF4444' : '#22C55E'; g.lineWidth = 2; g.beginPath(); g.moveTo(W / 2 - 12, hz); g.lineTo(W / 2 - 4, hz); g.moveTo(W / 2 + 4, hz); g.lineTo(W / 2 + 12, hz); g.moveTo(W / 2, hz - 12); g.lineTo(W / 2, hz - 4); g.moveTo(W / 2, hz + 4); g.lineTo(W / 2, hz + 12); g.stroke();
       if (hitMk > 0) { hitMk -= dt; g.beginPath(); g.moveTo(W / 2 - 9, hz - 9); g.lineTo(W / 2 - 4, hz - 4); g.moveTo(W / 2 + 9, hz - 9); g.lineTo(W / 2 + 4, hz - 4); g.moveTo(W / 2 - 9, hz + 9); g.lineTo(W / 2 - 4, hz + 4); g.moveTo(W / 2 + 9, hz + 9); g.lineTo(W / 2 + 4, hz + 4); g.stroke(); }
@@ -1774,7 +1931,7 @@
       if (msgT > 0) { msgT -= dt; text(g, msg, W / 2, hz - 60, 26); }
       if (link.lost() && !over) text(g, rt('lost'), W / 2, H * 0.72, 15, '#FCA5A5');
     });
-    return { apply: () => false, rt: (s, d) => link.recv(d, s), stop, resize: fit, quit: (s) => { gone.add(s); delete OS[s]; } };
+    return { apply: () => false, rt: (s, d) => link.recv(d, s), stop: () => { stop(); ops.stop(); }, resize: fit, quit: (s) => { gone.add(s); delete OS[s]; } };
   };
 
 

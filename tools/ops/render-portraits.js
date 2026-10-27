@@ -21,9 +21,9 @@ const LOOKS = [
     for (let i = 0; i < 4; i++) {
       const sc = new T.Scene(), pm = new T.PMREMGenerator(rd); sc.environment = pm.fromEquirectangular(lib.sky).texture;
       sc.add(new T.HemisphereLight(0xfff1d6, 0x404650, 0.45)); const k = new T.DirectionalLight(0xfff0dd, 1.5); k.position.set(1.5, 2.5, 2); sc.add(k); const rim = new T.DirectionalLight(0x9fc4ff, 1.4); rim.position.set(-2, 1.5, -2); sc.add(rim);
-      const S = window.__ops.glbSoldier(lib, LOOKS[i], lib.FACE[i], 1.0), gm = lib.mkGun(0.55); S.gun.add(gm); S.g.rotation.y = Math.PI - 0.35; sc.add(S.g);
+      const S = window.__ops.glbSoldier(lib, LOOKS[i], lib.FACE[i], 1.0), gm = lib.mkGun(0.55); S.gun.add(gm); S.g.rotation.y = Math.PI; sc.add(S.g);
       for (let f = 0; f < 15; f++) S.tick({ x: 0, y: 0, dead: false, fire: false, mv: 0 }, 1 / 30);
-      const cam = new T.PerspectiveCamera(24, W / H, 0.05, 20); cam.position.set(0.08, 0.9, 1.3); cam.lookAt(0, 0.8, 0);
+      const cam = new T.PerspectiveCamera(24, W / H, 0.05, 20); cam.position.set(0, 0.9, 1.3); cam.lookAt(0, 0.8, 0);
       rd.clear(); rd.render(sc, cam); out.push(rd.domElement.toDataURL('image/png'));
     }
     return out;

@@ -5451,6 +5451,11 @@
   const OW = Object.fromEntries(OPS_W.map((w) => [w.id, w]));
   // personajlar — original taktik kiyimlar
   const OPS_C = [
+    // Birga jamoasi: yuzi public/ops/faces/face{1..4}, karta portreti public/ops/portraits/p{1..4}.png
+    { id: 'alfa', face: 0, pt: 'p1.png', n: { uz: 'Alfa', ru: 'Альфа', en: 'Alpha' }, ar: 50, spd: 1, L: { skin: '#B98B6D', top: '#27304A', top2: '#1B2235', pants: '#27304A', pants2: '#1B2235', vest: '#1D1F24', boots: '#111214', gl: '#1A1F2B', head: 'helmet', hc: '#202227', mask: 'none', mc: '#111317' } },
+    { id: 'bravo', face: 1, pt: 'p2.png', n: { uz: 'Bravo', ru: 'Браво', en: 'Bravo' }, ar: 45, spd: 1.03, L: { skin: '#B78A6D', top: '#4B5320', top2: '#2F3A1E', pants: '#4B5320', pants2: '#2F3A1E', vest: '#2F3B1A', boots: '#1C1917', gl: '#2A2A20', head: 'helmet', hc: '#3F4A2A', mask: 'none', mc: '#111317' } },
+    { id: 'charli', face: 2, pt: 'p3.png', n: { uz: 'Charli', ru: 'Чарли', en: 'Charlie' }, ar: 40, spd: 1.05, L: { skin: '#B98B6D', top: '#A08A62', top2: '#7A6544', pants: '#A08A62', pants2: '#7A6544', vest: '#6B5532', boots: '#4A3520', gl: '#5A4A33', head: 'helmet', hc: '#8F7A55', mask: 'none', mc: '#111317' } },
+    { id: 'delta', face: 3, pt: 'p4.png', n: { uz: 'Delta', ru: 'Дельта', en: 'Delta' }, ar: 55, spd: 0.98, L: { skin: '#B98B6D', top: '#5B6270', top2: '#3A3F48', pants: '#5B6270', pants2: '#3A3F48', vest: '#1E2228', boots: '#101215', gl: '#16181C', head: 'helmet', hc: '#2A2E33', mask: 'none', mc: '#111317' } },
     { id: 'burgut', n: { uz: 'Burgut', ru: 'Беркут', en: 'Eagle' }, ar: 50, spd: 1, L: { skin: '#C98A5B', top: '#4B5320', top2: '#2F3A16', pants: '#3F4A1F', pants2: '#2A3212', vest: '#1F2410', boots: '#1C1917', gl: '#111', head: 'helmet', hc: '#3F4A1F', mask: 'bala', mc: '#111317' } },
     { id: 'qum', n: { uz: 'Qum bo‘roni', ru: 'Самум', en: 'Sandstorm' }, ar: 40, spd: 1.04, L: { skin: '#B97A4F', top: '#C2A878', top2: '#8C7148', pants: '#B59A6A', pants2: '#7A6240', vest: '#6B5532', boots: '#4A3520', gl: '#5C4A33', head: 'cap', hc: '#8C7148', mask: 'scarf', mc: '#D6C39A' } },
     { id: 'shahar', n: { uz: 'Shahar', ru: 'Город', en: 'Urban' }, ar: 50, spd: 1, L: { skin: '#D7A27A', top: '#5B6270', top2: '#3A3F48', pants: '#4B5160', pants2: '#2D3139', vest: '#1E2228', boots: '#101215', gl: '#1E2228', head: 'helmet', hc: '#2D3139', mask: 'gas', mc: '#26292E' } },
@@ -5856,7 +5861,7 @@
     let GLB = null; opsAssets().then((lib) => { if (lib.T === T) GLB = lib; }).catch(() => {});
     const GFACE = new Map(), glbChar = (e, img) => {
       const C = OPS_C.find((x) => x.id === e.ch) || OPS_C[0];
-      let face = null; if (img) { face = GFACE.get(img); if (!face) { try { face = GLB.faceOf(img); } catch {} if (face) GFACE.set(img, face); } }
+      let face = C.face != null ? GLB.FACE[C.face] || null : null; if (!face && img) { face = GFACE.get(img); if (!face) { try { face = GLB.faceOf(img); } catch {} if (face) GFACE.set(img, face); } }
       if (!face && GLB.FACE.length) face = GLB.FACE[(e.s | 0) % GLB.FACE.length];
       const S = glbSoldier(GLB, C.L, face, 0.74);
       const fl = new T.Sprite(new T.SpriteMaterial({ map: flashTexGL(), color: 0xffd27a, blending: T.AdditiveBlending, depthWrite: false, transparent: true })); fl.scale.set(0.16, 0.16, 1); fl.visible = false; S3.add(fl);
@@ -5922,7 +5927,7 @@
     const c = OPS.cfg, wl = (s) => OPS_W.filter((w) => w.s === s);
     const bar = (v, m) => `<i class="ops-bar"><i style="width:${Math.round(Math.max(0.06, Math.min(1, v / m)) * 100)}%"></i></i>`;
     const wcard = (w) => `<button class="ops-w${c.p === w.id || c.s === w.id ? ' on' : ''}" data-ow="${w.id}" type="button"><canvas data-wv="${w.id}" width="150" height="60"></canvas><b>${esc(onm(w))}</b><span class="ops-st"><small>${esc(ot('dmg'))}</small>${bar(w.dmg * w.pel, 120)}<small>${esc(ot('rate'))}</small>${bar(1 / w.rt, 14)}<small>${esc(ot('acc'))}</small>${bar(0.1 - (w.scope ? 0.002 : w.sp), 0.1)}<small>${esc(ot('mob'))}</small>${bar(w.mv - 0.6, 0.5)}</span></button>`;
-    el.innerHTML = `<h4 class="ops-h">${esc(ot('chars'))}</h4><div class="ops-chars">${OPS_C.map((x) => `<button class="ops-c${c.ch === x.id ? ' on' : ''}" data-oc="${x.id}" type="button"><canvas data-cv="${x.id}" width="64" height="96"></canvas><b>${esc(onm(x))}</b><small>🛡 ${x.ar} · ⚡ ${Math.round(x.spd * 100)}%</small></button>`).join('')}</div>
+    el.innerHTML = `<h4 class="ops-h">${esc(ot('chars'))}</h4><div class="ops-chars">${OPS_C.map((x) => `<button class="ops-c${c.ch === x.id ? ' on' : ''}" data-oc="${x.id}" type="button">${x.pt ? `<img class="ops-pt" src="${OPSA}portraits/${x.pt}" alt="" loading="lazy">` : `<canvas data-cv="${x.id}" width="64" height="96"></canvas>`}<b>${esc(onm(x))}</b><small>🛡 ${x.ar} · ⚡ ${Math.round(x.spd * 100)}%</small></button>`).join('')}</div>
       <label class="ops-ph"><input type="checkbox" data-oph ${c.ph ? 'checked' : ''}><span><b>📷 ${esc(ot('photo'))}</b><small>${esc(ot('photo_sub'))}</small></span></label>
       <h4 class="ops-h">${esc(ot('prim'))}</h4><div class="ops-ws">${wl(1).map(wcard).join('')}</div>
       <h4 class="ops-h">${esc(ot('sec'))}</h4><div class="ops-ws">${wl(2).map(wcard).join('')}</div>`;
@@ -5948,7 +5953,7 @@
 .ops-m,.ops-w,.ops-c{position:relative;text-align:left;background:rgba(255,255,255,.05);border:2px solid rgba(255,255,255,.08);border-radius:14px;padding:8px;color:inherit;display:flex;flex-direction:column;gap:4px;transition:transform .12s,border-color .12s}
 .ops-m.on,.ops-w.on,.ops-c.on{border-color:#F59E0B;background:rgba(245,158,11,.12);box-shadow:0 0 0 3px rgba(245,158,11,.15)}
 .ops-m canvas{width:100%;aspect-ratio:1;border-radius:8px;image-rendering:pixelated}.ops-m{padding:6px}.ops-m small{display:none}.ops-m.on small{display:block}.ops-m b,.ops-w b,.ops-c b{font-size:14px;font-weight:800}.ops-m small,.ops-c small{color:#94A3B8;font-size:11.5px;line-height:1.3}
-.ops-chars{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;scrollbar-width:thin}.ops-c{flex:none;width:96px;align-items:center;text-align:center}.ops-c canvas{width:64px;height:96px;image-rendering:pixelated;filter:drop-shadow(0 6px 6px rgba(0,0,0,.5))}
+.ops-chars{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;scrollbar-width:thin}.ops-c{flex:none;width:96px;align-items:center;text-align:center}.ops-c canvas{width:64px;height:96px;image-rendering:pixelated;filter:drop-shadow(0 6px 6px rgba(0,0,0,.5))}.ops-c .ops-pt{width:64px;height:96px;object-fit:cover;filter:drop-shadow(0 6px 6px rgba(0,0,0,.5))}
 .ops-w canvas{width:100%;height:60px}.ops-st{display:grid;grid-template-columns:auto 1fr;gap:2px 6px;align-items:center}.ops-st small{font-size:10.5px;color:#94A3B8}
 .ops-bar{display:block;height:5px;border-radius:3px;background:rgba(255,255,255,.1);overflow:hidden}.ops-bar>i{display:block;height:100%;background:linear-gradient(90deg,#F59E0B,#EF4444)}
 .ops-ph{display:flex;gap:10px;align-items:center;margin-top:10px;padding:10px;border-radius:12px;background:rgba(255,255,255,.05)}.ops-ph input{width:20px;height:20px;accent-color:#F59E0B}.ops-ph span{display:flex;flex-direction:column}.ops-ph small{color:#94A3B8;font-size:12px}

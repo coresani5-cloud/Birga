@@ -24,3 +24,4 @@ Bu papkadagi skriptlar `public/ops/` fayllarini qayta yaratadi. Manbalar va lits
 4. **Osmon (HDRI):** `quarry_01_1k.hdr` (Poly Haven, CC0), three.js repozitoriyasidagi `examples/textures/equirectangular/` dan olingan.
 5. **Askarlar yuzi:** `python3 -I tools/ops/make-faces.py <guruh_surati.jpg> public/ops/faces` — `BOXES` dagi yuz koordinatalari shu suratga moslangan.
    Yuz `faces.json` dagi tartibda: duel/FFA da o'rin raqami bo'yicha, Strike'da dushman rangi bo'yicha tanlanadi. Fayllar bo'lmasa askarlar model yuzi bilan chiqadi.
+6. **Personaj portretlari:** `node tools/ops/render-portraits.js public/ops/portraits` (server `localhost:3100` da ishlab turishi kerak; Playwright + WebGL).

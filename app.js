@@ -9933,4 +9933,76 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .bigv-b .bigf-st,.bigv-b .bigf-bar{display:none}
 </style>`);
 
+/* ==================== v42: musiqa satri hech narsani to'smaydi; audio fayllar — musiqa kartasi, qurilmadan qayta eshitiladi ==================== */
+// 1) Mini pleyer satri — sahifa oqimida: chatlar ro'yxatida "Hammasi" ostida, chat/AI ichida sarlavha ostida
+MP.place = function () {
+  const bar = $('#mz-bar'); if (!bar) { clearInterval(this._pl); this._pl = null; return; }
+  if ($('#mz-sheet')) { bar.style.display = 'none'; return; }
+  const onTop = (el) => {
+    if (!el || el.classList.contains('hidden') || !el.offsetParent) return false; const r = el.getBoundingClientRect();
+    if (r.width < 50 || r.height < 4 || r.bottom <= 0 || r.top > innerHeight * 0.6 || r.right <= 2 || r.left >= innerWidth - 2) return false;
+    const x = Math.max(r.left + 2, Math.min(innerWidth - 2, r.left + r.width / 2)), y = r.top + Math.min(6, r.height / 2);
+    const top = document.elementsFromPoint(x, y).find((z) => !bar.contains(z)); return !!top && el.contains(top);
+  };
+  const ai = $('#ai-page:not(.hidden) .ai-head');
+  const pane = $$('.sidebar .pane:not(.hidden)')[0];
+  const slots = [ai, $('#chat-head'), pane?.id === 'pane-chats' ? $('#filters') : pane?.querySelector('.pane-head')];
+  const anchor = slots.find(onTop);
+  if (!anchor) { bar.style.display = 'none'; return; }
+  bar.style.display = ''; bar.removeAttribute('style'); bar.classList.remove('safe');
+  if (bar.previousElementSibling !== anchor) anchor.after(bar);
+};
+document.head.insertAdjacentHTML('beforeend', `<style>
+.mz-top{position:relative!important;top:auto!important;left:auto!important;width:auto!important;flex:none;z-index:1;box-shadow:none;border-top:1px solid var(--line,rgba(127,127,127,.15));margin:0}
+#pane-chats>.mz-top{margin:0 0 2px}
+</style>`);
+if ($('#mz-bar')) MP.place();
+
+// 2) Audio fayllar (eski xabarlar ham) — musiqa kartasi; birinchi eshitishda qurilmaga saqlanadi
+{
+  const AUD2 = /\.(mp3|m4a|m4b|aac|ogg|oga|opus|wav|flac|weba|amr|wma|aif|aiff|mka|mid|midi|3ga)(\s|$)/i;
+  const KEY = 'birga_aud_ids'; let AUDX = new Set(lsGet(KEY, []).map(String));
+  const markAud = (id) => { AUDX.add(String(id)); try { localStorage.setItem(KEY, JSON.stringify([...AUDX].slice(-500))); } catch {} };
+  const audLike = (m) => m && !m.deleted && m.type === 'file' && !m.meta?.big && (AUDX.has(String(m.id)) || /^audio\//.test(m.mime || m.meta?.mime || '') || AUD2.test(String(m.meta?.name || '').trim()));
+  const findMsg = (id) => (S.msgs.get(S.current) || []).find((x) => String(x.id) === String(id) || x.tempId === id);
+  const baseMI42 = msgInner;
+  msgInner = function (m, c, tail, gap) {
+    if (audLike(m) && !m.meta?.music) m.meta = { ...(m.meta || {}), music: musTags(m.meta?.name) };
+    if (m.meta?.music && m.gone && !m.localUrl && Media.has(m)) return baseMI42({ ...m, gone: false }, c, tail, gap); // qurilmada bor — server kerak emas
+    return baseMI42(m, c, tail, gap);
+  };
+  // faylni qurilma xotirasiga (Media keshiga) to'liq yozib qo'yish
+  const keep = async (m) => {
+    if (!m?.file || Media.has(m) || m.gone || m.pending) return null;
+    try { const u = mediaSrc(m); const r = await fetch(Media.abs(u), { mode: 'cors', credentials: 'omit' }); if (r.status === 404 || r.status === 400) { m.gone = true; return 'gone'; } if (!r.ok) return null; const b = await r.blob(); await Media.put(u, b); if (u !== m.file) await Media.put(m.file, b); if (m.sender_id !== S.me?.id) Media.ack(m.id); return b; } catch { return null; }
+  };
+  const sniff = async (b) => {
+    if (/^audio\//.test(b.type)) return true; if (/^(video|image|text)\//.test(b.type)) return false;
+    try { const u = new Uint8Array(await b.slice(0, 12).arrayBuffer()); const s = String.fromCharCode(...u);
+      return s.startsWith('ID3') || (u[0] === 0xff && (u[1] & 0xe0) === 0xe0) || s.startsWith('OggS') || s.startsWith('fLaC') || (s.startsWith('RIFF') && s.slice(8, 12) === 'WAVE') || /^....ftyp(M4A|M4B|mp42|isom|dash)/.test(s) || s.startsWith('#!AMR'); } catch { return false; }
+  };
+  document.addEventListener('click', (e) => {
+    // musiqa kartasi bosilganda — fonda qurilmaga saqlanadi (keyin internet/serversiz ham eshitiladi)
+    const card = e.target.closest('#messages .mus[data-mus]');
+    if (card && !e.target.closest('.mus-dl')) {
+      const m = findMsg(card.dataset.mus); if (!m) return;
+      if (m.gone && !m.localUrl && !Media.has(m)) { e.preventDefault(); e.stopImmediatePropagation(); MRestore.ask(Number(m.id)); return; }
+      keep(m).then((r) => { if (r === 'gone') { renderMessages(false); MRestore.ask(Number(m.id)); } });
+      return;
+    }
+    const dl = e.target.closest('#messages .mus-dl');
+    if (dl) { const m = findMsg(dl.closest('.mus')?.dataset.mus); if (m) { e.preventDefault(); e.stopImmediatePropagation(); Media.saveAs(m); } return; }
+    // oddiy fayl: brauzerda xom havola (404) ochilmasin — qurilmadagi nusxa ishlatiladi
+    const fb = e.target.closest('#messages a.filebox'); if (!fb) return;
+    const row = fb.closest('[data-id]'); const m = row && findMsg(row.dataset.id); if (!m || m.pending) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    (async () => {
+      let b = await Media.get(m); if (!b) { const r = await keep(m); if (r === 'gone') { renderMessages(false); return MRestore.ask(Number(m.id)); } b = r instanceof Blob ? r : null; }
+      if (!b) return toast(t('media_gone'));
+      if (await sniff(b)) { markAud(m.id); renderMessages(false); requestAnimationFrame(() => $(`#messages .mus[data-mus="${m.id}"] .mus-pl`)?.click()); return; }
+      Media.saveAs(m);
+    })();
+  }, true);
+}
+
 boot();

@@ -673,12 +673,244 @@
   addEventListener('keyup', (e) => keysDown.delete(e.key.toLowerCase()));
   addEventListener('blur', () => keysDown.clear());
 
-  // 12) Birga Strike — oddiy 3D otishma (CS uslubida, raycasting)
+  /* ---------- strikeGL: Birga Strike uchun Three.js (r149) renderer ----------
+     Assetlar public/ops/ da (manba va litsenziyalar: public/ops/LICENSES.txt). Askarlar GLTFLoader bilan yuklanadi va
+     AnimationMixer bilan jonlanadi (idle, run, shoot, hit, death). WebGL yo'q bo'lsa yoki fayllar yuklanmasa,
+     o'yin eski raycasting rejimida qoladi. Xarita: 1 katak = 1 birlik (~2 m); x → X, y → Z. */
+  const OPSA = '/ops/', OPS_H = 0.9, OPS_EYE = 0.78, OPS_WALL = 1.5;
+  let opsAssetP = null;
+  function opsAssets() {
+    if (opsAssetP) return opsAssetP;
+    opsAssetP = (async () => {
+      const tc = document.createElement('canvas'); if (!(tc.getContext('webgl2') || tc.getContext('webgl'))) throw new Error('webgl');
+      if (window.THREE && !window.THREE.GLTFLoader) throw new Error('three-no-gltf'); // boshqa THREE nusxasi bilan aralashtirmaymiz
+      if (!window.THREE) await new Promise((ok, no) => { const s = document.createElement('script'); s.src = OPSA + 'three-ops.min.js'; s.onload = ok; s.onerror = () => no(new Error('three')); document.head.appendChild(s); });
+      const T = window.THREE, gl = new T.GLTFLoader(), tl = new T.TextureLoader();
+      const tex = (f, srgb) => tl.loadAsync(OPSA + 'tex/' + f).then((t) => { t.wrapS = t.wrapT = T.RepeatWrapping; t.anisotropy = 4; if (srgb) t.encoding = T.sRGBEncoding; return t; });
+      const [sol, reb, sky, wd, wn, cd, cn, fd, fn] = await Promise.all([gl.loadAsync(OPSA + 'models/soldier.glb'), gl.loadAsync(OPSA + 'models/rebel.glb'), new T.RGBELoader().loadAsync(OPSA + 'sky_quarry_1k.hdr'),
+        tex('wall_d.jpg', 1), tex('wall_n.jpg'), tex('concrete_d.jpg', 1), tex('concrete_n.jpg'), tex('floor_d.jpg', 1), tex('floor_n.jpg')]);
+      sky.mapping = T.EquirectangularReflectionMapping;
+      // AK (Quaternius askari qo'lidagi): geometriyada stvol +X, tepa +Z. Kanonik shakl: stvol −Z, tepa +Y, uzunligi 1
+      const akSrc = sol.scene.getObjectByName('AK'); if (!akSrc) throw new Error('ak');
+      const BASIS = new T.Matrix4().makeBasis(new T.Vector3(0, 0, -1), new T.Vector3(-1, 0, 0), new T.Vector3(0, 1, 0));
+      const addMuz = (m) => { const q = new T.Object3D(); q.name = 'opsMuz'; q.position.set(1.04, 0, 0.28); m.add(q); return q; }; // stvol uchi (AK geometriyasi koordinatasida)
+      const mkGun = (len) => { const m = akSrc.clone(); m.children.filter((q) => q.name === 'opsMuz').forEach((q) => m.remove(q)); m.matrixAutoUpdate = false; m.matrix.copy(BASIS).multiply(new T.Matrix4().makeScale(len / 2, len / 2, len / 2)).multiply(new T.Matrix4().makeTranslation(0.25, 0, 0.1)); const g = new T.Group(); g.add(m); g.userData.muz = addMuz(m); return g; };
+      const prep = (g, gun) => {
+        const s = g.scene, clips = {}, v = new T.Vector3(); g.animations.forEach((a) => (clips[a.name] = a));
+        s.traverse((n) => { if (n.isMesh) { n.castShadow = true; n.frustumCulled = false; } });
+        if (!gun) addMuz(s.getObjectByName('AK')); // askar: AK modelda bor; rebel: AK har kadrda qo'lga qo'yiladi (mkActor)
+        s.updateMatrixWorld(true); let top = 0; s.traverse((n) => { if (n.isBone) top = Math.max(top, n.getWorldPosition(v).y); });
+        return { scene: s, clips, k: OPS_H / (top * 1.1), follow: !!gun };
+      };
+      prep(sol); const op = prep(reb, true);
+      // ---- askarlar: o'yinchilar yuzi (public/ops/faces), 2 xil harbiy kamuflyaj, dubulg'a ----
+      const faces = await fetch(OPSA + 'faces/faces.json').then((r) => r.json())
+        .then((list) => Promise.all(list.map((f) => tl.loadAsync(OPSA + 'faces/' + f.file).then((t) => { t.encoding = T.sRGBEncoding; t.anisotropy = 4; return { t, skin: f.skin }; })))).catch(() => []);
+      const lin = (h) => new T.Color(h).convertSRGBToLinear();
+      const gb = new T.Box3(); op.scene.traverse((n) => { if (n.isSkinnedMesh) { n.geometry.computeBoundingBox(); gb.union(n.geometry.boundingBox); } });
+      const cf = 16 / Math.max(1e-6, ...gb.getSize(new T.Vector3()).toArray());
+      // kamuflyaj: modelda UV yo'q — dog'lar bog'lanish holatidagi (bind) koordinatadan 3D shovqin bilan chiziladi, kiyim bilan birga harakatlanadi
+      const camo = (pal) => { const m = new T.MeshStandardMaterial({ roughness: 0.92 }), U = { c0: { value: lin(pal[0]) }, c1: { value: lin(pal[1]) }, c2: { value: lin(pal[2]) }, c3: { value: lin(pal[3]) }, cf: { value: cf } };
+        m.onBeforeCompile = (sh) => { Object.assign(sh.uniforms, U);
+          sh.vertexShader = 'varying vec3 vCp;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvCp = position;');
+          sh.fragmentShader = 'varying vec3 vCp; uniform vec3 c0, c1, c2, c3; uniform float cf;\nfloat h3(vec3 p){return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453);}\n'
+            + 'float vn(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(mix(h3(i),h3(i+vec3(1,0,0)),f.x),mix(h3(i+vec3(0,1,0)),h3(i+vec3(1,1,0)),f.x),f.y),mix(mix(h3(i+vec3(0,0,1)),h3(i+vec3(1,0,1)),f.x),mix(h3(i+vec3(0,1,1)),h3(i+vec3(1,1,1)),f.x),f.y),f.z);}\n'
+            + sh.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\n{ vec3 q = vCp * cf; float a = vn(q) * .65 + vn(q * 2.3) * .35, b = vn(q * 1.7 + 9.) * .6 + vn(q * 3.1) * .4; vec3 cc = c0; cc = mix(cc, c1, step(.55, a)); cc = mix(cc, c2, step(.6, b)); cc = mix(cc, c3, step(.68, a) * step(.42, b)); diffuseColor.rgb = cc; }'); };
+        m.customProgramCacheKey = () => 'opsCamo'; return m; };
+      // CT uslubi: to'q ko'k forma (0) va kulrang-ko'k "urban" forma (1); nimcha, dubulg'a, qo'lqop — qora
+      const blk = (h, r = 0.75, m = 0.1) => new T.MeshStandardMaterial({ color: lin(h), roughness: r, metalness: m });
+      const mHelm = blk('#202227', 0.6, 0.15), mVest = blk('#1d1f24', 0.85), mPouch = blk('#26292f', 0.9), mCup = blk('#141518', 0.5, 0.2);
+      // AK: yog'och va kulrang qismlar qora "taktik" rangga
+      akSrc.traverse((n) => { if (!n.isMesh) return; const nm = n.material.name; n.material = nm === 'Wood' ? blk('#1c1d20', 0.75, 0) : nm === 'Grey' ? blk('#2c2f35', 0.6, 0.1) : n.material.clone(); n.material.envMapIntensity = 0.35; });
+      const patchTex = (w, h, draw) => { const q = document.createElement('canvas'); q.width = w; q.height = h; draw(q.getContext('2d'), w, h); const t = new T.CanvasTexture(q); t.encoding = T.sRGBEncoding; t.anisotropy = 4; return t; };
+      const ctTex = patchTex(128, 56, (x, w, h) => { x.fillStyle = '#2a2d33'; x.fillRect(0, 0, w, h); x.strokeStyle = '#7b8088'; x.lineWidth = 4; x.strokeRect(3, 3, w - 6, h - 6); x.fillStyle = '#f2f2f2'; x.font = '900 38px system-ui, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('CT', w / 2, h / 2 + 2); });
+      const eagleTex = patchTex(64, 72, (x, w, h) => { x.fillStyle = '#1f2a44'; x.beginPath(); x.moveTo(4, 4); x.lineTo(60, 4); x.lineTo(60, 44); x.lineTo(32, 68); x.lineTo(4, 44); x.closePath(); x.fill(); x.strokeStyle = '#c9ced8'; x.lineWidth = 3; x.stroke();
+        x.fillStyle = '#e8ebf0'; x.beginPath(); x.moveTo(32, 18); x.lineTo(10, 14); x.lineTo(16, 24); x.lineTo(8, 26); x.lineTo(18, 32); x.lineTo(26, 32); x.lineTo(28, 50); x.lineTo(32, 56); x.lineTo(36, 50); x.lineTo(38, 32); x.lineTo(46, 32); x.lineTo(56, 26); x.lineTo(48, 24); x.lineTo(54, 14); x.closePath(); x.fill(); x.beginPath(); x.arc(32, 16, 5, 0, 7); x.fill(); });
+      const patchMat = (t) => new T.MeshStandardMaterial({ map: t, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -2 });
+      op.scene.traverse((n) => { if (n.isMesh && n.material.name === 'Hair') n.material.color = lin('#17110d'); });
+      const skinBase = (() => { let m = null; op.scene.traverse((n) => { if (n.isMesh && n.material.name === 'Skin') m = n.material; }); return m; })();
+      const FACE = faces.map((f) => ({ skin: Object.assign(skinBase.clone(), { color: lin(f.skin) }),
+        mat: new T.MeshStandardMaterial({ map: f.t, emissiveMap: f.t, emissive: new T.Color(0.22, 0.22, 0.22), transparent: true, roughness: 0.75, polygonOffset: true, polygonOffsetFactor: -2 }) }));
+      // dubulg'a va yuz sirti: "Head" suyagiga bog'lanadi (dam holatidagi bosh o'lchamlari bo'yicha)
+      const hb = (() => { let b = null; op.scene.traverse((n) => { if (n.isBone && n.name === 'Head') b = n; }); return b; })();
+      const local = (pos, sc) => hb.matrixWorld.clone().invert().multiply(new T.Matrix4().compose(pos, new T.Quaternion(), sc || new T.Vector3(1, 1, 1)));
+      op.faceGeo = new T.CylinderGeometry(0.13, 0.13, 0.26, 18, 1, true, -0.92, 1.84); op.faceM = local(new T.Vector3(0.005, 1.6, 0.11));
+      // jihozlar dam holatidagi (bind) dunyo koordinatasida yasaladi va suyakka nisbatan matritsa bilan bog'lanadi
+      const boneOf = (root, nm) => { let b = null; root.traverse((n) => { if (n.isBone && n.name === nm) b = n; }); return b; };
+      const box = (g, m, w, h, d, x, y, z, ry = 0) => { const q = new T.Mesh(new T.BoxGeometry(w, h, d), m); q.position.set(x, y, z); q.rotation.y = ry; q.castShadow = true; g.add(q); return q; };
+      const kit = (bone, build) => { const b = boneOf(op.scene, bone); if (!b) return null; const g = new T.Group(); build(g); return { bone, obj: g, m: b.matrixWorld.clone().invert() }; };
+      op.kits = [
+        kit('Head', (g) => { // taktik dubulg'a: qobiq, quloqchinlar, yon relslar, old tomonda NVG ushlagich
+          const hm = new T.Mesh(new T.SphereGeometry(0.162, 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.5), mHelm); hm.position.set(0.005, 1.695, 0.09); hm.scale.set(1.05, 1.0, 1.12); hm.castShadow = true; g.add(hm);
+          for (const sx of [-1, 1]) { const cup = new T.Mesh(new T.CylinderGeometry(0.048, 0.048, 0.04, 16), mCup); cup.rotation.z = Math.PI / 2; cup.position.set(0.005 + sx * 0.128, 1.625, 0.085); g.add(cup);
+            box(g, mHelm, 0.012, 0.03, 0.17, 0.005 + sx * 0.168, 1.71, 0.09); box(g, mCup, 0.016, 0.09, 0.02, 0.005 + sx * 0.14, 1.67, 0.085); }
+          box(g, mCup, 0.05, 0.035, 0.025, 0.005, 1.775, 0.262); }),
+        kit('Chest', (g) => { // nimcha: old/orqa plastinalar, yon kamar, yelka tasmalari, cho'ntaklar, "CT" va burgut nishonlari
+          box(g, mVest, 0.25, 0.27, 0.035, 0.005, 1.31, 0.212); box(g, mVest, 0.25, 0.26, 0.03, 0.005, 1.31, -0.092);
+          for (const sx of [-1, 1]) { box(g, mVest, 0.025, 0.13, 0.3, 0.005 + sx * 0.135, 1.23, 0.06); box(g, mVest, 0.055, 0.025, 0.31, 0.005 + sx * 0.08, 1.46, 0.06); }
+          for (const x of [-0.075, 0, 0.075]) box(g, mPouch, 0.062, 0.08, 0.032, 0.005 + x, 1.22, 0.244);
+          const ct = new T.Mesh(new T.PlaneGeometry(0.1, 0.044), patchMat(ctTex)); ct.position.set(0.005, 1.37, 0.2302); g.add(ct);
+          const eg = new T.Mesh(new T.PlaneGeometry(0.036, 0.04), patchMat(eagleTex)); eg.position.set(0.085, 1.41, 0.2302); g.add(eg); }),
+      ].filter(Boolean);
+      const palm = await gl.loadAsync(OPSA + 'models/palm.glb').then((g) => { g.scene.traverse((n) => { if (n.isMesh) n.castShadow = true; }); return g.scene; }).catch(() => null);
+      // o'yinchi avatari (Image) → yuz materiali: markazdan qirqiladi, oval yumshoq chet, teri rangi o'rtachadan
+      const faceOf = (img) => { const cv = document.createElement('canvas'); cv.width = 256; cv.height = 288; const x = cv.getContext('2d'), k = Math.max(256 / img.width, 288 / img.height) * 1.12, w = img.width * k, h = img.height * k;
+        x.drawImage(img, (256 - w) / 2, (288 - h) / 2 + 6, w, h); let skin = '#b98b6d';
+        try { const d = x.getImageData(88, 110, 80, 80).data; let r = 0, g2 = 0, b2 = 0; for (let i = 0; i < d.length; i += 4) { r += d[i]; g2 += d[i + 1]; b2 += d[i + 2]; } const n = d.length / 4; skin = '#' + [r, g2, b2].map((v) => Math.round(v / n).toString(16).padStart(2, '0')).join(''); } catch {}
+        x.globalCompositeOperation = 'destination-in'; x.save(); x.translate(128, 144); x.scale(1, 288 / 256 * 1.04); const gr = x.createRadialGradient(0, 0, 70, 0, 0, 106); gr.addColorStop(0, '#000'); gr.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = gr; x.fillRect(-140, -140, 280, 280); x.restore();
+        const t = new T.CanvasTexture(cv); t.encoding = T.sRGBEncoding;
+        return { skin: Object.assign(skinBase.clone(), { color: lin(skin) }), mat: new T.MeshStandardMaterial({ map: t, emissiveMap: t, emissive: new T.Color(0.22, 0.22, 0.22), transparent: true, roughness: 0.75, polygonOffset: true, polygonOffsetFactor: -2 }) }; };
+      return { T, op, FACE, faceOf, camo, blk, km: { helm: mHelm, vest: mVest, pouch: mPouch }, mkGun, sky, palm, tx: { wd, wn, cd, cn, fd, fn } };
+    })();
+    opsAssetP.catch((e) => { console.warn('opsGL:', e?.message || e); opsAssetP = null; });
+    return opsAssetP;
+  }
+  // ---- GLTF askar (strikeGL va Birga Strike 3D opsGL uchun umumiy) ----
+  // L — kiyim ranglari (OPS_C[].L kabi: top/top2/pants/pants2/vest/hc/gl), face — {skin, mat} yoki null, h — bo'yi.
+  // Qaytadi: g (guruh, oldi −Z), gun (qurol guruhi, har kadrda qo'lga qo'yiladi), tick(holat, dt)
+  const CT_L = [{ top: '#27304a', top2: '#1b2235', pants: '#27304a', pants2: '#1b2235', vest: '#1d1f24', hc: '#202227', gl: '#1a1f2b' },
+    { top: '#3a414d', top2: '#2a3039', pants: '#3a414d', pants2: '#2a3039', vest: '#1d1f24', hc: '#202227', gl: '#1a1f2b' }];
+  const glbLook = new WeakMap();
+  function glbSoldier(lib, L, face, h) {
+    const { T, op } = lib;
+    let M = glbLook.get(L);
+    if (!M) { const sh = (c, k) => '#' + new T.Color(c).offsetHSL(0, 0, k).getHexString();
+      M = { top: lib.camo([L.top, L.top2, sh(L.top, 0.06), sh(L.top2, -0.05)]), pants: lib.camo([L.pants || L.top, L.pants2 || L.top2, sh(L.pants || L.top, 0.06), sh(L.pants2 || L.top2, -0.05)]),
+        sleeve: lib.blk(L.gl || L.top2, 0.9, 0), helm: lib.blk(L.hc || '#202227', 0.6, 0.15), vest: lib.blk(L.vest || '#1d1f24', 0.85, 0.05), pouch: lib.blk(sh(L.vest || '#1d1f24', 0.04), 0.9, 0) };
+      glbLook.set(L, M); }
+    const o = T.SkeletonUtils.clone(op.scene), g = new T.Group(); o.scale.setScalar((op.k * h) / OPS_H); o.rotation.y = Math.PI; g.add(o);
+    const bones = {};
+    o.traverse((n) => { if (n.isBone) bones[n.name] = n; if (!n.isMesh) return; const nm = n.material.name;
+      if (/Backpack/.test(n.name)) n.visible = false; else if (nm === 'Green' || nm === 'LightGreen') n.material = M.top; else if (nm === 'Brown' || nm === 'Brown2') n.material = M.pants;
+      else if (nm === 'Skin' && /Body/.test(n.name)) n.material = M.sleeve; else if (face && nm === 'Skin') n.material = face.skin; else if (face && (nm === 'Eye' || nm === 'Eyebrows')) n.visible = false; });
+    const KM = new Map([[lib.km.helm, M.helm], [lib.km.vest, M.vest], [lib.km.pouch, M.pouch]]);
+    for (const k of op.kits) { const b = bones[k.bone]; if (!b) continue; const q = k.obj.clone(); q.traverse((n) => { if (n.isMesh && KM.has(n.material)) n.material = KM.get(n.material); }); q.matrixAutoUpdate = false; q.matrix.copy(k.m); b.add(q); }
+    if (bones.Head && face) { const fm = new T.Mesh(op.faceGeo, face.mat); fm.matrixAutoUpdate = false; fm.matrix.copy(op.faceM); bones.Head.add(fm); }
+    const mx = new T.AnimationMixer(o), acts = {}; for (const k in op.clips) acts[k] = mx.clipAction(op.clips[k]);
+    for (const k of ['death', 'hit']) if (acts[k]) { acts[k].setLoop(T.LoopOnce); acts[k].clampWhenFinished = true; }
+    const gun = new T.Group(); g.add(gun);
+    const S = { g, o, mx, gun, cur: null, hand: bones.Index1R || bones.WristR, deadT: 0, hitT: 0, wasHit: 0, px: null, py: 0, sp: 0, v: new T.Vector3() };
+    S.play = (k, fade = 0.18) => { if (S.cur === k || !acts[k]) return; const n = acts[k], p = S.cur && acts[S.cur]; n.reset(); n.setEffectiveWeight(1); n.play(); if (p) n.crossFadeFrom(p, k === 'death' ? 0.1 : fade, false); S.cur = k; };
+    // q: { x, y, dead, fire, hit, mv } — mv bo'lmasa yugurish joy o'zgarishidan aniqlanadi
+    S.tick = (q, dt) => {
+      if (S.px === null || Math.hypot(q.x - S.px, q.y - S.py) > 1.5) { S.px = q.x; S.py = q.y; }
+      const sp = Math.hypot(q.x - S.px, q.y - S.py) / Math.max(dt, 1e-3); S.sp += (sp - S.sp) * Math.min(1, dt * 10); S.px = q.x; S.py = q.y;
+      const run = q.mv != null ? !!q.mv : S.sp > 0.4;
+      if (q.hit && !S.wasHit) S.hitT = 0.35; S.wasHit = q.hit; if (S.hitT > 0) S.hitT -= dt;
+      if (q.dead) { S.deadT += dt; S.play('death'); } else { S.deadT = 0; S.play(S.hitT > 0 && !run ? 'hit' : run ? 'run' : q.fire ? 'shoot' : 'idle'); }
+      mx.update(dt);
+      if (S.hand) { g.updateMatrixWorld(true); S.hand.getWorldPosition(S.v); g.worldToLocal(S.v); gun.position.copy(S.v); // qurol qo'lda, stvoli oldinga; o'lganda yerda
+        if (q.dead) { gun.position.y = Math.max(0.03, S.v.y * 0.3); gun.rotation.set(0, 0.6, Math.PI / 2); } else gun.rotation.set(0, 0, 0); }
+    };
+    S.dispose = () => { mx.stopAllAction(); mx.uncacheRoot(o); };
+    return S;
+  }
+  // stage: o'yin maydoni, c: 2D canvas (HUD uchun ustida qoladi), MAP: xarita satrlari
+  function strikeGL(stage, c, MAP) {
+    const R = { ok: false, dead: false };
+    opsAssets().then((lib) => { if (!R.dead) build(lib); }).catch(() => {});
+    function build(lib) {
+      const { T } = lib, N = MAP.length, wallAt = (x, y) => x < 0 || y < 0 || x >= N || y >= N || MAP[y][x] === '#';
+      let rd;
+      try { rd = new T.WebGLRenderer({ antialias: (devicePixelRatio || 1) < 2, powerPreference: 'high-performance' }); } catch { return; }
+      rd.setPixelRatio(Math.min(1.5, devicePixelRatio || 1)); rd.outputEncoding = T.sRGBEncoding; rd.toneMapping = T.ACESFilmicToneMapping; rd.toneMappingExposure = 1.05;
+      rd.shadowMap.enabled = true; rd.shadowMap.type = T.PCFSoftShadowMap; rd.autoClear = false;
+      const gc = rd.domElement; gc.className = 'gm-cv'; Object.assign(gc.style, { position: 'absolute', pointerEvents: 'none', boxShadow: 'none' });
+      stage.insertBefore(gc, c); if (getComputedStyle(c).position === 'static') c.style.position = 'relative';
+      const sc = new T.Scene(), pm = new T.PMREMGenerator(rd), env = pm.fromEquirectangular(lib.sky).texture; pm.dispose();
+      sc.background = lib.sky; sc.environment = env; sc.fog = new T.Fog(0xd9c7a6, 9, 30);
+      sc.add(new T.HemisphereLight(0xfff1d6, 0x6b5a45, 0.55));
+      const sun = new T.DirectionalLight(0xfff0d0, 2.2); sun.position.set(N / 2 + 7, 14, N / 2 - 5); sun.target.position.set(N / 2, 0, N / 2); sun.castShadow = true;
+      Object.assign(sun.shadow.camera, { left: -N * 0.75, right: N * 0.75, top: N * 0.75, bottom: -N * 0.75, near: 1, far: 40 }); sun.shadow.mapSize.set(1024, 1024); sun.shadow.bias = -0.0008; sun.shadow.normalBias = 0.02;
+      sc.add(sun, sun.target);
+      // devorlar: faqat ochiq tomonga qaragan yuzlar (2 xil material: qumtosh va beton), UV — 1 birlik = 1 tekstura
+      const mat = (d, n) => new T.MeshStandardMaterial({ map: d, normalMap: n, roughness: 0.92, metalness: 0, envMapIntensity: 0.6 });
+      const P2 = [[], []], U2 = [[], []], N2 = [[], []];
+      const quad = (k, a, b, nrm) => { const H = OPS_WALL, v = [[a[0], 0, a[1]], [b[0], 0, b[1]], [b[0], H, b[1]], [a[0], H, a[1]]], uv = [[0, 0], [1, 0], [1, H], [0, H]];
+        for (const i of [0, 1, 2, 0, 2, 3]) { P2[k].push(...v[i]); U2[k].push(...uv[i]); N2[k].push(...nrm); } };
+      for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+        if (!wallAt(x, y)) continue; const k = x === 0 || y === 0 || x === N - 1 || y === N - 1 || (x + y) % 3 !== 0 ? 0 : 1;
+        if (!wallAt(x, y + 1)) quad(k, [x, y + 1], [x + 1, y + 1], [0, 0, 1]);
+        if (!wallAt(x, y - 1)) quad(k, [x + 1, y], [x, y], [0, 0, -1]);
+        if (!wallAt(x + 1, y)) quad(k, [x + 1, y + 1], [x + 1, y], [1, 0, 0]);
+        if (!wallAt(x - 1, y)) quad(k, [x, y], [x, y + 1], [-1, 0, 0]);
+      }
+      const tx = lib.tx;
+      [[tx.wd, tx.wn], [tx.cd, tx.cn]].forEach(([d, n], k) => { if (!P2[k].length) return; const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(P2[k], 3)); g.setAttribute('uv', new T.Float32BufferAttribute(U2[k], 2)); g.setAttribute('normal', new T.Float32BufferAttribute(N2[k], 3)); const m = new T.Mesh(g, mat(d, n)); m.castShadow = m.receiveShadow = true; sc.add(m); });
+      // devor tepasidagi qopqoq (soya to'g'ri tushishi uchun) va pol
+      const cap = new T.Mesh(new T.BoxGeometry(1, 0.06, 1), new T.MeshStandardMaterial({ color: 0x9c8466, roughness: 1 })), caps = new T.InstancedMesh(cap.geometry, cap.material, N * N); let ci = 0; const cm = new T.Matrix4();
+      for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (wallAt(x, y)) caps.setMatrixAt(ci++, cm.makeTranslation(x + 0.5, OPS_WALL + 0.03, y + 0.5)); caps.count = ci; caps.castShadow = true; sc.add(caps);
+      const fd = tx.fd.clone(), fnm = tx.fn.clone(); fd.needsUpdate = fnm.needsUpdate = true; fd.repeat.set(N / 2, N / 2); fnm.repeat.set(N / 2, N / 2);
+      const floor = new T.Mesh(new T.PlaneGeometry(N, N), new T.MeshStandardMaterial({ map: fd, normalMap: fnm, roughness: 0.95, envMapIntensity: 0.5 })); floor.rotation.x = -Math.PI / 2; floor.position.set(N / 2, 0, N / 2); floor.receiveShadow = true; sc.add(floor);
+      const ground = new T.Mesh(new T.PlaneGeometry(200, 200), new T.MeshStandardMaterial({ color: 0xb59a74, roughness: 1 })); ground.rotation.x = -Math.PI / 2; ground.position.set(N / 2, -0.01, N / 2); sc.add(ground);
+      // de_dust kayfiyati: devor ortida palmalar (Kenney Nature Kit), devorlarda "A" / "B" belgilari
+      if (lib.palm) { const pb = new T.Box3().setFromObject(lib.palm), ph = Math.max(0.1, pb.max.y - pb.min.y);
+        [[-1.6, 3], [-2.4, 9], [-1.4, 14], [N + 1.5, 2], [N + 2.3, 7.5], [N + 1.4, 12.5], [4, -1.6], [11, -2.2], [6.5, N + 1.8], [13, N + 1.5]].forEach(([x, z], i) => {
+          const q = lib.palm.clone(); q.scale.setScalar((3.2 + (i % 3) * 0.6) / ph); q.position.set(x, 0, z); q.rotation.y = i * 1.7; sc.add(q); }); }
+      const sign = (txt, x, z, ry) => { const q = document.createElement('canvas'); q.width = q.height = 256; const g2 = q.getContext('2d'); g2.fillStyle = 'rgba(178,34,34,.92)'; g2.font = '900 170px system-ui, sans-serif'; g2.textAlign = 'center'; g2.textBaseline = 'middle'; g2.fillText(txt, 128, 112);
+        g2.strokeStyle = 'rgba(178,34,34,.92)'; g2.lineWidth = 14; g2.lineCap = 'round'; g2.beginPath(); g2.moveTo(200, 226); g2.lineTo(60, 226); g2.moveTo(96, 200); g2.lineTo(60, 226); g2.lineTo(96, 252); g2.stroke();
+        const t = new T.CanvasTexture(q); t.encoding = T.sRGBEncoding; const m = new T.Mesh(new T.PlaneGeometry(0.75, 0.75), new T.MeshStandardMaterial({ map: t, transparent: true, roughness: 1, polygonOffset: true, polygonOffsetFactor: -2 }));
+        m.position.set(x, 0.85, z); m.rotation.y = ry; m.receiveShadow = true; sc.add(m); };
+      for (let x = 3; x < N - 1; x++) if (!wallAt(x, 1)) { sign('A', x + 0.5, 1.005, 0); break; }
+      for (let x = N - 4; x > 0; x--) if (!wallAt(x, N - 2)) { sign('B', x + 0.5, N - 1.005, Math.PI); break; }
+      // kamera + qo'ldagi qurol (alohida sahnada — devorga kirib ketmaydi)
+      const cam = new T.PerspectiveCamera(70, 1, 0.03, 80), vs = new T.Scene(), vc = new T.PerspectiveCamera(60, 1, 0.01, 5);
+      vs.environment = env; vs.add(new T.HemisphereLight(0xfff1d6, 0x5a4a38, 0.9)); const vl = new T.DirectionalLight(0xffffff, 1.6); vl.position.set(1, 2, 1); vs.add(vl);
+      const vm = lib.mkGun(0.5); vm.rotation.y = 0.05; vs.add(vm);
+      const flashTex = (() => { const q = document.createElement('canvas'); q.width = q.height = 64; const x = q.getContext('2d'), gr = x.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,230,1)'); gr.addColorStop(0.25, 'rgba(255,214,90,.9)'); gr.addColorStop(1, 'rgba(255,140,0,0)'); x.fillStyle = gr; x.fillRect(0, 0, 64, 64); return new T.CanvasTexture(q); })();
+      const mkFlash = (s) => { const f = new T.Sprite(new T.SpriteMaterial({ map: flashTex, blending: T.AdditiveBlending, depthWrite: false, transparent: true })); f.scale.setScalar(s); f.visible = false; return f; };
+      const vflash = mkFlash(0.16); vs.add(vflash); const vlight = new T.PointLight(0xffc860, 0, 4, 2); sc.add(vlight);
+      // askarlar
+      const A = new Map(), tmp = new T.Vector3();
+      const mkActor = (team, face) => {
+        const F = lib.FACE.length ? lib.FACE[(face | 0) % lib.FACE.length] : null, S = glbSoldier(lib, CT_L[team % 2], F, OPS_H), gm = lib.mkGun(0.45);
+        gm.traverse((n) => { if (n.isMesh) n.castShadow = true; }); S.gun.add(gm); sc.add(S.g); const fl = mkFlash(0.17); sc.add(fl);
+        return { S, fl, muz: gm.userData.muz };
+      };
+      let W0 = 0, H0 = 0;
+      R.ok = true; R.gc = gc;
+      R.draw = (v) => {
+        const W = c.W, H = c.H, dt = v.dt;
+        if (W !== W0 || H !== H0) { W0 = W; H0 = H; rd.setSize(W, H, false); gc.style.width = W + 'px'; gc.style.height = H + 'px'; const asp = W / H; cam.aspect = vc.aspect = asp;
+          cam.fov = Math.max(48, Math.min(82, (2 * Math.atan(Math.tan(0.62) / asp) * 180) / Math.PI)); cam.updateProjectionMatrix(); vc.fov = asp < 1 ? 62 : 52; vc.updateProjectionMatrix();
+          vm.position.set(Math.tan((vc.fov * Math.PI) / 360) * asp * 0.42 * 0.5, asp < 1 ? -0.2 : -0.18, -0.42); vm.userData.y = vm.position.y; }
+        gc.style.left = c.offsetLeft + 'px'; gc.style.top = c.offsetTop + 'px';
+        // kamera
+        const t = performance.now() / 1000, bob = v.moving ? Math.sin(t * 11) * 0.012 : 0, sh = v.hurt > 0 ? v.hurt * 0.05 : 0;
+        cam.position.set(v.x + (Math.random() - 0.5) * sh, v.dead ? 0.25 : OPS_EYE + bob, v.y + (Math.random() - 0.5) * sh);
+        cam.rotation.set(v.dead ? 0.6 : 0, -v.a - Math.PI / 2, v.dead ? 0.4 : 0, 'YXZ');
+        // qurol: tebranish va orqaga tepish
+        const kick = v.kick ? 0.05 : 0; vm.position.z += ((-0.42 + kick) - vm.position.z) * Math.min(1, dt * 25); vm.position.y = vm.userData.y + (v.moving ? Math.abs(Math.sin(t * 5.5)) * -0.012 : Math.sin(t * 1.6) * 0.003) + (v.reload ? -0.12 : 0);
+        vm.rotation.x = v.kick ? 0.06 : vm.rotation.x * 0.8; vm.visible = !v.dead;
+        vflash.visible = !!v.fire; if (v.fire) { vm.updateMatrixWorld(true); vm.userData.muz.getWorldPosition(vflash.position); vflash.material.rotation = Math.random() * 6; vflash.scale.setScalar(0.12 + Math.random() * 0.08); }
+        vlight.intensity = v.fire ? 1.6 : 0; vlight.position.set(v.x + Math.cos(v.a) * 0.4, OPS_EYE, v.y + Math.sin(v.a) * 0.4);
+        // askarlar
+        const seen = new Set();
+        for (const q of v.actors) {
+          seen.add(q.key); let a = A.get(q.key); if (!a) { a = mkActor(q.team | 0, q.face); A.set(q.key, a); }
+          const g = a.S.g, ang = q.a ?? Math.atan2(v.y - q.y, v.x - q.x); g.position.set(q.x, 0, q.y); g.rotation.y = -ang - Math.PI / 2; g.visible = true;
+          a.S.tick(q, dt);
+          if (q.dead) { if (a.S.deadT > 3) g.position.y = -Math.min(1, (a.S.deadT - 3) * 0.5); if (a.S.deadT > 5) g.visible = false; }
+          a.fl.visible = !!q.fire && !q.dead; if (a.fl.visible) { g.updateMatrixWorld(true); a.muz.getWorldPosition(a.fl.position); a.fl.material.rotation = Math.random() * 6; }
+        }
+        for (const [k, a] of A) if (!seen.has(k)) { sc.remove(a.S.g, a.fl); a.S.dispose(); A.delete(k); }
+        rd.setClearColor(0x000000, 1); rd.clear(); rd.render(sc, cam); rd.clearDepth(); rd.render(vs, vc);
+      };
+      // 2D HUD uchun: xarita nuqtasi (x, y, balandlik h) → ekran koordinatasi
+      R.proj = (x, y, h) => { tmp.set(x, h, y).project(cam); if (tmp.z > 1 || tmp.z < -1) return null; return [((tmp.x + 1) / 2) * c.W, ((1 - tmp.y) / 2) * c.H]; };
+      R.dispose = () => { for (const [, a] of A) a.S.dispose(); A.clear(); sc.traverse((n) => { if (n.isMesh && n.geometry && !n.isSkinnedMesh) n.geometry.dispose(); }); env.dispose(); rd.dispose(); rd.forceContextLoss?.(); gc.remove(); };
+    }
+    R.stop = () => { R.dead = true; R.ok = false; R.dispose?.(); };
+    return R;
+  }
+
+  // 12) Birga Strike — 3D otishma (CS uslubida): opsGL (Three.js) bo'lsa — modellar bilan, aks holda raycasting
   IMPL.strike = (stage, ui) => {
     stage.classList.add('gm-stage-pad');
     const { c, g, fit } = canvasIn(stage, null);
     const MAP = ['################', '#......#.......#', '#.##...#..###..#', '#.#.......#....#', '#.#..##...#.##.#', '#....#.........#', '###..#..####...#', '#.......#......#', '#..##...#..##..#', '#..#.......#...#', '#..#..###..#..##', '#......#.......#', '#.###..#..###..#', '#..............#', '#..##......##..#', '################'];
     const N = 16, wall = (x, y) => x < 0 || y < 0 || x >= N || y >= N || MAP[y | 0][x | 0] === '#';
+    const ops = strikeGL(stage, c, MAP); let lpx = 0, lpy = 0;
     const pad = padUI(stage, [{ id: 'fire', t: '🔫', cls: 'big' }, { id: 'reload', t: '🔄' }]);
     let P, en, wave, kills, ammo, reloadT, fireT, flash, hurt, dead, items, msg, msgT, look = null, lookX = 0;
     c.addEventListener('pointerdown', (e) => { look = e.pointerId; lookX = e.clientX; });
@@ -733,6 +965,13 @@
       }
       // ---- render ----
       const hz = H / 2;
+      if (ops.ok) { // 3D: Three.js sahnasi; 2D canvas faqat HUD uchun
+        g.clearRect(0, 0, W, H); const mv = Math.hypot(P.x - lpx, P.y - lpy) > 1e-4; lpx = P.x; lpy = P.y;
+        ops.draw({ dt, x: P.x, y: P.y, a: P.a, moving: mv, fire: flash > 0, kick: fireT > 0, reload: reloadT > 0, hurt, dead,
+          actors: en.map((e, i, _, k = ['#B91C1C', '#1D4ED8', '#047857', '#7C2D12'].indexOf(e.col)) => ({ key: e, team: k % 2 ? 0 : 1, face: k, x: e.x, y: e.y, dead: !!e.dead, fire: e.fl > 0, hit: e.hit > 0 })) });
+        if (flash > 0) flash -= dt;
+        for (const it of items) { const d = Math.hypot(it.x - P.x, it.y - P.y), q = los(P.x, P.y, it.x, it.y) && ops.proj(it.x, it.y, 0.12); if (q) text(g, it.t === 'med' ? '🩹' : '📦', q[0], q[1], Math.max(12, Math.min(60, (H * 0.16) / Math.max(0.3, d)))); }
+      } else {
       let gr = g.createLinearGradient(0, 0, 0, hz); gr.addColorStop(0, '#7DD3FC'); gr.addColorStop(1, '#E0F2FE'); g.fillStyle = gr; g.fillRect(0, 0, W, hz);
       gr = g.createLinearGradient(0, hz, 0, H); gr.addColorStop(0, '#A8A29E'); gr.addColorStop(1, '#57534E'); g.fillStyle = gr; g.fillRect(0, hz, W, hz);
       const FOV = 1.05, cols = Math.ceil(W / 2), dirx = Math.cos(P.a), diry = Math.sin(P.a), plx = -diry * Math.tan(FOV / 2), ply = dirx * Math.tan(FOV / 2);
@@ -779,6 +1018,7 @@
       g.fillStyle = '#1F2937'; g.beginPath(); g.moveTo(gx - 30, gy); g.lineTo(gx - 8, gy - 120); g.lineTo(gx + 14, gy - 120); g.lineTo(gx + 40, gy); g.fill();
       g.fillStyle = '#4B5563'; g.fillRect(gx - 4, gy - 150, 14, 40); g.fillStyle = '#92400E'; g.beginPath(); g.moveTo(gx + 10, gy); g.lineTo(gx + 26, gy - 60); g.lineTo(gx + 50, gy - 50); g.lineTo(gx + 46, gy); g.fill();
       if (flash > 0) { flash -= dt; g.fillStyle = '#FDE047'; g.beginPath(); g.arc(gx + 3, gy - 158, 18, 0, 7); g.fill(); g.fillStyle = '#fff'; g.beginPath(); g.arc(gx + 3, gy - 158, 8, 0, 7); g.fill(); }
+      } // raycasting tugadi
       g.strokeStyle = '#22C55E'; g.lineWidth = 2; g.beginPath(); g.moveTo(W / 2 - 12, hz); g.lineTo(W / 2 - 4, hz); g.moveTo(W / 2 + 4, hz); g.lineTo(W / 2 + 12, hz); g.moveTo(W / 2, hz - 12); g.lineTo(W / 2, hz - 4); g.moveTo(W / 2, hz + 4); g.lineTo(W / 2, hz + 12); g.stroke();
       // mini xarita
       const ms = 5; g.globalAlpha = 0.75; for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { g.fillStyle = MAP[y][x] === '#' ? '#1F2937' : '#E5E7EB'; g.fillRect(8 + x * ms, 8 + y * ms, ms, ms); }
@@ -788,7 +1028,7 @@
       if (msgT > 0) { msgT -= dt; text(g, msg, W / 2, hz - 60, 30, '#fff'); }
       if (kills === 0 && wave === 1 && !pad.on && msgT <= 0) text(g, tg('hint_strike'), W / 2, hz + 70, 14);
     });
-    return { stop, restart: reset, resize: fit };
+    return { stop: () => { stop(); ops.stop(); }, restart: reset, resize: fit };
   };
 
   // 13) Birga Futbol — 4x4 futbol (PES uslubida, yuqoridan ko'rinish)
@@ -1607,6 +1847,7 @@
     const { c, g, fit } = canvasIn(stage, null);
     const MAP = ['################', '#......#.......#', '#.##...#..###..#', '#.#.......#....#', '#.#..##...#.##.#', '#....#.........#', '###..#..####...#', '#.......#......#', '#..##...#..##..#', '#...#......#...#', '#...#..##..#...#', '#.......##.....#', '#.###......###.#', '#...#..#.......#', '#......#...#...#', '################'];
     const N = 16, wall = (x, y) => x < 0 || y < 0 || x >= N || y >= N || MAP[y | 0][x | 0] === '#';
+    const ops = strikeGL(stage, c, MAP); let lpx = 0, lpy = 0;
     const pad = padUI(stage, [{ id: 'fire', t: '🔫', cls: 'big' }, { id: 'reload', t: '🔄' }]);
     // n>2: hamma hammaga qarshi (FFA) — har kim o'z holatini hammaga yuboradi, tegish nishonga yuboriladi
     const NP = Math.max(2, ctx.n | 0), FFA = NP > 2, COL = ctx.col || ['#3B82F6', '#EF4444', '#22C55E', '#F59E0B'];
@@ -1715,10 +1956,10 @@
       ctx.turn(-1, FFA ? `❤️ ${Math.max(0, Math.round(P.hp))} · 🔫 ${reloadT > 0 ? '…' : ammo} · ${rt('kills')} ${frags[me]}/${WIN}` : `❤️ ${Math.max(0, Math.round(P.hp))} · 🔫 ${reloadT > 0 ? '…' : ammo} · ${rt('you')} ${frags[me]} : ${frags[1 - me]} ${rt('opp')}`);
       // ---- render ----
       const hz = H / 2; g.save(); if (hurt > 0) { const q = hurt * 22; g.translate((Math.random() - 0.5) * q, (Math.random() - 0.5) * q); }
-      let gr = g.createLinearGradient(0, 0, 0, hz); gr.addColorStop(0, '#0EA5E9'); gr.addColorStop(1, '#BAE6FD'); g.fillStyle = gr; g.fillRect(0, 0, W, hz);
-      gr = g.createLinearGradient(0, hz, 0, H); gr.addColorStop(0, '#A8A29E'); gr.addColorStop(1, '#44403C'); g.fillStyle = gr; g.fillRect(0, hz, W, hz);
+      if (!ops.ok) { let gr = g.createLinearGradient(0, 0, 0, hz); gr.addColorStop(0, '#0EA5E9'); gr.addColorStop(1, '#BAE6FD'); g.fillStyle = gr; g.fillRect(0, 0, W, hz);
+      gr = g.createLinearGradient(0, hz, 0, H); gr.addColorStop(0, '#A8A29E'); gr.addColorStop(1, '#44403C'); g.fillStyle = gr; g.fillRect(0, hz, W, hz); }
       const FOV = 1.05, cols = Math.ceil(W / 2), dirx = Math.cos(P.a), diry = Math.sin(P.a), plx = -diry * Math.tan(FOV / 2), ply = dirx * Math.tan(FOV / 2);
-      for (let i = 0; i < cols; i++) {
+      if (!ops.ok) for (let i = 0; i < cols; i++) {
         const cam = (2 * i) / cols - 1, rx = dirx + plx * cam, ry = diry + ply * cam;
         let mx = P.x | 0, my = P.y | 0; const ddx = Math.abs(1 / rx), ddy = Math.abs(1 / ry); let sxs, sys, sdx, sdy, side = 0;
         if (rx < 0) { sxs = -1; sdx = (P.x - mx) * ddx; } else { sxs = 1; sdx = (mx + 1 - P.x) * ddx; }
@@ -1733,10 +1974,20 @@
       }
       // raqib(lar) (oraliq holat bilan silliq); FFA: uzoqdan yaqinga, o'rin rangida
       const spr = [];
-      if (FFA) { for (const k in OS) { const s = +k, o = OS[s]; if (gone.has(s) || s === ctx.me || !o.cur || o.cur.dead) continue; const kk = o.prev ? Math.min(1, (performance.now() - o.T) / 50) : 1; spr.push({ x: o.prev ? o.prev.x + (o.cur.x - o.prev.x) * kk : o.cur.x, y: o.prev ? o.prev.y + (o.cur.y - o.prev.y) * kk : o.cur.y, hp: o.cur.hp, fl: o.fl > 0, col: COL[s], nm: ctx.names?.[s] || rt('opp') }); if (o.fl > 0) o.fl -= dt; } }
-      else if (O && !O.dead) { const kk = Oprev ? Math.min(1, (performance.now() - OT) / 50) : 1; spr.push({ x: Oprev ? Oprev.x + (O.x - Oprev.x) * kk : O.x, y: Oprev ? Oprev.y + (O.y - Oprev.y) * kk : O.y, hp: O.hp, fl: oFlash > 0, col: ctx.me === 0 ? '#DC2626' : '#2563EB', nm: ctx.names?.[1 - me] || rt('opp') }); }
+      if (FFA) { for (const k in OS) { const s = +k, o = OS[s]; if (gone.has(s) || s === ctx.me || !o.cur || o.cur.dead) continue; const kk = o.prev ? Math.min(1, (performance.now() - o.T) / 50) : 1; spr.push({ s, a: o.cur.a, x: o.prev ? o.prev.x + (o.cur.x - o.prev.x) * kk : o.cur.x, y: o.prev ? o.prev.y + (o.cur.y - o.prev.y) * kk : o.cur.y, hp: o.cur.hp, fl: o.fl > 0, col: COL[s], nm: ctx.names?.[s] || rt('opp') }); if (o.fl > 0) o.fl -= dt; } }
+      else if (O && !O.dead) { const kk = Oprev ? Math.min(1, (performance.now() - OT) / 50) : 1; spr.push({ s: 1 - me, a: O.a, x: Oprev ? Oprev.x + (O.x - Oprev.x) * kk : O.x, y: Oprev ? Oprev.y + (O.y - Oprev.y) * kk : O.y, hp: O.hp, fl: oFlash > 0, col: ctx.me === 0 ? '#DC2626' : '#2563EB', nm: ctx.names?.[1 - me] || rt('opp') }); }
       spr.sort((a, b) => Math.hypot(b.x - P.x, b.y - P.y) - Math.hypot(a.x - P.x, a.y - P.y));
-      for (const sp of spr) {
+      if (ops.ok) { // 3D: o'yinchilar modellar bilan; o'lganlar ham (yiqilish animatsiyasi uchun)
+        g.clearRect(-60, -60, W + 120, H + 120); const mv = Math.hypot(P.x - lpx, P.y - lpy) > 1e-4; lpx = P.x; lpy = P.y;
+        const acts = spr.map((q) => ({ key: q.s, team: q.s % 2, face: q.s, x: q.x, y: q.y, a: q.a, fire: q.fl }));
+        if (FFA) { for (const k in OS) { const o = OS[k]; if (+k !== ctx.me && !gone.has(+k) && o.cur?.dead) acts.push({ key: +k, team: +k % 2, face: +k, x: o.cur.x, y: o.cur.y, a: o.cur.a, dead: true }); } }
+        else if (O?.dead) acts.push({ key: 1 - me, team: (1 - me) % 2, face: 1 - me, x: O.x, y: O.y, a: O.a, dead: true });
+        ops.draw({ dt, x: P.x, y: P.y, a: P.a, moving: mv, fire: flash > 0, kick: fireT > 0, reload: reloadT > 0, hurt, dead: P.dead > 0, actors: acts });
+        for (const sp of spr) { const q = los(P.x, P.y, sp.x, sp.y) && ops.proj(sp.x, sp.y, OPS_H + 0.14); if (!q) continue;
+          const d = Math.hypot(sp.x - P.x, sp.y - P.y), bw = Math.max(30, Math.min(70, 90 / Math.max(0.5, d))); g.fillStyle = 'rgba(0,0,0,.5)'; g.fillRect(q[0] - bw / 2, q[1] - 4, bw, 5); g.fillStyle = '#22C55E'; g.fillRect(q[0] - bw / 2, q[1] - 4, bw * Math.max(0, sp.hp) / 100, 5);
+          text(g, sp.nm, q[0], q[1] - 14, 12, FFA ? sp.col : undefined); }
+      }
+      if (!ops.ok) for (const sp of spr) {
         const dx = sp.x - P.x, dy = sp.y - P.y; const inv = 1 / (plx * diry - dirx * ply), tx = inv * (diry * dx - dirx * dy), ty = inv * (-ply * dx + plx * dy);
         if (ty > 0.2) {
           const scx = (W / 2) * (1 + tx / ty), sh = H / ty, col = Math.floor(scx / 2);
@@ -1755,9 +2006,11 @@
       if (oFlash > 0) oFlash -= dt;
       for (let i = SPK.length - 1; i >= 0; i--) { const q = SPK[i]; q.t -= dt; if (q.t <= 0) { SPK.splice(i, 1); continue; } q.x += q.vx * dt; q.y += q.vy * dt; g.globalAlpha = Math.min(1, q.t * 4); g.fillStyle = q.col; g.fillRect(W / 2 + q.x - 2, hz + q.y - 2, 4, 4); } g.globalAlpha = 1;
       const bob = Math.sin(performance.now() / 120) * (Math.abs(pad.x) + Math.abs(pad.y) > 0.1 ? 4 : 0.8), kick = fireT > 0 ? 8 : 0, gx = W * 0.62, gy = H - 10 + bob + kick;
+      if (ops.ok) { if (flash > 0) { flash -= dt; g.fillStyle = 'rgba(253,224,71,.08)'; g.fillRect(0, 0, W, H); } } else {
       g.fillStyle = '#1F2937'; g.beginPath(); g.moveTo(gx - 30, gy); g.lineTo(gx - 8, gy - 120); g.lineTo(gx + 14, gy - 120); g.lineTo(gx + 40, gy); g.fill();
       g.fillStyle = '#4B5563'; g.fillRect(gx - 4, gy - 150, 14, 40); g.fillStyle = '#92400E'; g.beginPath(); g.moveTo(gx + 10, gy); g.lineTo(gx + 26, gy - 60); g.lineTo(gx + 50, gy - 50); g.lineTo(gx + 46, gy); g.fill();
       if (flash > 0) { flash -= dt; g.fillStyle = 'rgba(253,224,71,.12)'; g.fillRect(0, 0, W, H); g.fillStyle = '#FDE047'; g.beginPath(); g.arc(gx + 3, gy - 158, 18, 0, 7); g.fill(); g.fillStyle = '#FFF'; g.beginPath(); g.arc(gx + 3, gy - 158, 8, 0, 7); g.fill(); }
+      }
       g.restore();
       g.strokeStyle = hitMk > 0 ? '#EF4444' : '#22C55E'; g.lineWidth = 2; g.beginPath(); g.moveTo(W / 2 - 12, hz); g.lineTo(W / 2 - 4, hz); g.moveTo(W / 2 + 4, hz); g.lineTo(W / 2 + 12, hz); g.moveTo(W / 2, hz - 12); g.lineTo(W / 2, hz - 4); g.moveTo(W / 2, hz + 4); g.lineTo(W / 2, hz + 12); g.stroke();
       if (hitMk > 0) { hitMk -= dt; g.beginPath(); g.moveTo(W / 2 - 9, hz - 9); g.lineTo(W / 2 - 4, hz - 4); g.moveTo(W / 2 + 9, hz - 9); g.lineTo(W / 2 + 4, hz - 4); g.moveTo(W / 2 - 9, hz + 9); g.lineTo(W / 2 - 4, hz + 4); g.moveTo(W / 2 + 9, hz + 9); g.lineTo(W / 2 + 4, hz + 4); g.stroke(); }
@@ -1774,7 +2027,7 @@
       if (msgT > 0) { msgT -= dt; text(g, msg, W / 2, hz - 60, 26); }
       if (link.lost() && !over) text(g, rt('lost'), W / 2, H * 0.72, 15, '#FCA5A5');
     });
-    return { apply: () => false, rt: (s, d) => link.recv(d, s), stop, resize: fit, quit: (s) => { gone.add(s); delete OS[s]; } };
+    return { apply: () => false, rt: (s, d) => link.recv(d, s), stop: () => { stop(); ops.stop(); }, resize: fit, quit: (s) => { gone.add(s); delete OS[s]; } };
   };
 
 
@@ -5487,7 +5740,9 @@
   }
   // ================= v43: haqiqiy 3D (Three.js / WebGL): yorug'lik, soyalar, 3D personajlar va qurollar =================
   let OPS3P = null;
-  const loadThree = () => OPS3P || (OPS3P = (window.THREE ? Promise.resolve(window.THREE) : loadScript('https://unpkg.com/three@0.149.0/build/three.min.js').then(() => window.THREE || null)).catch(() => { OPS3P = null; return null; }));
+  // three r149: avval o'zimizdagi /ops/three-ops.min.js (GLTFLoader bilan — askar modellari uchun), bo'lmasa unpkg
+  const loadThree = () => OPS3P || (OPS3P = (window.THREE ? Promise.resolve(window.THREE) : loadScript(OPSA + 'three-ops.min.js').then(() => window.THREE || Promise.reject(new Error('three')))
+    .catch(() => loadScript('https://unpkg.com/three@0.149.0/build/three.min.js').then(() => window.THREE || null))).catch(() => { OPS3P = null; return null; }));
   const u32rgb = (c) => ((c & 255) << 16) | (((c >> 8) & 255) << 8) | ((c >> 16) & 255);
   function opsGL(T, cv, Mp) {
     let R; try { R = new T.WebGLRenderer({ canvas: cv, antialias: true, powerPreference: 'high-performance' }); if (!R.getContext()) return null; } catch { return null; }
@@ -5597,9 +5852,18 @@
       return { g: g0, root, lL, lR, aL, aR, head, gun, gunId: null, fl, dT: 0 };
     }
     let fTex = null; const flashTexGL = () => fTex || (fTex = (() => { const cnv = document.createElement('canvas'); cnv.width = cnv.height = 64; const g2 = cnv.getContext('2d'); const rg = g2.createRadialGradient(32, 32, 2, 32, 32, 32); rg.addColorStop(0, 'rgba(255,255,240,1)'); rg.addColorStop(0.3, 'rgba(255,200,90,.9)'); rg.addColorStop(1, 'rgba(255,120,20,0)'); g2.fillStyle = rg; g2.beginPath(); for (let i = 0; i < 16; i++) { const a = (i / 16) * Math.PI * 2, r = i % 2 ? 12 : 32; g2.lineTo(32 + Math.cos(a) * r, 32 + Math.sin(a) * r); } g2.fill(); return new T.CanvasTexture(cnv); })());
+    // GLTF askarlar (public/ops): yuklansa mkChar o'rniga animatsiyali model; yuz — o'yinchi avatari yoki ops/faces
+    let GLB = null; opsAssets().then((lib) => { if (lib.T === T) GLB = lib; }).catch(() => {});
+    const GFACE = new Map(), glbChar = (e, img) => {
+      const C = OPS_C.find((x) => x.id === e.ch) || OPS_C[0];
+      let face = null; if (img) { face = GFACE.get(img); if (!face) { try { face = GLB.faceOf(img); } catch {} if (face) GFACE.set(img, face); } }
+      if (!face && GLB.FACE.length) face = GLB.FACE[(e.s | 0) % GLB.FACE.length];
+      const S = glbSoldier(GLB, C.L, face, 0.74);
+      const fl = new T.Sprite(new T.SpriteMaterial({ map: flashTexGL(), color: 0xffd27a, blending: T.AdditiveBlending, depthWrite: false, transparent: true })); fl.scale.set(0.16, 0.16, 1); fl.visible = false; S3.add(fl);
+      return { g: S.g, glb: S, gun: S.gun, gunId: null, fl, dT: 0 }; };
     const CHS = new Map(); const imgs = {};
-    const charFor = (e) => { const key = e.ch + '|' + (e.url || ''); let o = CHS.get(e.s); if (o && o.key === key) return o; if (o) { S3.remove(o.c.g); S3.remove(o.c.fl); }
-      const c = mkChar(e.ch, e.url ? imgs[e.url] : null); o = { key, c }; CHS.set(e.s, o); S3.add(c.g);
+    const charFor = (e) => { const key = e.ch + '|' + (e.url || '') + (GLB ? '|g' : ''); let o = CHS.get(e.s); if (o && o.key === key) return o; if (o) { S3.remove(o.c.g); S3.remove(o.c.fl); o.c.glb?.dispose(); }
+      const img = e.url ? imgs[e.url] : null, c = GLB ? glbChar(e, img) : mkChar(e.ch, img); o = { key, c }; CHS.set(e.s, o); S3.add(c.g);
       if (e.url && !imgs[e.url]) { const im = OPSK.img[e.url] || (OPSK.img[e.url] = new Promise((res) => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => res(i); i.onerror = () => res(null); i.src = e.url; })); im.then((i) => { if (i) { imgs[e.url] = i; const cur = CHS.get(e.s); if (cur && cur.key === key) { S3.remove(cur.c.g); S3.remove(cur.c.fl); CHS.delete(e.s); } } }); }
       return o; };
     // dori qutilari
@@ -5631,6 +5895,11 @@
       flashL.intensity = st.flash > 0 ? 2.2 : 0; flashL.position.set(st.x + Math.cos(st.a) * 0.4, st.eye - 0.05, st.y + Math.sin(st.a) * 0.4);
       const seen = new Set();
       for (const e of st.ents) { if (e.me) continue; seen.add(e.s); const { c } = charFor(e); const g0 = c.g; g0.visible = true; g0.position.set(e.x, 0, e.y); g0.rotation.y = -e.a - Math.PI / 2;
+        if (c.glb) { // animatsiyali askar: idle / run / shoot / death
+          if (c.gunId !== e.w && OW[e.w]) { c.gun.clear(); c.gun.add(gunModel(OW[e.w], 0.62)); c.gunId = e.w; }
+          c.glb.tick({ x: e.x, y: e.y, dead: !!e.dead, fire: e.fl > 0, mv: e.mv }, st.dt);
+          const sh = e.fl > 0 && !e.dead; c.fl.visible = sh; if (sh) { const tp = new T.Vector3(0, 0, -0.3); c.gun.localToWorld(tp); c.fl.position.copy(tp); c.fl.material.rotation = Math.random() * 3; }
+          continue; }
         if (c.gunId !== e.w && OW[e.w]) { c.gun.clear(); c.gun.add(gunModel(OW[e.w], 0.62)); c.gunId = e.w; }
         if (e.dead) { c.dT = Math.min(1, c.dT + st.dt * 3); c.root.rotation.x = c.dT * 1.45; c.root.position.y = 0.02 * c.dT; c.fl.visible = false; }
         else { c.dT = 0; c.root.rotation.x = 0; const ph = st.T0 * 9 + e.s; const sw = e.mv ? Math.sin(ph) * 0.65 : 0; c.lL.rotation.x = sw; c.lR.rotation.x = -sw; c.root.position.y = e.mv ? Math.abs(Math.cos(ph)) * 0.012 : Math.sin(st.T0 * 2 + e.s) * 0.002; c.head.rotation.x = 0;

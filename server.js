@@ -180,6 +180,9 @@ else {
     res.sendFile(path.join(__dirname, FLAT[req.path]), { headers: req.path === '/sw.js' ? { 'Cache-Control': 'no-cache' } : {} });
   });
 }
+// Birga Strike 3D assetlari (modellar, teksturalar, osmon, three.js): public/ops/
+const OPS_DIR = path.join(__dirname, 'public', 'ops');
+if (!PUBLIC_DIR && fs.existsSync(OPS_DIR)) app.use('/ops', express.static(OPS_DIR, { maxAge: '7d' }));
 // 30 til: qo'shimcha tillar tarjimasi bitta faylda (i18n-all.json) — /i18n/<til>.json sifatida beriladi
 let I18N_ALL = null;
 for (const k of ['privacy', 'terms']) app.get('/' + k, (req, res) => res.redirect(301, '/' + k + '.html'));

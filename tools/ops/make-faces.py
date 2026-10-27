@@ -7,7 +7,7 @@ import numpy as np
 from PIL import Image, ImageFilter
 
 # (chap, tepa, o'ng, past) — qosh ustidan iyakkacha, quloqdan quloqqacha
-BOXES = [(50, 682, 148, 790), (254, 668, 347, 768), (461, 652, 549, 750), (744, 654, 842, 752)]
+BOXES = [(57, 682, 155, 790), (254, 668, 347, 768), (465, 652, 553, 750), (744, 654, 842, 752)]
 W, H = 256, 288
 SKIN = np.array([184, 138, 108], np.float32)  # maqsad: tabiiy bug'doyrang teri
 

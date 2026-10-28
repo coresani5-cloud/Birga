@@ -130,7 +130,7 @@ async function cloudflareIce() {
 }
 
 // Kontent xavfsizlik siyosati (XSS bo'lsa ham begona skript ishlamaydi)
-const CSP_HEADER = ["default-src 'self'", "script-src 'self' https://unpkg.com", "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com",
+const CSP_HEADER = ["default-src 'self'", "script-src 'self' 'wasm-unsafe-eval' https://unpkg.com https://cdn.jsdelivr.net", "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com",
   "font-src 'self' data: https://fonts.gstatic.com", "img-src 'self' data: blob: https:", "media-src 'self' data: blob: https:", "connect-src 'self' https: wss: blob: data:",
   "frame-src 'self' https://www.instagram.com https://www.youtube.com https://www.youtube-nocookie.com https://www.openstreetmap.org", "worker-src 'self' blob:", "child-src 'self' blob:",
   "object-src 'none'", "base-uri 'none'", "form-action 'self'", "frame-ancestors 'self'"].join('; ');
@@ -180,9 +180,6 @@ else {
     res.sendFile(path.join(__dirname, FLAT[req.path]), { headers: req.path === '/sw.js' ? { 'Cache-Control': 'no-cache' } : {} });
   });
 }
-// Birga Strike 3D assetlari (modellar, teksturalar, osmon, three.js): public/ops/
-const OPS_DIR = path.join(__dirname, 'public', 'ops');
-if (!PUBLIC_DIR && fs.existsSync(OPS_DIR)) app.use('/ops', express.static(OPS_DIR, { maxAge: '7d' }));
 // 30 til: qo'shimcha tillar tarjimasi bitta faylda (i18n-all.json) — /i18n/<til>.json sifatida beriladi
 let I18N_ALL = null;
 for (const k of ['privacy', 'terms']) app.get('/' + k, (req, res) => res.redirect(301, '/' + k + '.html'));

@@ -8,6 +8,8 @@ const KEYS = [
   ['GEMINI_API_KEY', true],
   ['AISHA_API_KEY', true],
   ['AISHA_VOICE_ID', false],
+  ['ELEVENLABS_API_KEY', true],
+  ['ELEVENLABS_VOICE_ID', false],
   ['MUXLISA_API_KEY', true],
   ['AZURE_SPEECH_KEY', true],
   ['AZURE_SPEECH_REGION', false],

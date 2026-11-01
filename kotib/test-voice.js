@@ -12,6 +12,7 @@ const base = `http://localhost:${PORT}`;
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kotib-voice-'));
 const spoken = [];
 const twilioHooks = {};
+const cloned = [];
 const wav = Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(3000)]);
 
 const mock = http.createServer((req, res) => {
@@ -24,6 +25,11 @@ const mock = http.createServer((req, res) => {
       if (req.method === 'GET') return res.end(JSON.stringify({ incoming_phone_numbers: [{ sid: 'PN' + 'a'.repeat(32), phone_number: '+15551234567', friendly_name: 'Mening raqamim', voice_url: twilioHooks.voice || '', capabilities: { sms: true } }] }));
       const f = new URLSearchParams(body); Object.assign(twilioHooks, { voice: f.get('VoiceUrl'), status: f.get('StatusCallback'), sms: f.get('SmsUrl') });
       return res.end(JSON.stringify({ sid: 'PN' + 'a'.repeat(32), phone_number: '+15551234567' }));
+    }
+    if (req.url.startsWith('/v1/')) {
+      if (req.headers['xi-api-key'] !== 'el-key') { res.writeHead(401); return res.end('{}'); }
+      if (req.url === '/v1/voices/add') { cloned.push(body.length); res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ voice_id: 'VOICE_ME' })); }
+      if (req.url.startsWith('/v1/text-to-speech/VOICE_ME')) { spoken.push('ELEVEN:' + JSON.parse(body).text); res.writeHead(200, { 'Content-Type': 'audio/mpeg' }); return res.end(Buffer.alloc(2000, 1)); }
     }
     if (req.headers['x-api-key'] !== 'test-key' && !req.url.startsWith('/rec/') && !req.url.startsWith('/media/')) { res.writeHead(401); return res.end('{}'); }
     if (req.url === '/api/v1/tts/post/') {
@@ -41,7 +47,7 @@ const mock = http.createServer((req, res) => {
   });
 }).listen(MOCK);
 
-const env = { ...process.env, PORT: String(PORT), DATA_DIR: dir, DATABASE_URL: '', GEMINI_API_KEY: '', GROQ_API_KEY: '', AI_API_URL: '', TWILIO_AUTH_TOKEN: '', TWILIO_ACCOUNT_SID: '', ADMIN_PASSWORD: 'parol123', AISHA_API_KEY: '', PUBLIC_URL: '', AISHA_BASE: `http://localhost:${MOCK}`, TWILIO_API_BASE: `http://localhost:${MOCK}`, TWILIO_FROM: '' };
+const env = { ...process.env, PORT: String(PORT), DATA_DIR: dir, DATABASE_URL: '', GEMINI_API_KEY: '', GROQ_API_KEY: '', AI_API_URL: '', TWILIO_AUTH_TOKEN: '', TWILIO_ACCOUNT_SID: '', ADMIN_PASSWORD: 'parol123', AISHA_API_KEY: '', PUBLIC_URL: '', AISHA_BASE: `http://localhost:${MOCK}`, TWILIO_API_BASE: `http://localhost:${MOCK}`, ELEVENLABS_BASE: `http://localhost:${MOCK}`, ELEVENLABS_API_KEY: '', ELEVENLABS_VOICE_ID: '', TWILIO_FROM: '' };
 const srv = spawn(process.execPath, [path.join(__dirname, 'server.js')], { env, stdio: ['ignore', 'pipe', 'inherit'] });
 let token = '';
 async function j(url, body, method) {
@@ -104,6 +110,24 @@ async function main() {
   assert.equal(Buffer.from(await m.arrayBuffer()).length, wav.length);
   assert.equal((await j('/api/media/greeting', null, 'DELETE')).status, 200);
   assert.equal((await fetch(base + '/media/greeting')).status, 404);
+
+  // Egasining ovozini klonlash (ElevenLabs)
+  const sample = Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(120000)]).toString('base64');
+  assert.equal((await j('/api/voice/clone', { data: sample, seconds: 60 })).status, 400); // rozilik yo'q
+  assert.match((await j('/api/voice/clone', { data: sample, seconds: 60, consent: true })).data.error, /ElevenLabs/); // kalit yo'q
+  await j('/api/connections', { ELEVENLABS_API_KEY: 'el-key' }, 'PUT');
+  const cl = await j('/api/voice/clone', { data: sample, seconds: 60, consent: true });
+  assert.equal(cl.status, 200, JSON.stringify(cl.data));
+  assert.equal(cl.data.voice.tts, 'elevenlabs');
+  assert.equal(cl.data.voice.cloned, true);
+  assert.ok(cloned[0] > 100000, 'namuna yuborilishi kerak');
+  spoken.length = 0;
+  const et = (await j('/api/voice/test', { text: 'Soat 10:00 da kutamiz' })).data;
+  assert.ok(spoken.includes("ELEVEN:Soat o'nda kutamiz"), spoken.join('|'));
+  assert.match(et.url, /\.mp3$/);
+  assert.equal((await fetch(base + et.url)).status, 200);
+  await j('/api/voice/clone', null, 'DELETE');
+  assert.equal((await j('/api/connections')).data.voice.tts, 'aisha');
 
   // Kotib raqami: Twilio raqamini ilovadan avtomatik ulash
   assert.equal((await j('/api/phone/numbers')).status, 400); // kalit yo'q

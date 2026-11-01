@@ -545,6 +545,8 @@ const KEY_INFO = {
   GEMINI_API_KEY: ['Gemini AI kaliti', 'Tabiiy suhbat uchun. Bepul: aistudio.google.com/apikey'],
   AISHA_API_KEY: ['Aisha kaliti', "O'zbekcha ovoz va nutqni tanish. space.aisha.group"],
   AISHA_VOICE_ID: ["Aisha: o'z ovozingiz ID", "Aisha'da klonlangan ovozingiz raqami — kotib shu ovozda gapiradi"],
+  ELEVENLABS_API_KEY: ['ElevenLabs kaliti', "Ovozingizni klonlash uchun (elevenlabs.io → API Keys)"],
+  ELEVENLABS_VOICE_ID: ['ElevenLabs ovoz ID', "Ovozni klonlaganingizda o'zi to'ldiriladi"],
   MUXLISA_API_KEY: ['Muxlisa kaliti', "Zaxira o'zbekcha ovoz va nutqni tanish (muxlisa.uz)"],
   AZURE_SPEECH_KEY: ['Azure Speech kaliti', "Zaxira o'zbekcha ovoz (Madina)"],
   AZURE_SPEECH_REGION: ['Azure mintaqasi', 'Masalan: westeurope'],
@@ -565,13 +567,16 @@ async function loadConnections() {
 }
 function renderVoice() {
   const v = conn.voice, g = conn.greeting;
-  const names = { aisha: 'Aisha', muxlisa: 'Muxlisa', azure: 'Microsoft Azure' };
+  const names = { elevenlabs: 'ElevenLabs', aisha: 'Aisha', muxlisa: 'Muxlisa', azure: 'Microsoft Azure' };
   $('#v-status').innerHTML = [
     v.tts ? `<div>✅ O'zbekcha ovoz: <b>${names[v.tts]}</b>${v.cloned ? " — sizning klonlangan ovozingiz" : ''}</div>` : `<div>⚠️ O'zbekcha ovoz ulanmagan<div class="muted small">Hozir o'zbekcha javoblarni turkcha ovoz o'qiydi. Pastdagi "Ulanishlar"ga Aisha kalitini kiriting.</div></div>`,
     v.stt ? `<div>✅ O'zbekcha nutqni tanish: <b>${names[v.stt]}</b></div>` : `<div>⚠️ Nutqni tanish: Twilio (oddiy)<div class="muted small">Aniqroq tanish uchun Aisha yoki Muxlisa kalitini kiriting.</div></div>`,
   ].join('');
   $('#g-current').textContent = g ? `Yozuv o'rnatilgan${g.seconds ? ` (${g.seconds} soniya)` : ''} · ${new Date(g.at).toLocaleDateString('ru-RU')}` : "Yozuv yo'q — kotib salomlashish matnini o'zi o'qiydi.";
   $('#g-del').classList.toggle('hidden', !g);
+  const c = conn.clone;
+  $('#c-current').innerHTML = v.tts === 'elevenlabs' ? `✅ Kotib sizning ovozingizda gapiryapti${c?.seconds ? ` (namuna ${c.seconds} soniya)` : ''}. Yuqoridagi "▶ Ovozni eshitish" bilan sinab ko'ring.` : v.eleven ? "Ovoz hali klonlanmagan." : "⚠️ Avval \"Ulanishlar\"ga ElevenLabs kalitini kiriting.";
+  $('#c-del').classList.toggle('hidden', v.tts !== 'elevenlabs');
   $('#g-audio').classList.toggle('hidden', !g);
   if (g) $('#g-audio').src = '/media/greeting?v=' + g.at;
 }
@@ -591,11 +596,11 @@ $('#v-test').onclick = async () => {
 };
 
 // Har qanday audio (m4a, ogg, webm, mp3...) → telefon uchun WAV (mono, 16 kHz). Brauzerning o'zida.
-async function toWav(blob) {
+async function toWav(blob, rate = 16000) {
   const ctx = new (window.AudioContext || window.webkitAudioContext)();
   const src = await ctx.decodeAudioData(await blob.arrayBuffer());
   ctx.close?.();
-  const rate = 16000, len = Math.ceil(src.duration * rate);
+  const len = Math.ceil(src.duration * rate);
   const off = new OfflineAudioContext(1, len, rate);
   const node = off.createBufferSource(); node.buffer = src; node.connect(off.destination); node.start();
   const pcm = (await off.startRendering()).getChannelData(0);
@@ -633,6 +638,38 @@ $('#g-rec').onclick = async () => {
     toast('Yozilmoqda… gapiring');
   } catch { toast('Mikrofonga ruxsat berilmadi'); }
 };
+// Ovozni klonlash
+async function uploadClone(blob) {
+  if (!$('#c-consent').checked) { toast("Avval bu o'z ovozingiz ekanini belgilang"); return; }
+  try {
+    toast('Tayyorlanmoqda…');
+    const { blob: wav, seconds } = await toWav(blob, 22050);
+    if (seconds < 30) throw new Error('Kamida 30 soniya gapiring (yaxshisi 1–2 daqiqa)');
+    if (seconds > 180) throw new Error('3 daqiqadan oshmasin');
+    const b64 = await new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.onerror = no; r.readAsDataURL(wav); });
+    toast('Ovoz klonlanmoqda… (1 daqiqagacha)');
+    await api('/api/voice/clone', { method: 'POST', body: { data: b64, seconds, consent: true } });
+    settings = await api('/api/settings'); await loadConnections();
+    toast('✅ Tayyor! Endi kotib sizning ovozingizda gapiradi');
+  } catch (e) { toast(e.message || "Audio faylni o'qib bo'lmadi"); }
+}
+$('#c-file').onchange = (e) => { const f = e.target.files[0]; if (f) uploadClone(f); e.target.value = ''; };
+let cloneRec = null;
+$('#c-rec').onclick = async () => {
+  if (cloneRec) { cloneRec.stop(); return; }
+  if (!$('#c-consent').checked) { toast("Avval bu o'z ovozingiz ekanini belgilang"); return; }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: true } });
+    const chunks = []; const t0 = Date.now();
+    cloneRec = new MediaRecorder(stream);
+    cloneRec.ondataavailable = (e) => chunks.push(e.data);
+    const tick = setInterval(() => { $('#c-rec').textContent = `⏹ To‘xtatish (${Math.round((Date.now() - t0) / 1000)} s)`; }, 500);
+    cloneRec.onstop = () => { clearInterval(tick); stream.getTracks().forEach((t) => t.stop()); cloneRec = null; $('#c-rec').textContent = '🎙 Ovozimni yozish'; uploadClone(new Blob(chunks, { type: chunks[0]?.type || 'audio/webm' })); };
+    cloneRec.start();
+    toast('Yozilmoqda… 1–2 daqiqa gapiring');
+  } catch { toast('Mikrofonga ruxsat berilmadi'); }
+};
+$('#c-del').onclick = async () => { if (!confirm("Klonlangan ovozni o'chirasizmi? Kotib oddiy ovozga qaytadi.")) return; await api('/api/voice/clone', { method: 'DELETE' }); await loadConnections(); toast("O'chirildi"); };
 $('#g-del').onclick = async () => { if (!confirm("Salomlashish yozuvini o'chirasizmi?")) return; await api('/api/media/greeting', { method: 'DELETE' }); await loadConnections(); toast("O'chirildi"); };
 
 // ---------- Kotib raqami ----------

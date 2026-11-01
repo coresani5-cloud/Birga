@@ -14,7 +14,7 @@ const CFG = require('./config');
 
 const app = express();
 app.set('trust proxy', true);
-app.use((req, res, next) => (req.path === '/api/media/greeting' ? next() : express.json({ limit: '1mb' })(req, res, next)));
+app.use((req, res, next) => (req.path === '/api/media/greeting' || req.path === '/api/voice/clone' ? next() : express.json({ limit: '1mb' })(req, res, next)));
 app.use(express.urlencoded({ extended: false }));
 
 const st = () => store.get();
@@ -593,7 +593,7 @@ app.post('/api/phone/connect', auth, wrap(async (req, res) => {
 }));
 
 // ---------- Ulanishlar va ovoz sozlamalari (egasi uchun) ----------
-app.get('/api/connections', auth, (req, res) => res.json({ keys: CFG.view(), voice: V.status(), greeting: st().media?.greeting || null }));
+app.get('/api/connections', auth, (req, res) => res.json({ keys: CFG.view(), voice: V.status(), greeting: st().media?.greeting || null, clone: st().media?.clone || null }));
 app.put('/api/connections', auth, (req, res) => {
   CFG.set(req.body || {});
   prewarm();
@@ -608,6 +608,26 @@ app.post('/api/voice/test', auth, wrap(async (req, res) => {
   if (!name) return res.status(502).json({ error: "Ovoz yaratib bo'lmadi — kalit va balansni tekshiring (server jurnalida batafsil)" });
   res.json({ url: '/tts/' + name, spoken: V.uzSpeech(text) });
 }));
+// Egasining ovozini klonlash: namuna (1–3 daqiqa) ElevenLabs'ga yuboriladi, kotib shu ovozda gapiradi
+app.post('/api/voice/clone', auth, express.json({ limit: '16mb' }), wrap(async (req, res) => {
+  if (!req.body.consent) return res.status(400).json({ error: 'Bu sizning o‘z ovozingiz ekanini tasdiqlang' });
+  const buf = Buffer.from(String(req.body.data || ''), 'base64');
+  if (buf.length < 50000) return res.status(400).json({ error: 'Namuna juda qisqa — kamida 30 soniya gapiring (yaxshisi 1–2 daqiqa)' });
+  try {
+    const id = await V.cloneVoice(buf, `${st().business.name} — kotib`);
+    CFG.set({ ELEVENLABS_VOICE_ID: id });
+    st().media = { ...(st().media || {}), clone: { at: Date.now(), seconds: Number(req.body.seconds) || null } };
+    store.save();
+    prewarm();
+    res.json({ ok: true, voice: V.status() });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+}));
+app.delete('/api/voice/clone', auth, (req, res) => {
+  CFG.set({ ELEVENLABS_VOICE_ID: '' });
+  if (st().media) delete st().media.clone;
+  store.save();
+  res.json({ ok: true, voice: V.status() });
+});
 // Egasining o'z ovozidagi salomlashish (ilovada WAV'ga aylantirilib yuboriladi)
 app.post('/api/media/greeting', auth, express.json({ limit: '12mb' }), wrap(async (req, res) => {
   const type = String(req.body.type || '');

@@ -219,6 +219,15 @@
           <label>Sinash uchun matn<textarea id="v-text" rows="2">Assalomu alaykum! Ertaga soat 14:30 da bo'sh vaqt bor. Narxi 250 000 so'm.</textarea></label>
           <div class="btn-row"><button class="btn small" id="v-test">▶ Ovozni eshitish</button></div>
           <audio id="v-audio" controls class="hidden" style="width:100%;margin-top:10px"></audio>
+          <div class="group" style="margin-left:0">Kotib mening ovozimda gapirsin</div>
+          <p class="muted small" style="margin-top:4px">1–2 daqiqa sof o'zbek tilida, shovqinsiz joyda, oddiy suhbatdagidek gapiring (masalan, biznesingiz haqida gapirib bering). Ilova ovozingizni klonlaydi va kotib hamma javoblarni shu ovozda aytadi. Kerak: "Ulanishlar"da ElevenLabs kaliti (klonlash pullik rejada, ~5$/oy).</p>
+          <div id="c-current" class="muted small"></div>
+          <label class="check" style="margin:8px 0"><input type="checkbox" id="c-consent"> Bu mening o'z ovozim (yoki egasining yozma roziligi bor)</label>
+          <div class="btn-row">
+            <button class="btn small" id="c-rec">🎙 Ovozimni yozish</button>
+            <label class="btn small ghost" style="margin:0;color:var(--text)">📁 Fayl tanlash<input type="file" id="c-file" accept="audio/*" class="hidden"></label>
+            <button class="btn small danger hidden" id="c-del">Klonni o'chirish</button>
+          </div>
           <div class="group" style="margin-left:0">Salomlashish — o'z ovozingizda</div>
           <p class="muted small" style="margin-top:4px">Qo'ng'iroq boshida kotib ovozi o'rniga sizning yozuvingiz eshittiriladi. Masalan: <i>"Assalomu alaykum, Nilufar go'zallik saloniga xush kelibsiz! Savolingizni ayting."</i></p>
           <div id="g-current" class="muted small"></div>

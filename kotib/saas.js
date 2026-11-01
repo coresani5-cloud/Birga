@@ -103,7 +103,7 @@ function mount(app, { C, onTenantCreated }) {
     const p = P();
     const id = 'b' + (p.seq = (p.seq || 1) + 1).toString(36) + crypto.randomBytes(3).toString('hex');
     const salt = crypto.randomBytes(8).toString('hex');
-    p.tenants[id] = { id, name, phone: '+' + phone, hash: hashPass(pass, salt), salt, createdAt: Date.now(), lastLogin: Date.now(), trialUntil: Date.now() + (Number(p.trialDays) || 14) * DAY, paidUntil: 0, plan: '', blocked: false, kotibNumber: '' };
+    p.tenants[id] = { id, name, phone: '+' + phone, hash: hashPass(pass, salt), salt, createdAt: Date.now(), lastLogin: Date.now(), trialUntil: Date.now() + (Number(p.trialDays) || 7) * DAY, paidUntil: 0, plan: '', blocked: false, kotibNumber: '' };
     store.savePlatform();
     const doc = store.createTenant(id);
     doc.business.name = name;

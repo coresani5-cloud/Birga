@@ -70,7 +70,7 @@ async function main() {
   // Sinov davri
   let bill = (await j('/api/billing', null, 'GET', B.token)).data;
   assert.equal(bill.status.state, 'trial');
-  assert.equal(bill.status.daysLeft, 14);
+  assert.equal(bill.status.daysLeft, 7);
 
   // Admin: parolsiz kirib bo'lmaydi, biznes tokeni admin emas
   assert.equal((await j('/api/admin/tenants')).status, 401);

@@ -68,7 +68,7 @@ function platformDefaults() {
       { id: 'oy', name: 'Oylik', price: 299000, days: 30 },
       { id: 'yil', name: 'Yillik (2 oy bepul)', price: 2990000, days: 365 },
     ],
-    trialDays: 14,
+    trialDays: 7,
     payInfo: "To'lov uchun karta: 8600 0000 0000 0000 (Ism Familiya). To'lagach \"To'lov qildim\" tugmasini bosing — 1 soat ichida faollashtiramiz.",
     payments: [],
     secrets: {},

@@ -1,5 +1,6 @@
 // Kotib — biznes mantiqi: mijozlar, uchrashuvlar, zakazlar, vazifalar, xabarnomalar, eslatmalar, kunlik hisobot.
 const store = require('./store');
+const { env } = require('./config');
 const S = require('./slots');
 
 const st = () => store.get();
@@ -151,12 +152,12 @@ function createTask({ type, phone, name, reason, conversationId }) {
 // ---------- Xabarnomalar ----------
 const SRC = { call: "qo'ng'iroq", telegram: 'Telegram', sms: 'SMS', whatsapp: 'WhatsApp', web: 'sayt', test: 'sinov', manual: "qo'lda" };
 const esc = (s) => String(s ?? '').replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
-const tgChat = () => process.env.TG_CHAT_ID || st().business.tgChatId;
-const tgOn = () => !!(process.env.TG_BOT_TOKEN && tgChat());
+const tgChat = () => st().business.tgChatId;
+const tgOn = () => !!(env("TG_BOT_TOKEN") && tgChat());
 async function tg(text) {
   if (!tgOn()) return false;
   try {
-    const r = await fetch(`https://api.telegram.org/bot${process.env.TG_BOT_TOKEN}/sendMessage`, {
+    const r = await fetch(`https://api.telegram.org/bot${env("TG_BOT_TOKEN")}/sendMessage`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: tgChat(), text, parse_mode: 'HTML', disable_web_page_preview: true }), signal: AbortSignal.timeout(10000),
     });
@@ -164,14 +165,14 @@ async function tg(text) {
     return true;
   } catch (e) { console.error('Telegram:', e.message); return false; }
 }
-const smsOn = () => !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_FROM);
+const smsOn = () => !!(env("TWILIO_ACCOUNT_SID") && env("TWILIO_AUTH_TOKEN") && (st().business.kotibNumber || env("TWILIO_FROM")));
 async function sms(to, body) {
   if (!smsOn() || !to) return false;
-  const sid = process.env.TWILIO_ACCOUNT_SID;
+  const sid = env("TWILIO_ACCOUNT_SID");
   try {
     const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
-      method: 'POST', headers: { Authorization: 'Basic ' + Buffer.from(sid + ':' + process.env.TWILIO_AUTH_TOKEN).toString('base64'), 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ To: to, From: process.env.TWILIO_FROM, Body: body }), signal: AbortSignal.timeout(10000),
+      method: 'POST', headers: { Authorization: 'Basic ' + Buffer.from(sid + ':' + env("TWILIO_AUTH_TOKEN")).toString('base64'), 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ To: to, From: st().business.kotibNumber || env("TWILIO_FROM"), Body: body }), signal: AbortSignal.timeout(10000),
     });
     if (!r.ok) { console.error('SMS:', r.status, (await r.text()).slice(0, 200)); return false; }
     return true;
@@ -250,8 +251,12 @@ function tick() {
     tg(reportText(report(t.date)));
   }
 }
+// Har daqiqada barcha bizneslar uchun (har biri o'z kontekstida)
+function tickAll() {
+  for (const id of store.tenantIds()) store.run(id, () => { try { tick(); } catch (e) { console.error('Rejalashtiruvchi:', id, e.message); } });
+}
 function startScheduler() {
-  setInterval(() => { try { tick(); } catch (e) { console.error('Rejalashtiruvchi:', e); } }, 60e3).unref();
+  setInterval(tickAll, 60e3).unref();
 }
 
-module.exports = { setEmit, phoneKey, money, priceNum, localDate, customer, touchCustomer, customerHistory, createBooking, createOrder, setOrderStatus, findProduct, createTask, tg, tgOn, sms, smsOn, report, series, reportText, tick, startScheduler, SRC };
+module.exports = { setEmit, phoneKey, money, priceNum, localDate, customer, touchCustomer, customerHistory, createBooking, createOrder, setOrderStatus, findProduct, createTask, tg, tgOn, sms, smsOn, report, series, reportText, tick, tickAll, startScheduler, SRC };

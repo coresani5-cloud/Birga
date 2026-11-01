@@ -11,6 +11,7 @@ const A = require('./assistant');
 const C = require('./core');
 const V = require('./voice');
 const CFG = require('./config');
+const { env } = CFG;
 const TG = require('./telegram');
 
 const app = express();
@@ -21,80 +22,26 @@ app.use(express.urlencoded({ extended: false }));
 const st = () => store.get();
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
-// ---------- Kirish (biznes egasi) ----------
-const hashPass = (p, salt) => crypto.scryptSync(String(p), salt, 32).toString('hex');
-function secret() {
-  const a = st().admin;
-  if (process.env.SECRET) return process.env.SECRET;
-  if (!a.secret) { a.secret = crypto.randomBytes(32).toString('hex'); store.save(); }
-  return a.secret;
-}
-function makeToken() {
-  const body = `admin.${Date.now() + 180 * 864e5}.${st().admin.salt || 'env'}`;
-  return body + '.' + crypto.createHmac('sha256', secret()).update(body).digest('hex');
-}
-function validToken(tok) {
-  const p = String(tok || '').split('.');
-  if (p.length !== 4) return false;
-  const body = p.slice(0, 3).join('.');
-  const sig = crypto.createHmac('sha256', secret()).update(body).digest('hex');
-  if (sig.length !== p[3].length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(p[3]))) return false;
-  return Number(p[1]) > Date.now() && p[2] === (st().admin.salt || 'env');
-}
-function auth(req, res, next) {
-  const tok = (req.headers.authorization || '').replace(/^Bearer\s+/, '') || req.query.token;
-  if (!validToken(tok)) return res.status(401).json({ error: 'Kirish kerak' });
-  next();
-}
-const hasPassword = () => !!(process.env.ADMIN_PASSWORD || st().admin.hash);
-
-app.get('/api/auth/status', (req, res) => res.json({ setup: !hasPassword() }));
-app.post('/api/auth/setup', (req, res) => {
-  if (hasPassword()) return res.status(400).json({ error: "Parol allaqachon o'rnatilgan" });
-  const p = String(req.body.password || '');
-  if (p.length < 6) return res.status(400).json({ error: "Parol kamida 6 belgidan iborat bo'lsin" });
-  const a = st().admin;
-  a.salt = crypto.randomBytes(8).toString('hex');
-  a.hash = hashPass(p, a.salt);
-  if (req.body.name) st().business.name = String(req.body.name).slice(0, 100);
-  store.save();
-  res.json({ token: makeToken() });
-});
-const loginTries = new Map();
-app.post('/api/auth/login', (req, res) => {
-  const ip = req.ip, now = Date.now();
-  const tr = (loginTries.get(ip) || []).filter((t) => now - t < 10 * 60e3);
-  if (tr.length >= 10) return res.status(429).json({ error: "Juda ko'p urinish. 10 daqiqadan keyin qayta urining" });
-  const p = String(req.body.password || ''), a = st().admin;
-  const ok = process.env.ADMIN_PASSWORD ? p === process.env.ADMIN_PASSWORD : (a.hash && hashPass(p, a.salt) === a.hash);
-  if (!ok) { tr.push(now); loginTries.set(ip, tr); return res.status(401).json({ error: "Parol noto'g'ri" }); }
-  res.json({ token: makeToken() });
-});
-app.post('/api/auth/password', auth, (req, res) => {
-  if (process.env.ADMIN_PASSWORD) return res.status(400).json({ error: 'Parol ADMIN_PASSWORD orqali boshqariladi' });
-  const p = String(req.body.password || '');
-  if (p.length < 6) return res.status(400).json({ error: "Parol kamida 6 belgidan iborat bo'lsin" });
-  const a = st().admin;
-  a.salt = crypto.randomBytes(8).toString('hex'); // eski tokenlar bekor bo'ladi
-  a.hash = hashPass(p, a.salt);
-  store.save();
-  res.json({ token: makeToken() });
-});
+// ---------- Kirish, ro'yxatdan o'tish, obuna va admin panel (SaaS) ----------
+const SA = require('./saas');
+const { auth, adminAuth: SA_admin, validToken, withTenant } = SA.mount(app, { C, onTenantCreated: () => prewarm() });
 
 // ---------- Jonli yangilanish (SSE) ----------
-const clients = new Set();
+const clients = new Set(); // { res, tid }
 function emit(type, data) {
+  const tid = store.tenantId();
   const msg = `event: ${type}\ndata: ${JSON.stringify(data || {})}\n\n`;
-  for (const r of clients) r.write(msg);
+  for (const c of clients) if (c.tid === tid) c.res.write(msg);
 }
 C.setEmit(emit);
 app.get('/api/events', auth, (req, res) => {
   res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
   res.flushHeaders();
   res.write('retry: 5000\n\n');
-  clients.add(res);
+  const c = { res, tid: req.tenantId };
+  clients.add(c);
   const ping = setInterval(() => res.write(': ping\n\n'), 25000);
-  req.on('close', () => { clearInterval(ping); clients.delete(res); });
+  req.on('close', () => { clearInterval(ping); clients.delete(c); });
 });
 
 // ---------- Uchrashuvlar ----------
@@ -245,7 +192,7 @@ app.post('/api/report/send', auth, wrap(async (req, res) => {
   res.status(ok ? 200 : 502).json(ok ? { ok } : { error: "Telegramga yuborib bo'lmadi" });
 }));
 app.post('/api/telegram/test', auth, wrap(async (req, res) => {
-  if (!process.env.TG_BOT_TOKEN) return res.status(400).json({ error: "Serverga TG_BOT_TOKEN qo'shilmagan" });
+  if (!env("TG_BOT_TOKEN")) return res.status(400).json({ error: "Serverga TG_BOT_TOKEN qo'shilmagan" });
   if (!C.tgOn()) return res.status(400).json({ error: 'Telegram chat ID kiritilmagan' });
   const ok = await C.tg(`✅ ${st().business.name}: Kotib Telegramga ulandi. Yangi uchrashuv, zakaz, javobsiz qo'ng'iroqlar va kunlik hisobot shu yerga keladi.`);
   res.status(ok ? 200 : 502).json(ok ? { ok } : { error: "Yuborib bo'lmadi — bot tokeni va chat ID'ni tekshiring, botga /start yozing" });
@@ -255,9 +202,9 @@ app.post('/api/telegram/test', auth, wrap(async (req, res) => {
 app.get('/api/settings', auth, (req, res) => {
   const { business, hours, services, products, faq, closedDays } = st();
   res.json({
-    business, hours, services, products, faq, closedDays, ai: A.aiOn(), twilio: !!process.env.TWILIO_AUTH_TOKEN, sms: C.smsOn(),
-    telegram: C.tgOn(), tgToken: !!process.env.TG_BOT_TOKEN, tgEnvChat: !!process.env.TG_CHAT_ID, operator: !!operatorPhone(),
-    publicUrl: CFG.publicUrl(), voice: V.status(), kotibNumber: st().business.kotibNumber || '', tgBot: st().meta?.tgBot || '', greetingAudio: !!st().media?.greeting, db: store.PG ? 'postgres' : 'file', tz: S.TZ, adminEnv: !!process.env.ADMIN_PASSWORD,
+    business, hours, services, products, faq, closedDays, ai: A.aiOn(), twilio: !!env("TWILIO_AUTH_TOKEN"), sms: C.smsOn(),
+    telegram: C.tgOn(), tgToken: !!env("TG_BOT_TOKEN"), tgEnvChat: false, operator: !!operatorPhone(),
+    publicUrl: CFG.publicUrl(), tenantId: req.tenantId, chatUrl: `${CFG.publicUrl() || baseUrl(req)}/c/${req.tenantId}`, subscription: SA.status(), ownTwilio: CFG.ownTwilio(), voice: V.status(), kotibNumber: st().business.kotibNumber || '', tgBot: st().meta?.tgBot || '', greetingAudio: !!st().media?.greeting, db: store.PG ? 'postgres' : 'file', tz: S.TZ, adminEnv: !!process.env.ADMIN_PASSWORD,
   });
 });
 app.put('/api/settings', auth, (req, res) => {
@@ -319,9 +266,18 @@ const convSummary = (c) => ({
   id: c.id, channel: c.channel, from: c.from, customer: c.customer, lang: c.lang, createdAt: c.createdAt, updatedAt: c.updatedAt,
   count: c.messages.filter((m) => m.role === 'user').length, last: c.messages[c.messages.length - 1]?.content?.slice(0, 120) || '', call: c.call || null, handoff: !!c.handoff,
 });
-const operatorPhone = () => st().business.operatorPhone || process.env.OPERATOR_PHONE || '';
+const operatorPhone = () => st().business.operatorPhone || '';
 
+const PAUSED = { uz: "Kechirasiz, onlayn kotib vaqtincha ishlamayapti. Iltimos, to'g'ridan-to'g'ri qo'ng'iroq qiling", ru: 'Извините, онлайн-секретарь временно не работает. Пожалуйста, позвоните напрямую' };
 async function talk(conv, text) {
+  if (!SA.active()) {
+    const lang = conv.lang || A.detectLang(text) || 'uz', ph = st().business.phone;
+    conv.messages.push({ role: 'user', content: String(text).slice(0, 2000), at: Date.now() });
+    const reply = PAUSED[lang] + (ph ? `: ${ph}.` : '.');
+    conv.messages.push({ role: 'assistant', content: reply, at: Date.now() });
+    conv.updatedAt = Date.now(); store.save();
+    return { reply, lang, paused: true };
+  }
   const r = await A.respond(st(), conv, text, { createBooking: C.createBooking, createOrder: C.createOrder, history: C.customerHistory });
   if (conv.from && r.lang) C.touchCustomer(conv.from, { lang: r.lang, name: conv.customer?.name });
   const who = conv.customer?.name || '';
@@ -352,15 +308,15 @@ app.get('/api/conversations/:id', auth, (req, res) => {
 
 // Mijoz chati (sayt / ilovadagi sinov). Oddiy cheklov: IP bo'yicha daqiqasiga 20 xabar.
 const chatHits = new Map();
-app.get('/api/public', (req, res) => res.json({ name: st().business.name, greeting: A.greeting(st(), req.query.lang), phone: st().business.phone }));
-app.post('/api/chat', wrap(async (req, res) => {
+app.get('/api/public', withTenant((req) => req.query.t || req.body?.t), (req, res) => res.json({ name: st().business.name, greeting: A.greeting(st(), req.query.lang), phone: st().business.phone }));
+app.post('/api/chat', withTenant((req) => req.query.t || req.body?.t), wrap(async (req, res) => {
   const now = Date.now(), hits = (chatHits.get(req.ip) || []).filter((t) => now - t < 60e3);
   if (hits.length >= 20) return res.status(429).json({ error: 'Juda tez yozyapsiz, biroz kuting' });
   hits.push(now); chatHits.set(req.ip, hits);
   const sid = String(req.body.session || '').replace(/[^\w-]/g, '').slice(0, 40);
   const text = String(req.body.text || '').trim().slice(0, 2000);
   if (!sid || !text) return res.status(400).json({ error: "Xabar bo'sh" });
-  const test = req.body.test && validToken((req.headers.authorization || '').replace(/^Bearer\s+/, ''));
+  const test = req.body.test && validToken((req.headers.authorization || '').replace(/^Bearer\s+/, '')) === req.tenantId;
   const conv = conversation((test ? 'test:' : 'web:') + sid, test ? 'test' : 'web', test ? String(req.body.from || '') : '');
   // Sayt mijozi telefon raqamini yozsa — uni eslab qolamiz
   if (!conv.from) { const ph = String(text).replace(/[^\d+]/g, ''); if (ph.replace(/\D/g, '').length >= 9 && ph.replace(/\D/g, '').length <= 15) { conv.from = ph; C.touchCustomer(ph, { chat: true }); } }
@@ -387,16 +343,19 @@ async function speak(req, text, lang = 'uz') {
 }
 // Tinglash: o'zbekcha STT ulangan bo'lsa — yozib olib Aisha/Muxlisa'ga beramiz, aks holda Twilio'ning o'zi taniydi
 function listen(inner, lang = 'uz', q = '', input = 'speech') {
-  if (input === 'speech' && V.sttOn(lang)) return `${inner}<Record action="/twilio/voice/rec${q}" method="POST" maxLength="30" timeout="3" playBeep="false" trim="trim-silence"/>`;
-  return `<Gather input="${input}" language="${xml((VOICES[lang] || VOICES.uz).stt)}" speechTimeout="auto" timeout="7"${input.includes('dtmf') ? ' numDigits="1"' : ''} action="/twilio/voice/turn${q}" method="POST">${inner}</Gather>`;
+  if (input === 'speech' && V.sttOn(lang)) return `${inner}<Record action="${tp('/twilio/voice/rec')}${q}" method="POST" maxLength="30" timeout="3" playBeep="false" trim="trim-silence"/>`;
+  return `<Gather input="${input}" language="${xml((VOICES[lang] || VOICES.uz).stt)}" speechTimeout="auto" timeout="7"${input.includes('dtmf') ? ' numDigits="1"' : ''} action="${tp('/twilio/voice/turn')}${q}" method="POST">${inner}</Gather>`;
 }
+const tp = (p) => `/t/${store.tenantId()}${p}`; // biznes manzili
+const tw = express.Router({ mergeParams: true });
+app.use('/t/:tid', withTenant((req) => req.params.tid), tw);
 const twiml = (res, body) => res.type('text/xml').send(`<?xml version="1.0" encoding="UTF-8"?><Response>${body}</Response>`);
 const langsOn = () => String(st().business.langs || 'uz,ru').split(/[,\s]+/).filter((l) => VOICES[l]);
-const greetingAudio = (req) => (st().media?.greeting ? `<Play>${xml(baseUrl(req))}/media/greeting?v=${st().media.greeting.at}</Play>` : '');
+const greetingAudio = (req) => (st().media?.greeting ? `<Play>${xml(baseUrl(req))}/media/greeting?t=${store.tenantId()}&amp;v=${st().media.greeting.at}</Play>` : '');
 
 // Twilio imzosini tekshirish (TWILIO_AUTH_TOKEN va PUBLIC_URL berilgan bo'lsa)
 function twilioCheck(req, res, next) {
-  const tok = process.env.TWILIO_AUTH_TOKEN, pub = CFG.publicUrl();
+  const tok = env("TWILIO_AUTH_TOKEN"), pub = CFG.publicUrl();
   if (!tok || !pub) return next();
   const data = Object.keys(req.body || {}).sort().reduce((a, k) => a + k + req.body[k], pub + req.originalUrl);
   const sig = crypto.createHmac('sha1', tok).update(data).digest('base64');
@@ -408,8 +367,14 @@ const callConv = (req) => conversation('call:' + (req.body.CallSid || 'x'), 'cal
 const logBot = (conv, text) => { conv.messages.push({ role: 'assistant', content: text, at: Date.now() }); conv.updatedAt = Date.now(); store.save(); emit('conversation', { id: conv.id }); };
 const BYE = { uz: 'Rahmat, xayr!', ru: 'Спасибо, до свидания!' };
 
-app.post('/twilio/voice', twilioCheck, wrap(async (req, res) => {
+tw.post('/twilio/voice', twilioCheck, wrap(async (req, res) => {
   const conv = callConv(req);
+  // Obuna tugagan: qo'ng'iroq egasining o'z raqamiga o'tadi (mijoz yo'qolmaydi)
+  if (!SA.active()) {
+    const op = operatorPhone();
+    logBot(conv, '⛔ Obuna tugagan — qo\'ng\'iroq egasiga yo\'naltirildi');
+    return twiml(res, op ? `<Dial timeout="30"${req.body.To ? ` callerId="${xml(req.body.To)}"` : ''}>${xml(op)}</Dial>` : say("Kechirasiz, hozir javob bera olmaymiz. Keyinroq qo'ng'iroq qiling.") + '<Hangup/>');
+  }
   const langs = langsOn();
   if (!conv.lang && langs.length === 1) conv.lang = langs[0];
   const name = conv.customer?.name;
@@ -449,7 +414,7 @@ async function handleSpeech(req, res, conv, text) {
     if (op) {
       // Operatorga ulaymiz; javob bermasa /twilio/dial-done vazifa yaratadi
       const callerId = req.body.To ? ` callerId="${xml(req.body.To)}"` : '';
-      return twiml(res, await speak(req, r.reply, l) + `<Dial timeout="25" action="/twilio/dial-done" method="POST"${callerId}>${xml(op)}</Dial>`);
+      return twiml(res, await speak(req, r.reply, l) + `<Dial timeout="25" action="${tp('/twilio/dial-done')}" method="POST"${callerId}>${xml(op)}</Dial>`);
     }
     C.createTask({ type: 'handoff', phone: conv.from, name: conv.customer?.name, reason: `Qo'ng'iroqda inson bilan gaplashmoqchi: "${text.slice(0, 150)}"`, conversationId: conv.id });
     const msg = A.L(l, "Hozir xodimlarimiz band. Sizga tez orada qayta qo'ng'iroq qilamiz. Yana savolingiz bormi?", 'Сейчас все сотрудники заняты. Мы скоро вам перезвоним. Есть ещё вопросы?');
@@ -460,7 +425,7 @@ async function handleSpeech(req, res, conv, text) {
   twiml(res, listen(await speak(req, r.reply + more, l), l) + await speak(req, BYE[l] || BYE.uz, l));
 }
 
-app.post('/twilio/voice/turn', twilioCheck, wrap(async (req, res) => {
+tw.post('/twilio/voice/turn', twilioCheck, wrap(async (req, res) => {
   const conv = callConv(req);
   const digits = String(req.body.Digits || '');
   const text = String(req.body.SpeechResult || '').trim();
@@ -476,7 +441,7 @@ app.post('/twilio/voice/turn', twilioCheck, wrap(async (req, res) => {
 }));
 
 // Yozib olingan gap (o'zbekcha STT: Aisha / Muxlisa)
-app.post('/twilio/voice/rec', twilioCheck, wrap(async (req, res) => {
+tw.post('/twilio/voice/rec', twilioCheck, wrap(async (req, res) => {
   const conv = callConv(req);
   const url = String(req.body.RecordingUrl || '');
   let text = '';
@@ -488,7 +453,7 @@ app.post('/twilio/voice/rec', twilioCheck, wrap(async (req, res) => {
 }));
 
 // Operatorga ulanish natijasi
-app.post('/twilio/dial-done', twilioCheck, wrap(async (req, res) => {
+tw.post('/twilio/dial-done', twilioCheck, wrap(async (req, res) => {
   const conv = callConv(req), l = conv.lang || 'uz';
   const status = String(req.body.DialCallStatus || '');
   if (status === 'completed' || status === 'answered') { conv.operator = 'connected'; store.save(); return twiml(res, '<Hangup/>'); }
@@ -500,7 +465,7 @@ app.post('/twilio/dial-done', twilioCheck, wrap(async (req, res) => {
 }));
 
 // Qo'ng'iroq holati (Twilio: "Call status changes" webhook) — tarix va javobsiz qo'ng'iroqlar
-app.post('/twilio/status', twilioCheck, (req, res) => {
+tw.post('/twilio/status', twilioCheck, (req, res) => {
   const status = String(req.body.CallStatus || '');
   if (!['completed', 'busy', 'no-answer', 'failed', 'canceled'].includes(status)) return res.sendStatus(204);
   const conv = callConv(req);
@@ -516,7 +481,7 @@ app.post('/twilio/status', twilioCheck, (req, res) => {
   res.sendStatus(204);
 });
 
-app.post('/twilio/sms', twilioCheck, wrap(async (req, res) => {
+tw.post('/twilio/sms', twilioCheck, wrap(async (req, res) => {
   const from = String(req.body.From || '');
   const id = 'sms:' + from;
   const old = st().conversations[id];
@@ -527,7 +492,7 @@ app.post('/twilio/sms', twilioCheck, wrap(async (req, res) => {
 }));
 
 // ---------- Telegram bot (mijozlar uchun, bepul) ----------
-app.post('/telegram/hook/:secret', (req, res) => {
+app.post('/telegram/hook/:tid/:secret', withTenant((req) => req.params.tid), (req, res) => {
   if (req.params.secret !== TG.secret() || req.get('x-telegram-bot-api-secret-token') !== TG.secret()) return res.sendStatus(403);
   res.sendStatus(200); // Telegram kutib qolmasin — javobni alohida yuboramiz
   TG.handle(req.body || {}, { conversation, talk, A, C }).catch((e) => console.error('Telegram:', e.message));
@@ -539,14 +504,14 @@ app.post('/api/telegram/setup', auth, wrap(async (req, res) => {
 }));
 
 // ---------- Saytda ovozli suhbat (bepul "qo'ng'iroq") ----------
-app.post('/api/chat/voice', express.json({ limit: '6mb' }), wrap(async (req, res) => {
+app.post('/api/chat/voice', express.json({ limit: '6mb' }), withTenant((req) => req.query.t || req.body?.t), wrap(async (req, res) => {
   const now = Date.now(), hits = (chatHits.get(req.ip) || []).filter((t) => now - t < 60e3);
   if (hits.length >= 20) return res.status(429).json({ error: 'Juda tez, biroz kuting' });
   hits.push(now); chatHits.set(req.ip, hits);
   const sid = String(req.body.session || '').replace(/[^\w-]/g, '').slice(0, 40);
   const buf = Buffer.from(String(req.body.data || ''), 'base64');
   if (!sid || buf.length < 2000) return res.status(400).json({ error: 'Ovoz yozilmadi' });
-  const test = req.body.test && validToken((req.headers.authorization || '').replace(/^Bearer\s+/, ''));
+  const test = req.body.test && validToken((req.headers.authorization || '').replace(/^Bearer\s+/, '')) === req.tenantId;
   const conv = conversation((test ? 'test:' : 'web:') + sid, test ? 'test' : 'web', '');
   let text = '';
   try { text = await V.transcribe(buf, String(req.body.mime || 'audio/wav'), conv.lang || 'uz', 15000); } catch (e) { return res.status(400).json({ error: e.message }); }
@@ -564,7 +529,7 @@ app.get('/tts/:name', (req, res) => {
   res.set('Cache-Control', 'public, max-age=31536000, immutable');
   res.sendFile(f);
 });
-app.get('/media/greeting', wrap(async (req, res) => {
+app.get('/media/greeting', withTenant((req) => req.query.t), wrap(async (req, res) => {
   const b = st().media?.greeting && await store.getBlob('greeting');
   if (!b) return res.sendStatus(404);
   res.set({ 'Content-Type': b.type, 'Cache-Control': 'no-cache' });
@@ -582,7 +547,7 @@ function prewarm() {
 // ---------- Kotib raqami: Twilio raqamini avtomatik ulash ----------
 const TWILIO_API = process.env.TWILIO_API_BASE || 'https://api.twilio.com'; // TWILIO_API_BASE — faqat test uchun
 async function twilioApi(pathname, form) {
-  const sid = process.env.TWILIO_ACCOUNT_SID, tok = process.env.TWILIO_AUTH_TOKEN;
+  const sid = env("TWILIO_ACCOUNT_SID"), tok = env("TWILIO_AUTH_TOKEN");
   if (!sid || !tok) { const e = new Error("Avval \"Ulanishlar\"ga Twilio Account SID va Auth Token kiriting"); e.status = 400; throw e; }
   const r = await fetch(`${TWILIO_API}/2010-04-01/Accounts/${encodeURIComponent(sid)}${pathname}`, {
     method: form ? 'POST' : 'GET',
@@ -593,12 +558,13 @@ async function twilioApi(pathname, form) {
   if (!r.ok) { const e = new Error(r.status === 401 ? "Twilio kaliti noto'g'ri (Account SID yoki Auth Token)" : `Twilio: ${j.message || r.status}`); e.status = 400; throw e; }
   return j;
 }
-const hooks = (base) => ({ voice: base + '/twilio/voice', status: base + '/twilio/status', sms: base + '/twilio/sms' });
+const hooks = (base, tid) => ({ voice: `${base}/t/${tid}/twilio/voice`, status: `${base}/t/${tid}/twilio/status`, sms: `${base}/t/${tid}/twilio/sms` });
 // Akkauntdagi raqamlar va qaysi biri kotibga ulanganligi
 app.get('/api/phone/numbers', auth, wrap(async (req, res) => {
+  if (!CFG.ownTwilio()) return res.json({ managed: true, current: st().business.kotibNumber || '', numbers: [] });
   try {
     const j = await twilioApi('/IncomingPhoneNumbers.json?PageSize=50');
-    const h = hooks(baseUrl(req));
+    const h = hooks(baseUrl(req), req.tenantId);
     res.json({
       base: baseUrl(req), current: st().business.kotibNumber || '',
       numbers: (j.incoming_phone_numbers || []).map((n) => ({ sid: n.sid, number: n.phone_number, name: n.friendly_name, voiceUrl: n.voice_url || '', connected: n.voice_url === h.voice, sms: !!n.capabilities?.sms })),
@@ -607,19 +573,47 @@ app.get('/api/phone/numbers', auth, wrap(async (req, res) => {
 }));
 // Raqamni kotibga ulash: qo'ng'iroq, qo'ng'iroq holati va SMS shu ilovaga keladi
 app.post('/api/phone/connect', auth, wrap(async (req, res) => {
+  if (!CFG.ownTwilio()) return res.status(403).json({ error: "Kotib raqamini platforma ma'muri biriktiradi" });
   try {
     const sid = String(req.body.sid || '');
     if (!/^PN[a-f0-9]{32}$/i.test(sid)) return res.status(400).json({ error: "Raqam tanlanmagan" });
     const base = baseUrl(req);
     if (!/^https:\/\//.test(base) && !/localhost|127\.0\.0\.1/.test(base)) return res.status(400).json({ error: 'Sayt manzili https bilan boshlanishi kerak' });
-    const h = hooks(base);
+    const h = hooks(base, req.tenantId);
     const n = await twilioApi(`/IncomingPhoneNumbers/${sid}.json`, { VoiceUrl: h.voice, VoiceMethod: 'POST', StatusCallback: h.status, StatusCallbackMethod: 'POST', SmsUrl: h.sms, SmsMethod: 'POST' });
     st().business.kotibNumber = n.phone_number;
-    // SMS eslatmalar ham shu raqamdan ketadi
-    if (!process.env.TWILIO_FROM) CFG.set({ TWILIO_FROM: n.phone_number });
-    if (!CFG.publicUrl()) CFG.set({ PUBLIC_URL: base });
+    store.platform().tenants[req.tenantId].kotibNumber = n.phone_number;
+    store.savePlatform();
     store.save();
     emit('settings', {});
+    res.json({ ok: true, number: n.phone_number });
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+}));
+
+// ---------- Admin: platforma Twilio raqamlarini bizneslarga biriktirish ----------
+app.get('/api/admin/numbers', SA_admin, wrap(async (req, res) => {
+  try {
+    const j = await twilioApi('/IncomingPhoneNumbers.json?PageSize=100');
+    const byUrl = Object.fromEntries(Object.values(store.platform().tenants).map((t) => [t.id, t.name]));
+    res.json((j.incoming_phone_numbers || []).map((n) => {
+      const m = /\/t\/(\w+)\/twilio\/voice$/.exec(n.voice_url || '');
+      return { sid: n.sid, number: n.phone_number, name: n.friendly_name, tenantId: m ? m[1] : null, tenantName: m ? byUrl[m[1]] || '?' : null };
+    }));
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+}));
+app.post('/api/admin/tenants/:id/number', SA_admin, wrap(async (req, res) => {
+  const t = store.platform().tenants[req.params.id];
+  if (!t) return res.status(404).json({ error: 'Biznes topilmadi' });
+  try {
+    const sid = String(req.body.sid || '');
+    if (!/^PN[a-f0-9]{32}$/i.test(sid)) return res.status(400).json({ error: 'Raqam tanlanmagan' });
+    const base = baseUrl(req), h = hooks(base, t.id);
+    const n = await twilioApi(`/IncomingPhoneNumbers/${sid}.json`, { VoiceUrl: h.voice, VoiceMethod: 'POST', StatusCallback: h.status, StatusCallbackMethod: 'POST', SmsUrl: h.sms, SmsMethod: 'POST' });
+    // Shu raqam avval boshqa biznesda bo'lsa — undan olib tashlaymiz
+    for (const o of Object.values(store.platform().tenants)) if (o.kotibNumber === n.phone_number) { o.kotibNumber = ''; store.run(o.id, () => { st().business.kotibNumber = ''; store.save(); }); }
+    t.kotibNumber = n.phone_number;
+    store.savePlatform();
+    store.run(t.id, () => { st().business.kotibNumber = n.phone_number; store.save(); C.tg(`📞 Sizga kotib raqami biriktirildi: ${n.phone_number}. Ilovada "Sozlamalar → Kotib raqami" bo'limidan o'z raqamingizdan yo'naltirishni yoqing.`); });
     res.json({ ok: true, number: n.phone_number });
   } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 }));
@@ -687,9 +681,10 @@ app.delete('/api/media/greeting', auth, wrap(async (req, res) => {
 }));
 
 // ---------- Statik fayllar ----------
-app.get('/api/health', (req, res) => res.json({ ok: true, db: store.PG ? 'postgres' : 'file', ai: A.aiOn(), twilio: !!process.env.TWILIO_AUTH_TOKEN, telegram: C.tgOn(), voice: V.status() }));
+app.get('/api/health', (req, res) => res.json({ ok: true, db: store.PG ? 'postgres' : 'file', tenants: store.tenantIds().length }));
 app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'], setHeaders: (res, p) => { if (/\.(html|js|css|webmanifest)$/.test(p)) res.set('Cache-Control', 'no-cache'); } }));
-app.get('/chat', (req, res) => res.sendFile(path.join(__dirname, 'public', 'chat.html')));
+app.get('/c/:tid', (req, res) => res.sendFile(path.join(__dirname, 'public', 'chat.html')));
+app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 
 app.use((err, req, res, next) => {
   console.error(err);
@@ -700,11 +695,10 @@ app.use((err, req, res, next) => {
 
 const PORT = Number(process.env.PORT) || 3100;
 store.load().then(() => {
-  CFG.apply();
   C.startScheduler();
-  prewarm();
-  TG.setup().catch(() => {});
-  const server = app.listen(PORT, () => console.log(`Kotib ishga tushdi: http://localhost:${PORT} (ma'lumotlar: ${store.PG ? 'PostgreSQL' : 'fayl'}, AI: ${A.aiOn() ? 'yoqilgan' : "yo'q — qoidalar asosida"}, Telegram: ${C.tgOn() ? 'ulangan' : "yo'q"})`));
+  // Har bir biznes uchun Telegram botni ulash va iboralarni tayyorlash
+  (async () => { for (const id of store.tenantIds()) await store.run(id, async () => { await TG.setup().catch(() => {}); prewarm(); }); })();
+  const server = app.listen(PORT, () => console.log(`Kotib ishga tushdi: http://localhost:${PORT} (ma'lumotlar: ${store.PG ? 'PostgreSQL' : 'fayl'}, bizneslar: ${store.tenantIds().length})`));
   const stop = () => { store.flush().finally(() => server.close(() => process.exit(0))); setTimeout(() => process.exit(0), 3000).unref(); };
   process.on('SIGTERM', stop);
   process.on('SIGINT', stop);

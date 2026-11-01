@@ -1,4 +1,14 @@
-# Kotib — biznes uchun aqlli virtual kotib
+# Kotib — biznes uchun aqlli virtual kotib (SaaS)
+
+**Obuna asosidagi xizmat:** har bir biznes o'zi ro'yxatdan o'tadi (bepul sinov davri bilan), oylik yoki yillik to'laydi va o'z ishxona raqamini kotibga ulaydi. Har bir biznesning ma'lumotlari (kalendar, mijozlar, sozlamalar, Telegram bot, raqam) alohida saqlanadi.
+
+- Biznes egasi: `https://SAYT/` — ro'yxatdan o'tish / kirish (telefon + parol)
+- Mijozlar uchun chat: `https://SAYT/c/<biznes-id>` (havola ilovada ko'rsatiladi)
+- **Platforma egasi (siz): `https://SAYT/admin`** — bizneslar, obunalar, to'lovlarni tasdiqlash, tariflar, umumiy kalitlar, Twilio raqamlarini biriktirish
+  - Kirish: `ADMIN_PASSWORD` yoki birinchi marta `ADMIN_SETUP_CODE` bilan o'z parolingizni o'rnatasiz
+
+**Qanday ishlaydi:** umumiy kalitlarni (Gemini, Aisha, Twilio) admin panelda bir marta kiritasiz — barcha bizneslar ulardan foydalanadi. Biznes xohlasa o'z kalitini kiritadi. Twilio raqamini admin panelda biznesga biriktirasiz; biznes o'z raqamidan unga yo'naltiradi (ilovada tugma bilan). Obuna tugasa AI to'xtaydi, qo'ng'iroqlar esa egasining o'z raqamiga o'tadi. To'lov: biznes kartaga to'lab "To'lov qildim" bosadi → siz admin panelda tasdiqlaysiz (Payme/Click avtomatik to'lovi — merchant hisobi ochilgach qo'shiladi).
+
 
 ![Kotib dizayni](docs/dizayn.png)
 
@@ -29,7 +39,7 @@ npm start
 
 Brauzerda `http://localhost:3100` ni oching → biznes nomi va parol kiriting → **Sozlamalar**'da ish vaqti, xizmatlar, mahsulotlar va savol-javoblarni to'ldiring → **🤖 Sinov**'da kotibni sinab ko'ring.
 
-Tekshiruv: `npm test` (umumiy) va `node test-voice.js` (o'zbekcha ovoz)
+Tekshiruv: `npm test` (umumiy, o'zbekcha ovoz va SaaS)
 
 ## Serverga joylash (Render)
 
@@ -64,11 +74,13 @@ Kalit bo'lmasa kotib baribir ishlaydi: o'zbekcha javoblarni Twilio'ning turkcha 
 
 ## Tuzilishi
 
-- `server.js` — API, kirish, Twilio (qo'ng'iroq, holat, operator, SMS)
+- `server.js` — API, Twilio (`/t/<biznes>/twilio/...`), Telegram, mijoz chati
+- `saas.js` — ro'yxatdan o'tish, kirish, obuna, to'lovlar, admin panel API
+- `telegram.js` — biznesning Telegram boti (mijozlar yozadi va ovozli xabar yuboradi)
 - `core.js` — mijozlar, uchrashuv, zakaz, vazifalar, Telegram/SMS, eslatmalar, hisobot
 - `assistant.js` — AI va qoidalar asosidagi suhbat (o'zbek/rus)
 - `voice.js` — o'zbekcha ovoz (Aisha / Muxlisa / Azure), nutqni tanish, raqamlarni so'z bilan o'qish
 - `config.js` — ulanishlar (API kalitlari)
 - `slots.js` — bo'sh vaqtlarni hisoblash
-- `store.js` — saqlash (PostgreSQL yoki JSON fayl)
+- `store.js` — saqlash: har biznes alohida hujjat (PostgreSQL yoki JSON fayllar)
 - `public/` — ilova (panel), mijoz chati, logotip

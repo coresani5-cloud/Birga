@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1b1e47">
+  <meta name="robots" content="noindex">
+  <title>Kotib — admin panel</title>
+  <link rel="icon" href="/favicon.png" type="image/png">
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+    @media (max-width: 520px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+    .biz { border-bottom: 1px solid var(--line); padding: 12px 4px; }
+    .biz:last-child { border-bottom: 0; }
+    .biz .top-line { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .biz .acts { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+    .biz select { width: auto; padding: 5px 8px; font-size: 12.5px; }
+    .kv { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 4px; }
+  </style>
+</head>
+<body>
+  <section id="login" class="login hidden">
+    <div class="login-card">
+      <div class="halo"><div><img src="/logo-256.png" alt="Kotib"></div></div>
+      <h1>Admin panel</h1>
+      <p class="muted">Platforma egasi uchun</p>
+      <form id="login-form">
+        <input id="setup-code" class="hidden" placeholder="O'rnatish kodi (ADMIN_SETUP_CODE)">
+        <input id="login-pass" type="password" placeholder="Admin paroli" autocomplete="current-password" required>
+        <button class="btn primary" id="login-btn">Kirish</button>
+        <p class="error" id="login-err"></p>
+      </form>
+    </div>
+  </section>
+
+  <section id="app" class="hidden">
+    <header class="top">
+      <div class="brand"><img src="/logo-256.png" alt=""><div><div class="title">Kotib — admin</div><div class="sub">Platforma boshqaruvi</div></div></div>
+      <div class="actions"><button class="icon-btn" id="logout" title="Chiqish">⎋</button></div>
+    </header>
+    <main>
+      <div class="stats" id="stats"></div>
+      <div class="seg boxed" id="tabs">
+        <button data-v="tenants" class="on">Bizneslar</button>
+        <button data-v="payments">To'lovlar <span id="pend-badge"></span></button>
+        <button data-v="numbers">Raqamlar</button>
+        <button data-v="settings">Sozlamalar</button>
+      </div>
+
+      <div class="view" id="v-tenants">
+        <div class="search"><input id="q" placeholder="Nomi yoki telefon bo'yicha qidirish"></div>
+        <div class="card"><div id="tenants"></div></div>
+      </div>
+
+      <div class="view hidden" id="v-payments">
+        <div class="card"><div id="payments" class="list"></div></div>
+      </div>
+
+      <div class="view hidden" id="v-numbers">
+        <div class="card">
+          <p class="muted small" style="margin-top:0">Platformaning Twilio hisobidagi raqamlar ("Sozlamalar → Umumiy kalitlar"da Twilio SID va Token). Raqamni biznesga biriktirsangiz, unga kelgan qo'ng'iroqlarga shu biznesning kotibi javob beradi.</p>
+          <div id="numbers" class="list"></div>
+        </div>
+      </div>
+
+      <div class="view hidden" id="v-settings">
+        <div class="card">
+          <h3>Tariflar</h3>
+          <div id="plans"></div>
+          <button class="btn small ghost" id="add-plan">+ Tarif qo'shish</button>
+          <label style="margin-top:14px">Bepul sinov davri (kun)<input id="trial" type="number" min="0" max="90"></label>
+          <label>To'lov yo'riqnomasi (bizneslar ko'radi)<textarea id="payinfo" rows="4"></textarea></label>
+        </div>
+        <div class="card">
+          <h3>Umumiy kalitlar</h3>
+          <p class="muted small" style="margin-top:-6px">Bu kalitlar barcha bizneslar uchun ishlatiladi (biznes o'z kalitini kiritmagan bo'lsa). Masalan, bitta Gemini kaliti — hamma uchun erkin suhbat.</p>
+          <div id="keys"></div>
+        </div>
+        <button class="btn primary block sticky-save" id="save">Saqlash</button>
+      </div>
+    </main>
+  </section>
+  <div id="toast" class="toast"></div>
+  <script src="/admin.js"></script>
+</body>
+</html>

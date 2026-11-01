@@ -4,12 +4,13 @@ const crypto = require('crypto');
 const store = require('./store');
 const V = require('./voice');
 const CFG = require('./config');
+const { env } = CFG;
 
 const API = process.env.TELEGRAM_API_BASE || 'https://api.telegram.org'; // TELEGRAM_API_BASE — faqat test uchun
 const st = () => store.get();
-const token = () => process.env.TG_BOT_TOKEN || '';
+const token = () => env("TG_BOT_TOKEN") || '';
 const secret = () => crypto.createHash('sha256').update('kotib-tg:' + token()).digest('hex').slice(0, 32);
-const hookPath = () => `/telegram/hook/${secret()}`;
+const hookPath = () => `/telegram/hook/${store.tenantId()}/${secret()}`;
 
 async function call(method, body) {
   const r = await fetch(`${API}/bot${token()}/${method}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}), signal: AbortSignal.timeout(15000) });
@@ -19,19 +20,19 @@ async function call(method, body) {
 }
 
 // Webhook'ni o'rnatish: Telegram mijoz xabarlarini shu serverga yuboradi
-let lastSetup = '';
+const lastSetup = new Map();
 async function setup(force) {
   const t = token(), base = CFG.publicUrl();
   if (!t || !/^https:\/\//.test(base)) return { ok: false, reason: !t ? 'token' : 'url' };
   const key = t + base;
-  if (!force && lastSetup === key) return { ok: true, bot: st().meta.tgBot || null };
+  if (!force && lastSetup.get(store.tenantId()) === key) return { ok: true, bot: st().meta.tgBot || null };
   try {
     const me = await call('getMe');
     await call('setWebhook', { url: base + hookPath(), secret_token: secret(), allowed_updates: ['message'], drop_pending_updates: false });
     await call('setMyCommands', { commands: [{ command: 'start', description: 'Boshlash' }, { command: 'hisobot', description: 'Bugungi hisobot (faqat egasi uchun)' }] }).catch(() => {});
     st().meta.tgBot = me.username;
     store.save();
-    lastSetup = key;
+    lastSetup.set(store.tenantId(), key);
     return { ok: true, bot: me.username };
   } catch (e) {
     console.error('Telegram sozlash:', e.message);
@@ -46,7 +47,7 @@ async function handle(update, deps) {
   const m = update.message;
   if (!m || !m.chat || m.chat.type !== 'private') return;
   const chatId = m.chat.id;
-  const ownerChat = String(process.env.TG_CHAT_ID || st().business.tgChatId || '');
+  const ownerChat = String(st().business.tgChatId || '');
   const send = (text, extra = {}) => call('sendMessage', { chat_id: chatId, text, ...extra }).catch((e) => console.error(e.message));
 
   // Egasining buyruqlari

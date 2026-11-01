@@ -11,7 +11,7 @@ const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kotib-'));
 const env = { ...process.env, PORT: String(PORT), DATA_DIR: dir, DATABASE_URL: '', GEMINI_API_KEY: '', GROQ_API_KEY: '', AI_API_URL: '', TWILIO_AUTH_TOKEN: '', ADMIN_PASSWORD: '' };
 const srv = spawn(process.execPath, [path.join(__dirname, 'server.js')], { env, stdio: ['ignore', 'pipe', 'inherit'] });
 const base = `http://localhost:${PORT}`;
-let token = '';
+let token = '', tid = '';
 
 async function j(url, body, method) {
   const r = await fetch(base + url, { method: method || (body ? 'POST' : 'GET'), headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: body ? JSON.stringify(body) : undefined });
@@ -21,16 +21,18 @@ async function form(url, params) {
   const r = await fetch(base + url, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(params) });
   return r.text();
 }
-const chat = async (session, text) => (await j('/api/chat', { session, text })).data;
+const chat = async (session, text) => (await j('/api/chat', { session, text, t: tid })).data;
 
 async function main() {
   for (let i = 0; i < 50; i++) { try { await fetch(base + '/api/health'); break; } catch { await new Promise((r) => setTimeout(r, 100)); } }
 
   // Kirish
-  assert.equal((await j('/api/auth/status')).data.setup, true);
-  token = (await j('/api/auth/setup', { password: 'sirli123', name: 'Go‘zallik saloni' })).data.token;
+  const reg = (await j('/api/auth/register', { name: 'Go‘zallik saloni', phone: '+998 90 111 22 33', password: 'sirli123' })).data;
+  token = reg.token; tid = reg.id;
+  assert.equal((await j('/api/auth/register', { name: 'Boshqa', phone: '901112233', password: 'sirli123' })).status, 400); // raqam band
   assert.ok(token);
-  assert.equal((await j('/api/auth/login', { password: 'xato' })).status, 401);
+  assert.equal((await j('/api/auth/login', { phone: '+998901112233', password: 'xato' })).status, 401);
+  assert.equal((await j('/api/auth/login', { phone: '901112233', password: 'sirli123' })).data.id, tid);
 
   // Har kuni ochiq qilib qo'yamiz, shunda test istalgan kunda ishlaydi
   const hours = {}; for (let d = 0; d < 7; d++) hours[d] = { open: '09:00', close: '18:00', off: false, breaks: [{ from: '13:00', to: '14:00' }] };
@@ -71,15 +73,15 @@ async function main() {
   assert.equal(month.days[tomorrow].count, 2);
 
   // Twilio qo'ng'irog'i
-  x = await form('/twilio/voice', { CallSid: 'CA1', From: '+998901234567' });
+  x = await form(`/t/${tid}/twilio/voice`, { CallSid: 'CA1', From: '+998901234567' });
   assert.match(x, /<Gather input="dtmf speech"/);
-  x = await form('/twilio/voice/turn', { CallSid: 'CA1', From: '+998901234567', SpeechResult: 'Narxlar qancha?' });
+  x = await form(`/t/${tid}/twilio/voice/turn`, { CallSid: 'CA1', From: '+998901234567', SpeechResult: 'Narxlar qancha?' });
   assert.match(x, /80 000/);
-  x = await form('/twilio/voice/turn', { CallSid: 'CA1', From: '+998901234567', SpeechResult: 'Manikyurga ertaga soat 11 da yozilaman, ismim Madina' });
+  x = await form(`/t/${tid}/twilio/voice/turn`, { CallSid: 'CA1', From: '+998901234567', SpeechResult: 'Manikyurga ertaga soat 11 da yozilaman, ismim Madina' });
   assert.match(x, /Yozib qo'ydim|Yozib qo&apos;ydim/, x);
 
   // SMS
-  x = await form('/twilio/sms', { From: '+998935554433', Body: "Ertaga bo'sh vaqt bormi?" });
+  x = await form(`/t/${tid}/twilio/sms`, { From: '+998935554433', Body: "Ertaga bo'sh vaqt bormi?" });
   assert.match(x, /<Message>/);
 
   const convs = (await j('/api/conversations')).data;
@@ -111,14 +113,16 @@ async function main() {
   assert.equal(r.handoff, true);
 
   // Qo'ng'iroq: til menyusi, ruscha, javobsiz qo'ng'iroq, tanish mijoz
-  x = await form('/twilio/voice', { CallSid: 'CA3', From: '+998935550000' });
+  x = await form(`/t/${tid}/twilio/voice`, { CallSid: 'CA3', From: '+998935550000' });
   assert.match(x, /numDigits="1"/);
-  x = await form('/twilio/voice/turn?menu=1', { CallSid: 'CA3', From: '+998935550000', Digits: '2' });
+  x = await form(`/t/${tid}/twilio/voice/turn?menu=1`, { CallSid: 'CA3', From: '+998935550000', Digits: '2' });
   assert.match(x, /Tatyana/);
-  x = await form('/twilio/voice/turn', { CallSid: 'CA3', From: '+998935550000', SpeechResult: 'Позовите оператора' });
+  x = await form(`/t/${tid}/twilio/voice/turn`, { CallSid: 'CA3', From: '+998935550000', SpeechResult: 'Позовите оператора' });
+  assert.match(x, /<Dial timeout="25" action="\/t\/\w+\/twilio\/dial-done"/, x); // egasiga ulanadi
+  x = await form(`/t/${tid}/twilio/dial-done`, { CallSid: 'CA3', From: '+998935550000', DialCallStatus: 'no-answer' });
   assert.match(x, /перезвоним/, x);
-  await form('/twilio/status', { CallSid: 'CA9', From: '+998946660000', CallStatus: 'completed', CallDuration: '4' });
-  x = await form('/twilio/voice', { CallSid: 'CA4', From: '+998901234567' });
+  await form(`/t/${tid}/twilio/status`, { CallSid: 'CA9', From: '+998946660000', CallStatus: 'completed', CallDuration: '4' });
+  x = await form(`/t/${tid}/twilio/voice`, { CallSid: 'CA4', From: '+998901234567' });
   assert.match(x, /Madina/, x);
 
   const tasks = (await j('/api/tasks')).data;

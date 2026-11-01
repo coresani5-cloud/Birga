@@ -40,22 +40,29 @@ $$('dialog [data-close]').forEach((b) => b.onclick = () => b.closest('dialog').c
 // ---------- Kirish ----------
 async function boot() {
   if (token) { try { await start(); return; } catch { /* token eskirgan */ } }
-  const { setup } = await fetch('/api/auth/status').then((r) => r.json());
   $('#login').classList.remove('hidden');
-  if (setup) {
-    $('#login-hint').innerHTML = "Xush kelibsiz! Biznes nomini kiriting<br>va panel uchun parol o'ylab toping.";
-    $('#login-name').classList.remove('hidden');
-    $('#login-pass').autocomplete = 'new-password';
-    $('#login-btn').textContent = 'Boshlash';
-  }
+  let mode = location.hash === '#register' ? 'register' : 'login';
+  const setMode = (m) => {
+    mode = m;
+    $$('#auth-tabs button').forEach((x) => x.classList.toggle('on', x.dataset.m === m));
+    $('#login-name').classList.toggle('hidden', m !== 'register');
+    $('#trial-note').classList.toggle('hidden', m !== 'register');
+    $('#login-pass').autocomplete = m === 'register' ? 'new-password' : 'current-password';
+    $('#login-btn').textContent = m === 'register' ? 'Bepul boshlash' : 'Kirish';
+    $('#login-err').textContent = '';
+  };
+  $$('#auth-tabs button').forEach((x) => x.onclick = () => setMode(x.dataset.m));
+  setMode(mode);
   $('#login-form').onsubmit = async (e) => {
     e.preventDefault();
     $('#login-err').textContent = '';
     try {
-      const j = await api(setup ? '/api/auth/setup' : '/api/auth/login', { method: 'POST', body: { password: $('#login-pass').value, name: $('#login-name').value } });
+      const body = { phone: $('#login-phone').value, password: $('#login-pass').value, name: $('#login-name').value };
+      const j = await api(mode === 'register' ? '/api/auth/register' : '/api/auth/login', { method: 'POST', body });
       token = j.token; localStorage.setItem('kotib_token', token);
       $('#login').classList.add('hidden');
       await start();
+      if (mode === 'register') { go('settings'); toast('Xush kelibsiz! Avval biznes ma’lumotlarini to‘ldiring'); }
     } catch (err) { $('#login-err').textContent = err.message; }
   };
 }
@@ -65,7 +72,8 @@ async function start() {
   settings = await api('/api/settings');
   $('#app').classList.remove('hidden');
   $('#biz-name').textContent = settings.business.name;
-  $('#top-sub').textContent = settings.ai ? 'AI kotib 24/7 faol' : 'Kotib faol (oddiy rejim)';
+  $('#top-sub').textContent = !settings.subscription.active ? 'Obuna tugagan' : settings.ai ? 'AI kotib 24/7 faol' : 'Kotib faol (oddiy rejim)';
+  renderBanner();
   const m = await api('/api/month'); today = m.today; selDay = today;
   loadHome(); loadTaskBadge(); live();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
@@ -413,7 +421,7 @@ async function loadTaskBadge() {
 // ---------- Sinov chati ----------
 let testSid = localStorage.getItem('kotib_test') || newSid();
 function newSid() { const s = Math.random().toString(36).slice(2, 12); localStorage.setItem('kotib_test', s); return s; }
-async function testHello() { const p = await fetch('/api/public').then((r) => r.json()); $('#t-chat').innerHTML = bubble('bot', p.greeting); }
+async function testHello() { const p = await fetch('/api/public?t=' + settings.tenantId).then((r) => r.json()); $('#t-chat').innerHTML = bubble('bot', p.greeting); }
 $('#t-form').onsubmit = async (e) => {
   e.preventDefault();
   const text = $('#t-input').value.trim(); if (!text) return;
@@ -422,7 +430,7 @@ $('#t-form').onsubmit = async (e) => {
   chat.insertAdjacentHTML('beforeend', bubble('me', text) + '<div class="msg bot typing">•••</div>');
   chat.scrollTop = 1e9;
   try {
-    const j = await api('/api/chat', { method: 'POST', body: { session: testSid, text, test: true } });
+    const j = await api('/api/chat', { method: 'POST', body: { session: testSid, text, test: true, t: settings.tenantId } });
     chat.querySelector('.typing').outerHTML = bubble('bot', j.reply)
       + (j.booking ? `<div class="sys">✅ Kalendarga yozildi: ${humanDate(j.booking.date)}, ${j.booking.start}</div>` : '')
       + (j.order ? `<div class="sys">🛒 Zakaz qabul qilindi: ${money(j.order.total)} so‘m</div>` : '')
@@ -459,6 +467,7 @@ function fillSettings() {
   loadConnections().catch(() => {});
   renderPhone();
   renderTgBot();
+  loadBilling().catch(() => {});
 }
 function renderServices() {
   $('#s-services').innerHTML = settings.services.map((s, i) => `<div class="svc" data-i="${i}">
@@ -487,20 +496,18 @@ function renderFaq() {
   $$('.fq-del').forEach((b) => b.onclick = () => { collect(); settings.faq.splice(Number(b.closest('.svc').dataset.i), 1); renderFaq(); });
 }
 function renderStatus() {
-  const base = settings.publicUrl || location.origin;
+  const base = (settings.publicUrl || location.origin) + '/t/' + settings.tenantId;
   $('#u-voice').textContent = base + '/twilio/voice';
   $('#u-status').textContent = base + '/twilio/status';
   $('#u-sms').textContent = base + '/twilio/sms';
-  $('#u-chat').textContent = base + '/chat';
+  $('#u-chat').textContent = settings.chatUrl;
   const it = (ok, t, hint) => `<div>${ok ? '✅' : '⚠️'} ${t}${!ok && hint ? `<div class="muted small">${hint}</div>` : ''}</div>`;
   $('#s-status').innerHTML = [
     it(settings.ai, "Sun'iy intellekt (erkin suhbat)", "Kalit yo'q — kotib faqat oddiy savollarga javob beradi. Erkin suhbat uchun \"Ulanishlar\"ga Gemini AI kalitini kiriting (bepul: aistudio.google.com/apikey)."),
-    it(settings.twilio, 'Twilio hisobi', "Ulanishlar'ga Twilio Account SID va Auth Token kiriting."),
-    it(settings.sms, 'SMS eslatmalar', 'Twilio ulangach va kotib raqami tanlangach o‘zi yoqiladi.'),
+    it(!!settings.kotibNumber, "Kotib raqami", "Hali biriktirilmagan."),
+    it(settings.sms, 'SMS eslatmalar', 'Kotib raqami biriktirilgach o‘zi yoqiladi.'),
     it(settings.operator, 'Operatorga yo‘naltirish', 'Yuqorida "Operator raqami"ni kiriting — aks holda kotib vazifa yaratadi.'),
     it(settings.telegram, 'Telegram', settings.tgToken ? 'Chat ID kiriting.' : "Ulanishlar bo'limiga Telegram bot tokenini kiriting."),
-    it(settings.publicUrl, 'Sayt manzili', "\"Ulanishlar\"ga sayt manzilini kiriting."),
-    it(settings.db === 'postgres', 'Doimiy baza', "Hozir ma'lumotlar vaqtinchalik: server qayta ishga tushganda (yangilanish, 15 daqiqa jimlikdan keyin) sozlamalar o'chib ketadi. Render'da bazani ulang."),
   ].join('');
   $('#s-pass-box').classList.toggle('hidden', settings.adminEnv);
 }
@@ -561,8 +568,8 @@ async function loadConnections() {
   conn = await api('/api/connections');
   $('#k-list').innerHTML = conn.keys.map((k) => {
     const [title, hint] = KEY_INFO[k.key] || [k.key, ''];
-    return `<label>${esc(title)} ${k.set ? '<span class="tag ok">ulangan</span>' : ''}${k.env ? ' <span class="tag">server</span>' : ''}
-      <input data-key="${k.key}" ${k.secret ? 'type="password" autocomplete="off"' : ''} value="${esc(k.value)}" ${k.env ? 'disabled' : ''} placeholder="${esc(hint)}"></label>`;
+    return `<label>${esc(title)} ${k.own ? '<span class="tag ok">o‘z kalitingiz</span>' : k.shared ? '<span class="tag">platforma beradi</span>' : ''}
+      <input data-key="${k.key}" ${k.secret ? 'type="password" autocomplete="off"' : ''} value="${esc(k.value)}" placeholder="${esc(k.shared ? 'Ixtiyoriy — platforma kaliti ishlatilmoqda' : hint)}"></label>`;
   }).join('');
   renderVoice();
 }
@@ -583,7 +590,7 @@ function renderVoice() {
 }
 $('#k-save').onclick = async () => {
   const body = {};
-  $$('#k-list input:not([disabled])').forEach((i) => body[i.dataset.key] = i.value);
+  $$('#k-list input').forEach((i) => body[i.dataset.key] = i.value);
   try { await api('/api/connections', { method: 'PUT', body }); settings = await api('/api/settings'); await loadConnections(); renderStatus(); toast('Ulanishlar saqlandi ✅'); } catch (e) { toast(e.message); }
 };
 $('#v-test').onclick = async () => {
@@ -678,7 +685,10 @@ function renderPhone() {
   const n = settings.kotibNumber;
   $('#ph-current').innerHTML = n
     ? `<div class="set-row"><div class="k">✅ Kotib raqami<small>Qo'ng'iroq va SMS'larga AI javob beradi</small></div><b>${esc(n)}</b></div>`
-    : `<div class="muted small" style="margin-bottom:8px">⚠️ Raqam ulanmagan. 1) "Ulanishlar"ga Twilio Account SID va Auth Token kiriting. 2) Pastdagi tugmani bosib raqamni tanlang.</div>`;
+    : settings.ownTwilio
+      ? `<div class="muted small" style="margin-bottom:8px">⚠️ Raqam ulanmagan. Pastdagi tugmani bosib Twilio raqamingizni tanlang.</div>`
+      : `<div class="muted small" style="margin-bottom:8px">⏳ Kotib raqami hali biriktirilmagan — platforma ma'muri tez orada biriktiradi va sizga Telegram orqali xabar beradi. O'z Twilio hisobingiz bo'lsa, "Ulanishlar"ga kalitlarini kiriting.</div>`;
+  $('#ph-load').parentElement.classList.toggle('hidden', !settings.ownTwilio);
   $('#ph-forward').classList.toggle('hidden', !n);
   if (n) {
     const codes = [['Hamma qo‘ng‘iroqlar', '**21*'], ['Javob bermasam', '**61*'], ['Band bo‘lsam', '**67*'], ['Telefonim o‘chiq bo‘lsa', '**62*']];
@@ -711,6 +721,36 @@ function renderTgBot() {
 }
 $('#tg-setup').onclick = async () => {
   try { const r = await api('/api/telegram/setup', { method: 'POST' }); settings = await api('/api/settings'); renderTgBot(); toast(`✅ @${r.bot} ishga tushdi — botga yozib sinab ko'ring`); } catch (e) { toast(e.message); }
+};
+
+// ---------- Obuna ----------
+function renderBanner() {
+  const s = settings.subscription, el = $('#sub-banner');
+  const until = s.until ? new Date(s.until).toLocaleDateString('ru-RU') : '';
+  if (s.state === 'expired') { el.className = 'alert bad'; el.innerHTML = `⛔ <b>Obuna tugagan.</b> AI kotib javob bermayapti, qo'ng'iroqlar operator raqamingizga o'tadi.<br><button class="btn small primary" data-go-sub>Obunani uzaytirish</button>`; }
+  else if (s.state === 'trial') { el.className = 'alert'; el.innerHTML = `🎁 Bepul sinov davri: yana <b>${s.daysLeft} kun</b> (${until} gacha). <a href="#" data-go-sub>Tariflar</a>`; }
+  else if (s.daysLeft <= 3) { el.className = 'alert'; el.innerHTML = `⏳ Obuna <b>${s.daysLeft} kundan</b> keyin tugaydi. <a href="#" data-go-sub>Uzaytirish</a>`; }
+  else { el.className = 'alert hidden'; el.innerHTML = ''; }
+  $$('[data-go-sub]').forEach((x) => x.onclick = (e) => { e.preventDefault(); go('settings'); setTimeout(() => $('#sub-card').scrollIntoView({ behavior: 'smooth' }), 100); });
+}
+let billing = null, selPlan = null;
+async function loadBilling() {
+  billing = await api('/api/billing');
+  const s = billing.status, until = s.until ? new Date(s.until).toLocaleDateString('ru-RU') : '—';
+  const label = { trial: `🎁 Bepul sinov — ${s.daysLeft} kun qoldi`, paid: `✅ Faol — ${until} gacha`, expired: '⛔ Obuna tugagan', blocked: '⛔ Bloklangan' }[s.state] || s.state;
+  $('#sub-status').innerHTML = `<div class="set-row"><div class="k">${label}<small>Tugash sanasi: ${until}</small></div></div>`;
+  $('#sub-plans').innerHTML = billing.plans.map((p) => `<div class="plan" data-id="${esc(p.id)}"><div><b>${esc(p.name)}</b><div class="muted small">${p.days} kun</div></div><div class="price">${money(p.price)} so‘m</div></div>`).join('');
+  $$('#sub-plans .plan').forEach((x) => x.onclick = () => { selPlan = x.dataset.id; $$('#sub-plans .plan').forEach((y) => y.classList.toggle('on', y === x)); $('#sub-pay').classList.remove('hidden'); });
+  $('#sub-info').textContent = billing.payInfo || '';
+  const pend = billing.payments.find((p) => p.status === 'pending');
+  const st = { pending: '⏳ tekshirilmoqda', approved: '✅ tasdiqlandi', rejected: '❌ rad etildi' };
+  $('#sub-history').innerHTML = billing.payments.length ? "To'lovlar: " + billing.payments.slice(0, 5).map((p) => `${new Date(p.at).toLocaleDateString('ru-RU')} — ${esc(p.planName)}, ${money(p.amount)} so‘m — ${st[p.status]}`).join('<br>') : '';
+  $('#sub-send').disabled = !!pend;
+  $('#sub-send').textContent = pend ? "To'lovingiz tekshirilmoqda…" : "To'lov qildim";
+}
+$('#sub-send').onclick = async () => {
+  if (!selPlan) { toast('Tarifni tanlang'); return; }
+  try { await api('/api/billing/pay', { method: 'POST', body: { plan: selPlan, note: $('#sub-note').value } }); toast("✅ So'rov yuborildi — tez orada faollashtiriladi"); loadBilling(); } catch (e) { toast(e.message); }
 };
 
 boot();

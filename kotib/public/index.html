@@ -41,10 +41,16 @@
       <div class="halo"><div><img src="/logo-256.png" alt="Kotib"></div></div>
       <h1>KOTIB</h1>
       <p class="muted" id="login-hint">Biznesingizning aqlli virtual xodimi.<br>Qo'ng'iroqlarga 24/7 javob beradi.</p>
+      <div class="seg boxed" id="auth-tabs" style="margin-top:22px">
+        <button type="button" data-m="login" class="on">Kirish</button>
+        <button type="button" data-m="register">Ro'yxatdan o'tish</button>
+      </div>
       <form id="login-form">
         <input id="login-name" class="hidden" placeholder="Biznes nomi" autocomplete="organization">
+        <input id="login-phone" type="tel" placeholder="Telefon raqam: +998 90 123 45 67" autocomplete="tel" required>
         <input id="login-pass" type="password" placeholder="Parol" autocomplete="current-password" required>
         <button class="btn primary" id="login-btn">Kirish</button>
+        <p class="muted small hidden" id="trial-note">Ro'yxatdan o'tgach — bepul sinov davri. Karta talab qilinmaydi.</p>
         <p class="error" id="login-err"></p>
       </form>
     </div>
@@ -67,6 +73,7 @@
     </header>
 
     <main>
+      <div id="sub-banner" class="alert hidden"></div>
       <!-- Bosh sahifa -->
       <div class="view" id="v-home">
         <div class="hero">
@@ -194,6 +201,18 @@
           <div class="muted small" id="p-sub"></div>
         </div>
 
+        <div class="card" id="sub-card">
+          <h3>Obuna</h3>
+          <div id="sub-status"></div>
+          <div id="sub-plans" class="list" style="margin-top:8px"></div>
+          <div id="sub-pay" class="hidden">
+            <div class="note" id="sub-info" style="white-space:pre-line"></div>
+            <label>To'lov haqida izoh (karta oxirgi 4 raqami, chek raqami)<input id="sub-note" placeholder="Masalan: *1234, 14:20"></label>
+            <button class="btn primary block" id="sub-send">To'lov qildim</button>
+          </div>
+          <div id="sub-history" class="muted small" style="margin-top:10px"></div>
+        </div>
+
         <div class="card">
           <h3>Biznes haqida</h3>
           <label>Nomi<input id="s-name"></label>
@@ -285,7 +304,7 @@
 
         <div class="card">
           <h3>Ulanishlar</h3>
-          <p class="muted small" style="margin-top:-6px">API kalitlarini shu yerga kiriting. Kalitlar serverda saqlanadi va bu yerda faqat oxirgi 4 belgisi ko'rinadi. Server sozlamalarida (Environment) berilgan qiymatlarni bu yerdan o'zgartirib bo'lmaydi.</p>
+          <p class="muted small" style="margin-top:-6px">Ko'p xizmatlarni platforma o'zi beradi ("platforma beradi" belgisi) — hech narsa kiritish shart emas. O'z hisobingizdan foydalanmoqchi bo'lsangiz, kalitingizni kiriting. Kalitlar serverda saqlanadi, bu yerda faqat oxirgi 4 belgisi ko'rinadi.</p>
           <div id="k-list"></div>
           <button class="btn primary block" id="k-save">Ulanishlarni saqlash</button>
         </div>

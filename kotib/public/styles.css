@@ -246,3 +246,13 @@ dialog::backdrop { background: rgba(8, 10, 32, .7); backdrop-filter: blur(4px); 
 .public .chat { flex: 1; max-height: none; background: var(--card); border-radius: var(--radius); padding: 14px; box-shadow: var(--shadow); border: 1px solid var(--line); }
 .public .chat-form { padding-bottom: calc(8px + env(safe-area-inset-bottom)); }
 .quick { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
+
+/* Obuna */
+.alert { border-radius: 16px; padding: 12px 14px; margin: 0 0 14px; font-size: 14px; background: rgba(255, 181, 71, .12); border: 1px solid rgba(255, 181, 71, .35); color: #ffd89a; }
+.alert.bad { background: var(--bad-bg); border-color: rgba(255, 77, 141, .4); color: #ffb3cd; }
+.alert.ok { background: var(--ok-bg); border-color: rgba(52, 224, 161, .35); color: var(--ok); }
+.alert .btn { margin-top: 8px; }
+.note { font-size: 13px; color: var(--muted); background: rgba(255, 255, 255, .04); border-radius: 12px; padding: 10px 12px; margin: 10px 0; }
+.plan { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; cursor: pointer; margin-bottom: 8px; }
+.plan.on { border-color: var(--primary); background: var(--primary-2); }
+.plan .price { margin-left: auto; font-weight: 700; white-space: nowrap; }

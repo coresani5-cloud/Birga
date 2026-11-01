@@ -28,17 +28,18 @@
     </form>
   </div>
   <script>
+    const T = (location.pathname.match(/^\/c\/(\w+)/) || [])[1] || new URLSearchParams(location.search).get('t') || '';
     const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const chat = document.getElementById('chat');
-    let sid = localStorage.getItem('kotib_sid');
-    if (!sid) { sid = Math.random().toString(36).slice(2, 12); localStorage.setItem('kotib_sid', sid); }
+    let sid = localStorage.getItem('kotib_sid_' + T);
+    if (!sid) { sid = Math.random().toString(36).slice(2, 12); localStorage.setItem('kotib_sid_' + T, sid); }
     const add = (who, text) => { chat.insertAdjacentHTML('beforeend', `<div class="msg ${who}">${esc(text).replace(/\n/g, '<br>')}</div>`); chat.scrollTop = 1e9; };
-    fetch('/api/public').then((r) => r.json()).then((p) => { document.getElementById('name').textContent = p.name; document.title = p.name + ' — onlayn yozilish'; add('bot', p.greeting); });
+    fetch('/api/public?t=' + T).then((r) => r.json()).then((p) => { if (p.error) { add('bot', 'Bu sahifa topilmadi.'); return; } document.getElementById('name').textContent = p.name; document.title = p.name + ' — onlayn yozilish'; add('bot', p.greeting); });
     async function send(text) {
       add('me', text);
       chat.insertAdjacentHTML('beforeend', '<div class="msg bot typing">•••</div>'); chat.scrollTop = 1e9;
       try {
-        const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session: sid, text }) });
+        const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session: sid, text, t: T }) });
         const j = await r.json();
         chat.querySelector('.typing').remove();
         add('bot', j.reply || j.error || 'Xato');
@@ -74,7 +75,7 @@
       try {
         const wav = await toWav(blob);
         const b64 = await new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.onerror = no; r.readAsDataURL(wav); });
-        const r = await fetch('/api/chat/voice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session: sid, data: b64, mime: 'audio/wav' }) });
+        const r = await fetch('/api/chat/voice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session: sid, data: b64, mime: 'audio/wav', t: T }) });
         const j = await r.json();
         chat.querySelector('.typing').remove();
         if (j.error) { add('bot', j.error); return; }

@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const store = require('./store');
+const { env } = require('./config');
 
 const TTS_DIR = path.join(store.DIR, 'tts');
 const AISHA = process.env.AISHA_BASE || 'https://back.aisha.group'; // AISHA_BASE — faqat test uchun
@@ -58,15 +59,18 @@ function uzSpeech(text) {
 // Ishlamay qolgan provayder 10 daqiqaga chetlatiladi — keyingisi (yoki Twilio ovozi) ishlatiladi
 const down = new Map();
 const lastError = {};
-const isDown = (p) => (down.get(p) || 0) > Date.now();
+// Kalit biznesga tegishli: bir biznesning xato kaliti boshqasiga ta'sir qilmasin
+const dkey = (p) => `${store.tenantId() || '-'}:${p}`;
+const isDown = (p) => (down.get(dkey(p)) || 0) > Date.now();
+const errs = () => { const k = store.tenantId() || '-'; return lastError[k] || (lastError[k] = {}); };
 function ttsProviders(lang) {
   if (lang !== 'uz' && lang !== 'ru') return [];
   const out = [];
   // Egasining klonlangan ovozi (ElevenLabs) — birinchi o'rinda
-  if (process.env.ELEVENLABS_API_KEY && process.env.ELEVENLABS_VOICE_ID) out.push('elevenlabs');
-  if (process.env.AISHA_API_KEY) out.push('aisha');
-  if (lang === 'uz' && process.env.MUXLISA_API_KEY) out.push('muxlisa');
-  if (process.env.AZURE_SPEECH_KEY && process.env.AZURE_SPEECH_REGION) out.push('azure');
+  if (env("ELEVENLABS_API_KEY") && env("ELEVENLABS_VOICE_ID")) out.push('elevenlabs');
+  if (env("AISHA_API_KEY")) out.push('aisha');
+  if (lang === 'uz' && env("MUXLISA_API_KEY")) out.push('muxlisa');
+  if (env("AZURE_SPEECH_KEY") && env("AZURE_SPEECH_REGION")) out.push('azure');
   return out;
 }
 function ttsProvider(lang) {
@@ -75,7 +79,7 @@ function ttsProvider(lang) {
 }
 // Ruscha uchun Twilio'ning tabiiy ovozi yetarli — tashqi provayder faqat o'zbekcha uchun (TTS_RU=1 bo'lsa ruscha ham)
 const ttsOn = (lang) => !!ttsProvider(lang) && (lang === 'uz' || process.env.TTS_RU === '1');
-const resetDown = () => { down.clear(); for (const k of Object.keys(lastError)) delete lastError[k]; };
+const resetDown = () => { const t = (store.tenantId() || '-') + ':'; for (const k of [...down.keys()]) if (k.startsWith(t)) down.delete(k); delete lastError[store.tenantId() || '-']; };
 
 // Aisha javobidan audioni olish: to'g'ridan-to'g'ri audio, base64, havola yoki navbatdagi vazifa
 async function aishaAudio(r, key, ms) {
@@ -108,10 +112,10 @@ async function aishaAudio(r, key, ms) {
 }
 const errText = async (r) => { const t = await r.text().catch(() => ''); const m = /<title>([^<]*)<\/title>/i.exec(t); return (m ? m[1] : t).replace(/\s+/g, ' ').slice(0, 120); };
 async function synthAisha(text, lang, ms) {
-  const key = process.env.AISHA_API_KEY;
+  const key = env("AISHA_API_KEY");
   const fields = { transcript: text.slice(0, 950), language: lang };
   if (lang === 'uz') {
-    if (process.env.AISHA_VOICE_ID) fields.voice_id = process.env.AISHA_VOICE_ID; // egasining klonlangan ovozi
+    if (env("AISHA_VOICE_ID")) fields.voice_id = env("AISHA_VOICE_ID"); // egasining klonlangan ovozi
     else { fields.model = process.env.AISHA_MODEL || 'Gulnoza'; fields.mood = process.env.AISHA_MOOD || 'Neutral'; }
     fields.speed = process.env.AISHA_SPEED || '1';
   }
@@ -129,7 +133,7 @@ async function synthAisha(text, lang, ms) {
 }
 async function synthMuxlisa(text, lang, ms) {
   const r = await fetch(`${MUXLISA}/tts`, {
-    method: 'POST', headers: { 'x-api-key': process.env.MUXLISA_API_KEY, 'Content-Type': 'application/json' },
+    method: 'POST', headers: { 'x-api-key': env("MUXLISA_API_KEY"), 'Content-Type': 'application/json' },
     body: JSON.stringify({ text: text.slice(0, 5000), speaker: Number(process.env.MUXLISA_SPEAKER || 0) }), signal: AbortSignal.timeout(ms),
   });
   if (!r.ok) throw new Error(`muxlisa ${r.status} ${await errText(r)}`);
@@ -139,17 +143,17 @@ async function synthAzure(text, lang, ms) {
   const voice = lang === 'ru' ? process.env.AZURE_VOICE_RU || 'ru-RU-SvetlanaNeural' : process.env.AZURE_VOICE_UZ || 'uz-UZ-MadinaNeural';
   const loc = voice.slice(0, 5);
   const esc = (s) => s.replace(/[<>&"']/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' }[c]));
-  const r = await fetch(`https://${process.env.AZURE_SPEECH_REGION}.tts.speech.microsoft.com/cognitiveservices/v1`, {
+  const r = await fetch(`https://${env("AZURE_SPEECH_REGION")}.tts.speech.microsoft.com/cognitiveservices/v1`, {
     method: 'POST',
-    headers: { 'Ocp-Apim-Subscription-Key': process.env.AZURE_SPEECH_KEY, 'Content-Type': 'application/ssml+xml', 'X-Microsoft-OutputFormat': 'riff-16khz-16bit-mono-pcm', 'User-Agent': 'kotib' },
+    headers: { 'Ocp-Apim-Subscription-Key': env("AZURE_SPEECH_KEY"), 'Content-Type': 'application/ssml+xml', 'X-Microsoft-OutputFormat': 'riff-16khz-16bit-mono-pcm', 'User-Agent': 'kotib' },
     body: `<speak version="1.0" xml:lang="${loc}"><voice name="${voice}">${esc(text)}</voice></speak>`, signal: AbortSignal.timeout(ms),
   });
   if (!r.ok) throw new Error(`azure ${r.status} ${await errText(r)}`);
   return { data: Buffer.from(await r.arrayBuffer()), ext: 'wav' };
 }
 async function synthEleven(text, lang, ms) {
-  const r = await fetch(`${ELEVEN}/v1/text-to-speech/${encodeURIComponent(process.env.ELEVENLABS_VOICE_ID)}?output_format=mp3_44100_128`, {
-    method: 'POST', headers: { 'xi-api-key': process.env.ELEVENLABS_API_KEY, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
+  const r = await fetch(`${ELEVEN}/v1/text-to-speech/${encodeURIComponent(env("ELEVENLABS_VOICE_ID"))}?output_format=mp3_44100_128`, {
+    method: 'POST', headers: { 'xi-api-key': env("ELEVENLABS_API_KEY"), 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
     body: JSON.stringify({ text: text.slice(0, 2500), model_id: process.env.ELEVENLABS_MODEL || 'eleven_v3', voice_settings: { stability: 0.5, similarity_boost: 0.85 } }),
     signal: AbortSignal.timeout(ms),
   });
@@ -158,13 +162,13 @@ async function synthEleven(text, lang, ms) {
 }
 // Egasining ovozini klonlash (ElevenLabs Instant Voice Cloning). Qaytaradi: voice_id
 async function cloneVoice(buf, name) {
-  if (!process.env.ELEVENLABS_API_KEY) throw new Error('Avval "Ulanishlar"ga ElevenLabs kalitini kiriting');
+  if (!env("ELEVENLABS_API_KEY")) throw new Error('Avval "Ulanishlar"ga ElevenLabs kalitini kiriting');
   const form = new FormData();
   form.set('name', String(name || 'Kotib ovozi').slice(0, 60));
   form.set('description', "Kotib uchun biznes egasining o'z ovozi (o'zbek tili)");
   form.set('labels', JSON.stringify({ language: 'uz', use: 'kotib' }));
   form.append('files', new Blob([buf], { type: 'audio/wav' }), 'sample.wav');
-  const r = await fetch(`${ELEVEN}/v1/voices/add`, { method: 'POST', headers: { 'xi-api-key': process.env.ELEVENLABS_API_KEY }, body: form, signal: AbortSignal.timeout(60000) });
+  const r = await fetch(`${ELEVEN}/v1/voices/add`, { method: 'POST', headers: { 'xi-api-key': env("ELEVENLABS_API_KEY") }, body: form, signal: AbortSignal.timeout(60000) });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) {
     const msg = j.detail?.message || j.detail?.status || (typeof j.detail === 'string' ? j.detail : '') || r.status;
@@ -184,7 +188,7 @@ async function tts(text, lang = 'uz', ms = 8000) {
   if (!spoken) return null;
   for (const prov of ttsProviders(lang)) {
     if (isDown(prov)) continue;
-    const voiceId = prov === 'elevenlabs' ? process.env.ELEVENLABS_VOICE_ID : prov === 'aisha' ? process.env.AISHA_VOICE_ID || process.env.AISHA_MODEL || 'Gulnoza' : prov === 'muxlisa' ? process.env.MUXLISA_SPEAKER || '0' : process.env.AZURE_VOICE_UZ || '';
+    const voiceId = prov === 'elevenlabs' ? env("ELEVENLABS_VOICE_ID") : prov === 'aisha' ? env("AISHA_VOICE_ID") || process.env.AISHA_MODEL || 'Gulnoza' : prov === 'muxlisa' ? process.env.MUXLISA_SPEAKER || '0' : process.env.AZURE_VOICE_UZ || '';
     const id = crypto.createHash('sha256').update([prov, voiceId, lang, spoken].join('|')).digest('hex').slice(0, 40);
     if (known.has(id)) return known.get(id);
     const cached = ['wav', 'mp3'].map((e) => `${id}.${e}`).find((n) => fs.existsSync(path.join(TTS_DIR, n)));
@@ -198,11 +202,11 @@ async function tts(text, lang = 'uz', ms = 8000) {
           const name = `${id}.${ext}`;
           fs.writeFileSync(path.join(TTS_DIR, name), data);
           known.set(id, name);
-          delete lastError[prov];
+          delete errs()[prov];
           return name;
         } catch (e) {
-          lastError[prov] = e.message;
-          down.set(prov, Date.now() + 10 * 60e3);
+          errs()[prov] = e.message;
+          down.set(dkey(prov), Date.now() + 10 * 60e3);
           console.error(`TTS (${prov}, 10 daqiqaga o'chirildi):`, e.message);
           return null;
         } finally { inflight.delete(id); }
@@ -220,7 +224,7 @@ function ttsFile(name) {
 }
 
 // ---------- Nutq → matn (STT) ----------
-const sttProvider = (lang) => (lang === 'uz' || lang === 'ru') && (process.env.AISHA_API_KEY ? 'aisha' : lang === 'uz' && process.env.MUXLISA_API_KEY ? 'muxlisa' : null);
+const sttProvider = (lang) => (lang === 'uz' || lang === 'ru') && (env("AISHA_API_KEY") ? 'aisha' : lang === 'uz' && env("MUXLISA_API_KEY") ? 'muxlisa' : null);
 const sttOn = (lang) => process.env.STT_MODE !== 'twilio' && lang === 'uz' && !!sttProvider(lang);
 
 async function stt(buf, lang = 'uz', ms = 9000) {
@@ -235,14 +239,14 @@ async function sttWith(prov, buf, mime, lang, ms) {
   const ext = /ogg|opus/.test(mime) ? 'ogg' : /webm/.test(mime) ? 'webm' : /mpeg|mp3/.test(mime) ? 'mp3' : 'wav';
   form.set('audio', new Blob([buf], { type: mime }), 'audio.' + ext);
   if (prov === 'muxlisa') {
-    const r = await fetch(`${MUXLISA}/stt`, { method: 'POST', headers: { 'x-api-key': process.env.MUXLISA_API_KEY }, body: form, signal: AbortSignal.timeout(left()) });
+    const r = await fetch(`${MUXLISA}/stt`, { method: 'POST', headers: { 'x-api-key': env("MUXLISA_API_KEY") }, body: form, signal: AbortSignal.timeout(left()) });
     if (!r.ok) throw new Error(`muxlisa stt ${r.status} ${(await r.text()).slice(0, 150)}`);
     const j = await r.json().catch(() => ({}));
     return String(j.text || '').trim();
   }
   form.set('language', lang);
   form.set('has_diarization', 'false');
-  const key = process.env.AISHA_API_KEY;
+  const key = env("AISHA_API_KEY");
   const r = await fetch(`${AISHA}/api/v2/stt/post/`, { method: 'POST', headers: { 'x-api-key': key }, body: form, signal: AbortSignal.timeout(left()) });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(`aisha stt ${r.status} ${j.detail || j.error || ''}`);
@@ -262,7 +266,7 @@ async function sttWith(prov, buf, mime, lang, ms) {
 async function geminiTranscribe(buf, mime, ms) {
   const model = process.env.GEMINI_STT_MODEL || process.env.GEMINI_MODEL || 'gemini-2.5-flash';
   const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': env("GEMINI_API_KEY") },
     body: JSON.stringify({
       contents: [{ role: 'user', parts: [{ inline_data: { mime_type: mime, data: buf.toString('base64') } }, { text: "Bu mijozning ovozli xabari (o'zbek yoki rus tilida). Uni so'zma-so'z, o'sha tilda yozib ber. Faqat matnni qaytar, izohsiz. Agar nutq bo'lmasa, bo'sh qaytar." }] }],
       generationConfig: { temperature: 0, maxOutputTokens: 600, ...(/2\.5-flash/.test(model) ? { thinkingConfig: { thinkingBudget: 0 } } : {}) },
@@ -277,10 +281,10 @@ async function geminiTranscribe(buf, mime, ms) {
 async function transcribe(buf, mime = 'audio/wav', lang = 'uz', ms = 12000) {
   const order = [];
   const wav = /wav/.test(mime);
-  if (process.env.AISHA_API_KEY && wav) order.push('aisha');
-  if (process.env.MUXLISA_API_KEY) order.push('muxlisa');
-  if (process.env.GEMINI_API_KEY) order.push('gemini');
-  if (process.env.AISHA_API_KEY && !wav) order.push('aisha');
+  if (env("AISHA_API_KEY") && wav) order.push('aisha');
+  if (env("MUXLISA_API_KEY")) order.push('muxlisa');
+  if (env("GEMINI_API_KEY")) order.push('gemini');
+  if (env("AISHA_API_KEY") && !wav) order.push('aisha');
   const errs = [];
   for (const p of order) {
     try {
@@ -295,9 +299,9 @@ async function transcribe(buf, mime = 'audio/wav', lang = 'uz', ms = 12000) {
 
 // Twilio yozuvini yuklab olish (yozuv tayyor bo'lishi uchun bir necha marta urinadi)
 async function twilioRecording(url) {
-  const auth = 'Basic ' + Buffer.from(`${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`).toString('base64');
+  const auth = 'Basic ' + Buffer.from(`${env("TWILIO_ACCOUNT_SID")}:${env("TWILIO_AUTH_TOKEN")}`).toString('base64');
   for (let i = 0; i < 4; i++) {
-    const r = await fetch(url + '.wav', { headers: process.env.TWILIO_ACCOUNT_SID ? { Authorization: auth } : {}, signal: AbortSignal.timeout(5000) }).catch(() => null);
+    const r = await fetch(url + '.wav', { headers: env("TWILIO_ACCOUNT_SID") ? { Authorization: auth } : {}, signal: AbortSignal.timeout(5000) }).catch(() => null);
     if (r && r.ok) return Buffer.from(await r.arrayBuffer());
     await new Promise((res) => setTimeout(res, 400));
   }
@@ -305,11 +309,11 @@ async function twilioRecording(url) {
 }
 // Maxfiylik: yozuvni Twilio'dan o'chiramiz (matni suhbat tarixida qoladi)
 function deleteRecording(url) {
-  if (!process.env.TWILIO_ACCOUNT_SID || !url) return;
-  const auth = 'Basic ' + Buffer.from(`${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`).toString('base64');
+  if (!env("TWILIO_ACCOUNT_SID") || !url) return;
+  const auth = 'Basic ' + Buffer.from(`${env("TWILIO_ACCOUNT_SID")}:${env("TWILIO_AUTH_TOKEN")}`).toString('base64');
   fetch(url + '.json', { method: 'DELETE', headers: { Authorization: auth }, signal: AbortSignal.timeout(8000) }).catch(() => {});
 }
 
-const status = () => { const t = ttsProvider('uz'); return { errors: { ...lastError }, tts: t, stt: sttOn('uz') ? sttProvider('uz') : null, cloned: t === 'elevenlabs' || (t === 'aisha' && !!process.env.AISHA_VOICE_ID), eleven: !!process.env.ELEVENLABS_API_KEY }; };
+const status = () => { const t = ttsProvider('uz'); return { errors: { ...errs() }, tts: t, stt: sttOn('uz') ? sttProvider('uz') : null, cloned: t === 'elevenlabs' || (t === 'aisha' && !!env("AISHA_VOICE_ID")), eleven: !!env("ELEVENLABS_API_KEY") }; };
 
 module.exports = { transcribe, resetDown, cloneVoice, uzNumber, uzOrdinal, uzSpeech, tts, ttsOn, ttsFile, stt, sttOn, twilioRecording, deleteRecording, status };

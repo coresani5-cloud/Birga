@@ -61,7 +61,7 @@ const mock = http.createServer((req, res) => {
 
 const env = { ...process.env, PORT: String(PORT), DATA_DIR: dir, DATABASE_URL: '', GEMINI_API_KEY: '', GROQ_API_KEY: '', AI_API_URL: '', TWILIO_AUTH_TOKEN: '', TWILIO_ACCOUNT_SID: '', ADMIN_PASSWORD: 'parol123', AISHA_API_KEY: '', PUBLIC_URL: '', AISHA_BASE: `http://localhost:${MOCK}`, TWILIO_API_BASE: `http://localhost:${MOCK}`, ELEVENLABS_BASE: `http://localhost:${MOCK}`, TELEGRAM_API_BASE: `http://localhost:${MOCK}`, TG_BOT_TOKEN: '', TG_CHAT_ID: '', ELEVENLABS_API_KEY: '', ELEVENLABS_VOICE_ID: '', TWILIO_FROM: '' };
 const srv = spawn(process.execPath, [path.join(__dirname, 'server.js')], { env, stdio: ['ignore', 'pipe', 'inherit'] });
-let token = '';
+let token = '', tid = '';
 async function j(url, body, method) {
   const r = await fetch(base + url, { method: method || (body ? 'POST' : 'GET'), headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: body ? JSON.stringify(body) : undefined });
   return { status: r.status, data: await r.json().catch(() => null) };
@@ -70,12 +70,13 @@ const form = async (url, p) => (await fetch(base + url, { method: 'POST', header
 
 async function main() {
   for (let i = 0; i < 50; i++) { try { await fetch(base + '/api/health'); break; } catch { await new Promise((r) => setTimeout(r, 100)); } }
-  token = (await j('/api/auth/login', { password: 'parol123' })).data.token;
+  const reg = (await j('/api/auth/register', { name: 'Ovoz test', phone: '+998901234500', password: 'parol123' })).data;
+  token = reg.token; tid = reg.id;
   const hours = {}; for (let d = 0; d < 7; d++) hours[d] = { open: '09:00', close: '18:00', off: false, breaks: [{ from: '13:00', to: '14:00' }] };
   await j('/api/settings', { hours }, 'PUT');
 
   // Ovoz ulanmaganda — Twilio ovozi
-  let x = await form('/twilio/voice', { CallSid: 'C0', From: '+998900000000' });
+  let x = await form(`/t/${tid}/twilio/voice`, { CallSid: 'C0', From: '+998900000000' });
   assert.match(x, /<Say voice="Polly.Filiz"/);
   assert.equal((await j('/api/voice/test', { text: 'salom' })).status, 400);
 
@@ -91,15 +92,15 @@ async function main() {
   assert.equal((await fetch(base + t.url)).status, 200);
 
   // Qo'ng'iroq: til menyusi o'zbekcha ovozda
-  x = await form('/twilio/voice', { CallSid: 'C1', From: '+998901112233' });
+  x = await form(`/t/${tid}/twilio/voice`, { CallSid: 'C1', From: '+998901112233' });
   assert.match(x, new RegExp(`<Play>${base}/tts/[a-f0-9]{40}\\.wav</Play>`), x);
   assert.match(x, /<Say voice="Polly.Tatyana"/); // ruscha qism — Twilio ovozi
   // 1 — o'zbekcha: endi Twilio emas, yozib olinadi (Aisha taniydi)
-  x = await form('/twilio/voice/turn?menu=1', { CallSid: 'C1', From: '+998901112233', Digits: '1' });
-  assert.match(x, /<Record action="\/twilio\/voice\/rec"/, x);
+  x = await form(`/t/${tid}/twilio/voice/turn?menu=1`, { CallSid: 'C1', From: '+998901112233', Digits: '1' });
+  assert.match(x, /<Record action="\/t\/\w+\/twilio\/voice\/rec"/, x);
   // Mijoz gapirdi → Aisha STT → javob o'zbekcha ovozda
   spoken.length = 0;
-  x = await form('/twilio/voice/rec', { CallSid: 'C1', From: '+998901112233', RecordingUrl: `http://localhost:${MOCK}/rec/R1`, RecordingDuration: '3' });
+  x = await form(`/t/${tid}/twilio/voice/rec`, { CallSid: 'C1', From: '+998901112233', RecordingUrl: `http://localhost:${MOCK}/rec/R1`, RecordingDuration: '3' });
   assert.match(x, /<Play>/);
   assert.ok(spoken.some((s) => /to'qqizdan o'n uchgacha/.test(s)), 'vaqt so‘z bilan aytilishi kerak: ' + spoken.join(' | '));
   const conv = (await j('/api/conversations/call:C1')).data;
@@ -115,13 +116,13 @@ async function main() {
   // Salomlashish yozuvi (egasining o'z ovozi)
   const g = await j('/api/media/greeting', { type: 'audio/wav', data: wav.toString('base64'), seconds: 3 });
   assert.equal(g.status, 200);
-  x = await form('/twilio/voice', { CallSid: 'C2', From: '+998905556677' });
-  assert.match(x, /\/media\/greeting\?v=\d+<\/Play>/, x);
-  const m = await fetch(base + '/media/greeting');
+  x = await form(`/t/${tid}/twilio/voice`, { CallSid: 'C2', From: '+998905556677' });
+  assert.match(x, /\/media\/greeting\?t=\w+&amp;v=\d+<\/Play>/, x);
+  const m = await fetch(`${base}/media/greeting?t=${tid}`);
   assert.equal(m.status, 200);
   assert.equal(Buffer.from(await m.arrayBuffer()).length, wav.length);
   assert.equal((await j('/api/media/greeting', null, 'DELETE')).status, 200);
-  assert.equal((await fetch(base + '/media/greeting')).status, 404);
+  assert.equal((await fetch(`${base}/media/greeting?t=${tid}`)).status, 404);
 
   // Egasining ovozini klonlash (ElevenLabs)
   const sample = Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(120000)]).toString('base64');
@@ -144,9 +145,9 @@ async function main() {
   // Telegram bot: mijoz yozadi va ovozli xabar yuboradi
   await j('/api/connections', { TG_BOT_TOKEN: 'TGTOKEN' }, 'PUT');
   const tgSecret = require('crypto').createHash('sha256').update('kotib-tg:TGTOKEN').digest('hex').slice(0, 32);
-  const hook = (update) => fetch(`${base}/telegram/hook/${tgSecret}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Telegram-Bot-Api-Secret-Token': tgSecret }, body: JSON.stringify(update) });
+  const hook = (update) => fetch(`${base}/telegram/hook/${tid}/${tgSecret}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Telegram-Bot-Api-Secret-Token': tgSecret }, body: JSON.stringify(update) });
   const wait = async (n) => { for (let i = 0; i < 50 && tgSent.length < n; i++) await new Promise((r) => setTimeout(r, 100)); };
-  assert.equal((await fetch(`${base}/telegram/hook/${tgSecret}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status, 403); // sirsiz
+  assert.equal((await fetch(`${base}/telegram/hook/${tid}/${tgSecret}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status, 403); // sirsiz
   const chat = { id: 555, type: 'private' }, from = { first_name: 'Dilshod', language_code: 'uz' };
   await hook({ message: { chat, from, text: '/start' } }); await wait(1);
   assert.match(tgSent[0], /SAVE|kotib|Assalomu/i);
@@ -160,7 +161,7 @@ async function main() {
   assert.equal(tgConv.from, '+998935551122');
 
   // Saytda ovozli suhbat
-  const wv = await j('/api/chat/voice', { session: 'webv1', data: wav.toString('base64'), mime: 'audio/wav' });
+  const wv = await j('/api/chat/voice', { session: 'webv1', data: wav.toString('base64'), mime: 'audio/wav', t: tid });
   assert.equal(wv.status, 200, JSON.stringify(wv.data));
   assert.match(wv.data.text, /Ertaga/);
   assert.match(wv.data.audio, /^\/tts\/[a-f0-9]{40}\.wav$/);
@@ -170,26 +171,26 @@ async function main() {
   const vt = await j('/api/voice/test', { text: 'Butunlay yangi matn 123' });
   assert.equal(vt.status, 502);
   assert.match(vt.data.error, /aisha.*500/i);
-  x = await form('/twilio/voice', { CallSid: 'C9', From: '+998907778899' });
+  x = await form(`/t/${tid}/twilio/voice`, { CallSid: 'C9', From: '+998907778899' });
   assert.match(x, /<Say voice="Polly.Filiz"/);
   aishaFail = false;
   await j('/api/connections', {}, 'PUT'); // qayta saqlash — provayder qayta yoqiladi
   assert.equal((await j('/api/voice/test', { text: 'Yana bir matn' })).status, 200);
 
   // Kotib raqami: Twilio raqamini ilovadan avtomatik ulash
-  assert.equal((await j('/api/phone/numbers')).status, 400); // kalit yo'q
+  assert.equal((await j('/api/phone/numbers')).data.managed, true); // o'z Twilio'si yo'q — raqamni admin biriktiradi
+  assert.equal((await j('/api/phone/connect', { sid: 'PN' + 'a'.repeat(32) })).status, 403);
   await j('/api/connections', { TWILIO_ACCOUNT_SID: 'AC1', TWILIO_AUTH_TOKEN: 'tok' }, 'PUT');
   let nums = (await j('/api/phone/numbers')).data;
   assert.equal(nums.numbers[0].number, '+15551234567');
   assert.equal(nums.numbers[0].connected, false);
   const con = await j('/api/phone/connect', { sid: nums.numbers[0].sid });
   assert.equal(con.status, 200, JSON.stringify(con.data));
-  assert.deepEqual(twilioHooks, { voice: base + '/twilio/voice', status: base + '/twilio/status', sms: base + '/twilio/sms' });
+  assert.deepEqual(twilioHooks, { voice: `${base}/t/${tid}/twilio/voice`, status: `${base}/t/${tid}/twilio/status`, sms: `${base}/t/${tid}/twilio/sms` });
   nums = (await j('/api/phone/numbers')).data;
   assert.equal(nums.numbers[0].connected, true);
   const sset = (await j('/api/settings')).data;
   assert.equal(sset.kotibNumber, '+15551234567');
-  assert.equal((await j('/api/connections')).data.keys.find((k) => k.key === 'TWILIO_FROM').value, '+15551234567');
 
   console.log("✅ Ovoz tekshiruvlari o'tdi");
 }

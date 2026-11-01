@@ -3,6 +3,7 @@
 // AI kaliti bo'lsa (GEMINI_API_KEY / GROQ_API_KEY / AI_API_URL+AI_API_KEY) — AI ishlaydi,
 // bo'lmasa yoki AI javob bermasa — qoidalar asosidagi yordamchi ishlaydi.
 const S = require('./slots');
+const { env } = require('./config');
 
 // ---------- Til ----------
 const RU_WD = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'];
@@ -112,7 +113,7 @@ Zakaz tayyor bo'lsa: "order": {"items": [{"product": "mahsulot nomi", "qty": 1}]
 
 // ---------- AI chaqiruvi ----------
 const AI_TIMEOUT = Number(process.env.AI_TIMEOUT_MS) || 12000;
-const aiOn = () => !!(process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY || (process.env.AI_API_URL && process.env.AI_API_KEY));
+const aiOn = () => !!(env("GEMINI_API_KEY") || process.env.GROQ_API_KEY || (process.env.AI_API_URL && process.env.AI_API_KEY));
 
 async function post(url, headers, body, ms) {
   const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body), signal: AbortSignal.timeout(ms) });
@@ -122,10 +123,10 @@ async function post(url, headers, body, ms) {
 }
 async function aiCall(system, msgs, ms) {
   const errs = [];
-  if (process.env.GEMINI_API_KEY) {
+  if (env("GEMINI_API_KEY")) {
     try {
       const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-      const j = await post(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, { 'x-goog-api-key': process.env.GEMINI_API_KEY }, {
+      const j = await post(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, { 'x-goog-api-key': env("GEMINI_API_KEY") }, {
         systemInstruction: { parts: [{ text: system }] },
         contents: msgs.map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content || ' ' }] })),
         generationConfig: { temperature: 0.4, maxOutputTokens: 900, responseMimeType: 'application/json', ...(/2\.5-flash/.test(model) ? { thinkingConfig: { thinkingBudget: 0 } } : {}) },

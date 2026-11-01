@@ -6,7 +6,7 @@
   "private": true,
   "scripts": {
     "start": "node server.js",
-    "test": "node test.js && node test-voice.js"
+    "test": "node test.js && node test-voice.js && node test-saas.js"
   },
   "dependencies": {
     "express": "^5.2.1",

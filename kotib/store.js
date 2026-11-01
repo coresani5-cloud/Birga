@@ -65,7 +65,9 @@ async function load() {
   let raw = null;
   if (PG) {
     const { Pool } = require('pg');
-    const local = /localhost|127\.0\.0\.1/.test(process.env.DATABASE_URL);
+    // Mahalliy yoki Render ichki manzili (domensiz, masalan dpg-xxx-a) — SSL'siz
+    let host = ''; try { host = new URL(process.env.DATABASE_URL).hostname; } catch { /* */ }
+    const local = /^(localhost|127\.0\.0\.1)$/.test(host) || (host && !host.includes('.'));
     pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: local ? false : { rejectUnauthorized: false }, max: 2 });
     await pool.query('CREATE TABLE IF NOT EXISTS kotib_state(k TEXT PRIMARY KEY, v TEXT)');
     await pool.query('CREATE TABLE IF NOT EXISTS kotib_blobs(k TEXT PRIMARY KEY, type TEXT, data BYTEA, at BIGINT)');

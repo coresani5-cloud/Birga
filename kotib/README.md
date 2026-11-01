@@ -29,7 +29,7 @@ npm start
 
 Brauzerda `http://localhost:3100` ni oching → biznes nomi va parol kiriting → **Sozlamalar**'da ish vaqti, xizmatlar, mahsulotlar va savol-javoblarni to'ldiring → **🤖 Sinov**'da kotibni sinab ko'ring.
 
-Tekshiruv: `npm test`
+Tekshiruv: `npm test` (umumiy) va `node test-voice.js` (o'zbekcha ovoz)
 
 ## Serverga joylash (Render)
 
@@ -45,7 +45,18 @@ Tekshiruv: `npm test`
    - **A message comes in** → `POST https://SAYTINGIZ/twilio/sms`
 3. O'z raqamingizdan Twilio raqamiga qo'ng'iroqni yo'naltiring: hammasi — `**21*raqam#`, javob bermasangiz — `**61*raqam#`, band bo'lsangiz — `**67*raqam#`.
 
-**Muhim:** Twilio'da o'zbekcha ovoz (TTS) yo'q — standart holatda turkcha ovoz o'zbek lotin matnini o'qiydi; ruscha ovoz tabiiy eshitiladi. Ovozni `CALL_VOICE_UZ` bilan almashtirish mumkin.
+## Sof o'zbekcha ovoz
+
+Twilio'ning o'zida o'zbekcha ovoz yo'q, shuning uchun ilovadagi **Sozlamalar → Ulanishlar**ga o'zbekcha ovoz xizmati kalitini kiriting:
+
+- **Aisha** ([space.aisha.group](https://space.aisha.group)) — tavsiya etiladi: o'zbekcha ovoz (TTS) va nutqni tanish (STT). **O'z ovozingiz:** Aisha'da ovozingizni klonlab, `voice_id`ni "Aisha: o'z ovozingiz ID"ga kiritsangiz, kotib hamma javoblarni sizning ovozingizda aytadi.
+- **Muxlisa** (muxlisa.uz) yoki **Microsoft Azure** (`uz-UZ-MadinaNeural`) — zaxira.
+
+Kotib vaqt, sana, narx va raqamlarni o'zbekcha so'z bilan o'qiydi ("14:30" → "o'n to'rt o'ttiz", "250 000 so'm" → "ikki yuz ellik ming so'm"), AI'ga esa sof o'zbek tili qoidalari berilgan (ruscha so'zlarsiz). Kalit kiritilgach "▶ Ovozni eshitish" tugmasi bilan sinab ko'ring.
+
+**Salomlashish o'z ovozingizda:** Sozlamalar → Ovoz → "🎙 Yozib olish" yoki "📁 Fayl tanlash" (har qanday audio: telefon ovozli xabari, m4a, ogg, mp3). Qo'ng'iroq boshida shu yozuv eshittiriladi.
+
+Kalit bo'lmasa kotib baribir ishlaydi: o'zbekcha javoblarni Twilio'ning turkcha ovozi o'qiydi, ruscha ovoz esa tabiiy eshitiladi.
 
 ## Telegram
 
@@ -56,6 +67,8 @@ Tekshiruv: `npm test`
 - `server.js` — API, kirish, Twilio (qo'ng'iroq, holat, operator, SMS)
 - `core.js` — mijozlar, uchrashuv, zakaz, vazifalar, Telegram/SMS, eslatmalar, hisobot
 - `assistant.js` — AI va qoidalar asosidagi suhbat (o'zbek/rus)
+- `voice.js` — o'zbekcha ovoz (Aisha / Muxlisa / Azure), nutqni tanish, raqamlarni so'z bilan o'qish
+- `config.js` — ulanishlar (API kalitlari)
 - `slots.js` — bo'sh vaqtlarni hisoblash
 - `store.js` — saqlash (PostgreSQL yoki JSON fayl)
 - `public/` — ilova (panel), mijoz chati, logotip

@@ -1,0 +1,103 @@
+// Kotib — o'zbekcha ovoz tekshiruvi: node test-voice.js
+// Aisha va Twilio o'rniga soxta server ishlatiladi; to'liq qo'ng'iroq jarayoni sinaladi.
+const http = require('http');
+const { spawn } = require('child_process');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const assert = require('assert');
+
+const PORT = 3997, MOCK = 3998;
+const base = `http://localhost:${PORT}`;
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kotib-voice-'));
+const spoken = [];
+const wav = Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(3000)]);
+
+const mock = http.createServer((req, res) => {
+  let body = '';
+  req.on('data', (c) => body += c.toString('latin1'));
+  req.on('end', () => {
+    if (req.headers['x-api-key'] !== 'test-key' && !req.url.startsWith('/rec/') && !req.url.startsWith('/media/')) { res.writeHead(401); return res.end('{}'); }
+    if (req.url === '/api/v1/tts/post/') {
+      const m = /name="transcript"\r\n\r\n([\s\S]*?)\r\n--/.exec(body);
+      spoken.push(Buffer.from(m ? m[1] : '', 'latin1').toString('utf8'));
+      const voice = /name="voice_id"\r\n\r\n(\w+)/.exec(body);
+      if (voice) spoken.push('VOICE_ID=' + voice[1]);
+      res.writeHead(201, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ audio_path: '/media/a.wav' }));
+    }
+    if (req.url === '/media/a.wav') { res.writeHead(200, { 'Content-Type': 'audio/wav' }); return res.end(wav); }
+    if (req.url === '/api/v2/stt/post/') { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ id: 't1' })); }
+    if (req.url === '/api/v2/stt/get/t1/') { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ status: 'SUCCESS', transcript: "Ertaga bo'sh vaqt bormi?" })); }
+    if (req.url === '/rec/R1.wav') { res.writeHead(200, { 'Content-Type': 'audio/wav' }); return res.end(wav); }
+    res.writeHead(404); res.end();
+  });
+}).listen(MOCK);
+
+const env = { ...process.env, PORT: String(PORT), DATA_DIR: dir, DATABASE_URL: '', GEMINI_API_KEY: '', GROQ_API_KEY: '', AI_API_URL: '', TWILIO_AUTH_TOKEN: '', TWILIO_ACCOUNT_SID: '', ADMIN_PASSWORD: 'parol123', AISHA_API_KEY: '', PUBLIC_URL: '', AISHA_BASE: `http://localhost:${MOCK}` };
+const srv = spawn(process.execPath, [path.join(__dirname, 'server.js')], { env, stdio: ['ignore', 'pipe', 'inherit'] });
+let token = '';
+async function j(url, body, method) {
+  const r = await fetch(base + url, { method: method || (body ? 'POST' : 'GET'), headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: body ? JSON.stringify(body) : undefined });
+  return { status: r.status, data: await r.json().catch(() => null) };
+}
+const form = async (url, p) => (await fetch(base + url, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(p) })).text();
+
+async function main() {
+  for (let i = 0; i < 50; i++) { try { await fetch(base + '/api/health'); break; } catch { await new Promise((r) => setTimeout(r, 100)); } }
+  token = (await j('/api/auth/login', { password: 'parol123' })).data.token;
+  const hours = {}; for (let d = 0; d < 7; d++) hours[d] = { open: '09:00', close: '18:00', off: false, breaks: [{ from: '13:00', to: '14:00' }] };
+  await j('/api/settings', { hours }, 'PUT');
+
+  // Ovoz ulanmaganda — Twilio ovozi
+  let x = await form('/twilio/voice', { CallSid: 'C0', From: '+998900000000' });
+  assert.match(x, /<Say voice="Polly.Filiz"/);
+  assert.equal((await j('/api/voice/test', { text: 'salom' })).status, 400);
+
+  // Ilovadan Aisha kalitini ulaymiz
+  const c = (await j('/api/connections', { AISHA_API_KEY: 'test-key', PUBLIC_URL: base }, 'PUT')).data;
+  assert.equal(c.voice.tts, 'aisha');
+  assert.equal(c.voice.stt, 'aisha');
+  assert.ok(c.keys.find((k) => k.key === 'AISHA_API_KEY').value.startsWith('••••'), 'kalit yashirilishi kerak');
+
+  // Ovozni sinash: raqamlar so'z bilan o'qiladi
+  const t = (await j('/api/voice/test', { text: "Soat 14:30 da, narxi 250 000 so'm" })).data;
+  assert.match(t.spoken, /o'n to'rt o'ttiz.*ikki yuz ellik ming so'm/);
+  assert.equal((await fetch(base + t.url)).status, 200);
+
+  // Qo'ng'iroq: til menyusi o'zbekcha ovozda
+  x = await form('/twilio/voice', { CallSid: 'C1', From: '+998901112233' });
+  assert.match(x, new RegExp(`<Play>${base}/tts/[a-f0-9]{40}\\.wav</Play>`), x);
+  assert.match(x, /<Say voice="Polly.Tatyana"/); // ruscha qism — Twilio ovozi
+  // 1 — o'zbekcha: endi Twilio emas, yozib olinadi (Aisha taniydi)
+  x = await form('/twilio/voice/turn?menu=1', { CallSid: 'C1', From: '+998901112233', Digits: '1' });
+  assert.match(x, /<Record action="\/twilio\/voice\/rec"/, x);
+  // Mijoz gapirdi → Aisha STT → javob o'zbekcha ovozda
+  spoken.length = 0;
+  x = await form('/twilio/voice/rec', { CallSid: 'C1', From: '+998901112233', RecordingUrl: `http://localhost:${MOCK}/rec/R1`, RecordingDuration: '3' });
+  assert.match(x, /<Play>/);
+  assert.ok(spoken.some((s) => /to'qqizdan o'n uchgacha/.test(s)), 'vaqt so‘z bilan aytilishi kerak: ' + spoken.join(' | '));
+  const conv = (await j('/api/conversations/call:C1')).data;
+  assert.ok(conv.messages.some((m) => m.role === 'user' && /Ertaga/.test(m.content)), 'tanilgan gap tarixda saqlanadi');
+
+  // Klonlangan ovoz: AISHA_VOICE_ID
+  await j('/api/connections', { AISHA_VOICE_ID: '777' }, 'PUT');
+  assert.equal((await j('/api/connections')).data.voice.cloned, true);
+  spoken.length = 0;
+  await j('/api/voice/test', { text: 'Yangi matn' });
+  assert.ok(spoken.includes('VOICE_ID=777'), 'egasining ovozi ishlatilishi kerak');
+
+  // Salomlashish yozuvi (egasining o'z ovozi)
+  const g = await j('/api/media/greeting', { type: 'audio/wav', data: wav.toString('base64'), seconds: 3 });
+  assert.equal(g.status, 200);
+  x = await form('/twilio/voice', { CallSid: 'C2', From: '+998905556677' });
+  assert.match(x, /\/media\/greeting\?v=\d+<\/Play>/, x);
+  const m = await fetch(base + '/media/greeting');
+  assert.equal(m.status, 200);
+  assert.equal(Buffer.from(await m.arrayBuffer()).length, wav.length);
+  assert.equal((await j('/api/media/greeting', null, 'DELETE')).status, 200);
+  assert.equal((await fetch(base + '/media/greeting')).status, 404);
+
+  console.log("✅ Ovoz tekshiruvlari o'tdi");
+}
+const done = (code) => { mock.close(); srv.on('exit', () => { fs.rmSync(dir, { recursive: true, force: true }); process.exit(code); }); srv.kill(); };
+main().then(() => done(0)).catch((e) => { console.error('❌', e.message); done(1); });

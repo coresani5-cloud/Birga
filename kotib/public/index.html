@@ -213,6 +213,23 @@
           <div class="set-row"><div class="k">Kunlik hisobot vaqti<small>Telegram'ga yuboriladi</small></div><input id="s-report" type="time"></div>
         </div>
 
+        <div class="card" id="voice-card">
+          <h3>Ovoz</h3>
+          <div id="v-status" class="status-list"></div>
+          <label>Sinash uchun matn<textarea id="v-text" rows="2">Assalomu alaykum! Ertaga soat 14:30 da bo'sh vaqt bor. Narxi 250 000 so'm.</textarea></label>
+          <div class="btn-row"><button class="btn small" id="v-test">▶ Ovozni eshitish</button></div>
+          <audio id="v-audio" controls class="hidden" style="width:100%;margin-top:10px"></audio>
+          <div class="group" style="margin-left:0">Salomlashish — o'z ovozingizda</div>
+          <p class="muted small" style="margin-top:4px">Qo'ng'iroq boshida kotib ovozi o'rniga sizning yozuvingiz eshittiriladi. Masalan: <i>"Assalomu alaykum, Nilufar go'zallik saloniga xush kelibsiz! Savolingizni ayting."</i></p>
+          <div id="g-current" class="muted small"></div>
+          <audio id="g-audio" controls class="hidden" style="width:100%;margin:8px 0"></audio>
+          <div class="btn-row">
+            <button class="btn small" id="g-rec">🎙 Yozib olish</button>
+            <label class="btn small ghost" style="margin:0;color:var(--text)">📁 Fayl tanlash<input type="file" id="g-file" accept="audio/*" class="hidden"></label>
+            <button class="btn small danger hidden" id="g-del">O'chirish</button>
+          </div>
+        </div>
+
         <div class="card">
           <h3>Ish vaqti</h3>
           <div id="s-hours"></div>
@@ -248,9 +265,16 @@
 
         <div class="card">
           <h3>Telegram xabarnomalar</h3>
-          <p class="muted small" style="margin-top:-6px">Yangi uchrashuv, zakaz, javobsiz qo'ng'iroq va kunlik hisobot Telegram'ga keladi. <a href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a>'da bot yarating, tokenni serverga <code>TG_BOT_TOKEN</code> qilib qo'shing, botga /start yozing va chat ID'ni kiriting (<a href="https://t.me/userinfobot" target="_blank" rel="noopener">@userinfobot</a> aytadi).</p>
+          <p class="muted small" style="margin-top:-6px">Yangi uchrashuv, zakaz, javobsiz qo'ng'iroq va kunlik hisobot Telegram'ga keladi. <a href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a>'da bot yarating, tokenni "Ulanishlar" bo'limiga kiriting, botga /start yozing va chat ID'ni kiriting (<a href="https://t.me/userinfobot" target="_blank" rel="noopener">@userinfobot</a> aytadi).</p>
           <label id="s-tg-box">Chat ID<input id="s-tg" placeholder="123456789"></label>
           <div class="btn-row"><button class="btn small" id="s-tg-test">Sinov xabari</button><button class="btn small" id="s-tg-report">Hisobotni hozir yuborish</button></div>
+        </div>
+
+        <div class="card">
+          <h3>Ulanishlar</h3>
+          <p class="muted small" style="margin-top:-6px">API kalitlarini shu yerga kiriting. Kalitlar serverda saqlanadi va bu yerda faqat oxirgi 4 belgisi ko'rinadi. Server sozlamalarida (Environment) berilgan qiymatlarni bu yerdan o'zgartirib bo'lmaydi.</p>
+          <div id="k-list"></div>
+          <button class="btn primary block" id="k-save">Ulanishlarni saqlash</button>
         </div>
 
         <div class="card">
@@ -261,7 +285,7 @@
             <li><b>A call comes in</b> → Webhook, POST:<code class="copy" id="u-voice"></code></li>
             <li><b>Call status changes</b> → POST (qo'ng'iroqlar tarixi va javobsizlar uchun):<code class="copy" id="u-status"></code></li>
             <li><b>A message comes in</b> → Webhook, POST:<code class="copy" id="u-sms"></code></li>
-            <li>Serverga <code>TWILIO_ACCOUNT_SID</code>, <code>TWILIO_AUTH_TOKEN</code>, <code>TWILIO_FROM</code> va <code>PUBLIC_URL</code> qo'shing.</li>
+            <li>"Ulanishlar" bo'limiga Twilio Account SID, Auth Token, Twilio raqami va sayt manzilini kiriting.</li>
             <li>O'z raqamingizdan Twilio raqamiga <b>qo'ng'iroqni yo'naltiring</b>: hammasi — <code>**21*raqam#</code>, javob bermasangiz — <code>**61*raqam#</code>, band bo'lsangiz — <code>**67*raqam#</code>.</li>
           </ol>
           <p class="muted small">Mijozlar uchun onlayn chat (saytga, Instagram/Telegram profilga qo'ying):</p>

@@ -9,13 +9,14 @@ const store = require('./store');
 const S = require('./slots');
 const A = require('./assistant');
 const C = require('./core');
+const V = require('./voice');
+const CFG = require('./config');
 
 const app = express();
 app.set('trust proxy', true);
-app.use(express.json({ limit: '1mb' }));
+app.use((req, res, next) => (req.path === '/api/media/greeting' ? next() : express.json({ limit: '1mb' })(req, res, next)));
 app.use(express.urlencoded({ extended: false }));
 
-const PUBLIC_URL = (process.env.PUBLIC_URL || '').replace(/\/+$/, '');
 const st = () => store.get();
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
@@ -255,10 +256,11 @@ app.get('/api/settings', auth, (req, res) => {
   res.json({
     business, hours, services, products, faq, closedDays, ai: A.aiOn(), twilio: !!process.env.TWILIO_AUTH_TOKEN, sms: C.smsOn(),
     telegram: C.tgOn(), tgToken: !!process.env.TG_BOT_TOKEN, tgEnvChat: !!process.env.TG_CHAT_ID, operator: !!operatorPhone(),
-    publicUrl: PUBLIC_URL, db: store.PG ? 'postgres' : 'file', tz: S.TZ, adminEnv: !!process.env.ADMIN_PASSWORD,
+    publicUrl: CFG.publicUrl(), voice: V.status(), greetingAudio: !!st().media?.greeting, db: store.PG ? 'postgres' : 'file', tz: S.TZ, adminEnv: !!process.env.ADMIN_PASSWORD,
   });
 });
 app.put('/api/settings', auth, (req, res) => {
+  setTimeout(prewarm, 500);
   const s = st(), p = req.body || {};
   if (p.business) {
     const allowed = ['name', 'about', 'address', 'phone', 'greeting', 'extra', 'slotStep', 'capacity', 'bufferMin', 'daysAhead', 'operatorPhone', 'reminders', 'reportTime', 'tgChatId', 'langs'];
@@ -367,21 +369,35 @@ app.post('/api/chat', wrap(async (req, res) => {
 
 // ---------- Twilio: telefon qo'ng'iroqlari va SMS ----------
 const VOICES = {
-  // Twilio'da o'zbekcha ovoz yo'q: standart holatda turkcha ovoz o'zbek lotin matnini o'qiydi. CALL_VOICE_UZ bilan almashtiring.
+  // Tashqi o'zbekcha ovoz (Aisha / Muxlisa / Azure) ulanmagan bo'lsa — Twilio ovozi ishlatiladi (o'zbekcha ovozi yo'q, turkcha o'qiydi)
   uz: { voice: process.env.CALL_VOICE_UZ || 'Polly.Filiz', lang: process.env.CALL_VOICE_LANG_UZ || 'tr-TR', stt: process.env.CALL_STT_UZ || 'uz-UZ' },
   ru: { voice: process.env.CALL_VOICE_RU || 'Polly.Tatyana', lang: process.env.CALL_VOICE_LANG_RU || 'ru-RU', stt: process.env.CALL_STT_RU || 'ru-RU' },
 };
 const xml = (s) => String(s).replace(/[<>&"']/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' }[c]));
 const say = (t, lang = 'uz') => { const v = VOICES[lang] || VOICES.uz; return `<Say voice="${xml(v.voice)}" language="${xml(v.lang)}">${xml(String(t).replace(/[*_#`]/g, ''))}</Say>`; };
-const gather = (inner, lang = 'uz', q = '', input = 'speech') => `<Gather input="${input}" language="${xml((VOICES[lang] || VOICES.uz).stt)}" speechTimeout="auto" timeout="7"${input.includes('dtmf') ? ' numDigits="1"' : ''} action="/twilio/voice/turn${q}" method="POST">${inner}</Gather>`;
+const baseUrl = (req) => CFG.publicUrl() || `${req.protocol}://${req.get('host')}`;
+// Gapirish: o'zbekcha ovoz ulangan bo'lsa — tayyor audio (<Play>), aks holda Twilio ovozi (<Say>)
+async function speak(req, text, lang = 'uz') {
+  if (V.ttsOn(lang)) {
+    const name = await V.tts(text, lang, 6000);
+    if (name) return `<Play>${xml(baseUrl(req))}/tts/${name}</Play>`;
+  }
+  return say(text, lang);
+}
+// Tinglash: o'zbekcha STT ulangan bo'lsa — yozib olib Aisha/Muxlisa'ga beramiz, aks holda Twilio'ning o'zi taniydi
+function listen(inner, lang = 'uz', q = '', input = 'speech') {
+  if (input === 'speech' && V.sttOn(lang)) return `${inner}<Record action="/twilio/voice/rec${q}" method="POST" maxLength="30" timeout="3" playBeep="false" trim="trim-silence"/>`;
+  return `<Gather input="${input}" language="${xml((VOICES[lang] || VOICES.uz).stt)}" speechTimeout="auto" timeout="7"${input.includes('dtmf') ? ' numDigits="1"' : ''} action="/twilio/voice/turn${q}" method="POST">${inner}</Gather>`;
+}
 const twiml = (res, body) => res.type('text/xml').send(`<?xml version="1.0" encoding="UTF-8"?><Response>${body}</Response>`);
 const langsOn = () => String(st().business.langs || 'uz,ru').split(/[,\s]+/).filter((l) => VOICES[l]);
+const greetingAudio = (req) => (st().media?.greeting ? `<Play>${xml(baseUrl(req))}/media/greeting?v=${st().media.greeting.at}</Play>` : '');
 
 // Twilio imzosini tekshirish (TWILIO_AUTH_TOKEN va PUBLIC_URL berilgan bo'lsa)
 function twilioCheck(req, res, next) {
-  const tok = process.env.TWILIO_AUTH_TOKEN;
-  if (!tok || !PUBLIC_URL) return next();
-  const data = Object.keys(req.body || {}).sort().reduce((a, k) => a + k + req.body[k], PUBLIC_URL + req.originalUrl);
+  const tok = process.env.TWILIO_AUTH_TOKEN, pub = CFG.publicUrl();
+  if (!tok || !pub) return next();
+  const data = Object.keys(req.body || {}).sort().reduce((a, k) => a + k + req.body[k], pub + req.originalUrl);
   const sig = crypto.createHmac('sha1', tok).update(data).digest('base64');
   const got = String(req.headers['x-twilio-signature'] || '');
   if (got.length === sig.length && crypto.timingSafeEqual(Buffer.from(got), Buffer.from(sig))) return next();
@@ -389,45 +405,40 @@ function twilioCheck(req, res, next) {
 }
 const callConv = (req) => conversation('call:' + (req.body.CallSid || 'x'), 'call', req.body.From);
 const logBot = (conv, text) => { conv.messages.push({ role: 'assistant', content: text, at: Date.now() }); conv.updatedAt = Date.now(); store.save(); emit('conversation', { id: conv.id }); };
+const BYE = { uz: 'Rahmat, xayr!', ru: 'Спасибо, до свидания!' };
 
-app.post('/twilio/voice', twilioCheck, (req, res) => {
+app.post('/twilio/voice', twilioCheck, wrap(async (req, res) => {
   const conv = callConv(req);
   const langs = langsOn();
   if (!conv.lang && langs.length === 1) conv.lang = langs[0];
   const name = conv.customer?.name;
+  const rec = greetingAudio(req);
   if (conv.lang) {
     // Tanish mijoz yoki bitta til — darhol suhbat
-    const hello = A.greeting(st(), conv.lang) + (name ? A.L(conv.lang, ` ${name}, sizni yana eshitganimdan xursandman.`, ` ${name}, рады снова вас слышать.`) : '');
-    logBot(conv, hello);
-    return twiml(res, gather(say(hello, conv.lang), conv.lang) + say(A.L(conv.lang, "Sizni eshitmadim. Keyinroq qayta qo'ng'iroq qiling. Xayr!", 'Вас не слышно. Перезвоните, пожалуйста, позже. До свидания!'), conv.lang));
+    const welcome = name ? A.L(conv.lang, `${name}, sizni yana eshitganimdan xursandman.`, `${name}, рады снова вас слышать.`) : '';
+    const hello = rec && conv.lang === 'uz' ? welcome : (A.greeting(st(), conv.lang) + (welcome ? ' ' + welcome : ''));
+    logBot(conv, (rec && conv.lang === 'uz' ? '🔊 [Salomlashish yozuvi] ' : '') + hello);
+    const intro = (conv.lang === 'uz' ? rec : '') + (hello ? await speak(req, hello, conv.lang) : '');
+    return twiml(res, listen(intro, conv.lang) + await speak(req, A.L(conv.lang, "Sizni eshitmadim. Keyinroq qayta qo'ng'iroq qiling. Xayr!", 'Вас не слышно. Перезвоните, пожалуйста, позже. До свидания!'), conv.lang));
   }
   // Til tanlash: 1 — o'zbekcha (yoki shunchaki gapirish), 2 — ruscha
   const hello = A.greeting(st(), 'uz');
-  logBot(conv, hello + ' / Для русского языка нажмите 2.');
-  twiml(res, gather(say(hello, 'uz') + say("O'zbek tili uchun gapiring yoki 1 ni bosing.", 'uz') + say('Для русского языка нажмите 2.', 'ru'), 'uz', '?menu=1', 'dtmf speech') + say('Xayr! До свидания!', 'uz'));
-});
+  logBot(conv, (rec ? '🔊 [Salomlashish yozuvi] ' : hello + ' ') + "O'zbek tili uchun gapiring yoki 1 ni bosing. / Для русского языка нажмите 2.");
+  const intro = (rec || await speak(req, hello, 'uz')) + await speak(req, "O'zbek tili uchun gapiring yoki 1 ni bosing.", 'uz') + say('Для русского языка нажмите 2.', 'ru');
+  twiml(res, listen(intro, 'uz', '?menu=1', 'dtmf speech') + await speak(req, 'Xayr!', 'uz'));
+}));
 
-app.post('/twilio/voice/turn', twilioCheck, wrap(async (req, res) => {
-  const conv = callConv(req);
-  const digits = String(req.body.Digits || '');
-  let text = String(req.body.SpeechResult || '').trim();
+// Mijoz gapini qayta ishlash (Twilio tanigan matn yoki yozuvdan olingan matn)
+async function handleSpeech(req, res, conv, text) {
   const n = Number(req.query.n) || 0;
-  if (req.query.menu && digits) {
-    conv.lang = digits === '2' ? 'ru' : 'uz';
-    if (conv.from) C.touchCustomer(conv.from, { lang: conv.lang });
-    const ask = A.L(conv.lang, 'Eshitaman, gapiring.', 'Слушаю вас, говорите.');
-    logBot(conv, ask);
-    return twiml(res, gather(say(ask, conv.lang), conv.lang) + say(A.L(conv.lang, 'Xayr!', 'До свидания!'), conv.lang));
-  }
-  if (req.query.menu && !conv.lang) conv.lang = A.detectLang(text) || 'uz';
   const lang = conv.lang || 'uz';
   if (!text) {
-    if (n >= 2) return twiml(res, say(A.L(lang, "Aloqa yomon shekilli. Keyinroq qayta qo'ng'iroq qiling. Xayr!", 'Плохо слышно. Перезвоните позже. До свидания!'), lang) + '<Hangup/>');
-    return twiml(res, gather(say(A.L(lang, 'Eshitmadim, qaytadan ayting.', 'Не расслышал, повторите, пожалуйста.'), lang), lang, `?n=${n + 1}`) + say(A.L(lang, 'Xayr!', 'До свидания!'), lang));
+    if (n >= 2) return twiml(res, await speak(req, A.L(lang, "Aloqa yomon shekilli. Keyinroq qayta qo'ng'iroq qiling. Xayr!", 'Плохо слышно. Перезвоните позже. До свидания!'), lang) + '<Hangup/>');
+    return twiml(res, listen(await speak(req, A.L(lang, 'Eshitmadim, qaytadan ayting.', 'Не расслышал, повторите, пожалуйста.'), lang), lang, `?n=${n + 1}`) + await speak(req, A.L(lang, 'Xayr!', 'До свидания!'), lang));
   }
-  if (/^(xayr|rahmat,? xayr|hammasi|boshqa savol yo'q|до свидания|пока|спасибо,? до свидания|всё|все)\.?$/i.test(text)) {
+  if (/^(xayr|rahmat,? xayr|hammasi|boshqa savol yo'q|до свидания|пока|спасибо,? до свидания|всё|все)[.!]?$/i.test(text.trim())) {
     conv.messages.push({ role: 'user', content: text, at: Date.now() }); store.save();
-    return twiml(res, say(A.L(lang, "Qo'ng'irog'ingiz uchun rahmat! Xayr!", 'Спасибо за звонок! До свидания!'), lang) + '<Hangup/>');
+    return twiml(res, await speak(req, A.L(lang, "Qo'ng'irog'ingiz uchun rahmat! Xayr!", 'Спасибо за звонок! До свидания!'), lang) + '<Hangup/>');
   }
   const r = await talk(conv, text);
   const l = r.lang || lang;
@@ -437,19 +448,46 @@ app.post('/twilio/voice/turn', twilioCheck, wrap(async (req, res) => {
     if (op) {
       // Operatorga ulaymiz; javob bermasa /twilio/dial-done vazifa yaratadi
       const callerId = req.body.To ? ` callerId="${xml(req.body.To)}"` : '';
-      return twiml(res, say(r.reply, l) + `<Dial timeout="25" action="/twilio/dial-done" method="POST"${callerId}>${xml(op)}</Dial>`);
+      return twiml(res, await speak(req, r.reply, l) + `<Dial timeout="25" action="/twilio/dial-done" method="POST"${callerId}>${xml(op)}</Dial>`);
     }
     C.createTask({ type: 'handoff', phone: conv.from, name: conv.customer?.name, reason: `Qo'ng'iroqda inson bilan gaplashmoqchi: "${text.slice(0, 150)}"`, conversationId: conv.id });
     const msg = A.L(l, "Hozir xodimlarimiz band. Sizga tez orada qayta qo'ng'iroq qilamiz. Yana savolingiz bormi?", 'Сейчас все сотрудники заняты. Мы скоро вам перезвоним. Есть ещё вопросы?');
     logBot(conv, msg);
-    return twiml(res, gather(say(r.reply, l) + say(msg, l), l) + say(A.L(l, 'Rahmat, xayr!', 'Спасибо, до свидания!'), l));
+    return twiml(res, listen(await speak(req, r.reply + ' ' + msg, l), l) + await speak(req, BYE[l] || BYE.uz, l));
   }
-  const more = r.booking || r.order ? say(A.L(l, 'Yana savolingiz bormi?', 'Есть ещё вопросы?'), l) : '';
-  twiml(res, gather(say(r.reply, l) + more, l) + say(A.L(l, 'Rahmat, xayr!', 'Спасибо, до свидания!'), l));
+  const more = r.booking || r.order ? ' ' + A.L(l, 'Yana savolingiz bormi?', 'Есть ещё вопросы?') : '';
+  twiml(res, listen(await speak(req, r.reply + more, l), l) + await speak(req, BYE[l] || BYE.uz, l));
+}
+
+app.post('/twilio/voice/turn', twilioCheck, wrap(async (req, res) => {
+  const conv = callConv(req);
+  const digits = String(req.body.Digits || '');
+  const text = String(req.body.SpeechResult || '').trim();
+  if (req.query.menu && digits) {
+    conv.lang = digits === '2' ? 'ru' : 'uz';
+    if (conv.from) C.touchCustomer(conv.from, { lang: conv.lang });
+    const ask = A.L(conv.lang, 'Eshitaman, gapiring.', 'Слушаю вас, говорите.');
+    logBot(conv, ask);
+    return twiml(res, listen(await speak(req, ask, conv.lang), conv.lang) + await speak(req, A.L(conv.lang, 'Xayr!', 'До свидания!'), conv.lang));
+  }
+  if (req.query.menu && !conv.lang) conv.lang = A.detectLang(text) || 'uz';
+  await handleSpeech(req, res, conv, text);
+}));
+
+// Yozib olingan gap (o'zbekcha STT: Aisha / Muxlisa)
+app.post('/twilio/voice/rec', twilioCheck, wrap(async (req, res) => {
+  const conv = callConv(req);
+  const url = String(req.body.RecordingUrl || '');
+  let text = '';
+  if (url && Number(req.body.RecordingDuration || 0) >= 1) {
+    try { text = await V.stt(await V.twilioRecording(url), conv.lang || 'uz', 8000); } catch (e) { console.error('STT:', e.message); }
+    V.deleteRecording(url);
+  }
+  await handleSpeech(req, res, conv, text);
 }));
 
 // Operatorga ulanish natijasi
-app.post('/twilio/dial-done', twilioCheck, (req, res) => {
+app.post('/twilio/dial-done', twilioCheck, wrap(async (req, res) => {
   const conv = callConv(req), l = conv.lang || 'uz';
   const status = String(req.body.DialCallStatus || '');
   if (status === 'completed' || status === 'answered') { conv.operator = 'connected'; store.save(); return twiml(res, '<Hangup/>'); }
@@ -457,8 +495,8 @@ app.post('/twilio/dial-done', twilioCheck, (req, res) => {
   C.createTask({ type: 'handoff', phone: conv.from, name: conv.customer?.name, reason: `Operatorga ulanib bo'lmadi (${status || 'javob yo‘q'}) — mijoz inson bilan gaplashmoqchi edi`, conversationId: conv.id });
   const msg = A.L(l, "Kechirasiz, operator hozir band. Sizga tez orada qayta qo'ng'iroq qilamiz. Yana savolingiz bormi?", 'Извините, оператор сейчас занят. Мы скоро вам перезвоним. Есть ещё вопросы?');
   logBot(conv, msg);
-  twiml(res, gather(say(msg, l), l) + say(A.L(l, 'Xayr!', 'До свидания!'), l));
-});
+  twiml(res, listen(await speak(req, msg, l), l) + await speak(req, A.L(l, 'Xayr!', 'До свидания!'), l));
+}));
 
 // Qo'ng'iroq holati (Twilio: "Call status changes" webhook) — tarix va javobsiz qo'ng'iroqlar
 app.post('/twilio/status', twilioCheck, (req, res) => {
@@ -487,20 +525,79 @@ app.post('/twilio/sms', twilioCheck, wrap(async (req, res) => {
   twiml(res, `<Message>${xml(r.reply)}</Message>`);
 }));
 
+// ---------- Ovoz fayllari (Twilio shu manzillardan o'qiydi) ----------
+app.get('/tts/:name', (req, res) => {
+  const f = V.ttsFile(req.params.name);
+  if (!f) return res.sendStatus(404);
+  res.set('Cache-Control', 'public, max-age=31536000, immutable');
+  res.sendFile(f);
+});
+app.get('/media/greeting', wrap(async (req, res) => {
+  const b = st().media?.greeting && await store.getBlob('greeting');
+  if (!b) return res.sendStatus(404);
+  res.set({ 'Content-Type': b.type, 'Cache-Control': 'no-cache' });
+  res.send(b.data);
+}));
+
+// Tez-tez aytiladigan iboralarni oldindan tayyorlab qo'yamiz — qo'ng'iroqda kutish kamayadi
+function prewarm() {
+  if (!V.ttsOn('uz')) return;
+  const phrases = [A.greeting(st(), 'uz'), "O'zbek tili uchun gapiring yoki 1 ni bosing.", 'Eshitaman, gapiring.', 'Eshitmadim, qaytadan ayting.', 'Xayr!', BYE.uz,
+    "Sizni eshitmadim. Keyinroq qayta qo'ng'iroq qiling. Xayr!", "Qo'ng'irog'ingiz uchun rahmat! Xayr!", 'Yana savolingiz bormi?'];
+  (async () => { for (const p of phrases) await V.tts(p, 'uz', 20000); })().catch(() => {});
+}
+
+// ---------- Ulanishlar va ovoz sozlamalari (egasi uchun) ----------
+app.get('/api/connections', auth, (req, res) => res.json({ keys: CFG.view(), voice: V.status(), greeting: st().media?.greeting || null }));
+app.put('/api/connections', auth, (req, res) => {
+  CFG.set(req.body || {});
+  prewarm();
+  emit('settings', {});
+  res.json({ keys: CFG.view(), voice: V.status() });
+});
+// Ovozni sinash: matnni o'zbekcha ovozda eshittirish
+app.post('/api/voice/test', auth, wrap(async (req, res) => {
+  const text = String(req.body.text || A.greeting(st(), 'uz')).slice(0, 500);
+  if (!V.ttsOn('uz')) return res.status(400).json({ error: "O'zbekcha ovoz ulanmagan: Aisha, Muxlisa yoki Azure kalitini kiriting" });
+  const name = await V.tts(text, 'uz', 20000);
+  if (!name) return res.status(502).json({ error: "Ovoz yaratib bo'lmadi — kalit va balansni tekshiring (server jurnalida batafsil)" });
+  res.json({ url: '/tts/' + name, spoken: V.uzSpeech(text) });
+}));
+// Egasining o'z ovozidagi salomlashish (ilovada WAV'ga aylantirilib yuboriladi)
+app.post('/api/media/greeting', auth, express.json({ limit: '12mb' }), wrap(async (req, res) => {
+  const type = String(req.body.type || '');
+  if (!/^audio\/(wav|x-wav|mpeg|mp3)$/.test(type)) return res.status(400).json({ error: 'Faqat WAV yoki MP3' });
+  const buf = Buffer.from(String(req.body.data || ''), 'base64');
+  if (buf.length < 1000 || buf.length > 8 * 1024 * 1024) return res.status(400).json({ error: "Fayl hajmi 8 MB dan oshmasin" });
+  await store.putBlob('greeting', buf, type === 'audio/x-wav' ? 'audio/wav' : type === 'audio/mp3' ? 'audio/mpeg' : type);
+  st().media = { ...(st().media || {}), greeting: { type, size: buf.length, seconds: Number(req.body.seconds) || null, at: Date.now() } };
+  store.save();
+  res.json({ ok: true, greeting: st().media.greeting });
+}));
+app.delete('/api/media/greeting', auth, wrap(async (req, res) => {
+  await store.delBlob('greeting');
+  if (st().media) delete st().media.greeting;
+  store.save();
+  res.json({ ok: true });
+}));
+
 // ---------- Statik fayllar ----------
-app.get('/api/health', (req, res) => res.json({ ok: true, db: store.PG ? 'postgres' : 'file', ai: A.aiOn(), twilio: !!process.env.TWILIO_AUTH_TOKEN, telegram: C.tgOn() }));
+app.get('/api/health', (req, res) => res.json({ ok: true, db: store.PG ? 'postgres' : 'file', ai: A.aiOn(), twilio: !!process.env.TWILIO_AUTH_TOKEN, telegram: C.tgOn(), voice: V.status() }));
 app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'], setHeaders: (res, p) => { if (/\.(html|js|css|webmanifest)$/.test(p)) res.set('Cache-Control', 'no-cache'); } }));
 app.get('/chat', (req, res) => res.sendFile(path.join(__dirname, 'public', 'chat.html')));
 
 app.use((err, req, res, next) => {
   console.error(err);
   if (req.path.startsWith('/twilio/voice')) return twiml(res, say("Kechirasiz, texnik nosozlik. Birozdan keyin qayta qo'ng'iroq qiling.") + '<Hangup/>');
+  if (err.type === 'entity.too.large') return res.status(413).json({ error: 'Fayl juda katta' });
   res.status(500).json({ error: 'Server xatosi' });
 });
 
 const PORT = Number(process.env.PORT) || 3100;
 store.load().then(() => {
+  CFG.apply();
   C.startScheduler();
+  prewarm();
   const server = app.listen(PORT, () => console.log(`Kotib ishga tushdi: http://localhost:${PORT} (ma'lumotlar: ${store.PG ? 'PostgreSQL' : 'fayl'}, AI: ${A.aiOn() ? 'yoqilgan' : "yo'q — qoidalar asosida"}, Telegram: ${C.tgOn() ? 'ulangan' : "yo'q"})`));
   const stop = () => { store.flush().finally(() => server.close(() => process.exit(0))); setTimeout(() => process.exit(0), 3000).unref(); };
   process.on('SIGTERM', stop);

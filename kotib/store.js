@@ -54,6 +54,8 @@ function defaults() {
     tasks: [],
     meta: { lastReport: '' },
     conversations: {},
+    secrets: {},
+    media: {},
     admin: { hash: '', salt: '', secret: '' },
     seq: 1,
   };
@@ -66,6 +68,7 @@ async function load() {
     const local = /localhost|127\.0\.0\.1/.test(process.env.DATABASE_URL);
     pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: local ? false : { rejectUnauthorized: false }, max: 2 });
     await pool.query('CREATE TABLE IF NOT EXISTS kotib_state(k TEXT PRIMARY KEY, v TEXT)');
+    await pool.query('CREATE TABLE IF NOT EXISTS kotib_blobs(k TEXT PRIMARY KEY, type TEXT, data BYTEA, at BIGINT)');
     const r = await pool.query("SELECT v FROM kotib_state WHERE k='main'");
     raw = r.rows[0]?.v || null;
   } else {
@@ -105,4 +108,21 @@ function nextId(prefix) {
   return prefix + state.seq.toString(36) + Math.random().toString(36).slice(2, 5);
 }
 
-module.exports = { load, get, save, flush, nextId, PG };
+// Fayllar (salomlashish ovozi va h.k.): PostgreSQL'da yoki data/blobs papkasida
+const BLOB_DIR = path.join(DIR, 'blobs');
+const safeKey = (k) => String(k).replace(/[^\w.-]/g, '_');
+async function putBlob(key, buf, type) {
+  if (PG) await pool.query('INSERT INTO kotib_blobs(k, type, data, at) VALUES($1, $2, $3, $4) ON CONFLICT (k) DO UPDATE SET type = EXCLUDED.type, data = EXCLUDED.data, at = EXCLUDED.at', [key, type, buf, Date.now()]);
+  else { fs.mkdirSync(BLOB_DIR, { recursive: true }); fs.writeFileSync(path.join(BLOB_DIR, safeKey(key)), buf); fs.writeFileSync(path.join(BLOB_DIR, safeKey(key) + '.type'), type); }
+}
+async function getBlob(key) {
+  if (PG) { const r = await pool.query('SELECT type, data FROM kotib_blobs WHERE k = $1', [key]); return r.rows[0] ? { type: r.rows[0].type, data: r.rows[0].data } : null; }
+  const f = path.join(BLOB_DIR, safeKey(key));
+  return fs.existsSync(f) ? { type: fs.readFileSync(f + '.type', 'utf8'), data: fs.readFileSync(f) } : null;
+}
+async function delBlob(key) {
+  if (PG) await pool.query('DELETE FROM kotib_blobs WHERE k = $1', [key]);
+  else for (const f of [safeKey(key), safeKey(key) + '.type']) fs.rmSync(path.join(BLOB_DIR, f), { force: true });
+}
+
+module.exports = { load, get, save, flush, nextId, putBlob, getBlob, delBlob, PG, DIR };

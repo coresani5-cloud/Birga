@@ -456,6 +456,7 @@ function fillSettings() {
   }).join('');
   $$('.h-on').forEach((c) => c.onchange = () => c.closest('.hours').querySelector('.h-times').classList.toggle('dim', !c.checked));
   renderServices(); renderProducts(); renderFaq(); renderStatus();
+  loadConnections().catch(() => {});
 }
 function renderServices() {
   $('#s-services').innerHTML = settings.services.map((s, i) => `<div class="svc" data-i="${i}">
@@ -495,7 +496,7 @@ function renderStatus() {
     it(settings.twilio, 'Telefon (Twilio)', "TWILIO_AUTH_TOKEN qo'shilmagan."),
     it(settings.sms, 'SMS eslatmalar', 'TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN va TWILIO_FROM kerak.'),
     it(settings.operator, 'Operatorga yo‘naltirish', 'Yuqorida "Operator raqami"ni kiriting — aks holda kotib vazifa yaratadi.'),
-    it(settings.telegram, 'Telegram', settings.tgToken ? 'Chat ID kiriting.' : "Serverga TG_BOT_TOKEN qo'shing."),
+    it(settings.telegram, 'Telegram', settings.tgToken ? 'Chat ID kiriting.' : "Ulanishlar bo'limiga Telegram bot tokenini kiriting."),
     it(settings.publicUrl, 'Ochiq manzil (PUBLIC_URL)', 'Twilio imzosini tekshirish uchun kerak.'),
     it(settings.db === 'postgres', 'Doimiy baza', "Ma'lumotlar faylda. Bepul serverlarda o'chib ketmasligi uchun DATABASE_URL (PostgreSQL) qo'shing."),
   ].join('');
@@ -536,5 +537,101 @@ $('#s-pass-btn').onclick = async () => {
 };
 $('#logout').onclick = logout;
 $$('.copy').forEach((c) => c.onclick = () => { navigator.clipboard?.writeText(c.textContent); toast('Nusxa olindi'); });
+
+// ---------- Ovoz va ulanishlar ----------
+const KEY_INFO = {
+  PUBLIC_URL: ['Sayt manzili', 'Masalan: https://kotib.onrender.com — Twilio shu manzilga murojaat qiladi'],
+  GEMINI_API_KEY: ['Gemini AI kaliti', 'Tabiiy suhbat uchun. Bepul: aistudio.google.com/apikey'],
+  AISHA_API_KEY: ['Aisha kaliti', "O'zbekcha ovoz va nutqni tanish. space.aisha.group"],
+  AISHA_VOICE_ID: ["Aisha: o'z ovozingiz ID", "Aisha'da klonlangan ovozingiz raqami — kotib shu ovozda gapiradi"],
+  MUXLISA_API_KEY: ['Muxlisa kaliti', "Zaxira o'zbekcha ovoz va nutqni tanish (muxlisa.uz)"],
+  AZURE_SPEECH_KEY: ['Azure Speech kaliti', "Zaxira o'zbekcha ovoz (Madina)"],
+  AZURE_SPEECH_REGION: ['Azure mintaqasi', 'Masalan: westeurope'],
+  TWILIO_ACCOUNT_SID: ['Twilio Account SID', 'AC… bilan boshlanadi'],
+  TWILIO_AUTH_TOKEN: ['Twilio Auth Token', ''],
+  TWILIO_FROM: ['Twilio raqami', '+1… — SMS eslatmalar shu raqamdan'],
+  TG_BOT_TOKEN: ['Telegram bot tokeni', '@BotFather beradi'],
+};
+let conn = null;
+async function loadConnections() {
+  conn = await api('/api/connections');
+  $('#k-list').innerHTML = conn.keys.map((k) => {
+    const [title, hint] = KEY_INFO[k.key] || [k.key, ''];
+    return `<label>${esc(title)} ${k.set ? '<span class="tag ok">ulangan</span>' : ''}${k.env ? ' <span class="tag">server</span>' : ''}
+      <input data-key="${k.key}" ${k.secret ? 'type="password" autocomplete="off"' : ''} value="${esc(k.value)}" ${k.env ? 'disabled' : ''} placeholder="${esc(hint)}"></label>`;
+  }).join('');
+  renderVoice();
+}
+function renderVoice() {
+  const v = conn.voice, g = conn.greeting;
+  const names = { aisha: 'Aisha', muxlisa: 'Muxlisa', azure: 'Microsoft Azure' };
+  $('#v-status').innerHTML = [
+    v.tts ? `<div>✅ O'zbekcha ovoz: <b>${names[v.tts]}</b>${v.cloned ? " — sizning klonlangan ovozingiz" : ''}</div>` : `<div>⚠️ O'zbekcha ovoz ulanmagan<div class="muted small">Hozir o'zbekcha javoblarni turkcha ovoz o'qiydi. Pastdagi "Ulanishlar"ga Aisha kalitini kiriting.</div></div>`,
+    v.stt ? `<div>✅ O'zbekcha nutqni tanish: <b>${names[v.stt]}</b></div>` : `<div>⚠️ Nutqni tanish: Twilio (oddiy)<div class="muted small">Aniqroq tanish uchun Aisha yoki Muxlisa kalitini kiriting.</div></div>`,
+  ].join('');
+  $('#g-current').textContent = g ? `Yozuv o'rnatilgan${g.seconds ? ` (${g.seconds} soniya)` : ''} · ${new Date(g.at).toLocaleDateString('ru-RU')}` : "Yozuv yo'q — kotib salomlashish matnini o'zi o'qiydi.";
+  $('#g-del').classList.toggle('hidden', !g);
+  $('#g-audio').classList.toggle('hidden', !g);
+  if (g) $('#g-audio').src = '/media/greeting?v=' + g.at;
+}
+$('#k-save').onclick = async () => {
+  const body = {};
+  $$('#k-list input:not([disabled])').forEach((i) => body[i.dataset.key] = i.value);
+  try { await api('/api/connections', { method: 'PUT', body }); settings = await api('/api/settings'); await loadConnections(); renderStatus(); toast('Ulanishlar saqlandi ✅'); } catch (e) { toast(e.message); }
+};
+$('#v-test').onclick = async () => {
+  const b = $('#v-test'); b.disabled = true; b.textContent = 'Tayyorlanmoqda…';
+  try {
+    const j = await api('/api/voice/test', { method: 'POST', body: { text: $('#v-text').value } });
+    const a = $('#v-audio'); a.src = j.url; a.classList.remove('hidden'); a.play().catch(() => {});
+    toast('Kotib shunday o‘qiydi: ' + j.spoken.slice(0, 90));
+  } catch (e) { toast(e.message); }
+  b.disabled = false; b.textContent = '▶ Ovozni eshitish';
+};
+
+// Har qanday audio (m4a, ogg, webm, mp3...) → telefon uchun WAV (mono, 16 kHz). Brauzerning o'zida.
+async function toWav(blob) {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const src = await ctx.decodeAudioData(await blob.arrayBuffer());
+  ctx.close?.();
+  const rate = 16000, len = Math.ceil(src.duration * rate);
+  const off = new OfflineAudioContext(1, len, rate);
+  const node = off.createBufferSource(); node.buffer = src; node.connect(off.destination); node.start();
+  const pcm = (await off.startRendering()).getChannelData(0);
+  const buf = new ArrayBuffer(44 + pcm.length * 2), dv = new DataView(buf);
+  const w = (o, s) => [...s].forEach((c, i) => dv.setUint8(o + i, c.charCodeAt(0)));
+  w(0, 'RIFF'); dv.setUint32(4, 36 + pcm.length * 2, true); w(8, 'WAVE'); w(12, 'fmt ');
+  dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true); dv.setUint32(24, rate, true);
+  dv.setUint32(28, rate * 2, true); dv.setUint16(32, 2, true); dv.setUint16(34, 16, true); w(36, 'data'); dv.setUint32(40, pcm.length * 2, true);
+  for (let i = 0; i < pcm.length; i++) dv.setInt16(44 + i * 2, Math.max(-1, Math.min(1, pcm[i])) * 0x7fff, true);
+  return { blob: new Blob([buf], { type: 'audio/wav' }), seconds: Math.round(src.duration) };
+}
+async function uploadGreeting(blob) {
+  try {
+    toast('Tayyorlanmoqda…');
+    const { blob: wav, seconds } = await toWav(blob);
+    if (seconds > 60) throw new Error("Yozuv 60 soniyadan oshmasin");
+    const b64 = await new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.onerror = no; r.readAsDataURL(wav); });
+    await api('/api/media/greeting', { method: 'POST', body: { type: 'audio/wav', data: b64, seconds } });
+    await loadConnections();
+    toast("Salomlashish yozuvi o'rnatildi ✅");
+  } catch (e) { toast(e.message || "Audio faylni o'qib bo'lmadi"); }
+}
+$('#g-file').onchange = (e) => { const f = e.target.files[0]; if (f) uploadGreeting(f); e.target.value = ''; };
+let recorder = null;
+$('#g-rec').onclick = async () => {
+  if (recorder) { recorder.stop(); return; }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const chunks = [];
+    recorder = new MediaRecorder(stream);
+    recorder.ondataavailable = (e) => chunks.push(e.data);
+    recorder.onstop = () => { stream.getTracks().forEach((t) => t.stop()); recorder = null; $('#g-rec').textContent = '🎙 Yozib olish'; uploadGreeting(new Blob(chunks, { type: chunks[0]?.type || 'audio/webm' })); };
+    recorder.start();
+    $('#g-rec').textContent = '⏹ To‘xtatish';
+    toast('Yozilmoqda… gapiring');
+  } catch { toast('Mikrofonga ruxsat berilmadi'); }
+};
+$('#g-del').onclick = async () => { if (!confirm("Salomlashish yozuvini o'chirasizmi?")) return; await api('/api/media/greeting', { method: 'DELETE' }); await loadConnections(); toast("O'chirildi"); };
 
 boot();

@@ -1,5 +1,7 @@
 # Kotib — biznes uchun aqlli virtual kotib
 
+![Kotib dizayni](docs/dizayn.png)
+
 Biznes egasining 24/7 ishlaydigan virtual xodimi. Telefon raqamga ulanadi, qo'ng'iroqlarga o'zbek va rus tillarida javob beradi, savollarga javob beradi, bo'sh vaqtlarni aytadi, uchrashuv va zakaz qabul qiladi va hammasini ilovadagi kalendarga yozadi.
 
 ## Imkoniyatlar

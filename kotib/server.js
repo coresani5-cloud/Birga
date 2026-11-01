@@ -256,7 +256,7 @@ app.get('/api/settings', auth, (req, res) => {
   res.json({
     business, hours, services, products, faq, closedDays, ai: A.aiOn(), twilio: !!process.env.TWILIO_AUTH_TOKEN, sms: C.smsOn(),
     telegram: C.tgOn(), tgToken: !!process.env.TG_BOT_TOKEN, tgEnvChat: !!process.env.TG_CHAT_ID, operator: !!operatorPhone(),
-    publicUrl: CFG.publicUrl(), voice: V.status(), greetingAudio: !!st().media?.greeting, db: store.PG ? 'postgres' : 'file', tz: S.TZ, adminEnv: !!process.env.ADMIN_PASSWORD,
+    publicUrl: CFG.publicUrl(), voice: V.status(), kotibNumber: st().business.kotibNumber || '', greetingAudio: !!st().media?.greeting, db: store.PG ? 'postgres' : 'file', tz: S.TZ, adminEnv: !!process.env.ADMIN_PASSWORD,
   });
 });
 app.put('/api/settings', auth, (req, res) => {
@@ -546,6 +546,51 @@ function prewarm() {
     "Sizni eshitmadim. Keyinroq qayta qo'ng'iroq qiling. Xayr!", "Qo'ng'irog'ingiz uchun rahmat! Xayr!", 'Yana savolingiz bormi?'];
   (async () => { for (const p of phrases) await V.tts(p, 'uz', 20000); })().catch(() => {});
 }
+
+// ---------- Kotib raqami: Twilio raqamini avtomatik ulash ----------
+const TWILIO_API = process.env.TWILIO_API_BASE || 'https://api.twilio.com'; // TWILIO_API_BASE — faqat test uchun
+async function twilioApi(pathname, form) {
+  const sid = process.env.TWILIO_ACCOUNT_SID, tok = process.env.TWILIO_AUTH_TOKEN;
+  if (!sid || !tok) { const e = new Error("Avval \"Ulanishlar\"ga Twilio Account SID va Auth Token kiriting"); e.status = 400; throw e; }
+  const r = await fetch(`${TWILIO_API}/2010-04-01/Accounts/${encodeURIComponent(sid)}${pathname}`, {
+    method: form ? 'POST' : 'GET',
+    headers: { Authorization: 'Basic ' + Buffer.from(`${sid}:${tok}`).toString('base64'), ...(form ? { 'Content-Type': 'application/x-www-form-urlencoded' } : {}) },
+    body: form ? new URLSearchParams(form) : undefined, signal: AbortSignal.timeout(15000),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { const e = new Error(r.status === 401 ? "Twilio kaliti noto'g'ri (Account SID yoki Auth Token)" : `Twilio: ${j.message || r.status}`); e.status = 400; throw e; }
+  return j;
+}
+const hooks = (base) => ({ voice: base + '/twilio/voice', status: base + '/twilio/status', sms: base + '/twilio/sms' });
+// Akkauntdagi raqamlar va qaysi biri kotibga ulanganligi
+app.get('/api/phone/numbers', auth, wrap(async (req, res) => {
+  try {
+    const j = await twilioApi('/IncomingPhoneNumbers.json?PageSize=50');
+    const h = hooks(baseUrl(req));
+    res.json({
+      base: baseUrl(req), current: st().business.kotibNumber || '',
+      numbers: (j.incoming_phone_numbers || []).map((n) => ({ sid: n.sid, number: n.phone_number, name: n.friendly_name, voiceUrl: n.voice_url || '', connected: n.voice_url === h.voice, sms: !!n.capabilities?.sms })),
+    });
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+}));
+// Raqamni kotibga ulash: qo'ng'iroq, qo'ng'iroq holati va SMS shu ilovaga keladi
+app.post('/api/phone/connect', auth, wrap(async (req, res) => {
+  try {
+    const sid = String(req.body.sid || '');
+    if (!/^PN[a-f0-9]{32}$/i.test(sid)) return res.status(400).json({ error: "Raqam tanlanmagan" });
+    const base = baseUrl(req);
+    if (!/^https:\/\//.test(base) && !/localhost|127\.0\.0\.1/.test(base)) return res.status(400).json({ error: 'Sayt manzili https bilan boshlanishi kerak' });
+    const h = hooks(base);
+    const n = await twilioApi(`/IncomingPhoneNumbers/${sid}.json`, { VoiceUrl: h.voice, VoiceMethod: 'POST', StatusCallback: h.status, StatusCallbackMethod: 'POST', SmsUrl: h.sms, SmsMethod: 'POST' });
+    st().business.kotibNumber = n.phone_number;
+    // SMS eslatmalar ham shu raqamdan ketadi
+    if (!process.env.TWILIO_FROM) CFG.set({ TWILIO_FROM: n.phone_number });
+    if (!CFG.publicUrl()) CFG.set({ PUBLIC_URL: base });
+    store.save();
+    emit('settings', {});
+    res.json({ ok: true, number: n.phone_number });
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+}));
 
 // ---------- Ulanishlar va ovoz sozlamalari (egasi uchun) ----------
 app.get('/api/connections', auth, (req, res) => res.json({ keys: CFG.view(), voice: V.status(), greeting: st().media?.greeting || null }));

@@ -457,6 +457,7 @@ function fillSettings() {
   $$('.h-on').forEach((c) => c.onchange = () => c.closest('.hours').querySelector('.h-times').classList.toggle('dim', !c.checked));
   renderServices(); renderProducts(); renderFaq(); renderStatus();
   loadConnections().catch(() => {});
+  renderPhone();
 }
 function renderServices() {
   $('#s-services').innerHTML = settings.services.map((s, i) => `<div class="svc" data-i="${i}">
@@ -492,13 +493,13 @@ function renderStatus() {
   $('#u-chat').textContent = base + '/chat';
   const it = (ok, t, hint) => `<div>${ok ? '✅' : '⚠️'} ${t}${!ok && hint ? `<div class="muted small">${hint}</div>` : ''}</div>`;
   $('#s-status').innerHTML = [
-    it(settings.ai, "Sun'iy intellekt (tabiiy suhbat)", "Kalit yo'q — kotib oddiy qoidalar bilan ishlayapti. Bepul GEMINI_API_KEY qo'shing (aistudio.google.com)."),
-    it(settings.twilio, 'Telefon (Twilio)', "TWILIO_AUTH_TOKEN qo'shilmagan."),
-    it(settings.sms, 'SMS eslatmalar', 'TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN va TWILIO_FROM kerak.'),
+    it(settings.ai, "Sun'iy intellekt (erkin suhbat)", "Kalit yo'q — kotib faqat oddiy savollarga javob beradi. Erkin suhbat uchun \"Ulanishlar\"ga Gemini AI kalitini kiriting (bepul: aistudio.google.com/apikey)."),
+    it(settings.twilio, 'Twilio hisobi', "Ulanishlar'ga Twilio Account SID va Auth Token kiriting."),
+    it(settings.sms, 'SMS eslatmalar', 'Twilio ulangach va kotib raqami tanlangach o‘zi yoqiladi.'),
     it(settings.operator, 'Operatorga yo‘naltirish', 'Yuqorida "Operator raqami"ni kiriting — aks holda kotib vazifa yaratadi.'),
     it(settings.telegram, 'Telegram', settings.tgToken ? 'Chat ID kiriting.' : "Ulanishlar bo'limiga Telegram bot tokenini kiriting."),
-    it(settings.publicUrl, 'Ochiq manzil (PUBLIC_URL)', 'Twilio imzosini tekshirish uchun kerak.'),
-    it(settings.db === 'postgres', 'Doimiy baza', "Ma'lumotlar faylda. Bepul serverlarda o'chib ketmasligi uchun DATABASE_URL (PostgreSQL) qo'shing."),
+    it(settings.publicUrl, 'Sayt manzili', "\"Ulanishlar\"ga sayt manzilini kiriting."),
+    it(settings.db === 'postgres', 'Doimiy baza', "Hozir ma'lumotlar vaqtinchalik: server qayta ishga tushganda (yangilanish, 15 daqiqa jimlikdan keyin) sozlamalar o'chib ketadi. Render'da bazani ulang."),
   ].join('');
   $('#s-pass-box').classList.toggle('hidden', settings.adminEnv);
 }
@@ -633,5 +634,33 @@ $('#g-rec').onclick = async () => {
   } catch { toast('Mikrofonga ruxsat berilmadi'); }
 };
 $('#g-del').onclick = async () => { if (!confirm("Salomlashish yozuvini o'chirasizmi?")) return; await api('/api/media/greeting', { method: 'DELETE' }); await loadConnections(); toast("O'chirildi"); };
+
+// ---------- Kotib raqami ----------
+function renderPhone() {
+  const n = settings.kotibNumber;
+  $('#ph-current').innerHTML = n
+    ? `<div class="set-row"><div class="k">✅ Kotib raqami<small>Qo'ng'iroq va SMS'larga AI javob beradi</small></div><b>${esc(n)}</b></div>`
+    : `<div class="muted small" style="margin-bottom:8px">⚠️ Raqam ulanmagan. 1) "Ulanishlar"ga Twilio Account SID va Auth Token kiriting. 2) Pastdagi tugmani bosib raqamni tanlang.</div>`;
+  $('#ph-forward').classList.toggle('hidden', !n);
+  if (n) {
+    const codes = [['Hamma qo‘ng‘iroqlar', '**21*'], ['Javob bermasam', '**61*'], ['Band bo‘lsam', '**67*'], ['Telefonim o‘chiq bo‘lsa', '**62*']];
+    $('#ph-codes').innerHTML = codes.map(([t, c]) => `<div class="row" style="cursor:default"><div class="info"><b>${t}</b><div class="muted small">${c}${esc(n)}#</div></div><a class="btn small" href="tel:${encodeURIComponent(c + n + '#')}">Terish</a></div>`).join('');
+    $('#ph-cancel').href = 'tel:' + encodeURIComponent('##002#');
+  }
+}
+$('#ph-load').onclick = async () => {
+  const b = $('#ph-load'); b.disabled = true;
+  try {
+    const j = await api('/api/phone/numbers');
+    $('#ph-list').innerHTML = j.numbers.length ? j.numbers.map((n) => `<div class="row" style="cursor:default"><div class="info"><b>${esc(n.number)}</b> ${n.connected ? '<span class="tag ok">kotibga ulangan</span>' : ''}<div class="muted small">${esc(n.name)}${n.voiceUrl && !n.connected ? ' · hozir boshqa joyga ulangan' : ''}</div></div>
+      <button class="btn small ${n.connected ? 'ghost' : 'primary'}" data-sid="${n.sid}">${n.connected ? 'Qayta ulash' : 'Ulash'}</button></div>`).join('')
+      : '<div class="empty">Twilio hisobingizda raqam yo‘q. Twilio saytida (Phone Numbers → Buy a number) raqam oling va qayta bosing.</div>';
+    $$('#ph-list [data-sid]').forEach((x) => x.onclick = async () => {
+      x.disabled = true;
+      try { const r = await api('/api/phone/connect', { method: 'POST', body: { sid: x.dataset.sid } }); settings = await api('/api/settings'); renderPhone(); renderStatus(); $('#ph-load').click(); toast(`✅ ${r.number} kotibga ulandi — qo'ng'iroq qilib sinab ko'ring`); } catch (e) { toast(e.message); x.disabled = false; }
+    });
+  } catch (e) { toast(e.message); }
+  b.disabled = false;
+};
 
 boot();

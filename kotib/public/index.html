@@ -277,17 +277,27 @@
           <button class="btn primary block" id="k-save">Ulanishlarni saqlash</button>
         </div>
 
-        <div class="card">
-          <h3>Telefon raqamga ulash</h3>
-          <div id="s-status" class="status-list"></div>
-          <ol class="steps">
-            <li><a href="https://www.twilio.com/try-twilio" target="_blank" rel="noopener">Twilio</a>'da ro'yxatdan o'ting va telefon raqam oling.</li>
-            <li><b>A call comes in</b> → Webhook, POST:<code class="copy" id="u-voice"></code></li>
-            <li><b>Call status changes</b> → POST (qo'ng'iroqlar tarixi va javobsizlar uchun):<code class="copy" id="u-status"></code></li>
-            <li><b>A message comes in</b> → Webhook, POST:<code class="copy" id="u-sms"></code></li>
-            <li>"Ulanishlar" bo'limiga Twilio Account SID, Auth Token, Twilio raqami va sayt manzilini kiriting.</li>
-            <li>O'z raqamingizdan Twilio raqamiga <b>qo'ng'iroqni yo'naltiring</b>: hammasi — <code>**21*raqam#</code>, javob bermasangiz — <code>**61*raqam#</code>, band bo'lsangiz — <code>**67*raqam#</code>.</li>
-          </ol>
+        <div class="card" id="phone-card">
+          <h3>Kotib raqami</h3>
+          <p class="muted small" style="margin-top:-6px">Bu raqamga kelgan qo'ng'iroq va SMS'larga AI kotib 24/7 javob beradi.</p>
+          <div id="ph-current"></div>
+          <div class="btn-row"><button class="btn small" id="ph-load">Twilio raqamlarimni ko'rsatish</button></div>
+          <div class="list" id="ph-list" style="margin-top:8px"></div>
+          <div id="ph-forward" class="hidden">
+            <div class="group" style="margin-left:0">O'z raqamingizdan yo'naltirish</div>
+            <p class="muted small" style="margin-top:4px">Mijozlar sizning odatiy raqamingizga qo'ng'iroq qilaveradi — qo'ng'iroq kotibga o'tadi. Telefoningizda tugmani bosing, kod o'zi teriladi:</p>
+            <div class="list" id="ph-codes"></div>
+            <p class="muted small">Bekor qilish: <a id="ph-cancel" href="#">##002#</a>. Yo'naltirish xalqaro qo'ng'iroq sifatida hisoblanishi mumkin — narxini operatoringizdan so'rang.</p>
+          </div>
+          <div id="s-status" class="status-list" style="margin-top:12px"></div>
+          <details class="small muted">
+            <summary>Qo'lda sozlash (ixtiyoriy)</summary>
+            <ol class="steps" style="margin-top:8px">
+              <li><b>A call comes in</b> → Webhook, POST:<code class="copy" id="u-voice"></code></li>
+              <li><b>Call status changes</b> → POST:<code class="copy" id="u-status"></code></li>
+              <li><b>A message comes in</b> → Webhook, POST:<code class="copy" id="u-sms"></code></li>
+            </ol>
+          </details>
           <p class="muted small">Mijozlar uchun onlayn chat (saytga, Instagram/Telegram profilga qo'ying):</p>
           <code class="copy" id="u-chat"></code>
         </div>

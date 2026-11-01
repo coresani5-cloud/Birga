@@ -55,7 +55,7 @@ label.check input { width: auto; }
 .login-card { width: 100%; max-width: 360px; }
 .halo { width: 132px; height: 132px; border-radius: 50%; margin: 0 auto 22px; padding: 7px; background: var(--rainbow); box-shadow: 0 0 60px rgba(107, 92, 255, .45); }
 .halo > div { width: 100%; height: 100%; border-radius: 50%; background: var(--bg); display: grid; place-items: center; }
-.halo img { width: 74px; height: 74px; border-radius: 18px; }
+.halo img { width: 80px; height: 80px; }
 .login h1 { margin: 0 0 6px; font-size: 28px; letter-spacing: 1px; }
 .login form { display: grid; gap: 12px; margin-top: 26px; }
 .login .btn.primary { justify-self: center; min-width: 190px; margin-top: 6px; }
@@ -65,7 +65,7 @@ label.check input { width: auto; }
 #app { max-width: 760px; margin: 0 auto; padding-bottom: calc(86px + env(safe-area-inset-bottom)); }
 .top { display: flex; justify-content: space-between; align-items: center; padding: calc(16px + env(safe-area-inset-top)) 18px 8px; position: sticky; top: 0; z-index: 5; background: linear-gradient(var(--bg) 70%, transparent); }
 .top .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.top .brand img { width: 34px; height: 34px; border-radius: 10px; }
+.top .brand img { width: 38px; height: 38px; }
 .top .title { font-weight: 600; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .top .sub { font-size: 11.5px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
 .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dim); display: inline-block; }
@@ -189,7 +189,7 @@ main { padding: 0 14px; }
 /* Sozlamalar */
 .profile { text-align: center; padding: 6px 0 18px; }
 .profile .halo { width: 104px; height: 104px; padding: 5px; margin-bottom: 14px; }
-.profile .halo img { width: 60px; height: 60px; }
+.profile .halo img { width: 66px; height: 66px; }
 .profile .name { font-size: 22px; font-weight: 700; }
 .set-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
 .set-row:last-child { border-bottom: 0; }
@@ -242,7 +242,7 @@ dialog::backdrop { background: rgba(8, 10, 32, .7); backdrop-filter: blur(4px); 
 /* Mijoz chat sahifasi */
 .public { max-width: 560px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; padding: 0 14px; }
 .public header { display: flex; align-items: center; gap: 12px; padding: calc(18px + env(safe-area-inset-top)) 4px 14px; }
-.public header img { width: 46px; height: 46px; border-radius: 13px; }
+.public header img { width: 48px; height: 48px; }
 .public .chat { flex: 1; max-height: none; background: var(--card); border-radius: var(--radius); padding: 14px; box-shadow: var(--shadow); border: 1px solid var(--line); }
 .public .chat-form { padding-bottom: calc(8px + env(safe-area-inset-bottom)); }
 .quick { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1b1e47">
+  <title>Onlayn yozilish</title>
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="public">
+    <header>
+      <img src="/mark.svg" alt="">
+      <div><b id="name">…</b><div class="muted small">Onlayn kotib · 24/7</div></div>
+    </header>
+    <div class="chat" id="chat"></div>
+    <div class="quick" id="quick">
+      <button class="chip">Bugun bo'sh vaqt bormi?</button>
+      <button class="chip">Narxlar qancha?</button>
+      <button class="chip">Yozilmoqchiman</button>
+      <button class="chip">Записаться на завтра</button>
+    </div>
+    <form class="chat-form" id="form">
+      <input id="input" placeholder="Xabar yozing…" autocomplete="off">
+      <button class="btn primary">➤</button>
+    </form>
+  </div>
+  <script>
+    const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const chat = document.getElementById('chat');
+    let sid = localStorage.getItem('kotib_sid');
+    if (!sid) { sid = Math.random().toString(36).slice(2, 12); localStorage.setItem('kotib_sid', sid); }
+    const add = (who, text) => { chat.insertAdjacentHTML('beforeend', `<div class="msg ${who}">${esc(text).replace(/\n/g, '<br>')}</div>`); chat.scrollTop = 1e9; };
+    fetch('/api/public').then((r) => r.json()).then((p) => { document.getElementById('name').textContent = p.name; document.title = p.name + ' — onlayn yozilish'; add('bot', p.greeting); });
+    async function send(text) {
+      add('me', text);
+      chat.insertAdjacentHTML('beforeend', '<div class="msg bot typing">•••</div>'); chat.scrollTop = 1e9;
+      try {
+        const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session: sid, text }) });
+        const j = await r.json();
+        chat.querySelector('.typing').remove();
+        add('bot', j.reply || j.error || 'Xato');
+        if (j.booking) chat.insertAdjacentHTML('beforeend', `<div class="sys">✅ Siz yozildingiz: ${esc(j.booking.date)}, ${esc(j.booking.start)}</div>`);
+        if (j.order) chat.insertAdjacentHTML('beforeend', `<div class="sys">🛒 Zakazingiz qabul qilindi</div>`);
+      } catch { chat.querySelector('.typing')?.remove(); add('bot', "Aloqa yo'q. Qaytadan urinib ko'ring."); }
+      chat.scrollTop = 1e9;
+    }
+    document.getElementById('form').onsubmit = (e) => { e.preventDefault(); const i = document.getElementById('input'); const t = i.value.trim(); if (t) { i.value = ''; send(t); } };
+    document.querySelectorAll('#quick .chip').forEach((c) => c.onclick = () => send(c.textContent));
+  </script>
+</body>
+</html>

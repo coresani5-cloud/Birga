@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1b1e47">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Kotib — aqlli virtual xodim</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <!-- Ikonkalar -->
+  <svg width="0" height="0" style="position:absolute">
+    <symbol id="i-home" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M9 14h6"/></symbol>
+    <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="3.5"/><path d="M8 3v4M16 3v4M3.5 10h17"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M8 9h8M8 12.5h8M8 16h5"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3.5"/><path d="M2.5 20c.6-3.6 3.3-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><path d="M16 5.2a3.4 3.4 0 0 1 0 6.6M18 14.8c2 .6 3.2 2.3 3.5 5.2"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></symbol>
+    <symbol id="i-bot" viewBox="0 0 24 24"><rect x="4" y="7" width="16" height="12" rx="4"/><path d="M12 7V4M9 12.5v1M15 12.5v1M2 12v3M22 12v3"/></symbol>
+    <symbol id="i-phone" viewBox="0 0 24 24"><path d="M5 4h3.5l1.5 4-2 1.5a11 11 0 0 0 6.5 6.5L16 14l4 1.5V19a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="M21 3L10 14M21 3l-7 18-4-7-7-4z"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-left" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+    <symbol id="i-right" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24"><path d="M5 19V11M12 19V5M19 19v-6"/></symbol>
+    <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 18V6M7 11l5-5 5 5"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 6v12M7 13l5 5 5-5"/></symbol>
+  </svg>
+
+  <!-- Kirish -->
+  <section id="login" class="login hidden">
+    <div class="login-card">
+      <div class="halo"><div><img src="/mark.svg" alt="Kotib"></div></div>
+      <h1>KOTIB</h1>
+      <p class="muted" id="login-hint">Biznesingizning aqlli virtual xodimi.<br>Qo'ng'iroqlarga 24/7 javob beradi.</p>
+      <form id="login-form">
+        <input id="login-name" class="hidden" placeholder="Biznes nomi" autocomplete="organization">
+        <input id="login-pass" type="password" placeholder="Parol" autocomplete="current-password" required>
+        <button class="btn primary" id="login-btn">Kirish</button>
+        <p class="error" id="login-err"></p>
+      </form>
+    </div>
+  </section>
+
+  <!-- Asosiy ilova -->
+  <section id="app" class="hidden">
+    <header class="top">
+      <div class="brand">
+        <img src="/mark.svg" alt="">
+        <div style="min-width:0">
+          <div class="title" id="biz-name">Kotib</div>
+          <div class="sub"><span class="status-dot" id="live"></span><span id="top-sub">Kotib faol</span></div>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="icon-btn" id="go-test" title="Kotibni sinash"><svg class="i"><use href="#i-bot"/></svg></button>
+        <button class="icon-btn" id="go-tasks" title="Vazifalar"><svg class="i"><use href="#i-bell"/></svg><span class="badge hidden" id="task-badge"></span></button>
+      </div>
+    </header>
+
+    <main>
+      <!-- Bosh sahifa -->
+      <div class="view" id="v-home">
+        <div class="hero">
+          <div class="label" id="h-label">Bugungi savdo</div>
+          <div class="amount" id="h-sales">0 <small>so‘m</small></div>
+          <div class="pills">
+            <button class="pill" id="h-send"><svg class="i"><use href="#i-send"/></svg>Hisobot yuborish</button>
+            <button class="pill" id="h-new"><svg class="i"><use href="#i-plus"/></svg>Uchrashuv</button>
+            <button class="pill" id="h-test"><svg class="i"><use href="#i-bot"/></svg>Sinab ko'rish</button>
+          </div>
+        </div>
+        <div class="rings">
+          <div class="ring-stat"><div class="ring" id="r-calls"></div><div><div class="k">Murojaatlar</div><div class="v" id="h-calls">0</div></div></div>
+          <div class="ring-stat"><div class="ring" id="r-orders"></div><div><div class="k">Zakaz va uchrashuv</div><div class="v" id="h-orders">0</div></div></div>
+        </div>
+        <div class="minis">
+          <div class="mini"><div class="v" id="h-cust">0</div><div class="k">Mijozlar</div></div>
+          <div class="mini"><div class="v" id="h-new-c">0</div><div class="k">Yangi mijoz</div></div>
+          <div class="mini"><div class="v" id="h-missed">0</div><div class="k">Javobsiz</div></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>Statistika</h3></div>
+          <div class="seg" id="h-period">
+            <button data-p="day" class="on">Kun</button>
+            <button data-p="week">Hafta</button>
+            <button data-p="month">Oy</button>
+          </div>
+          <div class="seg" id="h-metric" style="margin-bottom:6px">
+            <button data-m="calls" class="on">Qo'ng'iroqlar</button>
+            <button data-m="orders">Zakazlar</button>
+            <button data-m="bookings">Uchrashuvlar</button>
+            <button data-m="sales">Savdo</button>
+          </div>
+          <div class="chart-tip" id="h-tip"></div>
+          <svg class="chart" id="h-chart" viewBox="0 0 320 150" preserveAspectRatio="none"></svg>
+          <div class="chart-foot" id="h-axis"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>Bugungi uchrashuvlar</h3><button class="pill" data-go="calendar">Kalendar</button></div>
+          <div class="list" id="h-today"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Qayta bog'lanish kerak</h3><button class="pill" data-go="tasks">Hammasi</button></div>
+          <div class="list" id="h-tasks"></div>
+        </div>
+      </div>
+
+      <!-- Kalendar -->
+      <div class="view hidden" id="v-calendar">
+        <div class="view-title"><h2>Kalendar</h2><button class="pill" id="d-add-top"><svg class="i"><use href="#i-plus"/></svg>Qo'shish</button></div>
+        <div class="card">
+          <div class="month-head">
+            <button class="icon-btn" id="m-prev" aria-label="Oldingi oy"><svg class="i"><use href="#i-left"/></svg></button>
+            <div class="month-title" id="m-title"></div>
+            <button class="icon-btn" id="m-next" aria-label="Keyingi oy"><svg class="i"><use href="#i-right"/></svg></button>
+          </div>
+          <div class="weekdays"><span>Du</span><span>Se</span><span>Ch</span><span>Pa</span><span>Ju</span><span>Sh</span><span>Ya</span></div>
+          <div class="grid" id="m-grid"></div>
+          <div class="legend"><span><i class="lg free"></i>Bo'sh vaqt bor</span><span><i class="lg full"></i>To'liq band</span><span><i class="lg off"></i>Dam olish</span></div>
+        </div>
+        <div class="card">
+          <div class="day-head">
+            <div>
+              <div class="day-title" id="d-title"></div>
+              <div class="muted small" id="d-free"></div>
+            </div>
+            <button class="pill" id="d-toggle"></button>
+          </div>
+          <div id="d-list" class="list"></div>
+          <button class="btn primary block" id="d-add">+ Uchrashuv qo'shish</button>
+        </div>
+      </div>
+
+      <!-- Buyurtmalar -->
+      <div class="view hidden" id="v-orders">
+        <div class="view-title"><h2>Buyurtmalar</h2></div>
+        <div class="seg boxed" id="o-kind">
+          <button data-k="bookings" class="on">Uchrashuvlar</button>
+          <button data-k="orders">Zakazlar</button>
+        </div>
+        <div class="seg" id="o-seg"></div>
+        <div class="search"><svg class="i"><use href="#i-search"/></svg><input id="o-q" placeholder="Ism, telefon, xizmat yoki mahsulot"></div>
+        <div class="card"><div id="o-list" class="list"></div></div>
+      </div>
+
+      <!-- Mijozlar -->
+      <div class="view hidden" id="v-customers">
+        <div class="view-title"><h2>Mijozlar</h2></div>
+        <div class="seg boxed" id="c-kind">
+          <button data-k="customers" class="on">Mijozlar</button>
+          <button data-k="calls">Qo'ng'iroqlar tarixi</button>
+        </div>
+        <div class="search"><svg class="i"><use href="#i-search"/></svg><input id="c-q" placeholder="Ism yoki telefon"></div>
+        <div class="card"><div id="c-list" class="list"></div></div>
+      </div>
+
+      <!-- Vazifalar -->
+      <div class="view hidden" id="v-tasks">
+        <div class="view-title"><h2>Vazifalar</h2></div>
+        <p class="muted small" style="margin:-6px 4px 14px">Javobsiz qo'ng'iroqlar, operatorga o'tkazilgan va javob topilmagan murojaatlar — mijozga qayta bog'laning.</p>
+        <div class="seg" id="t-seg"><button data-f="open" class="on">Ochiq</button><button data-f="done">Bajarilgan</button></div>
+        <div class="card"><div id="t-list" class="list"></div></div>
+      </div>
+
+      <!-- Sinov chati -->
+      <div class="view hidden" id="v-test">
+        <div class="view-title"><h2>Sinov</h2><button class="pill" id="t-reset">Yangi suhbat</button></div>
+        <div class="card">
+          <p class="muted small" style="margin-top:0">Kotibni mijoz kabi sinab ko'ring: <i>"Ertaga bo'sh vaqt bormi?"</i>, <i>"Narxlar qancha?"</i>, <i>"Записаться на завтра"</i>, <i>"Operator bilan gaplashmoqchiman"</i>.</p>
+          <div class="chat" id="t-chat"></div>
+          <form class="chat-form" id="t-form">
+            <input id="t-input" placeholder="Xabar yozing…" autocomplete="off">
+            <button class="btn primary"><svg class="i" style="width:18px;height:18px"><use href="#i-send"/></svg></button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Sozlamalar -->
+      <div class="view hidden" id="v-settings">
+        <div class="profile">
+          <div class="halo"><div><img src="/mark.svg" alt=""></div></div>
+          <div class="name" id="p-name"></div>
+          <div class="muted small" id="p-sub"></div>
+        </div>
+
+        <div class="card">
+          <h3>Biznes haqida</h3>
+          <label>Nomi<input id="s-name"></label>
+          <label>Qisqacha ma'lumot (kotib mijozlarga shuni aytadi)<textarea id="s-about" rows="3"></textarea></label>
+          <label>Manzil<input id="s-address" placeholder="Shahar, ko'cha, mo'ljal"></label>
+          <label>Telefon<input id="s-phone" placeholder="+998 90 123 45 67"></label>
+          <label>Salomlashish matni<textarea id="s-greeting" rows="2"></textarea></label>
+          <label>Qo'shimcha ma'lumot (to'lov, yetkazib berish, chegirmalar, qoidalar…)<textarea id="s-extra" rows="3"></textarea></label>
+        </div>
+
+        <div class="card">
+          <h3>Kotib</h3>
+          <div class="set-row"><div class="k">O'zbek tili</div><label class="switch"><input type="checkbox" id="s-lang-uz"><span></span></label></div>
+          <div class="set-row"><div class="k">Rus tili<small>Qo'ng'iroqda "2" ni bosib tanlanadi</small></div><label class="switch"><input type="checkbox" id="s-lang-ru"><span></span></label></div>
+          <div class="set-row"><div class="k">Operator raqami<small>Murakkab masalada qo'ng'iroq shu raqamga ulanadi</small></div><input id="s-operator" type="tel" placeholder="+998…"></div>
+          <div class="set-row"><div class="k">Eslatmalar (soat oldin)<small>Mijozga SMS, masalan: 24,2</small></div><input id="s-remind" placeholder="24,2"></div>
+          <div class="set-row"><div class="k">Kunlik hisobot vaqti<small>Telegram'ga yuboriladi</small></div><input id="s-report" type="time"></div>
+        </div>
+
+        <div class="card">
+          <h3>Ish vaqti</h3>
+          <div id="s-hours"></div>
+          <div class="grid3">
+            <label>Vaqt qadami (daq.)<input id="s-step" type="number" min="5" step="5"></label>
+            <label>Bir vaqtda mijoz<input id="s-cap" type="number" min="1"></label>
+            <label>Oraliq (daq.)<input id="s-buf" type="number" min="0" step="5"></label>
+          </div>
+          <p class="muted small">"Bir vaqtda mijoz" — nechta usta/xona parallel ishlaydi. "Oraliq" — har uchrashuvdan keyingi tayyorgarlik vaqti.</p>
+        </div>
+
+        <div class="card">
+          <h3>Xizmatlar (uchrashuv bilan)</h3>
+          <div id="s-services"></div>
+          <button class="btn small ghost" id="s-add-svc">+ Xizmat qo'shish</button>
+        </div>
+
+        <div class="card">
+          <h3>Mahsulotlar va qoldiq</h3>
+          <p class="muted small" style="margin-top:-6px">Kotib narx va qoldiqni shu bazadan aytadi. Zakaz qabul qilinganda qoldiq avtomatik kamayadi. Qoldiq bo'sh — cheklanmagan.</p>
+          <div id="s-products"></div>
+          <button class="btn small ghost" id="s-add-prod">+ Mahsulot qo'shish</button>
+        </div>
+
+        <div class="card">
+          <h3>Savol-javoblar</h3>
+          <p class="muted small" style="margin-top:-6px">Mijozlar ko'p beradigan savollar. Kotib shularga tayanib javob beradi.</p>
+          <div id="s-faq"></div>
+          <button class="btn small ghost" id="s-add-faq">+ Savol qo'shish</button>
+        </div>
+
+        <button class="btn primary block sticky-save" id="s-save">Saqlash</button>
+
+        <div class="card">
+          <h3>Telegram xabarnomalar</h3>
+          <p class="muted small" style="margin-top:-6px">Yangi uchrashuv, zakaz, javobsiz qo'ng'iroq va kunlik hisobot Telegram'ga keladi. <a href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a>'da bot yarating, tokenni serverga <code>TG_BOT_TOKEN</code> qilib qo'shing, botga /start yozing va chat ID'ni kiriting (<a href="https://t.me/userinfobot" target="_blank" rel="noopener">@userinfobot</a> aytadi).</p>
+          <label id="s-tg-box">Chat ID<input id="s-tg" placeholder="123456789"></label>
+          <div class="btn-row"><button class="btn small" id="s-tg-test">Sinov xabari</button><button class="btn small" id="s-tg-report">Hisobotni hozir yuborish</button></div>
+        </div>
+
+        <div class="card">
+          <h3>Telefon raqamga ulash</h3>
+          <div id="s-status" class="status-list"></div>
+          <ol class="steps">
+            <li><a href="https://www.twilio.com/try-twilio" target="_blank" rel="noopener">Twilio</a>'da ro'yxatdan o'ting va telefon raqam oling.</li>
+            <li><b>A call comes in</b> → Webhook, POST:<code class="copy" id="u-voice"></code></li>
+            <li><b>Call status changes</b> → POST (qo'ng'iroqlar tarixi va javobsizlar uchun):<code class="copy" id="u-status"></code></li>
+            <li><b>A message comes in</b> → Webhook, POST:<code class="copy" id="u-sms"></code></li>
+            <li>Serverga <code>TWILIO_ACCOUNT_SID</code>, <code>TWILIO_AUTH_TOKEN</code>, <code>TWILIO_FROM</code> va <code>PUBLIC_URL</code> qo'shing.</li>
+            <li>O'z raqamingizdan Twilio raqamiga <b>qo'ng'iroqni yo'naltiring</b>: hammasi — <code>**21*raqam#</code>, javob bermasangiz — <code>**61*raqam#</code>, band bo'lsangiz — <code>**67*raqam#</code>.</li>
+          </ol>
+          <p class="muted small">Mijozlar uchun onlayn chat (saytga, Instagram/Telegram profilga qo'ying):</p>
+          <code class="copy" id="u-chat"></code>
+        </div>
+
+        <div class="card">
+          <h3>Xavfsizlik</h3>
+          <div id="s-pass-box">
+            <label>Yangi parol<input id="s-pass" type="password" autocomplete="new-password"></label>
+            <button class="btn small ghost" id="s-pass-btn">Parolni almashtirish</button>
+          </div>
+          <button class="btn small danger" id="logout" style="margin-top:10px">Chiqish</button>
+        </div>
+      </div>
+    </main>
+
+    <nav class="tabs">
+      <button data-v="home" class="on" title="Bosh sahifa"><svg class="i"><use href="#i-home"/></svg></button>
+      <button data-v="calendar" title="Kalendar"><svg class="i"><use href="#i-cal"/></svg></button>
+      <button data-v="orders" title="Buyurtmalar"><svg class="i"><use href="#i-list"/></svg><span class="badge hidden" id="new-badge"></span></button>
+      <button data-v="customers" title="Mijozlar"><svg class="i"><use href="#i-users"/></svg></button>
+      <button data-v="settings" title="Sozlamalar"><svg class="i"><use href="#i-gear"/></svg></button>
+    </nav>
+  </section>
+
+  <!-- Uchrashuv oynasi -->
+  <dialog id="bk">
+    <form method="dialog" id="bk-form">
+      <div class="dlg-head"><h3 id="bk-title">Yangi uchrashuv</h3><button type="button" class="icon-btn" data-close><svg class="i"><use href="#i-x"/></svg></button></div>
+      <label>Xizmat<select id="bk-svc"></select></label>
+      <div class="row2">
+        <label>Sana<input id="bk-date" type="date" required></label>
+        <label>Vaqt<input id="bk-time" type="time" required step="300"></label>
+      </div>
+      <div class="chips" id="bk-starts" style="margin-top:10px"></div>
+      <label>Mijoz ismi<input id="bk-name" required></label>
+      <label>Telefon<input id="bk-phone" type="tel"></label>
+      <label>Izoh<textarea id="bk-notes" rows="2"></textarea></label>
+      <label class="check"><input type="checkbox" id="bk-force"> Band bo'lsa ham yozish</label>
+      <div class="seg boxed hidden" id="bk-status" style="margin-top:12px">
+        <button type="button" data-s="confirmed">Tasdiq</button>
+        <button type="button" data-s="done">Bajarildi</button>
+        <button type="button" data-s="noshow">Kelmadi</button>
+        <button type="button" data-s="cancelled">Bekor</button>
+      </div>
+      <p class="error" id="bk-err"></p>
+      <div class="actions">
+        <button type="button" class="btn danger small hidden" id="bk-del">O'chirish</button>
+        <span class="grow"></span>
+        <button type="submit" class="btn primary">Saqlash</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Zakaz oynasi -->
+  <dialog id="od">
+    <div class="dlg-head"><h3 id="od-title">Zakaz</h3><button class="icon-btn" data-close><svg class="i"><use href="#i-x"/></svg></button></div>
+    <div id="od-body"></div>
+    <div class="seg boxed" id="od-status" style="margin-top:14px">
+      <button data-s="new">Yangi</button>
+      <button data-s="confirmed">Tasdiq</button>
+      <button data-s="delivered">Yetkazildi</button>
+      <button data-s="cancelled">Bekor</button>
+    </div>
+  </dialog>
+
+  <!-- Mijoz oynasi -->
+  <dialog id="cu">
+    <div class="dlg-head"><span></span><button class="icon-btn" data-close><svg class="i"><use href="#i-x"/></svg></button></div>
+    <div id="cu-body"></div>
+  </dialog>
+
+  <!-- Suhbat oynasi -->
+  <dialog id="cv">
+    <div class="dlg-head"><h3 id="cv-title"></h3><button class="icon-btn" data-close><svg class="i"><use href="#i-x"/></svg></button></div>
+    <div class="muted small" id="cv-meta" style="margin:-6px 0 8px"></div>
+    <div class="chat" id="cv-chat"></div>
+  </dialog>
+
+  <div id="toast" class="toast"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

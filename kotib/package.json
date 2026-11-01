@@ -1,0 +1,18 @@
+{
+  "name": "kotib",
+  "version": "1.0.0",
+  "description": "Kotib — biznes egasi uchun aqlli virtual kotib: qo'ng'iroq va SMS'ga javob beradi, buyurtma qabul qiladi, kalendarni yuritadi",
+  "main": "server.js",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test.js"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "pg": "^8.23.1"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

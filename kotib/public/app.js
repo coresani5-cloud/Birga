@@ -7,7 +7,7 @@ const MONTHS = ['Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun', 'Iyul', 'Avg
 const WD = ['Yakshanba', 'Dushanba', 'Seshanba', 'Chorshanba', 'Payshanba', 'Juma', 'Shanba'];
 const B_STATUS = { confirmed: ['Tasdiqlangan', ''], done: ['Bajarildi', 'ok'], noshow: ['Kelmadi', 'warn'], cancelled: ['Bekor', 'bad'] };
 const O_STATUS = { new: ['Yangi', 'warn'], confirmed: ['Tasdiqlangan', ''], delivered: ['Yetkazildi', 'ok'], cancelled: ['Bekor', 'bad'] };
-const SRC = { call: "📞 Qo'ng'iroq", sms: '✉️ SMS', whatsapp: '🟢 WhatsApp', web: '🌐 Sayt', test: '🤖 Sinov', manual: '✍️ Qo‘lda' };
+const SRC = { call: "📞 Qo'ng'iroq", telegram: '✈️ Telegram', sms: '✉️ SMS', whatsapp: '🟢 WhatsApp', web: '🌐 Sayt', test: '🤖 Sinov', manual: '✍️ Qo‘lda' };
 const T_TYPE = { missed: ['Javobsiz qo‘ng‘iroq', 'bad'], handoff: ['Inson bilan gaplashmoqchi', 'warn'], callback: ['Qayta bog‘lanish', ''] };
 
 let token = localStorage.getItem('kotib_token') || '';
@@ -458,6 +458,7 @@ function fillSettings() {
   renderServices(); renderProducts(); renderFaq(); renderStatus();
   loadConnections().catch(() => {});
   renderPhone();
+  renderTgBot();
 }
 function renderServices() {
   $('#s-services').innerHTML = settings.services.map((s, i) => `<div class="svc" data-i="${i}">
@@ -698,6 +699,18 @@ $('#ph-load').onclick = async () => {
     });
   } catch (e) { toast(e.message); }
   b.disabled = false;
+};
+
+// ---------- Telegram bot (mijozlar uchun) ----------
+function renderTgBot() {
+  const b = settings.tgBot;
+  $('#tg-bot').innerHTML = b
+    ? `✅ Bot ishlayapti: <a href="https://t.me/${esc(b)}" target="_blank" rel="noopener">@${esc(b)}</a> — havolani Instagram, Telegram kanal, vizitka va saytingizga qo'ying: <code class="copy" id="tg-link">https://t.me/${esc(b)}</code>`
+    : `⚠️ Bot ulanmagan. 1) <a href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a> → /newbot → tokenni "Ulanishlar → Telegram bot tokeni"ga kiriting. 2) "Botni ulash" tugmasini bosing.`;
+  $('#tg-link')?.addEventListener('click', (e) => { navigator.clipboard?.writeText(e.target.textContent); toast('Nusxa olindi'); });
+}
+$('#tg-setup').onclick = async () => {
+  try { const r = await api('/api/telegram/setup', { method: 'POST' }); settings = await api('/api/settings'); renderTgBot(); toast(`✅ @${r.bot} ishga tushdi — botga yozib sinab ko'ring`); } catch (e) { toast(e.message); }
 };
 
 boot();

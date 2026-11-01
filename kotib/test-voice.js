@@ -13,6 +13,8 @@ const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kotib-voice-'));
 const spoken = [];
 const twilioHooks = {};
 const cloned = [];
+let aishaFail = false;
+const tgSent = [];
 const wav = Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(3000)]);
 
 const mock = http.createServer((req, res) => {
@@ -26,6 +28,14 @@ const mock = http.createServer((req, res) => {
       const f = new URLSearchParams(body); Object.assign(twilioHooks, { voice: f.get('VoiceUrl'), status: f.get('StatusCallback'), sms: f.get('SmsUrl') });
       return res.end(JSON.stringify({ sid: 'PN' + 'a'.repeat(32), phone_number: '+15551234567' }));
     }
+    if (req.url.startsWith('/botTGTOKEN/')) {
+      const method = req.url.split('/')[2];
+      const o = body ? JSON.parse(Buffer.from(body, 'latin1').toString('utf8')) : {};
+      if (method === 'sendMessage') tgSent.push(o.text);
+      const result = method === 'getMe' ? { username: 'savetir_bot' } : method === 'getFile' ? { file_path: 'voice/a.ogg' } : true;
+      res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ ok: true, result }));
+    }
+    if (req.url === '/file/botTGTOKEN/voice/a.ogg') { res.writeHead(200, { 'Content-Type': 'audio/ogg' }); return res.end(Buffer.alloc(4000, 7)); }
     if (req.url.startsWith('/v1/')) {
       if (req.headers['xi-api-key'] !== 'el-key') { res.writeHead(401); return res.end('{}'); }
       if (req.url === '/v1/voices/add') { cloned.push(body.length); res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ voice_id: 'VOICE_ME' })); }
@@ -33,10 +43,12 @@ const mock = http.createServer((req, res) => {
     }
     if (req.headers['x-api-key'] !== 'test-key' && !req.url.startsWith('/rec/') && !req.url.startsWith('/media/')) { res.writeHead(401); return res.end('{}'); }
     if (req.url === '/api/v1/tts/post/') {
-      const m = /name="transcript"\r\n\r\n([\s\S]*?)\r\n--/.exec(body);
-      spoken.push(Buffer.from(m ? m[1] : '', 'latin1').toString('utf8'));
-      const voice = /name="voice_id"\r\n\r\n(\w+)/.exec(body);
-      if (voice) spoken.push('VOICE_ID=' + voice[1]);
+      if (aishaFail) { res.writeHead(500, { 'Content-Type': 'text/html' }); return res.end('<html><title>Server Error (500)</title></html>'); }
+      let tr = '', vid = null;
+      if (body.trim().startsWith('{')) { const o = JSON.parse(Buffer.from(body, 'latin1').toString('utf8')); tr = o.transcript; vid = o.voice_id; }
+      else { const m = /name="transcript"\r\n\r\n([\s\S]*?)\r\n--/.exec(body); tr = Buffer.from(m ? m[1] : '', 'latin1').toString('utf8'); const v = /name="voice_id"\r\n\r\n(\w+)/.exec(body); vid = v && v[1]; }
+      spoken.push(tr);
+      if (vid) spoken.push('VOICE_ID=' + vid);
       res.writeHead(201, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ audio_path: '/media/a.wav' }));
     }
     if (req.url === '/media/a.wav') { res.writeHead(200, { 'Content-Type': 'audio/wav' }); return res.end(wav); }
@@ -47,7 +59,7 @@ const mock = http.createServer((req, res) => {
   });
 }).listen(MOCK);
 
-const env = { ...process.env, PORT: String(PORT), DATA_DIR: dir, DATABASE_URL: '', GEMINI_API_KEY: '', GROQ_API_KEY: '', AI_API_URL: '', TWILIO_AUTH_TOKEN: '', TWILIO_ACCOUNT_SID: '', ADMIN_PASSWORD: 'parol123', AISHA_API_KEY: '', PUBLIC_URL: '', AISHA_BASE: `http://localhost:${MOCK}`, TWILIO_API_BASE: `http://localhost:${MOCK}`, ELEVENLABS_BASE: `http://localhost:${MOCK}`, ELEVENLABS_API_KEY: '', ELEVENLABS_VOICE_ID: '', TWILIO_FROM: '' };
+const env = { ...process.env, PORT: String(PORT), DATA_DIR: dir, DATABASE_URL: '', GEMINI_API_KEY: '', GROQ_API_KEY: '', AI_API_URL: '', TWILIO_AUTH_TOKEN: '', TWILIO_ACCOUNT_SID: '', ADMIN_PASSWORD: 'parol123', AISHA_API_KEY: '', PUBLIC_URL: '', AISHA_BASE: `http://localhost:${MOCK}`, TWILIO_API_BASE: `http://localhost:${MOCK}`, ELEVENLABS_BASE: `http://localhost:${MOCK}`, TELEGRAM_API_BASE: `http://localhost:${MOCK}`, TG_BOT_TOKEN: '', TG_CHAT_ID: '', ELEVENLABS_API_KEY: '', ELEVENLABS_VOICE_ID: '', TWILIO_FROM: '' };
 const srv = spawn(process.execPath, [path.join(__dirname, 'server.js')], { env, stdio: ['ignore', 'pipe', 'inherit'] });
 let token = '';
 async function j(url, body, method) {
@@ -129,6 +141,41 @@ async function main() {
   await j('/api/voice/clone', null, 'DELETE');
   assert.equal((await j('/api/connections')).data.voice.tts, 'aisha');
 
+  // Telegram bot: mijoz yozadi va ovozli xabar yuboradi
+  await j('/api/connections', { TG_BOT_TOKEN: 'TGTOKEN' }, 'PUT');
+  const tgSecret = require('crypto').createHash('sha256').update('kotib-tg:TGTOKEN').digest('hex').slice(0, 32);
+  const hook = (update) => fetch(`${base}/telegram/hook/${tgSecret}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Telegram-Bot-Api-Secret-Token': tgSecret }, body: JSON.stringify(update) });
+  const wait = async (n) => { for (let i = 0; i < 50 && tgSent.length < n; i++) await new Promise((r) => setTimeout(r, 100)); };
+  assert.equal((await fetch(`${base}/telegram/hook/${tgSecret}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status, 403); // sirsiz
+  const chat = { id: 555, type: 'private' }, from = { first_name: 'Dilshod', language_code: 'uz' };
+  await hook({ message: { chat, from, text: '/start' } }); await wait(1);
+  assert.match(tgSent[0], /SAVE|kotib|Assalomu/i);
+  await hook({ message: { chat, from, contact: { phone_number: '998935551122' } } }); await wait(2);
+  assert.match(tgSent[1], /Rahmat/);
+  await hook({ message: { chat, from, voice: { file_id: 'F1', duration: 3, mime_type: 'audio/ogg', file_size: 4000 } } }); await wait(3);
+  assert.match(tgSent[2], /🎤 «Ertaga bo'sh vaqt bormi\?»/, tgSent[2]);
+  assert.match(tgSent[2], /09:00–13:00/);
+  const tgConv = (await j('/api/conversations/tg:555')).data;
+  assert.equal(tgConv.channel, 'telegram');
+  assert.equal(tgConv.from, '+998935551122');
+
+  // Saytda ovozli suhbat
+  const wv = await j('/api/chat/voice', { session: 'webv1', data: wav.toString('base64'), mime: 'audio/wav' });
+  assert.equal(wv.status, 200, JSON.stringify(wv.data));
+  assert.match(wv.data.text, /Ertaga/);
+  assert.match(wv.data.audio, /^\/tts\/[a-f0-9]{40}\.wav$/);
+
+  // Aisha ishlamay qolsa — kotib to'xtamaydi, Twilio ovoziga o'tadi va xatoni aniq aytadi
+  aishaFail = true;
+  const vt = await j('/api/voice/test', { text: 'Butunlay yangi matn 123' });
+  assert.equal(vt.status, 502);
+  assert.match(vt.data.error, /aisha.*500/i);
+  x = await form('/twilio/voice', { CallSid: 'C9', From: '+998907778899' });
+  assert.match(x, /<Say voice="Polly.Filiz"/);
+  aishaFail = false;
+  await j('/api/connections', {}, 'PUT'); // qayta saqlash — provayder qayta yoqiladi
+  assert.equal((await j('/api/voice/test', { text: 'Yana bir matn' })).status, 200);
+
   // Kotib raqami: Twilio raqamini ilovadan avtomatik ulash
   assert.equal((await j('/api/phone/numbers')).status, 400); // kalit yo'q
   await j('/api/connections', { TWILIO_ACCOUNT_SID: 'AC1', TWILIO_AUTH_TOKEN: 'tok' }, 'PUT');
@@ -147,4 +194,4 @@ async function main() {
   console.log("✅ Ovoz tekshiruvlari o'tdi");
 }
 const done = (code) => { mock.close(); srv.on('exit', () => { fs.rmSync(dir, { recursive: true, force: true }); process.exit(code); }); srv.kill(); };
-main().then(() => done(0)).catch((e) => { console.error('❌', e.message); done(1); });
+main().then(() => done(0)).catch((e) => { console.error('❌', e.stack, JSON.stringify(tgSent)); done(1); });

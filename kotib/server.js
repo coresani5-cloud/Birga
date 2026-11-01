@@ -11,10 +11,11 @@ const A = require('./assistant');
 const C = require('./core');
 const V = require('./voice');
 const CFG = require('./config');
+const TG = require('./telegram');
 
 const app = express();
 app.set('trust proxy', true);
-app.use((req, res, next) => (req.path === '/api/media/greeting' || req.path === '/api/voice/clone' ? next() : express.json({ limit: '1mb' })(req, res, next)));
+app.use((req, res, next) => (['/api/media/greeting', '/api/voice/clone', '/api/chat/voice'].includes(req.path) ? next() : express.json({ limit: '1mb' })(req, res, next)));
 app.use(express.urlencoded({ extended: false }));
 
 const st = () => store.get();
@@ -256,7 +257,7 @@ app.get('/api/settings', auth, (req, res) => {
   res.json({
     business, hours, services, products, faq, closedDays, ai: A.aiOn(), twilio: !!process.env.TWILIO_AUTH_TOKEN, sms: C.smsOn(),
     telegram: C.tgOn(), tgToken: !!process.env.TG_BOT_TOKEN, tgEnvChat: !!process.env.TG_CHAT_ID, operator: !!operatorPhone(),
-    publicUrl: CFG.publicUrl(), voice: V.status(), kotibNumber: st().business.kotibNumber || '', greetingAudio: !!st().media?.greeting, db: store.PG ? 'postgres' : 'file', tz: S.TZ, adminEnv: !!process.env.ADMIN_PASSWORD,
+    publicUrl: CFG.publicUrl(), voice: V.status(), kotibNumber: st().business.kotibNumber || '', tgBot: st().meta?.tgBot || '', greetingAudio: !!st().media?.greeting, db: store.PG ? 'postgres' : 'file', tz: S.TZ, adminEnv: !!process.env.ADMIN_PASSWORD,
   });
 });
 app.put('/api/settings', auth, (req, res) => {
@@ -525,6 +526,37 @@ app.post('/twilio/sms', twilioCheck, wrap(async (req, res) => {
   twiml(res, `<Message>${xml(r.reply)}</Message>`);
 }));
 
+// ---------- Telegram bot (mijozlar uchun, bepul) ----------
+app.post('/telegram/hook/:secret', (req, res) => {
+  if (req.params.secret !== TG.secret() || req.get('x-telegram-bot-api-secret-token') !== TG.secret()) return res.sendStatus(403);
+  res.sendStatus(200); // Telegram kutib qolmasin — javobni alohida yuboramiz
+  TG.handle(req.body || {}, { conversation, talk, A, C }).catch((e) => console.error('Telegram:', e.message));
+});
+app.post('/api/telegram/setup', auth, wrap(async (req, res) => {
+  const r = await TG.setup(true);
+  if (!r.ok) return res.status(400).json({ error: r.reason === 'token' ? 'Avval "Ulanishlar"ga Telegram bot tokenini kiriting' : r.reason === 'url' ? 'Sayt manzili (https://...) kiritilmagan' : r.reason });
+  res.json(r);
+}));
+
+// ---------- Saytda ovozli suhbat (bepul "qo'ng'iroq") ----------
+app.post('/api/chat/voice', express.json({ limit: '6mb' }), wrap(async (req, res) => {
+  const now = Date.now(), hits = (chatHits.get(req.ip) || []).filter((t) => now - t < 60e3);
+  if (hits.length >= 20) return res.status(429).json({ error: 'Juda tez, biroz kuting' });
+  hits.push(now); chatHits.set(req.ip, hits);
+  const sid = String(req.body.session || '').replace(/[^\w-]/g, '').slice(0, 40);
+  const buf = Buffer.from(String(req.body.data || ''), 'base64');
+  if (!sid || buf.length < 2000) return res.status(400).json({ error: 'Ovoz yozilmadi' });
+  const test = req.body.test && validToken((req.headers.authorization || '').replace(/^Bearer\s+/, ''));
+  const conv = conversation((test ? 'test:' : 'web:') + sid, test ? 'test' : 'web', '');
+  let text = '';
+  try { text = await V.transcribe(buf, String(req.body.mime || 'audio/wav'), conv.lang || 'uz', 15000); } catch (e) { return res.status(400).json({ error: e.message }); }
+  if (!text) return res.json({ text: '', reply: A.L(conv.lang || 'uz', 'Eshitmadim, qaytadan ayting.', 'Не расслышал, повторите.'), audio: null });
+  const r = await talk(conv, text);
+  const lang = r.lang || conv.lang || 'uz';
+  const audio = V.ttsOn(lang) ? await V.tts(r.reply, lang, 10000) : null;
+  res.json({ text, reply: r.reply, lang, audio: audio ? '/tts/' + audio : null, booking: r.booking ? { date: r.booking.date, start: r.booking.start } : null, order: r.order ? { total: r.order.total } : null, handoff: r.handoff });
+}));
+
 // ---------- Ovoz fayllari (Twilio shu manzillardan o'qiydi) ----------
 app.get('/tts/:name', (req, res) => {
   const f = V.ttsFile(req.params.name);
@@ -596,16 +628,24 @@ app.post('/api/phone/connect', auth, wrap(async (req, res) => {
 app.get('/api/connections', auth, (req, res) => res.json({ keys: CFG.view(), voice: V.status(), greeting: st().media?.greeting || null, clone: st().media?.clone || null }));
 app.put('/api/connections', auth, (req, res) => {
   CFG.set(req.body || {});
+  V.resetDown();
   prewarm();
+  TG.setup(true).catch(() => {});
   emit('settings', {});
   res.json({ keys: CFG.view(), voice: V.status() });
 });
 // Ovozni sinash: matnni o'zbekcha ovozda eshittirish
 app.post('/api/voice/test', auth, wrap(async (req, res) => {
   const text = String(req.body.text || A.greeting(st(), 'uz')).slice(0, 500);
-  if (!V.ttsOn('uz')) return res.status(400).json({ error: "O'zbekcha ovoz ulanmagan: Aisha, Muxlisa yoki Azure kalitini kiriting" });
+  if (!V.ttsOn('uz')) {
+    const errs = Object.entries(V.status().errors || {}).map(([k, v]) => `${k}: ${v}`).join('; ');
+    return res.status(400).json({ error: errs ? `Ovoz xizmati xato berdi (${errs}). Kalit va balansni tekshiring, so'ng "Ulanishlarni saqlash"ni bosing.` : "O'zbekcha ovoz ulanmagan: Aisha, Muxlisa yoki Azure kalitini kiriting" });
+  }
   const name = await V.tts(text, 'uz', 20000);
-  if (!name) return res.status(502).json({ error: "Ovoz yaratib bo'lmadi — kalit va balansni tekshiring (server jurnalida batafsil)" });
+  if (!name) {
+    const errs = Object.entries(V.status().errors || {}).map(([k, v]) => `${k}: ${v}`).join('; ');
+    return res.status(502).json({ error: `Ovoz yaratib bo'lmadi${errs ? ` (${errs})` : ''}. Kalit va balansni tekshiring. Hozircha kotib zaxira ovozda gapiradi.` });
+  }
   res.json({ url: '/tts/' + name, spoken: V.uzSpeech(text) });
 }));
 // Egasining ovozini klonlash: namuna (1–3 daqiqa) ElevenLabs'ga yuboriladi, kotib shu ovozda gapiradi
@@ -663,6 +703,7 @@ store.load().then(() => {
   CFG.apply();
   C.startScheduler();
   prewarm();
+  TG.setup().catch(() => {});
   const server = app.listen(PORT, () => console.log(`Kotib ishga tushdi: http://localhost:${PORT} (ma'lumotlar: ${store.PG ? 'PostgreSQL' : 'fayl'}, AI: ${A.aiOn() ? 'yoqilgan' : "yo'q — qoidalar asosida"}, Telegram: ${C.tgOn() ? 'ulangan' : "yo'q"})`));
   const stop = () => { store.flush().finally(() => server.close(() => process.exit(0))); setTimeout(() => process.exit(0), 3000).unref(); };
   process.on('SIGTERM', stop);

@@ -149,7 +149,7 @@ function createTask({ type, phone, name, reason, conversationId }) {
 }
 
 // ---------- Xabarnomalar ----------
-const SRC = { call: "qo'ng'iroq", sms: 'SMS', whatsapp: 'WhatsApp', web: 'sayt', test: 'sinov', manual: "qo'lda" };
+const SRC = { call: "qo'ng'iroq", telegram: 'Telegram', sms: 'SMS', whatsapp: 'WhatsApp', web: 'sayt', test: 'sinov', manual: "qo'lda" };
 const esc = (s) => String(s ?? '').replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
 const tgChat = () => process.env.TG_CHAT_ID || st().business.tgChatId;
 const tgOn = () => !!(process.env.TG_BOT_TOKEN && tgChat());

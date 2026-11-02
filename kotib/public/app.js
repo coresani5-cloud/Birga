@@ -510,7 +510,7 @@ function renderStatus() {
   const it = (ok, t, hint) => `<div>${ok ? '✅' : '⚠️'} ${t}${!ok && hint ? `<div class="muted small">${hint}</div>` : ''}</div>`;
   $('#s-status').innerHTML = [
     it(settings.ai, "Sun'iy intellekt (erkin suhbat)", "Kalit yo'q — kotib faqat oddiy savollarga javob beradi. Erkin suhbat uchun \"Ulanishlar\"ga Gemini AI kalitini kiriting (bepul: aistudio.google.com/apikey)."),
-    it(!!settings.kotibNumber, "Kotib raqami", "Hali biriktirilmagan."),
+    it(!!(settings.uzNumber || settings.kotibNumber), "Kotib raqami", "Yuqorida ishxona raqamingizni kiriting."),
     it(settings.sms, 'SMS eslatmalar', 'Kotib raqami biriktirilgach o‘zi yoqiladi.'),
     it(settings.operator, 'Operatorga yo‘naltirish', 'Yuqorida "Operator raqami"ni kiriting — aks holda kotib vazifa yaratadi.'),
     it(settings.telegram, 'Telegram', settings.tgToken ? 'Chat ID kiriting.' : "Ulanishlar bo'limiga Telegram bot tokenini kiriting."),
@@ -687,6 +687,11 @@ $('#g-del').onclick = async () => { if (!confirm("Salomlashish yozuvini o'chiras
 
 // ---------- Kotib raqami ----------
 function renderPhone() {
+  $('#uz-number').value = settings.uzNumber || '';
+  const sip = settings.sipDomain;
+  $('#uz-howto').innerHTML = settings.uzNumber
+    ? `<b>Ulash uchun (bir marta):</b><br>1) Shu raqamdagi SIM-kartani ofisdagi <b>GSM shlyuz</b> qurilmasiga soling (1 SIM-li, masalan GoIP-1).<br>2) Shlyuz sozlamasida kiruvchi qo'ng'iroqlarni shu manzilga yo'naltiring: <code>sip:${esc(settings.uzNumber.replace('+', ''))}@${esc(sip || 'PLATFORMA-SIP-DOMENI')}</code><br>3) Boshqa telefondan raqamingizga qo'ng'iroq qilib sinang. Sozlashda yordam kerak bo'lsa — qo'llab-quvvatlash xizmatiga yozing.${sip ? '' : '<br><span class="muted">⚠️ Platforma SIP domeni hali sozlanmagan — ma\'mur sozlaydi.</span>'}`
+    : "Raqamingizni kiriting — ulash yo'riqnomasi shu yerda chiqadi.";
   const n = settings.kotibNumber;
   $('#ph-current').innerHTML = n
     ? `<div class="set-row"><div class="k">✅ Kotib raqami<small>Qo'ng'iroq va SMS'larga AI javob beradi</small></div><b>${esc(n)}</b></div>`
@@ -701,6 +706,9 @@ function renderPhone() {
     $('#ph-cancel').href = 'tel:' + encodeURIComponent('##002#');
   }
 }
+$('#uz-save').onclick = async () => {
+  try { const r = await api('/api/phone/uz', { method: 'PUT', body: { number: $('#uz-number').value } }); settings.uzNumber = r.number; renderPhone(); toast(r.number ? '✅ Raqam saqlandi' : "Raqam o'chirildi"); } catch (e) { toast(e.message); }
+};
 $('#ph-load').onclick = async () => {
   const b = $('#ph-load'); b.disabled = true;
   try {

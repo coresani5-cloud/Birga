@@ -210,7 +210,7 @@ function mount(app, { C, onTenantCreated }) {
           customers: Object.keys(d.customers || {}).length, telegram: !!d.meta?.tgBot, ai: !!CFG.env('GEMINI_API_KEY'),
         };
       });
-      return { id: t.id, name: t.name, phone: t.phone, createdAt: t.createdAt, lastLogin: t.lastLogin || null, kotibNumber: t.kotibNumber || '', blocked: !!t.blocked, plan: t.plan, ...status(t.id), stats };
+      return { id: t.id, name: t.name, phone: t.phone, uzNumber: t.uzNumber || '', createdAt: t.createdAt, lastLogin: t.lastLogin || null, kotibNumber: t.kotibNumber || '', blocked: !!t.blocked, plan: t.plan, ...status(t.id), stats };
     }).sort((a, b) => b.createdAt - a.createdAt);
     res.json(list);
   });
@@ -246,7 +246,7 @@ function mount(app, { C, onTenantCreated }) {
   });
   app.get('/api/admin/settings', adminAuth, (req, res) => {
     const p = P();
-    res.json({ plans: p.plans, trialDays: p.trialDays, payInfo: p.payInfo, support: p.support || '', keys: CFG.viewPlatform(), publicUrl: CFG.publicUrl(), adminEnv: !!process.env.ADMIN_PASSWORD });
+    res.json({ plans: p.plans, trialDays: p.trialDays, payInfo: p.payInfo, support: p.support || '', sipDomain: p.sipDomain || '', keys: CFG.viewPlatform(), publicUrl: CFG.publicUrl(), adminEnv: !!process.env.ADMIN_PASSWORD });
   });
   app.put('/api/admin/settings', adminAuth, (req, res) => {
     const p = P(), b = req.body || {};
@@ -255,6 +255,7 @@ function mount(app, { C, onTenantCreated }) {
     if (b.trialDays !== undefined) p.trialDays = Math.max(0, Math.min(90, Number(b.trialDays) || 0));
     if (b.payInfo !== undefined) p.payInfo = String(b.payInfo).slice(0, 2000);
     if (b.support !== undefined) p.support = String(b.support).slice(0, 200);
+    if (b.sipDomain !== undefined) p.sipDomain = String(b.sipDomain).trim().replace(/^sips?:/, '').slice(0, 120);
     if (b.keys) CFG.setPlatform(b.keys);
     store.savePlatform();
     res.json({ ok: true });

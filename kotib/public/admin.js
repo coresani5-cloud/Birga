@@ -71,7 +71,7 @@ function renderTenants() {
   $('#tenants').innerHTML = list.length ? list.map((t) => `<div class="biz" data-id="${t.id}">
     <div class="top-line"><b>${esc(t.name)}</b> <span class="tag ${STATE[t.state]?.[1] || ''}">${STATE[t.state]?.[0] || t.state}</span>
       <span class="muted small">${t.state === 'expired' ? 'tugagan: ' + date(t.until) : t.daysLeft + ' kun qoldi'}</span></div>
-    <div class="kv"><span>📞 ${esc(t.phone)}</span><span>☎️ Kotib: ${esc(t.kotibNumber || '—')}</span><span>📅 ${date(t.createdAt)}</span><span>🔑 Oxirgi kirish: ${date(t.lastLogin)}</span></div>
+    <div class="kv"><span>📞 ${esc(t.phone)}</span><span>🇺🇿 Ishxona: ${esc(t.uzNumber || '—')}</span><span>☎️ Twilio: ${esc(t.kotibNumber || '—')}</span><span>📅 ${date(t.createdAt)}</span><span>🔑 Oxirgi kirish: ${date(t.lastLogin)}</span></div>
     <div class="kv"><span>Qo'ng'iroq: ${t.stats.calls || 0}</span><span>Yozishma: ${t.stats.chats || 0}</span><span>Uchrashuv: ${t.stats.bookings || 0}</span><span>Zakaz: ${t.stats.orders || 0}</span><span>Mijozlar: ${t.stats.customers || 0}</span><span>${t.stats.telegram ? '✈️ Bot bor' : ''}</span></div>
     <div class="acts">
       <button class="btn small" data-ext="30">+30 kun</button><button class="btn small" data-ext="365">+1 yil</button>
@@ -116,6 +116,12 @@ async function loadPayments() {
 
 // ---------- Raqamlar ----------
 async function loadNumbers() {
+  const base = location.origin;
+  $('#sip-voice').textContent = base + '/sip/voice';
+  $('#sip-status').textContent = base + '/sip/status';
+  if (!tenants.length) tenants = await api('/api/admin/tenants');
+  const uz = tenants.filter((t) => t.uzNumber);
+  $('#uz-list').innerHTML = uz.length ? uz.map((t) => `<div class="row" style="cursor:default"><div class="info"><b>${esc(t.uzNumber)}</b><div class="muted small">${esc(t.name)}</div></div></div>`).join('') : '<div class="empty">Hali hech bir biznes o‘zbek raqamini kiritmagan</div>';
   try { numbers = await api('/api/admin/numbers'); } catch (e) { $('#numbers').innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
   if (!tenants.length) tenants = await api('/api/admin/tenants');
   const opts = (cur) => '<option value="">— biznes tanlang —</option>' + tenants.map((t) => `<option value="${t.id}" ${t.id === cur ? 'selected' : ''}>${esc(t.name)}</option>`).join('');
@@ -135,6 +141,7 @@ async function loadSettings() {
   $('#trial').value = cfg.trialDays;
   $('#payinfo').value = cfg.payInfo;
   $('#support').value = cfg.support || '';
+  $('#sipdomain').value = cfg.sipDomain || '';
   $('#admin-pass-card').classList.toggle('hidden', cfg.adminEnv);
   $('#keys').innerHTML = cfg.keys.map((k) => `<label>${esc(KEYS[k.key] || k.key)} ${k.set ? '<span class="tag ok">bor</span>' : ''}${k.env ? ' <span class="tag">server</span>' : ''}
     <input data-key="${k.key}" ${k.secret ? 'type="password" autocomplete="off"' : ''} value="${esc(k.value)}" ${k.env ? 'disabled placeholder="Server sozlamasida berilgan"' : ''}></label>`).join('');
@@ -150,7 +157,7 @@ $('#add-plan').onclick = () => { collectPlans(); cfg.plans.push({ name: '', pric
 $('#save').onclick = async () => {
   collectPlans();
   const keys = {}; $$('#keys input:not([disabled])').forEach((i) => keys[i.dataset.key] = i.value);
-  try { await api('/api/admin/settings', { method: 'PUT', body: { plans: cfg.plans, trialDays: Number($('#trial').value), payInfo: $('#payinfo').value, support: $('#support').value, keys } }); toast('Saqlandi ✅'); loadSettings(); } catch (e) { toast(e.message); }
+  try { await api('/api/admin/settings', { method: 'PUT', body: { plans: cfg.plans, trialDays: Number($('#trial').value), payInfo: $('#payinfo').value, support: $('#support').value, sipDomain: $('#sipdomain').value, keys } }); toast('Saqlandi ✅'); loadSettings(); } catch (e) { toast(e.message); }
 };
 
 $('#admin-pass-btn').onclick = async () => {

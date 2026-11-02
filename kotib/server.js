@@ -204,7 +204,7 @@ app.get('/api/settings', auth, (req, res) => {
   res.json({
     business, hours, services, products, faq, closedDays, ai: A.aiOn(), twilio: !!env("TWILIO_AUTH_TOKEN"), sms: C.smsOn(),
     telegram: C.tgOn(), tgToken: !!env("TG_BOT_TOKEN"), tgEnvChat: false, operator: !!operatorPhone(),
-    publicUrl: CFG.publicUrl(), tenantId: req.tenantId, chatUrl: `${CFG.publicUrl() || baseUrl(req)}/c/${req.tenantId}`, subscription: SA.status(), ownTwilio: CFG.ownTwilio(), voice: V.status(), kotibNumber: st().business.kotibNumber || '', tgBot: st().meta?.tgBot || '', greetingAudio: !!st().media?.greeting, db: store.PG ? 'postgres' : 'file', tz: S.TZ, support: store.platform().support || '',
+    publicUrl: CFG.publicUrl(), tenantId: req.tenantId, chatUrl: `${CFG.publicUrl() || baseUrl(req)}/c/${req.tenantId}`, subscription: SA.status(), ownTwilio: CFG.ownTwilio(), voice: V.status(), kotibNumber: st().business.kotibNumber || '', uzNumber: st().business.uzNumber || '', sipDomain: store.platform().sipDomain || '', tgBot: st().meta?.tgBot || '', greetingAudio: !!st().media?.greeting, db: store.PG ? 'postgres' : 'file', tz: S.TZ, support: store.platform().support || '',
   });
 });
 app.put('/api/settings', auth, (req, res) => {
@@ -363,7 +363,22 @@ function twilioCheck(req, res, next) {
   if (got.length === sig.length && crypto.timingSafeEqual(Buffer.from(got), Buffer.from(sig))) return next();
   res.status(403).send('Bad signature');
 }
-const callConv = (req) => conversation('call:' + (req.body.CallSid || 'x'), 'call', req.body.From);
+// O'zbek raqamlari GSM shlyuz / SIP orqali keladi: From = "sip:+998901234567@1.2.3.4:5060"
+const isSip = (req) => /^sip:/i.test(String(req.body.From || ''));
+const sipHost = (req) => (/@([^;>]+)/.exec(String(req.body.From || '')) || [])[1] || '';
+function phoneOf(v) {
+  const user = /^sips?:([^@;]+)/i.exec(String(v || ''));
+  const d = String(user ? user[1] : v || '').replace(/\D/g, '');
+  if (!d) return String(v || '');
+  return '+' + (d.length === 9 ? '998' + d : d);
+}
+// Operatorga ulash: SIP qo'ng'iroqda — o'sha shlyuz (SIM) orqali, mahalliy tarifda
+function dialTarget(req, number) {
+  if (isSip(req) && sipHost(req)) return `<Sip>sip:${xml(String(number).replace(/\D/g, ''))}@${xml(sipHost(req))}</Sip>`;
+  return xml(number);
+}
+const dialCallerId = (req) => (!isSip(req) && req.body.To ? ` callerId="${xml(req.body.To)}"` : '');
+const callConv = (req) => conversation('call:' + (req.body.CallSid || 'x'), 'call', phoneOf(req.body.From));
 const logBot = (conv, text) => { conv.messages.push({ role: 'assistant', content: text, at: Date.now() }); conv.updatedAt = Date.now(); store.save(); emit('conversation', { id: conv.id }); };
 const BYE = { uz: 'Rahmat, xayr!', ru: 'Спасибо, до свидания!' };
 
@@ -373,7 +388,7 @@ tw.post('/twilio/voice', twilioCheck, wrap(async (req, res) => {
   if (!SA.active()) {
     const op = operatorPhone();
     logBot(conv, '⛔ Obuna tugagan — qo\'ng\'iroq egasiga yo\'naltirildi');
-    return twiml(res, op ? `<Dial timeout="30"${req.body.To ? ` callerId="${xml(req.body.To)}"` : ''}>${xml(op)}</Dial>` : say("Kechirasiz, hozir javob bera olmaymiz. Keyinroq qo'ng'iroq qiling.") + '<Hangup/>');
+    return twiml(res, op ? `<Dial timeout="30"${dialCallerId(req)}>${dialTarget(req, op)}</Dial>` : say("Kechirasiz, hozir javob bera olmaymiz. Keyinroq qo'ng'iroq qiling.") + '<Hangup/>');
   }
   const langs = langsOn();
   if (!conv.lang && langs.length === 1) conv.lang = langs[0];
@@ -413,8 +428,7 @@ async function handleSpeech(req, res, conv, text) {
     const op = operatorPhone();
     if (op) {
       // Operatorga ulaymiz; javob bermasa /twilio/dial-done vazifa yaratadi
-      const callerId = req.body.To ? ` callerId="${xml(req.body.To)}"` : '';
-      return twiml(res, await speak(req, r.reply, l) + `<Dial timeout="25" action="${tp('/twilio/dial-done')}" method="POST"${callerId}>${xml(op)}</Dial>`);
+      return twiml(res, await speak(req, r.reply, l) + `<Dial timeout="25" action="${tp('/twilio/dial-done')}" method="POST"${dialCallerId(req)}>${dialTarget(req, op)}</Dial>`);
     }
     C.createTask({ type: 'handoff', phone: conv.from, name: conv.customer?.name, reason: `Qo'ng'iroqda inson bilan gaplashmoqchi: "${text.slice(0, 150)}"`, conversationId: conv.id });
     const msg = A.L(l, "Hozir xodimlarimiz band. Sizga tez orada qayta qo'ng'iroq qilamiz. Yana savolingiz bormi?", 'Сейчас все сотрудники заняты. Мы скоро вам перезвоним. Есть ещё вопросы?');
@@ -465,7 +479,7 @@ tw.post('/twilio/dial-done', twilioCheck, wrap(async (req, res) => {
 }));
 
 // Qo'ng'iroq holati (Twilio: "Call status changes" webhook) — tarix va javobsiz qo'ng'iroqlar
-tw.post('/twilio/status', twilioCheck, (req, res) => {
+function callStatus(req, res) {
   const status = String(req.body.CallStatus || '');
   if (!['completed', 'busy', 'no-answer', 'failed', 'canceled'].includes(status)) return res.sendStatus(204);
   const conv = callConv(req);
@@ -479,6 +493,43 @@ tw.post('/twilio/status', twilioCheck, (req, res) => {
   store.save();
   emit('conversation', { id: conv.id });
   res.sendStatus(204);
+}
+tw.post('/twilio/status', twilioCheck, callStatus);
+
+// ---------- O'zbek raqamlari (SIP): GSM shlyuz yoki mahalliy SIP provayder → Twilio SIP Domain → shu yer ----------
+// Chaqirilgan raqam (To) qaysi biznesning "ishxona raqami" ekaniga qarab qo'ng'iroq o'sha biznes kotibiga yo'naltiriladi.
+const digits9 = (v) => String(v || '').replace(/\D/g, '').slice(-9);
+function tenantBySip(req) {
+  const called = digits9(phoneOf(req.body.To));
+  if (called.length < 9) return null;
+  const t = Object.values(store.platform().tenants).find((x) => digits9(x.uzNumber) === called && !x.blocked);
+  return t && store.has(t.id) ? t.id : null;
+}
+app.post('/sip/voice', twilioCheck, (req, res) => {
+  const tid = tenantBySip(req);
+  if (!tid) return twiml(res, say("Kechirasiz, bu raqam hali kotibga ulanmagan.") + '<Hangup/>');
+  // Biznesning o'z manziliga yo'naltiramiz — keyingi hammasi oddiy qo'ng'iroq kabi ishlaydi
+  twiml(res, `<Redirect method="POST">${xml(baseUrl(req))}/t/${tid}/twilio/voice</Redirect>`);
+});
+app.post('/sip/status', twilioCheck, (req, res) => {
+  const tid = tenantBySip(req);
+  if (!tid) return res.sendStatus(204);
+  store.run(tid, () => callStatus(req, res));
+});
+
+// Biznes o'z ishxona raqamini (O'zbekiston) kiritadi
+app.put('/api/phone/uz', auth, (req, res) => {
+  const raw = String(req.body.number || '').trim();
+  const d = raw.replace(/\D/g, '');
+  const t = store.platform().tenants[req.tenantId];
+  if (!raw) { t.uzNumber = ''; st().business.uzNumber = ''; store.savePlatform(); store.save(); return res.json({ ok: true, number: '' }); }
+  const full = d.length === 9 ? '998' + d : d;
+  if (!/^998\d{9}$/.test(full)) return res.status(400).json({ error: "O'zbekiston raqamini kiriting: +998 XX XXX XX XX" });
+  const busy = Object.values(store.platform().tenants).find((x) => x.id !== req.tenantId && digits9(x.uzNumber) === full.slice(-9));
+  if (busy) return res.status(400).json({ error: "Bu raqam boshqa biznesga ulangan. Yordam xizmatiga murojaat qiling" });
+  t.uzNumber = '+' + full; st().business.uzNumber = '+' + full;
+  store.savePlatform(); store.save();
+  res.json({ ok: true, number: '+' + full });
 });
 
 tw.post('/twilio/sms', twilioCheck, wrap(async (req, res) => {

@@ -59,6 +59,16 @@
 
       <div class="view hidden" id="v-numbers">
         <div class="card">
+          <h3>O'zbek raqamlari (SIP)</h3>
+          <p class="muted small" style="margin-top:-6px">Bizneslar o'z ishxona raqamini kiritadi; SIM-karta GSM shlyuzga solinadi, shlyuz qo'ng'iroqni Twilio SIP domeniga uzatadi, kotib raqamga qarab biznesni aniqlaydi.</p>
+          <ol class="steps small">
+            <li>Twilio → Voice → <b>SIP Domains</b> → yangi domen (masalan <code>kotib.sip.twilio.com</code>) va uni "Sozlamalar"dagi <b>SIP domeni</b> maydoniga yozing.</li>
+            <li>Domen sozlamasi: <b>A call comes in</b> → POST <code id="sip-voice"></code>, <b>Call status changes</b> → <code id="sip-status"></code>.</li>
+            <li><b>IP Access Control List</b>ga bizneslardagi shlyuzlarning IP manzilini qo'shing (yoki Credential List).</li>
+            <li>Har bir shlyuzda kiruvchi qo'ng'iroqni <code>sip:998XXXXXXXXX@SIZNING-DOMEN</code> ga yo'naltiring (998... — o'sha biznes raqami).</li>
+          </ol>
+          <div id="uz-list" class="list" style="margin-bottom:16px"></div>
+          <h3>Chet el raqamlari (Twilio)</h3>
           <p class="muted small" style="margin-top:0">Platformaning Twilio hisobidagi raqamlar ("Sozlamalar → Umumiy kalitlar"da Twilio SID va Token). Raqamni biznesga biriktirsangiz, unga kelgan qo'ng'iroqlarga shu biznesning kotibi javob beradi.</p>
           <div id="numbers" class="list"></div>
         </div>
@@ -71,6 +81,7 @@
           <button class="btn small ghost" id="add-plan">+ Tarif qo'shish</button>
           <label style="margin-top:14px">Bepul sinov davri (kun)<input id="trial" type="number" min="0" max="90"></label>
           <label>To'lov yo'riqnomasi (bizneslar ko'radi)<textarea id="payinfo" rows="4"></textarea></label>
+          <label>SIP domeni (O'zbek raqamlari uchun)<input id="sipdomain" placeholder="kotib.sip.twilio.com"></label>
           <label>Yordam aloqasi (kirish sahifasida ko'rinadi: parolni unutganlar uchun)<input id="support" placeholder="Telegram: @kotib_yordam yoki +998 90 000 00 00"></label>
         </div>
         <div class="card">

@@ -147,6 +147,26 @@ async function main() {
   // Admin paroli server sozlamasida berilgan — paneldan o'zgartirib bo'lmaydi
   assert.equal((await j('/api/admin/password', { password: 'yangi-admin-1' }, 'POST', ADM)).status, 400);
 
+  // O'zbek raqami (SIP): biznes ishxona raqamini kiritadi, qo'ng'iroq raqamga qarab o'sha biznesga boradi
+  assert.equal((await j('/api/phone/uz', { number: '90 555 11 22' }, 'PUT', A.token)).data.number, '+998905551122');
+  assert.equal((await j('/api/phone/uz', { number: '+998 90 555 11 22' }, 'PUT', B.token)).status, 400); // band
+  assert.equal((await j('/api/phone/uz', { number: '+7 999 123 45 67' }, 'PUT', B.token)).status, 400); // O'zbekniki emas
+  x = await form('/sip/voice', { CallSid: 'SIP1', From: 'sip:+998935551122@85.1.2.3:5060', To: 'sip:998905551122@kotib.sip.twilio.com' });
+  assert.match(x, new RegExp(`<Redirect method="POST">${base}/t/${A.id}/twilio/voice</Redirect>`), x);
+  x = await form('/sip/voice', { CallSid: 'SIP2', From: 'sip:+998935551122@85.1.2.3', To: 'sip:998909999999@kotib.sip.twilio.com' });
+  assert.match(x, /ulanmagan/);
+  // Biznes manziliga yo'naltirilgan qo'ng'iroq: SIP raqami to'g'ri o'qiladi
+  x = await form(`/t/${A.id}/twilio/voice`, { CallSid: 'SIP1', From: 'sip:+998935551122@85.1.2.3:5060', To: 'sip:998905551122@kotib.sip.twilio.com' });
+  assert.match(x, /<Gather|<Record/);
+  const sipConv = (await j('/api/conversations/call:SIP1', null, 'GET', A.token)).data;
+  assert.equal(sipConv.from, '+998935551122');
+  // Mijoz operator so'raydi: qo'ng'iroq egasiga SIM (shlyuz) orqali o'tadi — mahalliy tarif
+  x = await form(`/t/${A.id}/twilio/voice/turn`, { CallSid: 'SIP1', From: 'sip:+998935551122@85.1.2.3:5060', To: 'sip:998905551122@kotib.sip.twilio.com', SpeechResult: 'Operator bilan gaplashmoqchiman' });
+  assert.match(x, /<Dial timeout="25" action="\/t\/\w+\/twilio\/dial-done" method="POST"><Sip>sip:998901000001@85\.1\.2\.3:5060<\/Sip><\/Dial>/, x);
+  x = await (await fetch(base + '/sip/status', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ CallSid: 'SIP1', From: 'sip:+998935551122@85.1.2.3', To: 'sip:998905551122@kotib.sip.twilio.com', CallStatus: 'completed', CallDuration: '40' }) })).status;
+  assert.equal(x, 204);
+  assert.equal((await j('/api/conversations/call:SIP1', null, 'GET', A.token)).data.call.duration, 40);
+
   // Server qayta ishga tushadi — hamma narsa saqlanib qoladi
   await stop();
   await start();

@@ -160,6 +160,14 @@ async function main() {
   assert.match(x, /<Gather|<Record/);
   const sipConv = (await j('/api/conversations/call:SIP1', null, 'GET', A.token)).data;
   assert.equal(sipConv.from, '+998935551122');
+  // Qurilmasiz yo'l: admin biznesga O'zbekiston virtual raqamini beradi, biznes o'z raqamidan unga yo'naltiradi
+  assert.equal((await j(`/api/admin/tenants/${A.id}`, { kotibUz: '+998 71 200 00 01' }, 'PATCH', ADM)).status, 200);
+  assert.equal((await j(`/api/admin/tenants/${B.id}`, { kotibUz: '712000001' }, 'PATCH', ADM)).status, 400); // band
+  assert.equal((await j('/api/settings', null, 'GET', A.token)).data.kotibUz, '+998712000001');
+  x = await form('/sip/voice', { CallSid: 'FWD1', From: 'sip:+998935551122@provayder.uz', To: 'sip:998712000001@kotib.sip.twilio.com' });
+  assert.match(x, new RegExp(`/t/${A.id}/twilio/voice</Redirect>`), x);
+  assert.equal((await j('/api/phone/uz', { number: '+998 71 200 00 01' }, 'PUT', B.token)).status, 400); // virtual raqam band
+
   // Mijoz operator so'raydi: qo'ng'iroq egasiga SIM (shlyuz) orqali o'tadi — mahalliy tarif
   x = await form(`/t/${A.id}/twilio/voice/turn`, { CallSid: 'SIP1', From: 'sip:+998935551122@85.1.2.3:5060', To: 'sip:998905551122@kotib.sip.twilio.com', SpeechResult: 'Operator bilan gaplashmoqchiman' });
   assert.match(x, /<Dial timeout="25" action="\/t\/\w+\/twilio\/dial-done" method="POST"><Sip>sip:998901000001@85\.1\.2\.3:5060<\/Sip><\/Dial>/, x);

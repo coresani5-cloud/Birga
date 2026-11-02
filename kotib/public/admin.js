@@ -71,10 +71,11 @@ function renderTenants() {
   $('#tenants').innerHTML = list.length ? list.map((t) => `<div class="biz" data-id="${t.id}">
     <div class="top-line"><b>${esc(t.name)}</b> <span class="tag ${STATE[t.state]?.[1] || ''}">${STATE[t.state]?.[0] || t.state}</span>
       <span class="muted small">${t.state === 'expired' ? 'tugagan: ' + date(t.until) : t.daysLeft + ' kun qoldi'}</span></div>
-    <div class="kv"><span>📞 ${esc(t.phone)}</span><span>🇺🇿 Ishxona: ${esc(t.uzNumber || '—')}</span><span>☎️ Twilio: ${esc(t.kotibNumber || '—')}</span><span>📅 ${date(t.createdAt)}</span><span>🔑 Oxirgi kirish: ${date(t.lastLogin)}</span></div>
+    <div class="kv"><span>📞 ${esc(t.phone)}</span><span>🇺🇿 Ishxona: ${esc(t.uzNumber || '—')}</span><span>🤖 Kotib (UZ): ${esc(t.kotibUz || '—')}</span><span>☎️ Twilio: ${esc(t.kotibNumber || '—')}</span><span>📅 ${date(t.createdAt)}</span><span>🔑 Oxirgi kirish: ${date(t.lastLogin)}</span></div>
     <div class="kv"><span>Qo'ng'iroq: ${t.stats.calls || 0}</span><span>Yozishma: ${t.stats.chats || 0}</span><span>Uchrashuv: ${t.stats.bookings || 0}</span><span>Zakaz: ${t.stats.orders || 0}</span><span>Mijozlar: ${t.stats.customers || 0}</span><span>${t.stats.telegram ? '✈️ Bot bor' : ''}</span></div>
     <div class="acts">
       <button class="btn small" data-ext="30">+30 kun</button><button class="btn small" data-ext="365">+1 yil</button>
+      <span style="display:inline-flex;gap:6px;align-items:center"><input data-kuz value="${esc(t.kotibUz || '')}" placeholder="Kotib raqami +998…" style="width:150px;padding:5px 8px;font-size:12.5px"><button class="btn small" data-kuz-save>Biriktirish</button></span>
       <button class="btn small ghost" data-reset>Parolni tiklash</button>
       <button class="btn small ${t.blocked ? 'ok' : 'danger'}" data-block="${t.blocked ? 0 : 1}">${t.blocked ? 'Blokdan chiqarish' : 'Bloklash'}</button>
       ${numbers.length ? `<select data-num>${numOpts(t.kotibNumber)}</select>` : ''}
@@ -82,6 +83,9 @@ function renderTenants() {
   $$('#tenants .biz').forEach((el) => {
     const id = el.dataset.id;
     $$('[data-ext]', el).forEach((b) => b.onclick = async () => { await api(`/api/admin/tenants/${id}`, { method: 'PATCH', body: { extendDays: Number(b.dataset.ext) } }); toast('Obuna uzaytirildi'); loadTenants(); });
+    $('[data-kuz-save]', el).onclick = async () => {
+      try { await api(`/api/admin/tenants/${id}`, { method: 'PATCH', body: { kotibUz: $('[data-kuz]', el).value } }); toast('✅ Kotib raqami biriktirildi — biznesga xabar yuborildi'); loadTenants(); } catch (e) { toast(e.message); }
+    };
     $('[data-reset]', el).onclick = async () => {
       if (!confirm('Biznes egasiga yangi vaqtinchalik parol berasizmi? Eski parol ishlamay qoladi.')) return;
       try { const r = await api(`/api/admin/tenants/${id}/reset-password`, { method: 'POST' }); alert(`Yangi vaqtinchalik parol: ${r.password}\n\nUni biznes egasiga yuboring. U kirgach "Sozlamalar → Xavfsizlik"da o'z parolini o'rnatadi.`); } catch (e) { toast(e.message); }

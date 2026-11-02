@@ -60,7 +60,7 @@
       <div class="view hidden" id="v-numbers">
         <div class="card">
           <h3>O'zbek raqamlari (SIP)</h3>
-          <p class="muted small" style="margin-top:-6px">Bizneslar o'z ishxona raqamini kiritadi; SIM-karta GSM shlyuzga solinadi, shlyuz qo'ng'iroqni Twilio SIP domeniga uzatadi, kotib raqamga qarab biznesni aniqlaydi.</p>
+          <p class="muted small" style="margin-top:-6px"><b>Qurilmasiz yo'l (tavsiya):</b> mahalliy provayderdan (masalan, Uztelecom IP-telefoniya) har bir biznes uchun O'zbekiston virtual raqamini oling va provayderda kiruvchi qo'ng'iroqlarni Twilio SIP domeningizga yo'naltiring (<code>sip:998XXXXXXXXX@domen</code>). So'ng "Bizneslar" bo'limida shu raqamni biznesga "Biriktirish" qiling — biznes ishxona telefonida bitta tugma bilan yo'naltirishni yoqadi. <b>Muqobil:</b> biznesning SIM-kartasi GSM shlyuzga solinadi.</p>
           <ol class="steps small">
             <li>Twilio → Voice → <b>SIP Domains</b> → yangi domen (masalan <code>kotib.sip.twilio.com</code>) va uni "Sozlamalar"dagi <b>SIP domeni</b> maydoniga yozing.</li>
             <li>Domen sozlamasi: <b>A call comes in</b> → POST <code id="sip-voice"></code>, <b>Call status changes</b> → <code id="sip-status"></code>.</li>
@@ -86,7 +86,7 @@
         </div>
         <div class="card">
           <h3>Umumiy kalitlar</h3>
-          <p class="muted small" style="margin-top:-6px">Bu kalitlar barcha bizneslar uchun ishlatiladi (biznes o'z kalitini kiritmagan bo'lsa). Masalan, bitta Gemini kaliti — hamma uchun erkin suhbat.</p>
+          <p class="muted small" style="margin-top:-6px">Bu kalitlar barcha bizneslar uchun ishlatiladi (biznes o'z kalitini kiritmagan bo'lsa). Masalan, bitta Gemini kaliti — hamma uchun erkin suhbat. <b>O'zbekcha ovoz bepul:</b> portal.azure.com → "Speech" resursi, narx: <b>Free F0</b> (oyiga 500 000 belgi ovoz + 5 soat nutqni tanish) → Keys and Endpoint'dan Key va Region'ni kiriting.</p>
           <div id="keys"></div>
         </div>
         <button class="btn primary block sticky-save" id="save">Saqlash</button>

@@ -143,7 +143,7 @@ async function synthAzure(text, lang, ms) {
   const voice = lang === 'ru' ? process.env.AZURE_VOICE_RU || 'ru-RU-SvetlanaNeural' : process.env.AZURE_VOICE_UZ || 'uz-UZ-MadinaNeural';
   const loc = voice.slice(0, 5);
   const esc = (s) => s.replace(/[<>&"']/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' }[c]));
-  const r = await fetch(`https://${env("AZURE_SPEECH_REGION")}.tts.speech.microsoft.com/cognitiveservices/v1`, {
+  const r = await fetch(`${process.env.AZURE_TTS_BASE || `https://${env("AZURE_SPEECH_REGION")}.tts.speech.microsoft.com`}/cognitiveservices/v1`, { // AZURE_TTS_BASE — faqat test uchun
     method: 'POST',
     headers: { 'Ocp-Apim-Subscription-Key': env("AZURE_SPEECH_KEY"), 'Content-Type': 'application/ssml+xml', 'X-Microsoft-OutputFormat': 'riff-16khz-16bit-mono-pcm', 'User-Agent': 'kotib' },
     body: `<speak version="1.0" xml:lang="${loc}"><voice name="${voice}">${esc(text)}</voice></speak>`, signal: AbortSignal.timeout(ms),
@@ -224,7 +224,8 @@ function ttsFile(name) {
 }
 
 // ---------- Nutq → matn (STT) ----------
-const sttProvider = (lang) => (lang === 'uz' || lang === 'ru') && (env("AISHA_API_KEY") ? 'aisha' : lang === 'uz' && env("MUXLISA_API_KEY") ? 'muxlisa' : null);
+const azureOn = () => !!(env("AZURE_SPEECH_KEY") && env("AZURE_SPEECH_REGION"));
+const sttProvider = (lang) => (lang === 'uz' || lang === 'ru') && (env("AISHA_API_KEY") ? 'aisha' : lang === 'uz' && env("MUXLISA_API_KEY") ? 'muxlisa' : azureOn() ? 'azure' : null);
 const sttOn = (lang) => process.env.STT_MODE !== 'twilio' && lang === 'uz' && !!sttProvider(lang);
 
 async function stt(buf, lang = 'uz', ms = 9000) {
@@ -232,7 +233,21 @@ async function stt(buf, lang = 'uz', ms = 9000) {
   if (!prov) return '';
   return sttWith(prov, buf, 'audio/wav', lang, ms);
 }
+// Azure Speech (bepul tarif: oyiga 5 soat) — qisqa audio uchun REST
+async function azureStt(buf, mime, lang, ms) {
+  const loc = lang === 'ru' ? 'ru-RU' : 'uz-UZ';
+  let ct = 'audio/ogg; codecs=opus';
+  if (/wav/.test(mime)) { const rate = buf.length > 28 ? buf.readUInt32LE(24) : 16000; ct = `audio/wav; codecs=audio/pcm; samplerate=${rate || 16000}`; }
+  const base = process.env.AZURE_STT_BASE || `https://${env("AZURE_SPEECH_REGION")}.stt.speech.microsoft.com`; // AZURE_STT_BASE — faqat test uchun
+  const r = await fetch(`${base}/speech/recognition/conversation/cognitiveservices/v1?language=${loc}&format=simple`, {
+    method: 'POST', headers: { 'Ocp-Apim-Subscription-Key': env("AZURE_SPEECH_KEY"), 'Content-Type': ct, Accept: 'application/json' }, body: buf, signal: AbortSignal.timeout(ms),
+  });
+  if (!r.ok) throw new Error(`azure stt ${r.status} ${(await r.text()).slice(0, 120)}`);
+  const j = await r.json().catch(() => ({}));
+  return j.RecognitionStatus === 'Success' ? String(j.DisplayText || '').trim() : '';
+}
 async function sttWith(prov, buf, mime, lang, ms) {
+  if (prov === 'azure') return azureStt(buf, mime, lang, ms);
   const until = Date.now() + ms;
   const left = () => Math.max(500, until - Date.now());
   const form = new FormData();
@@ -283,6 +298,7 @@ async function transcribe(buf, mime = 'audio/wav', lang = 'uz', ms = 12000) {
   const wav = /wav/.test(mime);
   if (env("AISHA_API_KEY") && wav) order.push('aisha');
   if (env("MUXLISA_API_KEY")) order.push('muxlisa');
+  if (azureOn() && (wav || /ogg|opus/.test(mime))) order.push('azure');
   if (env("GEMINI_API_KEY")) order.push('gemini');
   if (env("AISHA_API_KEY") && !wav) order.push('aisha');
   const errs = [];
@@ -293,7 +309,7 @@ async function transcribe(buf, mime = 'audio/wav', lang = 'uz', ms = 12000) {
     } catch (e) { errs.push(e.message); }
   }
   if (errs.length) console.error('STT:', errs.join(' | '));
-  if (!order.length) throw new Error("Ovozni tanish uchun Gemini, Aisha yoki Muxlisa kaliti kerak");
+  if (!order.length) throw new Error("Ovozni tanish uchun Gemini, Azure, Aisha yoki Muxlisa kaliti kerak");
   return '';
 }
 

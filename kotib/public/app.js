@@ -510,7 +510,7 @@ function renderStatus() {
   const it = (ok, t, hint) => `<div>${ok ? '✅' : '⚠️'} ${t}${!ok && hint ? `<div class="muted small">${hint}</div>` : ''}</div>`;
   $('#s-status').innerHTML = [
     it(settings.ai, "Sun'iy intellekt (erkin suhbat)", "Kalit yo'q — kotib faqat oddiy savollarga javob beradi. Erkin suhbat uchun \"Ulanishlar\"ga Gemini AI kalitini kiriting (bepul: aistudio.google.com/apikey)."),
-    it(!!(settings.uzNumber || settings.kotibNumber), "Kotib raqami", "Yuqorida ishxona raqamingizni kiriting."),
+    it(!!(settings.kotibUz || settings.kotibNumber), "Kotib raqami", settings.uzNumber ? "Tez orada biriktiriladi." : "Yuqorida ishxona raqamingizni kiriting."),
     it(settings.sms, 'SMS eslatmalar', 'Kotib raqami biriktirilgach o‘zi yoqiladi.'),
     it(settings.operator, 'Operatorga yo‘naltirish', 'Yuqorida "Operator raqami"ni kiriting — aks holda kotib vazifa yaratadi.'),
     it(settings.telegram, 'Telegram', settings.tgToken ? 'Chat ID kiriting.' : "Ulanishlar bo'limiga Telegram bot tokenini kiriting."),
@@ -561,7 +561,7 @@ const KEY_INFO = {
   ELEVENLABS_API_KEY: ['ElevenLabs kaliti', "Ovozingizni klonlash uchun (elevenlabs.io → API Keys)"],
   ELEVENLABS_VOICE_ID: ['ElevenLabs ovoz ID', "Ovozni klonlaganingizda o'zi to'ldiriladi"],
   MUXLISA_API_KEY: ['Muxlisa kaliti', "Zaxira o'zbekcha ovoz va nutqni tanish (muxlisa.uz)"],
-  AZURE_SPEECH_KEY: ['Azure Speech kaliti', "Zaxira o'zbekcha ovoz (Madina)"],
+  AZURE_SPEECH_KEY: ['Azure Speech kaliti', "Bepul o'zbekcha ovoz (Madina) va nutqni tanish — portal.azure.com → Speech (F0)"],
   AZURE_SPEECH_REGION: ['Azure mintaqasi', 'Masalan: westeurope'],
   TWILIO_ACCOUNT_SID: ['Twilio Account SID', 'AC… bilan boshlanadi'],
   TWILIO_AUTH_TOKEN: ['Twilio Auth Token', ''],
@@ -582,8 +582,8 @@ function renderVoice() {
   const v = conn.voice, g = conn.greeting;
   const names = { elevenlabs: 'ElevenLabs', aisha: 'Aisha', muxlisa: 'Muxlisa', azure: 'Microsoft Azure' };
   $('#v-status').innerHTML = [
-    v.tts ? `<div>✅ O'zbekcha ovoz: <b>${names[v.tts]}</b>${v.cloned ? " — sizning klonlangan ovozingiz" : ''}</div>` : `<div>⚠️ O'zbekcha ovoz ulanmagan<div class="muted small">Hozir o'zbekcha javoblarni turkcha ovoz o'qiydi. Pastdagi "Ulanishlar"ga Aisha kalitini kiriting.</div></div>`,
-    v.stt ? `<div>✅ O'zbekcha nutqni tanish: <b>${names[v.stt]}</b></div>` : `<div>⚠️ Nutqni tanish: Twilio (oddiy)<div class="muted small">Aniqroq tanish uchun Aisha yoki Muxlisa kalitini kiriting.</div></div>`,
+    v.tts ? `<div>✅ O'zbekcha ovoz: <b>${names[v.tts]}</b>${v.cloned ? " — sizning klonlangan ovozingiz" : ''}</div>` : `<div>⚠️ O'zbekcha ovoz ulanmagan<div class="muted small">Hozir o'zbekcha javoblarni turkcha ovoz o'qiydi. Bepul yo'l: Microsoft Azure Speech (oyiga 500 000 belgi bepul, o'zbekcha Madina ovozi) — kalit va mintaqani "Ulanishlar"ga kiriting yoki platforma ma'muridan so'rang.</div></div>`,
+    v.stt ? `<div>✅ O'zbekcha nutqni tanish: <b>${names[v.stt]}</b></div>` : `<div>⚠️ Nutqni tanish: Twilio (oddiy)<div class="muted small">Aniqroq tanish uchun Azure (bepul: oyiga 5 soat), Aisha yoki Muxlisa kalitini kiriting.</div></div>`,
   ].join('');
   $('#g-current').textContent = g ? `Yozuv o'rnatilgan${g.seconds ? ` (${g.seconds} soniya)` : ''} · ${new Date(g.at).toLocaleDateString('ru-RU')}` : "Yozuv yo'q — kotib salomlashish matnini o'zi o'qiydi.";
   $('#g-del').classList.toggle('hidden', !g);
@@ -689,9 +689,15 @@ $('#g-del').onclick = async () => { if (!confirm("Salomlashish yozuvini o'chiras
 function renderPhone() {
   $('#uz-number').value = settings.uzNumber || '';
   const sip = settings.sipDomain;
-  $('#uz-howto').innerHTML = settings.uzNumber
-    ? `<b>Ulash uchun (bir marta):</b><br>1) Shu raqamdagi SIM-kartani ofisdagi <b>GSM shlyuz</b> qurilmasiga soling (1 SIM-li, masalan GoIP-1).<br>2) Shlyuz sozlamasida kiruvchi qo'ng'iroqlarni shu manzilga yo'naltiring: <code>sip:${esc(settings.uzNumber.replace('+', ''))}@${esc(sip || 'PLATFORMA-SIP-DOMENI')}</code><br>3) Boshqa telefondan raqamingizga qo'ng'iroq qilib sinang. Sozlashda yordam kerak bo'lsa — qo'llab-quvvatlash xizmatiga yozing.${sip ? '' : '<br><span class="muted">⚠️ Platforma SIP domeni hali sozlanmagan — ma\'mur sozlaydi.</span>'}`
-    : "Raqamingizni kiriting — ulash yo'riqnomasi shu yerda chiqadi.";
+  const kz = settings.kotibUz;
+  const fw = [['Javob bermasam', '**61*'], ['Band bo‘lsam', '**67*'], ['Telefon o‘chiq bo‘lsa', '**62*'], ['Hamma qo‘ng‘iroqlar', '**21*']];
+  $('#uz-howto').innerHTML = kz
+    ? `<b>✅ Kotib raqamingiz: ${esc(kz)}</b><br>Qurilma kerak emas. Ishxona telefonida (SIM-karta turgan telefonda) tugmani bosing — kod o'zi teriladi. Shundan keyin qo'ng'iroqqa siz javob bermasangiz, kotib javob beradi; telefondan odatdagidek foydalanaverasiz.
+      <div class="list" style="margin-top:8px">${fw.map(([t, c]) => `<div class="row" style="cursor:default"><div class="info"><b>${t}</b><div class="muted small">${c}${esc(kz)}#</div></div><a class="btn small" href="tel:${encodeURIComponent(c + kz + '#')}">Yoqish</a></div>`).join('')}</div>
+      <div class="muted small">O'chirish: <a href="tel:${encodeURIComponent('##002#')}">##002#</a>. Yo'naltirish operatorda (Beeline, Ucell, Uzmobile) mahalliy tarifda hisoblanadi.</div>`
+    : settings.uzNumber
+    ? `⏳ Kotib raqami tez orada biriktiriladi — sizga Telegram orqali xabar keladi. Shundan keyin shu yerda bir tugma bilan yo'naltirishni yoqasiz, qurilma kerak bo'lmaydi.`
+    : "Raqamingizni kiriting — kotib raqami biriktirilgach, ulash tugmalari shu yerda chiqadi.";
   const n = settings.kotibNumber;
   $('#ph-current').innerHTML = n
     ? `<div class="set-row"><div class="k">✅ Kotib raqami<small>Qo'ng'iroq va SMS'larga AI javob beradi</small></div><b>${esc(n)}</b></div>`

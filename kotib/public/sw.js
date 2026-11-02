@@ -1,5 +1,5 @@
 // Kotib — ilovani telefonga o'rnatish uchun. Avval tarmoq, internet bo'lmasa — saqlangan nusxa.
-const CACHE = 'kotib-v5';
+const CACHE = 'kotib-v6';
 const SHELL = ['/', '/index.html', '/app.js', '/styles.css', '/logo-256.png', '/favicon.png', '/icon-192.png', '/manifest.webmanifest'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).catch(() => {})); self.skipWaiting(); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k))))); self.clients.claim(); });

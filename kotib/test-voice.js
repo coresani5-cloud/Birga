@@ -13,6 +13,7 @@ const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kotib-voice-'));
 const spoken = [];
 const twilioHooks = {};
 const cloned = [];
+const azureCalls = [];
 let aishaFail = false;
 const tgSent = [];
 const wav = Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(3000)]);
@@ -36,6 +37,15 @@ const mock = http.createServer((req, res) => {
       res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ ok: true, result }));
     }
     if (req.url === '/file/botTGTOKEN/voice/a.ogg') { res.writeHead(200, { 'Content-Type': 'audio/ogg' }); return res.end(Buffer.alloc(4000, 7)); }
+    if (req.url === '/cognitiveservices/v1') {
+      if (req.headers['ocp-apim-subscription-key'] !== 'az-key') { res.writeHead(401); return res.end(); }
+      azureCalls.push('TTS ' + Buffer.from(body, 'latin1').toString('utf8'));
+      res.writeHead(200, { 'Content-Type': 'audio/wav' }); return res.end(wav);
+    }
+    if (req.url.startsWith('/speech/recognition/')) {
+      azureCalls.push(req.headers['content-type'] + ' ' + req.url);
+      res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ RecognitionStatus: 'Success', DisplayText: 'Narxlar qancha?' }));
+    }
     if (req.url.startsWith('/v1/')) {
       if (req.headers['xi-api-key'] !== 'el-key') { res.writeHead(401); return res.end('{}'); }
       if (req.url === '/v1/voices/add') { cloned.push(body.length); res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ voice_id: 'VOICE_ME' })); }
@@ -59,7 +69,7 @@ const mock = http.createServer((req, res) => {
   });
 }).listen(MOCK);
 
-const env = { ...process.env, PORT: String(PORT), DATA_DIR: dir, DATABASE_URL: '', GEMINI_API_KEY: '', GROQ_API_KEY: '', AI_API_URL: '', TWILIO_AUTH_TOKEN: '', TWILIO_ACCOUNT_SID: '', ADMIN_PASSWORD: 'parol123', AISHA_API_KEY: '', PUBLIC_URL: '', AISHA_BASE: `http://localhost:${MOCK}`, TWILIO_API_BASE: `http://localhost:${MOCK}`, ELEVENLABS_BASE: `http://localhost:${MOCK}`, TELEGRAM_API_BASE: `http://localhost:${MOCK}`, TG_BOT_TOKEN: '', TG_CHAT_ID: '', ELEVENLABS_API_KEY: '', ELEVENLABS_VOICE_ID: '', TWILIO_FROM: '' };
+const env = { ...process.env, PORT: String(PORT), DATA_DIR: dir, DATABASE_URL: '', GEMINI_API_KEY: '', GROQ_API_KEY: '', AI_API_URL: '', TWILIO_AUTH_TOKEN: '', TWILIO_ACCOUNT_SID: '', ADMIN_PASSWORD: 'parol123', AISHA_API_KEY: '', PUBLIC_URL: '', AISHA_BASE: `http://localhost:${MOCK}`, TWILIO_API_BASE: `http://localhost:${MOCK}`, ELEVENLABS_BASE: `http://localhost:${MOCK}`, AZURE_STT_BASE: `http://localhost:${MOCK}`, AZURE_TTS_BASE: `http://localhost:${MOCK}`, AZURE_SPEECH_KEY: '', AZURE_SPEECH_REGION: '', TELEGRAM_API_BASE: `http://localhost:${MOCK}`, TG_BOT_TOKEN: '', TG_CHAT_ID: '', ELEVENLABS_API_KEY: '', ELEVENLABS_VOICE_ID: '', TWILIO_FROM: '' };
 const srv = spawn(process.execPath, [path.join(__dirname, 'server.js')], { env, stdio: ['ignore', 'pipe', 'inherit'] });
 let token = '', tid = '';
 async function j(url, body, method) {
@@ -159,6 +169,19 @@ async function main() {
   const tgConv = (await j('/api/conversations/tg:555')).data;
   assert.equal(tgConv.channel, 'telegram');
   assert.equal(tgConv.from, '+998935551122');
+
+  // Azure (bepul tarif) — Telegram ovozli xabarini o'zbekcha taniydi
+  await j('/api/connections', { AZURE_SPEECH_KEY: 'az-key', AZURE_SPEECH_REGION: 'westeurope' }, 'PUT');
+  await hook({ message: { chat, from, voice: { file_id: 'F2', duration: 2, mime_type: 'audio/ogg', file_size: 4000 } } }); await wait(4);
+  assert.match(tgSent[3], /🎤 «Narxlar qancha\?»/, tgSent[3]);
+  assert.match(azureCalls[0], /^audio\/ogg; codecs=opus .*language=uz-UZ/);
+  // Azure o'zbekcha ovoz (Madina) — boshqa ovoz xizmati bo'lmaganda
+  const savedAisha = 'test-key';
+  await j('/api/connections', { AISHA_API_KEY: '' }, 'PUT');
+  const az = await j('/api/voice/test', { text: 'Soat 15:00 da kutamiz' });
+  assert.equal(az.status, 200, JSON.stringify(az.data));
+  assert.ok(azureCalls.some((c) => /uz-UZ-MadinaNeural/.test(c) && /o&apos;n besh/.test(c)), azureCalls.join('|'));
+  await j('/api/connections', { AISHA_API_KEY: savedAisha, AZURE_SPEECH_KEY: '', AZURE_SPEECH_REGION: '' }, 'PUT');
 
   // Saytda ovozli suhbat
   const wv = await j('/api/chat/voice', { session: 'webv1', data: wav.toString('base64'), mime: 'audio/wav', t: tid });

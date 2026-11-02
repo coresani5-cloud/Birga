@@ -210,7 +210,7 @@ function mount(app, { C, onTenantCreated }) {
           customers: Object.keys(d.customers || {}).length, telegram: !!d.meta?.tgBot, ai: !!CFG.env('GEMINI_API_KEY'),
         };
       });
-      return { id: t.id, name: t.name, phone: t.phone, uzNumber: t.uzNumber || '', createdAt: t.createdAt, lastLogin: t.lastLogin || null, kotibNumber: t.kotibNumber || '', blocked: !!t.blocked, plan: t.plan, ...status(t.id), stats };
+      return { id: t.id, name: t.name, phone: t.phone, uzNumber: t.uzNumber || '', kotibUz: t.kotibUz || '', createdAt: t.createdAt, lastLogin: t.lastLogin || null, kotibNumber: t.kotibNumber || '', blocked: !!t.blocked, plan: t.plan, ...status(t.id), stats };
     }).sort((a, b) => b.createdAt - a.createdAt);
     res.json(list);
   });
@@ -222,6 +222,18 @@ function mount(app, { C, onTenantCreated }) {
     if (b.extendDays) { const base = Math.max(Date.now(), t.paidUntil || 0); t.paidUntil = base + Number(b.extendDays) * DAY; if (b.plan) t.plan = b.plan; }
     if (b.blocked !== undefined) t.blocked = !!b.blocked;
     if (b.trialDays !== undefined) t.trialUntil = Date.now() + Number(b.trialDays) * DAY;
+    // Platforma bergan O'zbekiston virtual raqami: biznes o'z raqamidan shu raqamga yo'naltiradi
+    if (b.kotibUz !== undefined) {
+      const d = String(b.kotibUz).replace(/\D/g, ''), full = d.length === 9 ? '998' + d : d;
+      if (!d) t.kotibUz = '';
+      else {
+        if (!/^998\d{9}$/.test(full)) return res.status(400).json({ error: "O'zbekiston raqamini kiriting: +998 XX XXX XX XX" });
+        const busy = Object.values(P().tenants).find((x) => x.id !== t.id && [x.kotibUz, x.uzNumber].some((n) => String(n || '').replace(/\D/g, '').slice(-9) === full.slice(-9)));
+        if (busy) return res.status(400).json({ error: `Bu raqam "${busy.name}" biznesida band` });
+        t.kotibUz = '+' + full;
+        if (store.has(t.id)) store.run(t.id, () => C.tg(`📞 Kotib raqamingiz: ${t.kotibUz}\nIlovada "Sozlamalar → Kotib raqami" bo'limida yo'naltirish tugmasini bosing — shundan keyin ishxona raqamingizga kelgan qo'ng'iroqlarga AI kotib javob beradi.`));
+      }
+    }
     store.savePlatform();
     res.json({ ...t, hash: undefined, salt: undefined, ...status(t.id) });
   });

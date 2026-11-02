@@ -204,7 +204,7 @@ app.get('/api/settings', auth, (req, res) => {
   res.json({
     business, hours, services, products, faq, closedDays, ai: A.aiOn(), twilio: !!env("TWILIO_AUTH_TOKEN"), sms: C.smsOn(),
     telegram: C.tgOn(), tgToken: !!env("TG_BOT_TOKEN"), tgEnvChat: false, operator: !!operatorPhone(),
-    publicUrl: CFG.publicUrl(), tenantId: req.tenantId, chatUrl: `${CFG.publicUrl() || baseUrl(req)}/c/${req.tenantId}`, subscription: SA.status(), ownTwilio: CFG.ownTwilio(), voice: V.status(), kotibNumber: st().business.kotibNumber || '', uzNumber: st().business.uzNumber || '', sipDomain: store.platform().sipDomain || '', tgBot: st().meta?.tgBot || '', greetingAudio: !!st().media?.greeting, db: store.PG ? 'postgres' : 'file', tz: S.TZ, support: store.platform().support || '',
+    publicUrl: CFG.publicUrl(), tenantId: req.tenantId, chatUrl: `${CFG.publicUrl() || baseUrl(req)}/c/${req.tenantId}`, subscription: SA.status(), ownTwilio: CFG.ownTwilio(), voice: V.status(), kotibNumber: st().business.kotibNumber || '', uzNumber: st().business.uzNumber || '', kotibUz: store.platform().tenants[req.tenantId]?.kotibUz || '', sipDomain: store.platform().sipDomain || '', tgBot: st().meta?.tgBot || '', greetingAudio: !!st().media?.greeting, db: store.PG ? 'postgres' : 'file', tz: S.TZ, support: store.platform().support || '',
   });
 });
 app.put('/api/settings', auth, (req, res) => {
@@ -404,8 +404,8 @@ tw.post('/twilio/voice', twilioCheck, wrap(async (req, res) => {
   }
   // Til tanlash: 1 — o'zbekcha (yoki shunchaki gapirish), 2 — ruscha
   const hello = A.greeting(st(), 'uz');
-  logBot(conv, (rec ? '🔊 [Salomlashish yozuvi] ' : hello + ' ') + "O'zbek tili uchun gapiring yoki 1 ni bosing. / Для русского языка нажмите 2.");
-  const intro = (rec || await speak(req, hello, 'uz')) + await speak(req, "O'zbek tili uchun gapiring yoki 1 ni bosing.", 'uz') + say('Для русского языка нажмите 2.', 'ru');
+  logBot(conv, (rec ? '🔊 [Salomlashish yozuvi] ' : hello + ' ') + "O'zbek tili uchun gapiring yoki birni bosing. / Для русского языка нажмите 2.");
+  const intro = (rec || await speak(req, hello, 'uz')) + await speak(req, "O'zbek tili uchun gapiring yoki birni bosing.", 'uz') + say('Для русского языка нажмите 2.', 'ru');
   twiml(res, listen(intro, 'uz', '?menu=1', 'dtmf speech') + await speak(req, 'Xayr!', 'uz'));
 }));
 
@@ -502,7 +502,8 @@ const digits9 = (v) => String(v || '').replace(/\D/g, '').slice(-9);
 function tenantBySip(req) {
   const called = digits9(phoneOf(req.body.To));
   if (called.length < 9) return null;
-  const t = Object.values(store.platform().tenants).find((x) => digits9(x.uzNumber) === called && !x.blocked);
+  // Ishxona raqami (shlyuz) yoki platforma bergan virtual raqam (yo'naltirish orqali)
+  const t = Object.values(store.platform().tenants).find((x) => !x.blocked && (digits9(x.uzNumber) === called || digits9(x.kotibUz) === called));
   return t && store.has(t.id) ? t.id : null;
 }
 app.post('/sip/voice', twilioCheck, (req, res) => {
@@ -525,7 +526,7 @@ app.put('/api/phone/uz', auth, (req, res) => {
   if (!raw) { t.uzNumber = ''; st().business.uzNumber = ''; store.savePlatform(); store.save(); return res.json({ ok: true, number: '' }); }
   const full = d.length === 9 ? '998' + d : d;
   if (!/^998\d{9}$/.test(full)) return res.status(400).json({ error: "O'zbekiston raqamini kiriting: +998 XX XXX XX XX" });
-  const busy = Object.values(store.platform().tenants).find((x) => x.id !== req.tenantId && digits9(x.uzNumber) === full.slice(-9));
+  const busy = Object.values(store.platform().tenants).find((x) => (x.id !== req.tenantId && digits9(x.uzNumber) === full.slice(-9)) || digits9(x.kotibUz) === full.slice(-9));
   if (busy) return res.status(400).json({ error: "Bu raqam boshqa biznesga ulangan. Yordam xizmatiga murojaat qiling" });
   t.uzNumber = '+' + full; st().business.uzNumber = '+' + full;
   store.savePlatform(); store.save();
@@ -590,7 +591,7 @@ app.get('/media/greeting', withTenant((req) => req.query.t), wrap(async (req, re
 // Tez-tez aytiladigan iboralarni oldindan tayyorlab qo'yamiz — qo'ng'iroqda kutish kamayadi
 function prewarm() {
   if (!V.ttsOn('uz')) return;
-  const phrases = [A.greeting(st(), 'uz'), "O'zbek tili uchun gapiring yoki 1 ni bosing.", 'Eshitaman, gapiring.', 'Eshitmadim, qaytadan ayting.', 'Xayr!', BYE.uz,
+  const phrases = [A.greeting(st(), 'uz'), "O'zbek tili uchun gapiring yoki birni bosing.", 'Eshitaman, gapiring.', 'Eshitmadim, qaytadan ayting.', 'Xayr!', BYE.uz,
     "Sizni eshitmadim. Keyinroq qayta qo'ng'iroq qiling. Xayr!", "Qo'ng'irog'ingiz uchun rahmat! Xayr!", 'Yana savolingiz bormi?'];
   (async () => { for (const p of phrases) await V.tts(p, 'uz', 20000); })().catch(() => {});
 }

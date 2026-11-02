@@ -71,6 +71,7 @@
           <button class="btn small ghost" id="add-plan">+ Tarif qo'shish</button>
           <label style="margin-top:14px">Bepul sinov davri (kun)<input id="trial" type="number" min="0" max="90"></label>
           <label>To'lov yo'riqnomasi (bizneslar ko'radi)<textarea id="payinfo" rows="4"></textarea></label>
+          <label>Yordam aloqasi (kirish sahifasida ko'rinadi: parolni unutganlar uchun)<input id="support" placeholder="Telegram: @kotib_yordam yoki +998 90 000 00 00"></label>
         </div>
         <div class="card">
           <h3>Umumiy kalitlar</h3>
@@ -78,6 +79,11 @@
           <div id="keys"></div>
         </div>
         <button class="btn primary block sticky-save" id="save">Saqlash</button>
+        <div class="card" id="admin-pass-card">
+          <h3>Admin paroli</h3>
+          <label>Yangi parol (kamida 8 belgi)<input id="admin-pass" type="password" autocomplete="new-password"></label>
+          <button class="btn small ghost" id="admin-pass-btn">Parolni almashtirish</button>
+        </div>
       </div>
     </main>
   </section>

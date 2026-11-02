@@ -204,7 +204,7 @@ app.get('/api/settings', auth, (req, res) => {
   res.json({
     business, hours, services, products, faq, closedDays, ai: A.aiOn(), twilio: !!env("TWILIO_AUTH_TOKEN"), sms: C.smsOn(),
     telegram: C.tgOn(), tgToken: !!env("TG_BOT_TOKEN"), tgEnvChat: false, operator: !!operatorPhone(),
-    publicUrl: CFG.publicUrl(), tenantId: req.tenantId, chatUrl: `${CFG.publicUrl() || baseUrl(req)}/c/${req.tenantId}`, subscription: SA.status(), ownTwilio: CFG.ownTwilio(), voice: V.status(), kotibNumber: st().business.kotibNumber || '', tgBot: st().meta?.tgBot || '', greetingAudio: !!st().media?.greeting, db: store.PG ? 'postgres' : 'file', tz: S.TZ, adminEnv: !!process.env.ADMIN_PASSWORD,
+    publicUrl: CFG.publicUrl(), tenantId: req.tenantId, chatUrl: `${CFG.publicUrl() || baseUrl(req)}/c/${req.tenantId}`, subscription: SA.status(), ownTwilio: CFG.ownTwilio(), voice: V.status(), kotibNumber: st().business.kotibNumber || '', tgBot: st().meta?.tgBot || '', greetingAudio: !!st().media?.greeting, db: store.PG ? 'postgres' : 'file', tz: S.TZ, support: store.platform().support || '',
   });
 });
 app.put('/api/settings', auth, (req, res) => {
@@ -592,6 +592,7 @@ app.post('/api/phone/connect', auth, wrap(async (req, res) => {
 
 // ---------- Admin: platforma Twilio raqamlarini bizneslarga biriktirish ----------
 app.get('/api/admin/numbers', SA_admin, wrap(async (req, res) => {
+  if (!env('TWILIO_ACCOUNT_SID') || !env('TWILIO_AUTH_TOKEN')) return res.json([]);
   try {
     const j = await twilioApi('/IncomingPhoneNumbers.json?PageSize=100');
     const byUrl = Object.fromEntries(Object.values(store.platform().tenants).map((t) => [t.id, t.name]));

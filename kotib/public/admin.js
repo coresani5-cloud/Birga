@@ -75,12 +75,17 @@ function renderTenants() {
     <div class="kv"><span>Qo'ng'iroq: ${t.stats.calls || 0}</span><span>Yozishma: ${t.stats.chats || 0}</span><span>Uchrashuv: ${t.stats.bookings || 0}</span><span>Zakaz: ${t.stats.orders || 0}</span><span>Mijozlar: ${t.stats.customers || 0}</span><span>${t.stats.telegram ? '✈️ Bot bor' : ''}</span></div>
     <div class="acts">
       <button class="btn small" data-ext="30">+30 kun</button><button class="btn small" data-ext="365">+1 yil</button>
+      <button class="btn small ghost" data-reset>Parolni tiklash</button>
       <button class="btn small ${t.blocked ? 'ok' : 'danger'}" data-block="${t.blocked ? 0 : 1}">${t.blocked ? 'Blokdan chiqarish' : 'Bloklash'}</button>
       ${numbers.length ? `<select data-num>${numOpts(t.kotibNumber)}</select>` : ''}
     </div></div>`).join('') : '<div class="empty">Bizneslar yo‘q</div>';
   $$('#tenants .biz').forEach((el) => {
     const id = el.dataset.id;
     $$('[data-ext]', el).forEach((b) => b.onclick = async () => { await api(`/api/admin/tenants/${id}`, { method: 'PATCH', body: { extendDays: Number(b.dataset.ext) } }); toast('Obuna uzaytirildi'); loadTenants(); });
+    $('[data-reset]', el).onclick = async () => {
+      if (!confirm('Biznes egasiga yangi vaqtinchalik parol berasizmi? Eski parol ishlamay qoladi.')) return;
+      try { const r = await api(`/api/admin/tenants/${id}/reset-password`, { method: 'POST' }); alert(`Yangi vaqtinchalik parol: ${r.password}\n\nUni biznes egasiga yuboring. U kirgach "Sozlamalar → Xavfsizlik"da o'z parolini o'rnatadi.`); } catch (e) { toast(e.message); }
+    };
     const bl = $('[data-block]', el);
     bl.onclick = async () => { if (bl.dataset.block === '1' && !confirm('Biznesni bloklaysizmi? Kotibi ishlamay qoladi.')) return; await api(`/api/admin/tenants/${id}`, { method: 'PATCH', body: { blocked: bl.dataset.block === '1' } }); loadTenants(); };
     const sel = $('[data-num]', el);
@@ -116,7 +121,7 @@ async function loadNumbers() {
   const opts = (cur) => '<option value="">— biznes tanlang —</option>' + tenants.map((t) => `<option value="${t.id}" ${t.id === cur ? 'selected' : ''}>${esc(t.name)}</option>`).join('');
   $('#numbers').innerHTML = numbers.length ? numbers.map((n) => `<div class="row" style="cursor:default" data-sid="${n.sid}">
     <div class="info"><b>${esc(n.number)}</b><div class="muted small">${esc(n.name)}</div></div>
-    <select style="width:auto">${opts(n.tenantId)}</select></div>`).join('') : '<div class="empty">Twilio hisobida raqam yo‘q. Twilio saytida raqam sotib oling.</div>';
+    <select style="width:auto">${opts(n.tenantId)}</select></div>`).join('') : '<div class="empty">Raqamlar yo‘q. "Sozlamalar → Umumiy kalitlar"ga Twilio Account SID va Auth Token kiriting, so‘ng Twilio saytida raqam sotib oling.</div>';
   $$('#numbers select').forEach((s) => s.onchange = async () => {
     if (!s.value) return;
     try { const r = await api(`/api/admin/tenants/${s.value}/number`, { method: 'POST', body: { sid: s.closest('.row').dataset.sid } }); toast(`✅ ${r.number} biriktirildi`); loadNumbers(); } catch (e) { toast(e.message); }
@@ -129,6 +134,8 @@ async function loadSettings() {
   renderPlans();
   $('#trial').value = cfg.trialDays;
   $('#payinfo').value = cfg.payInfo;
+  $('#support').value = cfg.support || '';
+  $('#admin-pass-card').classList.toggle('hidden', cfg.adminEnv);
   $('#keys').innerHTML = cfg.keys.map((k) => `<label>${esc(KEYS[k.key] || k.key)} ${k.set ? '<span class="tag ok">bor</span>' : ''}${k.env ? ' <span class="tag">server</span>' : ''}
     <input data-key="${k.key}" ${k.secret ? 'type="password" autocomplete="off"' : ''} value="${esc(k.value)}" ${k.env ? 'disabled placeholder="Server sozlamasida berilgan"' : ''}></label>`).join('');
 }
@@ -143,7 +150,14 @@ $('#add-plan').onclick = () => { collectPlans(); cfg.plans.push({ name: '', pric
 $('#save').onclick = async () => {
   collectPlans();
   const keys = {}; $$('#keys input:not([disabled])').forEach((i) => keys[i.dataset.key] = i.value);
-  try { await api('/api/admin/settings', { method: 'PUT', body: { plans: cfg.plans, trialDays: Number($('#trial').value), payInfo: $('#payinfo').value, keys } }); toast('Saqlandi ✅'); loadSettings(); } catch (e) { toast(e.message); }
+  try { await api('/api/admin/settings', { method: 'PUT', body: { plans: cfg.plans, trialDays: Number($('#trial').value), payInfo: $('#payinfo').value, support: $('#support').value, keys } }); toast('Saqlandi ✅'); loadSettings(); } catch (e) { toast(e.message); }
 };
+
+$('#admin-pass-btn').onclick = async () => {
+  try { const r = await api('/api/admin/password', { method: 'POST', body: { password: $('#admin-pass').value } }); token = r.token; localStorage.setItem('kotib_admin', token); $('#admin-pass').value = ''; toast('Parol almashtirildi ✅'); } catch (e) { toast(e.message); }
+};
+// Raqamlar: Twilio ulanmagan bo'lsa — yo'riqnoma
+const _loadNumbers = loadNumbers;
+loadNumbers = async () => { await _loadNumbers(); if (!numbers.length && !$('#numbers .empty')) $('#numbers').innerHTML = '<div class="empty">Raqamlar yo‘q. "Sozlamalar → Umumiy kalitlar"ga Twilio Account SID va Auth Token kiriting.</div>'; };
 
 boot();

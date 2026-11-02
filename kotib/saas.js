@@ -173,6 +173,30 @@ function mount(app, { C, onTenantCreated }) {
     res.json({ token: makeToken('a', 'admin', a.salt) });
   });
 
+  // Ochiq: kirish sahifasi uchun tariflar, sinov davri va yordam aloqasi
+  app.get('/api/plans', (req, res) => { const p = P(); res.json({ plans: p.plans, trialDays: p.trialDays, support: p.support || '' }); });
+
+  // Admin: biznes egasi parolini unutsa — vaqtinchalik parol beriladi (eski kirishlar bekor bo'ladi)
+  app.post('/api/admin/tenants/:id/reset-password', adminAuth, (req, res) => {
+    const t = P().tenants[req.params.id];
+    if (!t) return res.status(404).json({ error: 'Topilmadi' });
+    const pass = crypto.randomBytes(4).toString('hex');
+    t.salt = crypto.randomBytes(8).toString('hex');
+    t.hash = hashPass(pass, t.salt);
+    store.savePlatform();
+    res.json({ password: pass });
+  });
+  // Admin o'z parolini almashtiradi (ADMIN_PASSWORD server sozlamasida bo'lmasa)
+  app.post('/api/admin/password', adminAuth, (req, res) => {
+    if (process.env.ADMIN_PASSWORD) return res.status(400).json({ error: "Parol server sozlamasida (ADMIN_PASSWORD) berilgan — Render'da o'zgartiring" });
+    const pass = String(req.body.password || '');
+    if (pass.length < 8) return res.status(400).json({ error: "Parol kamida 8 belgidan iborat bo'lsin" });
+    const a = P().admin;
+    a.salt = crypto.randomBytes(8).toString('hex'); a.hash = hashPass(pass, a.salt);
+    store.savePlatform();
+    res.json({ token: makeToken('a', 'admin', a.salt) });
+  });
+
   app.get('/api/admin/tenants', adminAuth, (req, res) => {
     const since = Date.now() - 30 * DAY;
     const list = Object.values(P().tenants).map((t) => {
@@ -222,7 +246,7 @@ function mount(app, { C, onTenantCreated }) {
   });
   app.get('/api/admin/settings', adminAuth, (req, res) => {
     const p = P();
-    res.json({ plans: p.plans, trialDays: p.trialDays, payInfo: p.payInfo, keys: CFG.viewPlatform(), publicUrl: CFG.publicUrl() });
+    res.json({ plans: p.plans, trialDays: p.trialDays, payInfo: p.payInfo, support: p.support || '', keys: CFG.viewPlatform(), publicUrl: CFG.publicUrl(), adminEnv: !!process.env.ADMIN_PASSWORD });
   });
   app.put('/api/admin/settings', adminAuth, (req, res) => {
     const p = P(), b = req.body || {};
@@ -230,6 +254,7 @@ function mount(app, { C, onTenantCreated }) {
       .map((x, i) => ({ id: String(x.id || 'p' + i).replace(/\W/g, '').slice(0, 20) || 'p' + i, name: String(x.name).slice(0, 60), price: Math.round(Number(x.price)), days: Math.round(Number(x.days)) }));
     if (b.trialDays !== undefined) p.trialDays = Math.max(0, Math.min(90, Number(b.trialDays) || 0));
     if (b.payInfo !== undefined) p.payInfo = String(b.payInfo).slice(0, 2000);
+    if (b.support !== undefined) p.support = String(b.support).slice(0, 200);
     if (b.keys) CFG.setPlatform(b.keys);
     store.savePlatform();
     res.json({ ok: true });

@@ -127,6 +127,26 @@ async function main() {
   assert.equal((await j('/api/settings', null, 'GET', A.token)).data.kotibNumber, '+15550001111');
   assert.equal((await j('/api/admin/numbers', null, 'GET', ADM)).data[0].tenantName, 'Salon A');
 
+  // Ochiq tariflar (kirish sahifasi uchun) va yordam aloqasi
+  await j('/api/admin/settings', { support: '@kotib_yordam' }, 'PUT', ADM);
+  const pl = (await j('/api/plans')).data;
+  assert.equal(pl.trialDays, 7);
+  assert.equal(pl.support, '@kotib_yordam');
+  assert.equal(pl.plans[0].price, 199000);
+
+  // Parolni tiklash: admin vaqtinchalik parol beradi, eski token va parol ishlamaydi
+  const rp = (await j(`/api/admin/tenants/${B.id}/reset-password`, null, 'POST', ADM)).data;
+  assert.equal((await j('/api/settings', null, 'GET', B.token)).status, 401);
+  assert.equal((await j('/api/auth/login', { phone: '901000002', password: 'parolB1' })).status, 401);
+  const B2 = (await j('/api/auth/login', { phone: '901000002', password: rp.password })).data;
+  assert.equal(B2.id, B.id);
+  const B3 = (await j('/api/auth/password', { password: 'yangiParol9' }, 'POST', B2.token)).data;
+  assert.equal((await j('/api/settings', null, 'GET', B3.token)).status, 200);
+  B.token = B3.token;
+
+  // Admin paroli server sozlamasida berilgan — paneldan o'zgartirib bo'lmaydi
+  assert.equal((await j('/api/admin/password', { password: 'yangi-admin-1' }, 'POST', ADM)).status, 400);
+
   // Server qayta ishga tushadi — hamma narsa saqlanib qoladi
   await stop();
   await start();

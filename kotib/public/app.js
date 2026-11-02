@@ -52,6 +52,12 @@ async function boot() {
     $('#login-err').textContent = '';
   };
   $$('#auth-tabs button').forEach((x) => x.onclick = () => setMode(x.dataset.m));
+  // Tariflar va yordam aloqasi (ochiq)
+  fetch('/api/plans').then((r) => r.json()).then((p) => {
+    $('#trial-note').textContent = `Ro'yxatdan o'tgach — ${p.trialDays} kun bepul. Karta talab qilinmaydi.`;
+    $('#login-plans').innerHTML = p.plans.length ? 'Tariflar: ' + p.plans.map((x) => `<b>${esc(x.name)}</b> — ${money(x.price)} so‘m`).join(' · ') : '';
+    if (p.support) $('#login-support').innerHTML = `Parolni unutdingizmi yoki savol bormi? Yordam: <b>${esc(p.support)}</b>`;
+  }).catch(() => {});
   setMode(mode);
   $('#login-form').onsubmit = async (e) => {
     e.preventDefault();
@@ -509,7 +515,6 @@ function renderStatus() {
     it(settings.operator, 'Operatorga yo‘naltirish', 'Yuqorida "Operator raqami"ni kiriting — aks holda kotib vazifa yaratadi.'),
     it(settings.telegram, 'Telegram', settings.tgToken ? 'Chat ID kiriting.' : "Ulanishlar bo'limiga Telegram bot tokenini kiriting."),
   ].join('');
-  $('#s-pass-box').classList.toggle('hidden', settings.adminEnv);
 }
 function collect() {
   settings.services = $$('#s-services .svc').map((el, i) => ({ id: settings.services[i]?.id, name: $('.sv-name', el).value, duration: Number($('.sv-dur', el).value), price: $('.sv-price', el).value, desc: $('.sv-desc', el).value }));
@@ -593,8 +598,8 @@ $('#k-save').onclick = async () => {
   $$('#k-list input').forEach((i) => body[i.dataset.key] = i.value);
   try { await api('/api/connections', { method: 'PUT', body }); settings = await api('/api/settings'); await loadConnections(); renderStatus(); toast('Ulanishlar saqlandi ✅'); } catch (e) { toast(e.message); }
 };
-$('#v-test').onclick = async () => {
-  const b = $('#v-test'); b.disabled = true; b.textContent = 'Tayyorlanmoqda…';
+$('#voice-test-btn').onclick = async () => {
+  const b = $('#voice-test-btn'); b.disabled = true; b.textContent = 'Tayyorlanmoqda…';
   try {
     const j = await api('/api/voice/test', { method: 'POST', body: { text: $('#v-text').value } });
     const a = $('#v-audio'); a.src = j.url; a.classList.remove('hidden'); a.play().catch(() => {});

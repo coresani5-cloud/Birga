@@ -1,0 +1,56 @@
+/* Uzbegim — oshxona va kuryer sahifalari */
+:root{
+  --or:#ff7a00;--or2:#ffa62b;--tq:#1fb6c1;--red:#ff5a4e;--ok:#34d399;
+  --bg:#0f0c0a;--bg2:#17120e;--glass:rgba(255,255,255,.055);--glass2:rgba(255,255,255,.09);
+  --ln:rgba(255,255,255,.10);--ink:#fbf3ea;--mut:#a99c90;
+  --grad:linear-gradient(135deg,#ffa62b,#ff6a00);
+  color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Manrope,system-ui,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;line-height:1.4}
+body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(600px 400px at 90% 0%,rgba(255,122,0,.18),transparent 70%),radial-gradient(500px 400px at 0% 100%,rgba(31,182,193,.10),transparent 70%)}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+input,select{font:inherit;color:inherit}
+a{color:var(--or2)}
+h1,h2,h3{font-family:Unbounded,Manrope,sans-serif;letter-spacing:-.01em}
+.flag{height:4px;background:linear-gradient(#0099b5 0 33%,#ce1126 33% 37%,#fff 37% 63%,#ce1126 63% 67%,#1eb53a 67%)}
+.top{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:12px max(16px,env(safe-area-inset-left,0px));background:rgba(15,12,10,.85);backdrop-filter:blur(14px);border-bottom:1px solid var(--ln)}
+.brand{display:flex;align-items:center;gap:10px;font-family:Unbounded;font-weight:900;font-size:18px}
+.brand small{display:block;font-family:Manrope;font-weight:700;font-size:11px;color:var(--mut);letter-spacing:.08em;text-transform:uppercase}
+.star{width:36px;height:36px}
+.grow{flex:1}
+.wrap{padding:16px max(16px,env(safe-area-inset-left,0px)) 40px;max-width:1500px;margin:0 auto}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:44px;padding:0 18px;border-radius:14px;font-weight:800;background:var(--grad);color:#120d09;transition:transform .12s}
+.btn:active{transform:scale(.97)}
+.btn:disabled{opacity:.5}
+.btn.ghost{background:var(--glass2);color:var(--ink);border:1px solid var(--ln)}
+.btn.red{background:rgba(255,90,78,.15);color:var(--red);border:1px solid rgba(255,90,78,.35)}
+.btn.ok{background:linear-gradient(135deg,#34d399,#10b981);color:#062016}
+.btn.big{height:54px;font-size:16px;width:100%}
+.glass{background:var(--glass);border:1px solid var(--ln);border-radius:20px}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;font-size:12px;font-weight:800;background:var(--glass2);border:1px solid var(--ln);white-space:nowrap}
+.pill.on{background:rgba(52,211,153,.12);color:var(--ok);border-color:rgba(52,211,153,.35)}
+.pill.warn{background:rgba(255,122,0,.15);color:var(--or2);border-color:rgba(255,122,0,.4)}
+.pill.bad{background:rgba(255,90,78,.12);color:var(--red);border-color:rgba(255,90,78,.35)}
+.hint{color:var(--mut);font-size:13px}
+.login{max-width:380px;margin:12vh auto 0;padding:28px;display:grid;gap:12px}
+.login input{height:50px;border-radius:14px;border:1px solid var(--ln);background:var(--glass);padding:0 16px;outline:none}
+.login input:focus{border-color:var(--or)}
+.err{color:var(--red);font-weight:700;font-size:13px;min-height:18px}
+.card{padding:14px;display:grid;gap:8px;border-radius:18px;background:var(--bg2);border:1px solid var(--ln);animation:in .35s}
+.card.fresh{border-color:var(--or);box-shadow:0 0 0 3px rgba(255,122,0,.2)}
+@keyframes in{from{transform:translateY(8px);opacity:0}}
+.card .h{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.card .no{font-family:Unbounded;font-size:17px}
+.card .who b{display:block}
+.tel{user-select:all;font-weight:800;color:var(--or2)}
+.items{font-size:13px;color:var(--mut);border-top:1px dashed var(--ln);padding-top:8px}
+.items div{display:flex;justify-content:space-between;gap:10px}
+.items .tot{color:var(--ink);font-weight:800;margin-top:4px}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+.acts .btn{flex:1;height:40px;font-size:13px;padding:0 12px}
+.note{font-size:13px;padding:8px 10px;border-radius:10px;background:rgba(255,166,43,.08);border:1px solid rgba(255,166,43,.2)}
+.toast{position:fixed;left:50%;bottom:20px;transform:translate(-50%,140px);background:var(--ink);color:var(--bg);padding:12px 20px;border-radius:999px;font-weight:700;z-index:999;transition:.3s;max-width:calc(100% - 32px);text-align:center}
+.toast.on{transform:translate(-50%,0)}
+.leaflet-container{background:#1b1510;font-family:inherit}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}

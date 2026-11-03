@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Uzbegim Oshxona</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@700;900&family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="icon" href="logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="staff.css">
+<style>
+.board{display:grid;grid-template-columns:repeat(5,minmax(240px,1fr));gap:12px;overflow-x:auto;padding-bottom:10px}
+.col{display:flex;flex-direction:column;gap:10px;min-width:0}
+.col>h3{font-size:14px;display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:14px;background:var(--glass);border:1px solid var(--ln)}
+.col>h3 .n{font-family:Manrope;font-size:12px;min-width:24px;height:24px;border-radius:99px;display:grid;place-items:center;background:var(--glass2)}
+.col.c-new>h3{border-color:rgba(255,122,0,.5)}
+.col.c-new>h3 .n{background:var(--grad);color:#120d09}
+.empty{padding:20px 10px;text-align:center;color:var(--mut);font-size:13px;border:1px dashed var(--ln);border-radius:16px}
+#ovMap{height:320px;border-radius:20px;overflow:hidden;margin-bottom:14px;border:1px solid var(--ln)}
+.stats{display:flex;gap:8px;flex-wrap:wrap}
+.cour{font-size:13px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.cform{display:grid;gap:6px}
+.cform input{height:38px;border-radius:10px;border:1px solid var(--ln);background:var(--glass);padding:0 10px;outline:none;font-size:13px}
+@media (max-width:900px){.board{grid-template-columns:repeat(5,85vw);scroll-snap-type:x mandatory}.col{scroll-snap-align:start}}
+</style>
+</head>
+<body>
+<div class="flag"></div>
+<div id="app"></div>
+<div class="toast" id="toast"></div>
+<script src="shared.js"></script>
+<script>
+const U = UZB, L = 'uz';
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const STAR = '<img src="logo.svg" alt="" style="width:40px;height:40px;border-radius:50%">';
+let PIN = '', ORD = {}, es = null, map = null, mk = {}, sound = true, fresh = new Set();
+try { PIN = sessionStorage.getItem('uzb_admin_pin') || ''; } catch (e) {}
+let tt; function toast(m) { const e = $('#toast'); e.textContent = m; e.classList.add('on'); clearTimeout(tt); tt = setTimeout(() => e.classList.remove('on'), 2600); }
+
+function beep() {
+  if (!sound) return;
+  try {
+    const a = new (window.AudioContext || window.webkitAudioContext)();
+    [0, .18, .36].forEach((d, i) => { const o = a.createOscillator(), g = a.createGain(); o.frequency.value = [880, 1175, 1568][i]; g.gain.setValueAtTime(.2, a.currentTime + d); g.gain.exponentialRampToValueAtTime(.001, a.currentTime + d + .16); o.connect(g).connect(a.destination); o.start(a.currentTime + d); o.stop(a.currentTime + d + .17); });
+  } catch (e) {}
+}
+
+function loginView(msg = '') {
+  $('#app').innerHTML = `<form class="login glass" id="lf">
+    <div class="brand">${STAR}<div>Uzbegim<small>Oshxona paneli</small></div></div>
+    <p class="hint">Buyurtmalarni qabul qilish va holatini belgilash uchun xodim PIN kodini kiriting.</p>
+    <input id="pin" type="password" inputmode="numeric" placeholder="PIN kod" autocomplete="current-password">
+    <div class="err">${esc(msg)}</div>
+    <button class="btn big">Kirish</button></form>`;
+  $('#lf').onsubmit = async e => {
+    e.preventDefault();
+    const p = $('#pin').value.trim();
+    try { const r = await U.api('staff/login', { body: {}, pin: p }); if (r.role !== 'admin') throw new Error(); PIN = p; try { sessionStorage.setItem('uzb_admin_pin', p); } catch (e) {} start(); }
+    catch (x) { loginView(x.status ? 'PIN noto\'g\'ri' : 'Server bilan aloqa yo\'q. Avval "node server.js" ni ishga tushiring.'); }
+  };
+}
+
+const COLS = [
+  ['c-new', '🕓 Yangi', o => o.status === 'new'],
+  ['c-cook', '👨‍🍳 Tayyorlanmoqda', o => o.status === 'accepted' || o.status === 'cooking'],
+  ['c-ready', '📦 Tayyor', o => o.status === 'ready'],
+  ['c-way', '🛵 Yo\'lda', o => o.status === 'onway'],
+  ['c-done', '✔ Yakunlangan', o => o.status === 'delivered' || o.status === 'cancelled'],
+];
+
+function start() {
+  $('#app').innerHTML = `<div class="top"><div class="brand">${STAR}<div>Uzbegim<small>Oshxona paneli</small></div></div><div class="grow"></div>
+    <div class="stats" id="stats"></div>
+    <span class="pill" id="conn">Ulanmoqda...</span>
+    <button class="btn ghost" id="snd">🔔 Ovoz: yoqilgan</button>
+    <button class="btn ghost" id="out">Chiqish</button></div>
+    <div class="wrap"><div id="ovMap"></div><div class="board" id="board"></div></div>`;
+  $('#out').onclick = () => { try { sessionStorage.removeItem('uzb_admin_pin'); } catch (e) {} es && es.close(); location.reload(); };
+  $('#snd').onclick = () => { sound = !sound; $('#snd').textContent = '🔔 Ovoz: ' + (sound ? 'yoqilgan' : 'o\'chiq'); if (sound) beep(); };
+  U.makeMap($('#ovMap'), U.CENTER, 12).then(m => { map = m; U.BRANCHES.forEach(b => L_().marker([b.lat, b.lng], { icon: U.pin(L_(), '🏪', 'shop') }).addTo(m).bindTooltip(b.uz)); drawMap(); }).catch(() => { $('#ovMap').hidden = true; });
+  connect();
+}
+const L_ = () => window.L;
+
+function connect() {
+  es && es.close();
+  es = new EventSource('api/staff/stream?pin=' + encodeURIComponent(PIN));
+  es.onopen = () => { $('#conn').className = 'pill on'; $('#conn').textContent = '● Jonli'; };
+  es.onerror = () => { $('#conn').className = 'pill bad'; $('#conn').textContent = 'Aloqa uzildi, qayta ulanmoqda...'; };
+  es.onmessage = e => {
+    const d = JSON.parse(e.data);
+    if (d.type === 'all') { ORD = {}; d.orders.forEach(o => (ORD[o.id] = o)); }
+    if (d.type === 'order') {
+      const isNew = !ORD[d.order.id];
+      ORD[d.order.id] = d.order;
+      if (isNew && d.order.status === 'new') { fresh.add(d.order.id); beep(); toast(`🔔 Yangi buyurtma #${d.order.no} — ${d.order.name}`); setTimeout(() => { fresh.delete(d.order.id); draw(); }, 15000); }
+    }
+    draw();
+  };
+}
+
+function actions(o) {
+  const b = (st, label, cls = '') => `<button class="btn ${cls}" data-st="${st}" data-id="${o.id}">${label}</button>`;
+  switch (o.status) {
+    case 'new': return b('accepted', '✅ Qabul qilish', 'ok') + b('cancelled', 'Bekor', 'red');
+    case 'accepted': return b('cooking', '👨‍🍳 Tayyorlashni boshlash');
+    case 'cooking': return b('ready', '📦 Tayyor');
+    case 'ready': return o.mode === 'p' ? b('delivered', '🛍 Mijozga berildi', 'ok')
+      : `<div class="hint" style="width:100%">Kuryer "Yo'lga chiqdim" bosishini kutmoqda yoki o'zingiz biriktiring:</div>
+         <div class="cform" style="width:100%"><input placeholder="Kuryer ismi" id="cn-${o.id}"><input placeholder="Kuryer telefoni" id="cp-${o.id}" value="+998 "></div>` + b('onway', '🛵 Kuryerga berish');
+    case 'onway': return b('delivered', '🎉 Yetkazildi', 'ok');
+    default: return '';
+  }
+}
+function card(o) {
+  const ago = Math.round((Date.now() - o.createdAt) / 60000);
+  let gps = '';
+  if (o.status === 'onway') {
+    if (o.loc && o.lat != null) gps = `<span class="pill warn">📍 ${U.fmtDist(U.dist(o.loc, { lat: o.lat, lng: o.lng }))} qoldi · ${U.ago(o.loc.at)}</span>`;
+    else if (o.loc) gps = `<span class="pill warn">📍 GPS ${U.ago(o.loc.at)}</span>`;
+    else gps = `<span class="pill">GPS kutilmoqda</span>`;
+  }
+  return `<div class="card ${fresh.has(o.id) ? 'fresh' : ''}">
+    <div class="h"><span class="no">#${o.no}</span><span class="pill ${o.mode === 'd' ? 'warn' : ''}">${o.mode === 'd' ? '🛵 Yetkazish' : '🏃 Olib ketish'}</span></div>
+    <div class="hint">${U.time(o.createdAt)} · ${ago} daqiqa oldin${o.status === 'cancelled' ? ' · <b style="color:var(--red)">Bekor qilingan</b>' : ''}</div>
+    <div class="who"><b>${esc(o.name)}</b><span class="tel">${esc(o.phone)}</span></div>
+    <div style="font-size:13px">📍 ${esc(o.addr || '—')} ${o.lat != null ? `· <a href="${U.navLink({ lat: o.lat, lng: o.lng })}" target="_blank" rel="noopener">xaritada</a>` : ''}</div>
+    ${o.note ? `<div class="note">💬 ${esc(o.note)}</div>` : ''}
+    ${o.courier ? `<div class="cour">🛵 <b>${esc(o.courier.name)}</b> <span class="tel">${esc(o.courier.phone || '')}</span> ${gps}</div>` : gps}
+    <div class="items">${o.items.map(i => `<div><span>${esc(i.n)} × ${i.q}</span><span>${U.money(i.price * i.q)}</span></div>`).join('')}<div class="tot"><span>Jami${o.promo ? ' (' + esc(o.promo) + ')' : ''}</span><span>${U.money(o.total)} so'm</span></div></div>
+    <div class="acts">${actions(o)}</div></div>`;
+}
+
+function draw() {
+  const list = Object.values(ORD).sort((a, b) => b.createdAt - a.createdAt);
+  const done = Date.now() - 12 * 3600e3;
+  $('#board').innerHTML = COLS.map(([cls, title, f]) => {
+    let items = list.filter(f);
+    if (cls === 'c-done') items = items.filter(o => (o.history.delivered || o.history.cancelled || 0) > done).slice(0, 30);
+    if (cls === 'c-new') items.reverse();
+    return `<div class="col ${cls}"><h3>${title}<span class="n">${items.length}</span></h3>${items.map(card).join('') || '<div class="empty">Bo\'sh</div>'}</div>`;
+  }).join('');
+  const act = list.filter(o => !['delivered', 'cancelled'].includes(o.status));
+  $('#stats').innerHTML = `<span class="pill">Faol: ${act.length}</span><span class="pill">Bugun: ${list.filter(o => new Date(o.createdAt).toDateString() === new Date().toDateString()).length}</span>`;
+  document.title = (list.some(o => o.status === 'new') ? `(${list.filter(o => o.status === 'new').length}) ` : '') + 'Uzbegim Oshxona';
+  drawMap();
+}
+
+function drawMap() {
+  if (!map || !window.L) return;
+  const Lf = window.L, seen = new Set();
+  Object.values(ORD).filter(o => o.status === 'onway').forEach(o => {
+    if (o.loc) {
+      seen.add('c' + o.id);
+      if (!mk['c' + o.id]) mk['c' + o.id] = Lf.marker([o.loc.lat, o.loc.lng], { icon: U.pin(Lf, '🛵', 'pulse'), zIndexOffset: 1000 }).addTo(map);
+      mk['c' + o.id].setLatLng([o.loc.lat, o.loc.lng]).bindTooltip(`#${o.no} ${o.courier ? o.courier.name : ''}`);
+    }
+    if (o.lat != null) {
+      seen.add('h' + o.id);
+      if (!mk['h' + o.id]) mk['h' + o.id] = Lf.marker([o.lat, o.lng], { icon: U.pin(Lf, '🏠', 'home') }).addTo(map).bindTooltip(`#${o.no} ${o.name}`);
+    }
+  });
+  Object.keys(mk).forEach(k => { if (!seen.has(k)) { map.removeLayer(mk[k]); delete mk[k]; } });
+}
+
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-st]');
+  if (!b) return;
+  const id = b.dataset.id, st = b.dataset.st, body = { status: st };
+  if (st === 'cancelled' && !b.dataset.sure) { b.dataset.sure = 1; b.textContent = 'Rostdan bekor qilinsinmi?'; return; }
+  if (st === 'onway') {
+    const n = document.getElementById('cn-' + id).value.trim();
+    if (!n) return toast('Kuryer ismini yozing');
+    body.courier = { name: n, phone: document.getElementById('cp-' + id).value.trim() };
+  }
+  b.disabled = true;
+  try { await U.api(`orders/${id}/status`, { body, pin: PIN }); }
+  catch (x) { b.disabled = false; toast(x.message); }
+});
+setInterval(() => Object.keys(ORD).length && draw(), 30000);
+PIN ? U.api('staff/login', { body: {}, pin: PIN }).then(r => (r.role === 'admin' ? start() : loginView())).catch(() => loginView()) : loginView();
+</script>
+</body>
+</html>

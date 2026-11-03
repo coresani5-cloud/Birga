@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Uzbegim Kuryer</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0f0c0a">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@700;900&family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="icon" href="logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="staff.css">
+<style>
+.wrap{max-width:640px}
+.sec{margin-top:18px;display:grid;gap:10px}
+.sec>h2{font-size:16px;display:flex;align-items:center;gap:8px}
+.gps{display:flex;align-items:center;gap:10px;padding:12px 14px}
+.gps .dot{width:12px;height:12px;border-radius:50%;background:var(--mut);flex:none}
+.gps.on .dot{background:var(--ok);box-shadow:0 0 0 6px rgba(52,211,153,.18)}
+.gps.bad .dot{background:var(--red)}
+.cmap{height:260px;border-radius:16px;overflow:hidden;border:1px solid var(--ln)}
+.big-dist{font-family:Unbounded;font-size:26px;color:var(--or2)}
+.empty{padding:22px;text-align:center;color:var(--mut);border:1px dashed var(--ln);border-radius:16px;font-size:14px}
+.warn{padding:12px 14px;border-radius:14px;background:rgba(255,90,78,.1);border:1px solid rgba(255,90,78,.3);color:#ffb4ad;font-size:13px}
+</style>
+</head>
+<body>
+<div class="flag"></div>
+<div id="app"></div>
+<div class="toast" id="toast"></div>
+<script src="shared.js"></script>
+<script>
+const U = UZB;
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const ls = { get(k, d) { try { const v = localStorage.getItem('uzbc_' + k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem('uzbc_' + k, JSON.stringify(v)); } catch (e) {} } };
+let ME = ls.get('me', null), ORD = {}, es = null, watch = null, pos = null, lastSent = 0, maps = {}, wake = null;
+let tt; function toast(m) { const e = $('#toast'); e.textContent = m; e.classList.add('on'); clearTimeout(tt); tt = setTimeout(() => e.classList.remove('on'), 2600); }
+const LOGO = '<img src="logo.svg" alt="" style="width:40px;height:40px;border-radius:50%">';
+
+function loginView(msg = '') {
+  $('#app').innerHTML = `<form class="login glass" id="lf">
+    <div class="brand">${LOGO}<div>Uzbegim<small>Kuryer</small></div></div>
+    <p class="hint">Ismingiz va telefoningiz mijozga ko'rinadi. Joylashuvingiz faqat buyurtma yo'lda bo'lganda yuboriladi.</p>
+    <input id="cn" placeholder="Ismingiz" value="${esc(ME?.name || '')}" autocomplete="name">
+    <input id="cp" type="tel" placeholder="Telefon" value="${esc(ME?.phone || '+998 ')}" autocomplete="tel">
+    <input id="pin" type="password" inputmode="numeric" placeholder="Kuryer PIN kodi">
+    <div class="err">${esc(msg)}</div>
+    <button class="btn big">Kirish</button></form>`;
+  $('#lf').onsubmit = async e => {
+    e.preventDefault();
+    const name = $('#cn').value.trim(), phone = $('#cp').value.trim(), pin = $('#pin').value.trim();
+    if (!name || phone.replace(/\D/g, '').length < 12) return loginView('Ism va telefonni to\'liq kiriting');
+    try { const r = await U.api('staff/login', { body: {}, pin }); if (r.role !== 'courier' && r.role !== 'admin') throw new Error(); ME = { name, phone, pin }; ls.set('me', ME); start(); }
+    catch (x) { loginView(x.status ? 'PIN noto\'g\'ri' : 'Server bilan aloqa yo\'q'); }
+  };
+}
+
+function start() {
+  $('#app').innerHTML = `<div class="top"><div class="brand">${LOGO}<div>${esc(ME.name)}<small>Kuryer</small></div></div><div class="grow"></div><span class="pill" id="conn">...</span><button class="btn ghost" id="out">Chiqish</button></div>
+    <div class="wrap">
+      ${location.protocol !== 'https:' && !/^(localhost|127\.)/.test(location.hostname) ? '<div class="warn">⚠️ Telefonlarda GPS faqat https:// manzilda ishlaydi. Saytni https bilan oching.</div>' : ''}
+      <div class="glass gps" id="gps" style="margin-top:12px"><span class="dot"></span><div><b id="gpsT">GPS o'chiq</b><div class="hint" id="gpsS">Buyurtmani olganingizda avtomatik yoqiladi</div></div></div>
+      <div class="sec"><h2>🛵 Mening yetkazishlarim</h2><div id="mine"></div></div>
+      <div class="sec"><h2>📦 Olib ketishga tayyor</h2><div id="ready"></div></div>
+    </div>`;
+  $('#out').onclick = () => { ls.set('me', null); stopGps(); es && es.close(); location.reload(); };
+  es = new EventSource('api/staff/stream?pin=' + encodeURIComponent(ME.pin));
+  es.onopen = () => { $('#conn').className = 'pill on'; $('#conn').textContent = '● Jonli'; };
+  es.onerror = () => { $('#conn').className = 'pill bad'; $('#conn').textContent = 'Aloqa yo\'q'; };
+  es.onmessage = e => {
+    const d = JSON.parse(e.data);
+    if (d.type === 'all') { ORD = {}; d.orders.forEach(o => (ORD[o.id] = o)); }
+    if (d.type === 'order') { const was = ORD[d.order.id]; ORD[d.order.id] = d.order; if (d.order.mode === 'd' && d.order.status === 'ready' && (!was || was.status !== 'ready')) { toast(`📦 #${d.order.no} tayyor — olib keting`); try { navigator.vibrate && navigator.vibrate(200); } catch (e) {} } }
+    draw();
+  };
+}
+
+const mineList = () => Object.values(ORD).filter(o => o.status === 'onway' && o.courier && o.courier.phone === ME.phone);
+function draw() {
+  const mine = mineList();
+  const ready = Object.values(ORD).filter(o => o.mode === 'd' && o.status === 'ready').sort((a, b) => a.createdAt - b.createdAt);
+  // xaritalar qayta chizilmasligi uchun mavjud kartochkani saqlaymiz
+  const box = $('#mine');
+  [...box.querySelectorAll('[data-oid]')].forEach(el => { if (!mine.find(o => o.id === el.dataset.oid)) { delete maps[el.dataset.oid]; el.remove(); } });
+  mine.forEach(o => { if (!box.querySelector(`[data-oid="${o.id}"]`)) box.insertAdjacentHTML('beforeend', mineCard(o)); updMine(o); });
+  const em = box.querySelector('.empty');
+  if (!mine.length && !em) box.innerHTML = '<div class="empty">Hozir yo\'lda buyurtmangiz yo\'q</div>';
+  if (mine.length && em) em.remove();
+  $('#ready').innerHTML = ready.map(o => `<div class="card"><div class="h"><span class="no">#${o.no}</span><span class="hint">${U.time(o.history.ready || o.createdAt)}</span></div>
+      <div>📍 ${esc(o.addr)}</div>${o.lat != null && pos ? `<div class="hint">Sizdan ${U.fmtDist(U.dist(pos, { lat: o.lat, lng: o.lng }))}</div>` : ''}
+      <div class="hint">${o.items.length} xil mahsulot · ${U.money(o.total)} so'm</div>
+      <button class="btn big" data-take="${o.id}">🛵 Oldim, yo'lga chiqdim</button></div>`).join('') || '<div class="empty">Tayyor buyurtma yo\'q</div>';
+  mine.length ? startGps() : stopGps();
+}
+function mineCard(o) {
+  return `<div class="card" data-oid="${o.id}">
+    <div class="h"><span class="no">#${o.no}</span><span class="pill warn">Yo'lda</span></div>
+    <div class="who"><b>${esc(o.name)}</b><span class="tel">${esc(o.phone)}</span></div>
+    <div>📍 ${esc(o.addr)}</div>${o.note ? `<div class="note">💬 ${esc(o.note)}</div>` : ''}
+    ${o.lat != null ? `<div class="cmap" id="m-${o.id}"></div><div style="display:flex;justify-content:space-between;align-items:center"><span class="big-dist" id="d-${o.id}">—</span><a class="btn ghost" href="${U.navLink({ lat: o.lat, lng: o.lng })}" target="_blank" rel="noopener">🧭 Navigator</a></div>` : '<div class="hint">Mijoz xaritada belgilamagan — manzil bo\'yicha boring yoki qo\'ng\'iroq qiling.</div>'}
+    <div class="items">${o.items.map(i => `<div><span>${esc(i.n)} × ${i.q}</span><span>${U.money(i.price * i.q)}</span></div>`).join('')}<div class="tot"><span>Mijozdan olinadi</span><span>${U.money(o.total)} so'm</span></div></div>
+    <button class="btn ok big" data-done="${o.id}">🎉 Yetkazdim</button></div>`;
+}
+async function updMine(o) {
+  if (o.lat == null) return;
+  const dest = { lat: o.lat, lng: o.lng };
+  const here = pos || o.loc;
+  if (here) $('#d-' + o.id).textContent = U.fmtDist(U.dist(here, dest)) + ' · ~' + U.etaMin(U.dist(here, dest), here.speed) + ' daq';
+  try {
+    const Lf = await U.leaflet();
+    let m = maps[o.id];
+    if (!m) {
+      const el = document.getElementById('m-' + o.id); if (!el) return;
+      m = maps[o.id] = { map: await U.makeMap(el, dest, 14) };
+      m.home = Lf.marker([dest.lat, dest.lng], { icon: U.pin(Lf, '🏠', 'home') }).addTo(m.map);
+    }
+    if (here) {
+      if (!m.me) { m.me = Lf.marker([here.lat, here.lng], { icon: U.pin(Lf, '🛵', 'pulse') }).addTo(m.map); m.map.fitBounds(Lf.latLngBounds([[here.lat, here.lng], [dest.lat, dest.lng]]).pad(0.3)); }
+      else m.me.setLatLng([here.lat, here.lng]);
+    }
+  } catch (e) {}
+}
+
+/* GPS: faqat yo'ldagi buyurtma bo'lsa ishlaydi */
+function setGps(cls, title, sub) { const g = $('#gps'); if (!g) return; g.className = 'glass gps ' + cls; $('#gpsT').textContent = title; $('#gpsS').textContent = sub; }
+function startGps() {
+  if (watch != null) return;
+  if (!navigator.geolocation) return setGps('bad', 'GPS mavjud emas', 'Bu qurilmada joylashuvni aniqlab bo\'lmaydi');
+  setGps('', 'GPS yoqilmoqda...', 'Joylashuvga ruxsat bering');
+  watch = navigator.geolocation.watchPosition(p => {
+    pos = { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy, speed: p.coords.speed, heading: p.coords.heading };
+    setGps('on', 'GPS yoqilgan — mijoz sizni ko\'rmoqda', `Aniqlik ±${Math.round(pos.acc)} m · ${new Date().toLocaleTimeString('ru-RU')}`);
+    send();
+    mineList().forEach(updMine);
+  }, err => setGps('bad', 'GPS ruxsati yo\'q', err.code === 1 ? 'Brauzer sozlamalarida joylashuvga ruxsat bering' : 'Signal topilmadi, ochiq joyga chiqing'), { enableHighAccuracy: true, maximumAge: 3000, timeout: 20000 });
+  try { navigator.wakeLock && navigator.wakeLock.request('screen').then(w => (wake = w)).catch(() => {}); } catch (e) {}
+}
+function stopGps() {
+  if (watch != null) { navigator.geolocation.clearWatch(watch); watch = null; }
+  if (wake) { wake.release().catch(() => {}); wake = null; }
+  setGps('', 'GPS o\'chiq', 'Buyurtmani olganingizda avtomatik yoqiladi');
+}
+async function send(force) {
+  if (!pos || (!force && Date.now() - lastSent < 4000)) return;
+  lastSent = Date.now();
+  for (const o of mineList()) { try { await U.api(`orders/${o.id}/location`, { body: pos, pin: ME.pin }); } catch (e) {} }
+}
+setInterval(() => send(), 5000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && watch != null) { try { navigator.wakeLock && navigator.wakeLock.request('screen').then(w => (wake = w)).catch(() => {}); } catch (e) {} } });
+
+document.addEventListener('click', async e => {
+  const take = e.target.closest('[data-take]'), done = e.target.closest('[data-done]');
+  const b = take || done; if (!b) return;
+  if (done && !b.dataset.sure) { b.dataset.sure = 1; b.textContent = 'Mijozga topshirdingizmi? Yana bosing'; return; }
+  b.disabled = true;
+  try {
+    await U.api(`orders/${(take || done).dataset[take ? 'take' : 'done']}/status`, { body: take ? { status: 'onway', courier: { name: ME.name, phone: ME.phone } } : { status: 'delivered' }, pin: ME.pin });
+    if (take) { toast('Yo\'l bo\'lsin! GPS yoqildi'); startGps(); setTimeout(() => send(true), 800); } else toast('Rahmat! Buyurtma yopildi');
+  } catch (x) { b.disabled = false; toast(x.message); }
+});
+ME ? U.api('staff/login', { body: {}, pin: ME.pin }).then(start).catch(() => loginView()) : loginView();
+</script>
+</body>
+</html>

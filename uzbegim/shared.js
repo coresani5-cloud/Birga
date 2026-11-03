@@ -4,15 +4,15 @@
 
   // Holatlar: mijozga ko'rinadigan nomlar
   U.STATUS = {
-    new:       { e: '🕓', uz: 'Oshxona tasdiqlashini kutmoqda', ru: 'Ждёт подтверждения кухни', s: { uz: 'Yangi', ru: 'Новый' } },
-    accepted:  { e: '✅', uz: 'Qabul qilindi', ru: 'Принят', s: { uz: 'Qabul qilindi', ru: 'Принят' } },
-    cooking:   { e: '👨‍🍳', uz: 'Oshpaz tayyorlamoqda', ru: 'Повар готовит', s: { uz: 'Tayyorlanmoqda', ru: 'Готовится' } },
-    ready:     { e: '📦', uz: 'Tayyor! Kuryer olib ketmoqda', ru: 'Готов! Курьер забирает', s: { uz: 'Tayyor', ru: 'Готов' } },
-    readyP:    { e: '🛍️', uz: 'Tayyor! Olib ketishingiz mumkin', ru: 'Готов! Можно забирать', s: { uz: 'Tayyor', ru: 'Готов' } },
-    onway:     { e: '🛵', uz: 'Kuryer yo\'lda', ru: 'Курьер в пути', s: { uz: 'Yo\'lda', ru: 'В пути' } },
-    delivered: { e: '🎉', uz: 'Yetkazildi — osh bo\'lsin!', ru: 'Доставлен — приятного аппетита!', s: { uz: 'Yetkazildi', ru: 'Доставлен' } },
-    deliveredP:{ e: '🎉', uz: 'Berildi — osh bo\'lsin!', ru: 'Выдан — приятного аппетита!', s: { uz: 'Berildi', ru: 'Выдан' } },
-    cancelled: { e: '✖️', uz: 'Bekor qilindi', ru: 'Отменён', s: { uz: 'Bekor', ru: 'Отменён' } },
+    new:       { ic: 'clock', e: '🕓', uz: 'Oshxona tasdiqlashini kutmoqda', ru: 'Ждёт подтверждения кухни', s: { uz: 'Yangi', ru: 'Новый' } },
+    accepted:  { ic: 'check', e: '✅', uz: 'Qabul qilindi', ru: 'Принят', s: { uz: 'Qabul qilindi', ru: 'Принят' } },
+    cooking:   { ic: 'chef', e: '👨‍🍳', uz: 'Oshpaz tayyorlamoqda', ru: 'Повар готовит', s: { uz: 'Tayyorlanmoqda', ru: 'Готовится' } },
+    ready:     { ic: 'box', e: '📦', uz: 'Tayyor! Kuryer olib ketmoqda', ru: 'Готов! Курьер забирает', s: { uz: 'Tayyor', ru: 'Готов' } },
+    readyP:    { ic: 'bag', e: '🛍️', uz: 'Tayyor! Olib ketishingiz mumkin', ru: 'Готов! Можно забирать', s: { uz: 'Tayyor', ru: 'Готов' } },
+    onway:     { ic: 'scooter', e: '🛵', uz: 'Kuryer yo\'lda', ru: 'Курьер в пути', s: { uz: 'Yo\'lda', ru: 'В пути' } },
+    delivered: { ic: 'party', e: '🎉', uz: 'Yetkazildi — osh bo\'lsin!', ru: 'Доставлен — приятного аппетита!', s: { uz: 'Yetkazildi', ru: 'Доставлен' } },
+    deliveredP:{ ic: 'party', e: '🎉', uz: 'Berildi — osh bo\'lsin!', ru: 'Выдан — приятного аппетита!', s: { uz: 'Berildi', ru: 'Выдан' } },
+    cancelled: { ic: 'x', e: '✖️', uz: 'Bekor qilindi', ru: 'Отменён', s: { uz: 'Bekor', ru: 'Отменён' } },
   };
   U.FLOW = { d: ['new', 'accepted', 'cooking', 'ready', 'onway', 'delivered'], p: ['new', 'accepted', 'cooking', 'ready', 'delivered'] };
   U.statusKey = (st, mode) => (mode === 'p' && (st === 'ready' || st === 'delivered') ? st + 'P' : st);

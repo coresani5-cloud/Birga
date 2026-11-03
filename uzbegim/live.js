@@ -50,7 +50,9 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .stc.cancelled{background:rgba(255,80,60,.12);color:#ff6b5e}
 .trk-h{display:flex;justify-content:space-between;align-items:center;gap:10px;padding-right:44px}
 .trk-big{display:flex;gap:14px;align-items:center;margin:16px 0;padding:16px;border-radius:20px;background:linear-gradient(135deg,rgba(255,166,43,.16),rgba(255,106,0,.08));border:1px solid rgba(255,122,0,.3)}
-.trk-big .e{font-size:40px}.trk-big b{display:block;font-size:17px}.trk-big span{color:var(--mut);font-size:13px}
+.trk-big .e{font-size:0}
+.ts .d .gi{width:20px;height:20px;stroke:var(--mut)}
+.ts.on .d .gi{stroke:#fff;stroke-width:1.8}.trk-big b{display:block;font-size:17px}.trk-big span{color:var(--mut);font-size:13px}
 .trk-map{height:300px;border-radius:20px;overflow:hidden;border:1px solid var(--ln);background:var(--glass)}
 .trk-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
 .trk-stats div{padding:10px 12px;border-radius:16px;background:var(--glass);border:1px solid var(--ln)}
@@ -329,7 +331,7 @@ async function openTrack(ref) {
   stopTrack();
   openModal(`<div class="mbody trk" style="padding-top:26px">
     <div class="trk-h"><div><span class="hint">${t('ordNo')}</span><h3 id="tNo">#…</h3></div><span class="stc" id="tChip"></span></div>
-    <div class="trk-big"><span class="e" id="tE">🕓</span><div><b id="tTitle">${t('waiting')}</b><span id="tSub"></span></div></div>
+    <div class="trk-big"><span class="e dot sm" id="tE"></span><div><b id="tTitle">${t('waiting')}</b><span id="tSub"></span></div></div>
     <div id="tCancel" class="err" hidden></div>
     <div id="tAct"></div>
     <div id="tMapW" hidden><div class="trk-map" id="tMap"></div>
@@ -363,7 +365,7 @@ async function renderTrack(o) {
   const k = UZ.statusKey(o.status, o.mode), S = UZ.STATUS[k];
   document.getElementById('tNo').textContent = '#' + o.no;
   const chip = document.getElementById('tChip'); chip.className = 'stc ' + o.status; chip.textContent = S.s[L];
-  document.getElementById('tE').textContent = S.e;
+  document.getElementById('tE').innerHTML = typeof ICO === 'function' ? ICO(S.ic) : S.e;
   document.getElementById('tTitle').textContent = o.status === 'new' ? t('waiting') : S[L];
   document.getElementById('tSub').textContent = o.status === 'onway' && o.courier ? `${o.courier.name}` : o.mode === 'p' ? UZ.BRANCHES[o.branch || 0][L] : '';
   const cEl = document.getElementById('tCancel');
@@ -399,7 +401,7 @@ async function renderTrack(o) {
   document.getElementById('tSteps').innerHTML = flow.map((st, i) => {
     const kk = UZ.statusKey(st, o.mode), on = o.status !== 'cancelled' && i <= idx;
     const tm = o.history && o.history[st] ? UZ.time(o.history[st]) : '';
-    return `${i ? '<div class="bar"></div>' : ''}<div class="ts ${on ? 'on' : ''} ${i === idx && st !== 'delivered' ? 'cur' : ''}"><span class="d">${UZ.STATUS[kk].e}</span><div><b>${UZ.STATUS[kk].s[L]}</b>${tm ? `<small>${tm}</small>` : ''}</div></div>`;
+    return `${i ? '<div class="bar"></div>' : ''}<div class="ts ${on ? 'on' : ''} ${i === idx && st !== 'delivered' ? 'cur' : ''}"><span class="d">${typeof ICO === 'function' ? ICO(UZ.STATUS[kk].ic) : UZ.STATUS[kk].e}</span><div><b>${UZ.STATUS[kk].s[L]}</b>${tm ? `<small>${tm}</small>` : ''}</div></div>`;
   }).join('');
   document.getElementById('tItems').innerHTML = (o.items || []).map(i => `<div class="line"><span>${esc(i.n)} × ${i.q}</span><span>${UZ.money(i.price * i.q)}</span></div>`).join('') + `<div class="line tot"><span>${t('total')}</span><span>${fmt(o.total)}</span></div>`;
   document.getElementById('tCourier').innerHTML = o.courier && (o.status === 'onway' || o.status === 'delivered')

@@ -125,7 +125,10 @@ const demoUsers = () => store.get('demo_users', {});
 async function loadMe() {
   if (LIVE) {
     if (!UZ.token()) ME = null;
-    else try { ME = await UZ.api('me'); } catch (e) { if (e.status === 401) UZ.setToken(''); ME = null; }
+    else for (let k = 0; k < 6; k++) {
+      // server uyg'onayotgan bo'lsa (Render) kirishni o'chirmasdan qayta urinamiz
+      try { ME = await UZ.api('me'); break; } catch (e) { ME = null; if (e.status === 401) { UZ.setToken(''); break; } await new Promise(r => setTimeout(r, 2500)); }
+    }
   } else ME = store.get('demo_me', null);
   updateUserUi();
 }
@@ -382,12 +385,20 @@ async function loadMenu() {
 }
 
 /* ---------- Jonli kuzatuv ---------- */
-function stopTrack() { if (ES) { ES.close(); ES = null; } if (TRK && TRK.timer) clearInterval(TRK.timer); TRK = null; }
+function stopTrack() { if (ES) { ES.close(); ES = null; } if (TRK && TRK.timer) clearInterval(TRK.timer); TRK = null; store.set('trkOpen', false); }
 const _closeAll = closeAll;
 closeAll = function () { stopTrack(); _closeAll(); }; // eslint-disable-line no-global-assign
 
+// "Buyurtma hozir qayerda" — qisqa yozuv
+function hereNow(o) {
+  const ru = L === 'ru';
+  const w = { new: ru ? 'В филиале' : 'Filialda', accepted: ru ? 'В филиале' : 'Filialda', cooking: ru ? 'На кухне' : 'Oshxonada',
+    ready: o.mode === 'p' ? (ru ? 'Ждёт вас' : 'Sizni kutmoqda') : (ru ? 'Ждёт курьера' : 'Kuryerni kutmoqda'), onway: ru ? 'У курьера' : 'Kuryerda',
+    delivered: ru ? 'У вас' : 'Sizda', cancelled: ru ? 'Отменён' : 'Bekor' }[o.status] || '';
+  return (ru ? 'Сейчас: ' : 'Hozir: ') + w;
+}
 async function openTrack(ref) {
-  stopTrack();
+  stopTrack(); store.set('trkOpen', true);
   openModal(`<div class="mbody trk" style="padding-top:26px">
     <div class="trk-h"><div><span class="hint">${t('ordNo')}</span><h3 id="tNo">#…</h3></div><span class="stc" id="tChip"></span></div>
     <div class="jr" id="tJr">
@@ -425,7 +436,7 @@ async function renderTrack(o) {
   const flow = UZ.FLOW[o.mode], idx = flow.indexOf(o.status);
   const k = UZ.statusKey(o.status, o.mode), S = UZ.STATUS[k];
   document.getElementById('tNo').textContent = '#' + o.no;
-  const chip = document.getElementById('tChip'); chip.className = 'stc ' + o.status; chip.textContent = S.s[L];
+  const chip = document.getElementById('tChip'); chip.className = 'stc ' + o.status; chip.textContent = hereNow(o);
   const orb = document.getElementById('tE');
   if (orb.dataset.s !== k) { orb.dataset.s = k; orb.innerHTML = typeof ICO === 'function' ? ICO(S.ic) : S.e; orb.classList.remove('pop'); void orb.offsetWidth; orb.classList.add('pop'); }
   document.getElementById('tJr').classList.toggle('x', o.status === 'cancelled');
@@ -567,7 +578,7 @@ function demoTick(o) {
   const a = store.get('active', null);
   if (a) {
     updateActive();
-    if (LIVE) { try { const o = await UZ.api(`orders/${a.id}?t=${encodeURIComponent(a.token || '')}`); updateActive(o); } catch (e) { store.set('active', null); updateActive(); } }
+    if (LIVE) { try { const o = await UZ.api(`orders/${a.id}?t=${encodeURIComponent(a.token || '')}`); updateActive(o); if (store.get('trkOpen', false) && o.status !== 'delivered' && o.status !== 'cancelled') openTrack(a); } catch (e) { if (e.status === 404 || e.status === 403) { store.set('active', null); updateActive(); } } }
   }
   document.getElementById('userBtn').onclick = openProfile;
   document.getElementById('tProfile').onclick = openProfile;

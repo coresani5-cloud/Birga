@@ -13,6 +13,65 @@
 .tabsbar{display:flex;gap:6px;flex-wrap:wrap}
 .tabsbar button{height:40px;padding:0 16px;border-radius:12px;font-weight:800;background:var(--glass);border:1px solid var(--ln)}
 .tabsbar button.on{background:var(--grad);color:#120d09;border-color:transparent}
+.top2{position:sticky;top:0;z-index:20;display:grid;grid-template-columns:1fr auto;align-items:center;gap:10px 14px;padding:10px max(16px,env(safe-area-inset-left,0px));background:rgba(15,12,10,.9);backdrop-filter:blur(14px);border-bottom:1px solid var(--ln)}
+.top2 .brand{font-size:17px}
+.tools{display:flex;gap:8px;align-items:center}
+.ib{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:var(--glass2);border:1px solid var(--ln)}
+.ib svg{width:20px;height:20px}.ib.off{color:var(--mut)}
+.tabsbar{grid-column:1/-1;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;flex-wrap:nowrap}
+.tabsbar::-webkit-scrollbar{display:none}
+.tabsbar button{flex:none;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.badge{min-width:20px;height:20px;padding:0 6px;border-radius:99px;background:var(--red);color:#fff;font-size:11px;font-weight:800;display:inline-grid;place-items:center}
+.tabsbar button.on .badge{background:#120d09;color:#fff}
+@media (min-width:901px){.top2{grid-template-columns:auto 1fr auto}.tabsbar{grid-column:2;grid-row:1}}
+.btool{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.btn.sm{height:40px;padding:0 14px;font-size:13px}.btn.sm svg{width:18px;height:18px}
+.btn.ghost.on{border-color:var(--or);color:var(--or2)}
+.stabs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:0 0 12px;position:sticky;top:118px;z-index:10;padding:6px 0;background:var(--bg)}
+.stabs:empty{display:none}
+.stabs::-webkit-scrollbar{display:none}
+.stabs button{flex:none;height:40px;padding:0 12px;border-radius:12px;background:var(--glass);border:1px solid var(--ln);font-weight:800;font-size:13px;display:inline-flex;gap:8px;align-items:center;white-space:nowrap}
+.stabs button span{min-width:22px;height:22px;border-radius:99px;background:var(--glass2);display:grid;place-items:center;font-size:12px}
+.stabs button.on{background:var(--grad);color:#120d09;border-color:transparent}
+.stabs button.on span{background:rgba(0,0,0,.18)}
+.stabs button.hot:not(.on){border-color:var(--or)}.stabs button.hot span{background:var(--red);color:#fff}
+.board.mob{display:block}.board.mob .col{gap:12px}
+.where{display:flex;align-items:center;gap:6px;font-size:13px;padding:8px 10px;border-radius:12px;background:var(--glass);border:1px solid var(--ln)}
+.where b{color:var(--mut);font-weight:700}
+.where.warn{border-color:rgba(255,122,0,.45);background:rgba(255,122,0,.1)}
+.where.on{border-color:rgba(52,211,153,.4);background:rgba(52,211,153,.08)}
+.where.bad{border-color:rgba(255,90,78,.4);background:rgba(255,90,78,.08)}
+.items2{display:grid;gap:6px;border-top:1px dashed var(--ln);padding-top:8px}
+.it{display:grid;grid-template-columns:44px 1fr auto auto;gap:10px;align-items:center}
+.it img,.it .noimg{width:44px;height:44px;border-radius:10px;object-fit:contain;background:rgba(255,255,255,.05)}
+.it .m{min-width:0}.it b{display:block;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.it small{color:var(--mut);font-size:12px}
+.it .q{color:var(--or2);font-weight:800;font-size:13px}.it .pr{font-variant-numeric:tabular-nums;font-size:13px;min-width:62px;text-align:right}
+.items2 .sum{border-top:1px dashed var(--ln);padding-top:6px;font-size:13px;color:var(--mut);display:grid;gap:2px}
+.items2 .sum>div{display:flex;justify-content:space-between}.items2 .sum .tot{color:var(--ink);font-weight:800;font-size:15px}
+.acts2{display:grid;gap:8px}
+.acts2 .big2{height:52px;font-size:16px;width:100%}
+.acts2 .sec{display:flex;gap:8px}.acts2 .sec .btn{flex:1;height:42px;font-size:13px}
+#ovMapW[hidden]{display:none}
+#print{display:none}
+@media print{body::before{display:none!important}body{background:#fff!important}
+  @page{margin:6mm}
+  body{background:#fff!important}
+  body>*:not(#print){display:none!important}
+  #print{display:block!important;color:#000;font:13px/1.35 Manrope,Arial,sans-serif}
+  .rc{width:76mm;margin:0 auto}
+  .rc-h{display:flex;gap:10px;align-items:center;justify-content:center;padding-bottom:8px;border-bottom:2px dashed #000}
+  .rc-h img{width:44px;height:44px}.rc-h b{display:block;font-size:20px;letter-spacing:.12em}.rc-h small{font-size:12px}
+  .rc-no{text-align:center;font-size:30px;font-weight:900;margin:8px 0}
+  .rc-meta .r,.rc-sum .r{display:flex;justify-content:space-between;gap:10px;padding:1px 0}
+  .rc-meta .r span:first-child{color:#555}
+  .rc-note{margin:6px 0;padding:6px;border:1px solid #000;border-radius:6px;font-weight:700}
+  .rc-items{border-top:2px dashed #000;border-bottom:2px dashed #000;margin:8px 0;padding:6px 0;display:grid;gap:6px}
+  .ri{display:grid;grid-template-columns:42px 1fr auto;gap:8px;align-items:center;break-inside:avoid}
+  .ri img,.ri .noimg{width:42px;height:42px;object-fit:contain}
+  .ri b{display:block;font-size:13px}.ri small{display:block;font-size:11px;color:#444}.ri .s{font-weight:800}
+  .rc-sum .tot{font-size:17px;font-weight:900;border-top:1px solid #000;margin-top:4px;padding-top:4px}
+  .rc-f{text-align:center;margin-top:10px;font-size:11px;color:#333}
+}
 .board{display:grid;grid-template-columns:repeat(5,minmax(250px,1fr));gap:12px;overflow-x:auto;padding-bottom:10px}
 .col{display:flex;flex-direction:column;gap:10px;min-width:0}
 .col>h3{font-size:14px;display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:14px;background:var(--glass);border:1px solid var(--ln)}
@@ -47,9 +106,7 @@ td.num{text-align:right;font-variant-numeric:tabular-nums}
 .sw{width:46px;height:26px;border-radius:99px;background:var(--ok);position:relative;flex:none}
 .sw::after{content:"";position:absolute;top:3px;left:23px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.2s}
 .mi.off .sw{background:#555}.mi.off .sw::after{left:3px}
-@media print{body *{visibility:hidden}#print,#print *{visibility:visible}#print{position:absolute;inset:0;color:#000;background:#fff;font:14px monospace;padding:10px}}
-#print{display:none}
-@media print{#print{display:block}}
+
 </style>
 </head>
 <body>
@@ -63,8 +120,8 @@ const U = UZB;
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const LOGO = '<img src="logo.svg" alt="" style="width:40px;height:40px;border-radius:50%">';
-const ss = { get(k) { try { return sessionStorage.getItem(k) || ''; } catch (e) { return ''; } }, set(k, v) { try { v ? sessionStorage.setItem(k, v) : sessionStorage.removeItem(k); } catch (e) {} } };
-let TOK = ss.get('uzb_staff'), ME = null, ORD = {}, BR = [], STOP = new Set(), STAFF = [], es = null, map = null, mk = {}, sound = true, fresh = new Set(), branchF = '', view = 'board';
+const ss = { get(k) { try { return localStorage.getItem(k) || sessionStorage.getItem(k) || ''; } catch (e) { return ''; } }, set(k, v) { try { v ? localStorage.setItem(k, v) : (localStorage.removeItem(k), sessionStorage.removeItem(k)); } catch (e) {} } };
+let TOK = ss.get('uzb_staff'), ME = null, ORD = {}, BR = [], STOP = new Set(), STAFF = [], es = null, map = null, mk = {}, sound = ss.get('uzb_snd') !== '0', fresh = new Set(), branchF = ss.get('uzb_brf'), view = ss.get('uzb_view') || 'board', colSel = ss.get('uzb_col') || 'c-new', CATI = {};
 let tt; function toast(m) { const e = $('#toast'); e.textContent = m; e.classList.add('on'); clearTimeout(tt); tt = setTimeout(() => e.classList.remove('on'), 2800); }
 const api = (p, o = {}) => U.api(p, { ...o, headers: { Authorization: 'Bearer ' + TOK } });
 const ERR = { forbidden: 'Bu amalga ruxsat yo\'q', closed_order: 'Buyurtma allaqachon yopilgan', exists: 'Bu telefon bilan xodim bor', pin: 'PIN kamida 6 ta raqamdan iborat bo\'lsin', name_phone: 'Ism va telefonni to\'liq yozing', auth: 'Qayta kiring', slow: 'Ko\'p urinish, bir daqiqa kuting' };
@@ -104,31 +161,61 @@ const COLS = [
   ['c-done', '✔ Yakunlangan', o => o.status === 'delivered' || o.status === 'cancelled'],
 ];
 
+const ICN = { bell: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>', mute: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 9.5-4.9M18 11v5l1.5 2H9"/><path d="M10 20a2 2 0 0 0 4 0M3 3l18 18"/></svg>', out: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l-5-5 5-5M5 12h11"/></svg>', map: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/></svg>' };
+const isMob = () => matchMedia('(max-width: 900px)').matches;
 function start() {
   const isMaster = ME.branch == null;
-  $('#app').innerHTML = `<div class="top"><div class="brand">${LOGO}<div>Uzbegim<small>${esc(ME.name)}${ME.branch != null ? ' · ' + esc(BR[ME.branch] || '') : ''}</small></div></div>
-    <div class="tabsbar" id="tabs"><button data-v="board" class="on">Buyurtmalar</button><button data-v="menu">Stop-list</button><button data-v="stats">Hisobot</button><button data-v="apps">Arizalar <span class="pill" id="appsN" hidden></span></button>${isMaster ? '<button data-v="branches">Filiallar</button><button data-v="staff">Xodimlar</button>' : ''}</div>
-    <div class="grow"></div>
-    <select class="fld" id="brf" ${ME.branch != null ? 'hidden' : ''}><option value="">Barcha filiallar</option></select>
-    <div class="stats" id="stats"></div>
-    <span class="pill" id="conn">Ulanmoqda...</span>
-    <button class="btn ghost" id="snd">🔔 Ovoz yoqilgan</button>
-    <button class="btn ghost" id="out">Chiqish</button></div>
+  if (!isMaster && ['branches', 'staff'].includes(view)) view = 'board';
+  const T = [['board', 'Buyurtmalar'], ['menu', 'Stop-list'], ['stats', 'Hisobot'], ['apps', 'Arizalar']].concat(isMaster ? [['branches', 'Filiallar'], ['staff', 'Xodimlar']] : []);
+  $('#app').innerHTML = `<header class="top2">
+      <div class="brand">${LOGO}<div>Uzbegim<small>${esc(ME.name)}${ME.branch != null ? ' · ' + esc(BR[ME.branch] || '') : ''}</small></div></div>
+      <div class="tools"><span class="pill" id="conn">Ulanmoqda...</span><button class="ib" id="snd" title="Ovoz"></button><button class="ib" id="out" title="Chiqish">${ICN.out}</button></div>
+      <nav class="tabsbar" id="tabs">${T.map(([k, n]) => `<button data-v="${k}" class="${k === view ? 'on' : ''}">${n}${k === 'apps' ? ' <span class="badge" id="appsN" hidden></span>' : ''}${k === 'board' ? ' <span class="badge" id="newN" hidden></span>' : ''}</button>`).join('')}</nav>
+    </header>
     <div class="wrap">
-      <section class="view" id="v-board"><div id="ovMap"></div><div class="board" id="board"></div></section>
-      <section class="view" id="v-menu" hidden><h2 style="font-size:18px;margin-bottom:6px">Stop-list</h2><p class="hint" style="margin-bottom:14px">Tugagan taomni o'chiring — mijozlar uni "Tugagan" deb ko'radi va buyurtma qila olmaydi.</p><div class="menu-list" id="menuList"></div></section>
-      <section class="view" id="v-stats" hidden></section>
-      <section class="view" id="v-staff" hidden></section>
-      <section class="view" id="v-apps" hidden></section>
-      <section class="view" id="v-branches" hidden></section>
+      <section class="view" id="v-board" ${view === 'board' ? '' : 'hidden'}>
+        <div class="btool"><select class="fld" id="brf" ${ME.branch != null ? 'hidden' : ''}><option value="">Barcha filiallar</option></select><span class="pill" id="stats"></span><div class="grow"></div><button class="btn ghost sm" id="mapT">${ICN.map} <span>Xarita</span></button></div>
+        <div id="ovMapW"><div id="ovMap"></div></div>
+        <div class="stabs" id="stabs"></div>
+        <div class="board" id="board"></div>
+      </section>
+      <section class="view" id="v-menu" ${view === 'menu' ? '' : 'hidden'}><h2 style="font-size:18px;margin-bottom:6px">Stop-list</h2><p class="hint" style="margin-bottom:14px">Tugagan taomni o'chiring — mijozlar uni "Tugagan" deb ko'radi va buyurtma qila olmaydi.</p><div class="menu-list" id="menuList"></div></section>
+      <section class="view" id="v-stats" ${view === 'stats' ? '' : 'hidden'}></section>
+      <section class="view" id="v-staff" ${view === 'staff' ? '' : 'hidden'}></section>
+      <section class="view" id="v-apps" ${view === 'apps' ? '' : 'hidden'}></section>
+      <section class="view" id="v-branches" ${view === 'branches' ? '' : 'hidden'}></section>
     </div>`;
+  const sndUi = () => { $('#snd').innerHTML = sound ? ICN.bell : ICN.mute; $('#snd').classList.toggle('off', !sound); $('#snd').title = sound ? 'Ovoz yoqilgan' : "Ovoz o'chiq"; };
+  sndUi();
   $('#out').onclick = () => { ss.set('uzb_staff', ''); es && es.close(); location.reload(); };
-  $('#snd').onclick = () => { sound = !sound; $('#snd').textContent = '🔔 Ovoz ' + (sound ? 'yoqilgan' : 'o\'chiq'); if (sound) beep(); };
-  $('#brf').onchange = () => { branchF = $('#brf').value; draw(); };
-  $('#tabs').onclick = e => { const b = e.target.closest('[data-v]'); if (!b) return; view = b.dataset.v; document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x === b)); document.querySelectorAll('.view').forEach(v => (v.hidden = v.id !== 'v-' + view)); if (view === 'stats') stats(1); if (view === 'staff') staffView(); if (view === 'menu') menuView(); if (view === 'apps') appsView(); if (view === 'branches') branchView(); };
+  $('#snd').onclick = () => { sound = !sound; ss.set('uzb_snd', sound ? '1' : '0'); sndUi(); toast(sound ? 'Ovoz yoqildi' : "Ovoz o'chirildi"); if (sound) beep(); };
+  $('#brf').onchange = () => { branchF = $('#brf').value; ss.set('uzb_brf', branchF); draw(); };
+  const mapOpen = () => ss.get('uzb_map') === '1' || (!ss.get('uzb_map') && !isMob());
+  const mapUi = () => { $('#ovMapW').hidden = !mapOpen(); $('#mapT').classList.toggle('on', mapOpen()); if (mapOpen() && map) setTimeout(() => map.invalidateSize(), 50); };
+  $('#mapT').onclick = () => { ss.set('uzb_map', mapOpen() ? '0' : '1'); mapUi(); };
+  mapUi();
+  const openView = v => { view = v; ss.set('uzb_view', v); document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x.dataset.v === v)); document.querySelectorAll('.view').forEach(x => (x.hidden = x.id !== 'v-' + v)); if (v === 'stats') stats(1); if (v === 'staff') staffView(); if (v === 'menu') menuView(); if (v === 'apps') appsView(); if (v === 'branches') branchView(); if (v === 'board') draw(); };
+  $('#tabs').onclick = e => { const b = e.target.closest('[data-v]'); if (b) openView(b.dataset.v); };
+  $('#stabs').onclick = e => { const b = e.target.closest('[data-col]'); if (!b) return; colSel = b.dataset.col; ss.set('uzb_col', colSel); draw(); };
+  addEventListener('resize', () => draw());
   appsCount(); setInterval(appsCount, 60000);
-  U.makeMap($('#ovMap'), U.CENTER, 11).then(m => { map = m; if (BRF.length) setBR(BRF); drawMap(); }).catch(() => { $('#ovMap').hidden = true; });
+  loadCat();
+  U.makeMap($('#ovMap'), U.CENTER, 11).then(m => { map = m; if (BRF.length) setBR(BRF); drawMap(); }).catch(() => { $('#ovMapW').hidden = true; });
+  if (view !== 'board') setTimeout(() => openView(view), 0);
   connect();
+}
+// Menyu: taom rasmi va grammini olish uchun
+function loadCat() { fetch('index.html').then(r => r.text()).then(h => { JSON.parse(h.match(/const P=(\[.*?\])\.map\(/s)[1]).forEach(p => (CATI[p.id] = p)); draw(); }).catch(() => {}); }
+function itemInfo(i) {
+  const [pid, vi] = String(i.id || '').split(':'), p = CATI[pid], v = p && p.v[+vi || 0];
+  const name = p ? p.n.uz : i.n, size = i.s || (v ? (v.s ? v.s.uz : '') : ''), varL = p && p.v.length > 1 && v ? v.l.uz : '';
+  return { pid, img: p ? p.img : i.img, name, sub: [varL, size].filter(Boolean).join(' · ') };
+}
+// Buyurtma hozir qayerda
+function where(o) {
+  return ({ new: ['🕓', 'Oshxona tasdiqlashini kutmoqda', ''], accepted: ['👨‍🍳', 'Oshxonada · navbatda', ''], cooking: ['👨‍🍳', 'Oshxonada · tayyorlanmoqda', ''],
+    ready: o.mode === 'p' ? ['🛍', 'Filialda · mijoz olib ketadi', 'warn'] : ['📦', 'Oshxonada · kuryer kutilmoqda', 'warn'],
+    onway: ['🛵', 'Kuryerda' + (o.courier ? ': ' + o.courier.name : ''), 'warn'], delivered: ['✔', o.mode === 'p' ? 'Mijozga berildi' : 'Mijozda · yetkazildi', 'on'], cancelled: ['✖', 'Bekor qilingan', 'bad'] })[o.status] || ['', o.status, ''];
 }
 
 let BRF = [], shopMk = [];
@@ -212,19 +299,21 @@ function connect() {
 function actions(o) {
   const b = (st, label, cls = '') => `<button class="btn ${cls}" data-st="${st}" data-id="${o.id}">${label}</button>`;
   const rej = `<div class="cform" id="rj-${o.id}" hidden><select id="rr-${o.id}"><option>Taom tugagan</option><option>Manzil hududdan tashqarida</option><option>Mijoz bilan bog'lanib bo'lmadi</option><option>Oshxona yopilmoqda</option><option value="">Boshqa sabab (pastga yozing)</option></select><input id="rt-${o.id}" placeholder="Izoh (ixtiyoriy)"></div>`;
+  const chek = `<button class="btn ghost" data-print="${o.id}" title="Chek chiqarish">🧾 Chek</button>`;
+  const row = (main, ...sec) => `<div class="acts2">${main}<div class="sec">${sec.join('')}${chek}</div></div>`;
   switch (o.status) {
-    case 'new': return b('accepted', '✅ Qabul qilish', 'ok') + b('cancelled', 'Rad etish', 'red') + rej;
-    case 'accepted': return b('cooking', '👨‍🍳 Tayyorlashni boshlash') + b('cancelled', 'Bekor', 'red') + rej;
-    case 'cooking': return b('ready', '📦 Tayyor');
+    case 'new': return row(b('accepted', '✅ Qabul qilish', 'ok big2'), b('cancelled', 'Rad etish', 'red')) + rej;
+    case 'accepted': return row(b('cooking', '👨‍🍳 Tayyorlashni boshlash', 'big2'), b('cancelled', 'Bekor', 'red')) + rej;
+    case 'cooking': return row(b('ready', '📦 Tayyor', 'big2'));
     case 'ready': {
-      if (o.mode === 'p') return b('delivered', '🛍 Mijozga berildi', 'ok');
+      if (o.mode === 'p') return row(b('delivered', '🛍 Mijozga berildi', 'ok big2'));
       const cs = STAFF.filter(s => s.role === 'courier' && s.active && (s.branch == null || s.branch === o.branch));
-      return `<div class="hint" style="width:100%">Kuryer o'zi oladi yoki biriktiring:</div>
+      return `<div class="hint">Kuryer panelida ko'rinib turibdi — kuryer o'zi oladi. Yoki shu yerdan biriktiring:</div>
         <div class="cform"><select id="cs-${o.id}"><option value="">— kuryerni tanlang —</option>${cs.map(s => `<option value="${s.id}">${esc(s.name)} ${esc(s.phone)}</option>`).join('')}<option value="manual">Boshqa (qo'lda yozish)</option></select>
-        <input placeholder="Kuryer ismi" id="cn-${o.id}" hidden><input placeholder="Kuryer telefoni" id="cp-${o.id}" value="+998 " hidden></div>` + b('onway', '🛵 Kuryerga berish');
+        <input placeholder="Kuryer ismi" id="cn-${o.id}" hidden><input placeholder="Kuryer telefoni" id="cp-${o.id}" value="+998 " hidden></div>` + row(b('onway', '🛵 Kuryerga berish', 'big2'));
     }
-    case 'onway': return b('delivered', '🎉 Yetkazildi', 'ok');
-    default: return '';
+    case 'onway': return row(b('delivered', '🎉 Yetkazildi', 'ok big2'));
+    default: return `<div class="acts2"><div class="sec">${chek}</div></div>`;
   }
 }
 function card(o) {
@@ -234,8 +323,10 @@ function card(o) {
     if (o.loc && o.lat != null) gps = `<span class="pill warn">📍 ${U.fmtDist(U.dist(o.loc, { lat: o.lat, lng: o.lng }))} qoldi · ${U.ago(o.loc.at)}</span>`;
     else gps = `<span class="pill">GPS kutilmoqda</span>`;
   }
-  return `<div class="card ${fresh.has(o.id) ? 'fresh' : ''}">
+  const w = where(o);
+  return `<article class="card ${fresh.has(o.id) ? 'fresh' : ''}">
     <div class="h"><span class="no">#${o.no}</span><span class="pill ${o.mode === 'd' ? 'warn' : ''}">${o.mode === 'd' ? '🛵 Yetkazish' : '🏃 Olib ketish'}</span></div>
+    <div class="where ${w[2]}"><span>${w[0]}</span><b>Hozir:</b> ${esc(w[1])}</div>
     <div class="hint">${U.time(o.createdAt)} · ${ago} daq oldin · 🏪 ${esc(BR[o.branch] || '')}</div>
     ${o.status === 'cancelled' ? `<div class="note" style="border-color:rgba(255,90,78,.4)">✖️ ${o.cancelledBy === 'customer' ? 'Mijoz bekor qildi' : 'Rad etildi'}${o.cancelReason ? ': ' + esc(o.cancelReason) : ''}</div>` : ''}
     <div class="who"><b>${esc(o.name)}</b><span class="tel">${esc(o.phone)}</span></div>
@@ -243,10 +334,10 @@ function card(o) {
     ${o.note ? `<div class="note">💬 ${esc(o.note)}</div>` : ''}
     ${o.courier ? `<div class="cour">🛵 <b>${esc(o.courier.name)}</b> <span class="tel">${esc(o.courier.phone || '')}</span> ${gps}</div>` : gps}
     ${o.rating ? `<div><span class="stars">${'★'.repeat(o.rating.stars)}${'☆'.repeat(5 - o.rating.stars)}</span>${o.rating.comment ? ` <span class="hint">“${esc(o.rating.comment)}”</span>` : ''}</div>` : ''}
-    <div class="items">${o.items.map(i => `<div><span>${esc(i.n)} × ${i.q}</span><span>${U.money(i.price * i.q)}</span></div>`).join('')}
-      ${o.del ? `<div><span>Yetkazish</span><span>${U.money(o.del)}</span></div>` : ''}${o.disc ? `<div><span>Chegirma ${esc(o.promo || '')}</span><span>−${U.money(o.disc)}</span></div>` : ''}
-      <div class="tot"><span>Jami</span><span>${U.money(o.total)} so'm</span></div></div>
-    <div class="acts">${actions(o)}<button class="btn ghost" data-print="${o.id}" title="Chek">🧾</button></div></div>`;
+    <div class="items2">${o.items.map(i => { const x = itemInfo(i); return `<div class="it">${x.img ? `<img src="img/${esc(x.pid)}.webp" alt="" loading="lazy">` : '<span class="noimg"></span>'}<div class="m"><b>${esc(x.name)}</b>${x.sub ? `<small>${esc(x.sub)}</small>` : ''}</div><span class="q">×${i.q}</span><span class="pr">${U.money(i.price * i.q)}</span></div>`; }).join('')}
+      <div class="sum">${o.del ? `<div><span>Yetkazish</span><span>${U.money(o.del)}</span></div>` : ''}${o.disc ? `<div><span>Chegirma ${esc(o.promo || '')}</span><span>−${U.money(o.disc)}</span></div>` : ''}
+      <div class="tot"><span>Jami</span><span>${U.money(o.total)} so'm</span></div></div></div>
+    ${actions(o)}</article>`;
 }
 
 const visible = () => Object.values(ORD).filter(o => branchF === '' || o.branch === +branchF);
@@ -254,18 +345,23 @@ function draw() {
   if (!$('#board')) return;
   const list = visible().sort((a, b) => b.createdAt - a.createdAt);
   const done = Date.now() - 12 * 3600e3;
-  // ochiq tanlovlarni saqlab qolish
   const keep = {}; document.querySelectorAll('.cform select, .cform input').forEach(el => { if (el.id) keep[el.id] = el.value; });
-  $('#board').innerHTML = COLS.map(([cls, title, f]) => {
+  const cols = COLS.map(([cls, title, f]) => {
     let items = list.filter(f);
     if (cls === 'c-done') items = items.filter(o => (o.history.delivered || o.history.cancelled || 0) > done).slice(0, 30);
     if (cls === 'c-new') items.reverse();
-    return `<div class="col ${cls}"><h3>${title}<span class="n">${items.length}</span></h3>${items.map(card).join('') || '<div class="empty">Bo\'sh</div>'}</div>`;
-  }).join('');
+    return { cls, title, items };
+  });
+  const mob = isMob();
+  if (!COLS.some(c => c[0] === colSel)) colSel = 'c-new';
+  $('#stabs').innerHTML = mob ? cols.map(c => `<button data-col="${c.cls}" class="${c.cls === colSel ? 'on' : ''} ${c.cls === 'c-new' && c.items.length ? 'hot' : ''}">${c.title}<span>${c.items.length}</span></button>`).join('') : '';
+  $('#board').classList.toggle('mob', mob);
+  $('#board').innerHTML = cols.filter(c => !mob || c.cls === colSel).map(c => `<div class="col ${c.cls}">${mob ? '' : `<h3>${c.title}<span class="n">${c.items.length}</span></h3>`}${c.items.map(card).join('') || '<div class="empty">Bo\'sh</div>'}</div>`).join('');
   Object.entries(keep).forEach(([id, v]) => { const el = document.getElementById(id); if (el) { el.value = v; if (el.tagName === 'SELECT') el.dispatchEvent(new Event('change')); } });
   const act = list.filter(o => !['delivered', 'cancelled'].includes(o.status));
-  $('#stats').innerHTML = `<span class="pill">Faol: ${act.length}</span>`;
+  $('#stats').textContent = `Faol: ${act.length}`;
   const nNew = list.filter(o => o.status === 'new').length;
+  const nb = $('#newN'); if (nb) { nb.hidden = !nNew; nb.textContent = nNew; }
   document.title = (nNew ? `(${nNew}) ` : '') + 'Uzbegim Oshxona';
   drawMap();
 }
@@ -291,13 +387,18 @@ function drawMap() {
 
 /* ---- Chek */
 function printOrder(o) {
-  $('#print').innerHTML = `<div style="text-align:center;font-weight:bold">UZBEGIM</div><div style="text-align:center">${esc(BR[o.branch] || '')}</div><hr>
-    <div>Buyurtma #${o.no} · ${new Date(o.createdAt).toLocaleString('ru-RU')}</div><div>${o.mode === 'd' ? 'Yetkazish' : 'Olib ketish'}</div>
-    <div>${esc(o.name)} ${esc(o.phone)}</div><div>${esc(o.addr || '')}</div>${o.note ? `<div>Izoh: ${esc(o.note)}</div>` : ''}<hr>
-    ${o.items.map(i => `<div style="display:flex;justify-content:space-between"><span>${esc(i.n)} x${i.q}</span><span>${U.money(i.price * i.q)}</span></div>`).join('')}<hr>
-    ${o.del ? `<div style="display:flex;justify-content:space-between"><span>Yetkazish</span><span>${U.money(o.del)}</span></div>` : ''}${o.disc ? `<div style="display:flex;justify-content:space-between"><span>Chegirma</span><span>-${U.money(o.disc)}</span></div>` : ''}
-    <div style="display:flex;justify-content:space-between;font-weight:bold"><span>JAMI</span><span>${U.money(o.total)} so'm</span></div>`;
-  window.print();
+  const L = (a, b, cls = '') => `<div class="r ${cls}"><span>${a}</span><span>${b}</span></div>`;
+  const n = o.items.reduce((a, i) => a + i.q, 0);
+  $('#print').innerHTML = `<div class="rc">
+    <div class="rc-h"><img src="logo.svg" alt=""><div><b>UZBEGIM</b><small>${esc(BR[o.branch] || '')}</small></div></div>
+    <div class="rc-no">#${o.no}</div>
+    <div class="rc-meta">${L('Sana', new Date(o.createdAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }))}${L('Turi', o.mode === 'd' ? 'Yetkazib berish' : 'Olib ketish')}${L('Mijoz', esc(o.name))}${L('Telefon', esc(o.phone))}${o.mode === 'd' ? L('Manzil', esc(o.addr || '')) : ''}</div>
+    ${o.note ? `<div class="rc-note">Izoh: ${esc(o.note)}</div>` : ''}
+    <div class="rc-items">${o.items.map(i => { const x = itemInfo(i); return `<div class="ri">${x.img ? `<img src="img/${esc(x.pid)}.webp" alt="">` : '<span class="noimg"></span>'}<div class="m"><b>${esc(x.name)}</b><small>${esc(x.sub || '')}</small><small>${i.q} × ${U.money(i.price)}</small></div><span class="s">${U.money(i.price * i.q)}</span></div>`; }).join('')}</div>
+    <div class="rc-sum">${L('Mahsulotlar (' + n + ' ta)', U.money(o.sub || o.items.reduce((a, i) => a + i.price * i.q, 0)))}${o.del ? L('Yetkazish' + (o.dist != null ? ' · ' + o.dist + ' km' : ''), U.money(o.del)) : ''}${o.disc ? L('Chegirma' + (o.promo ? ' (' + esc(o.promo) + ')' : ''), '−' + U.money(o.disc)) : ''}${L('JAMI', U.money(o.total) + " so'm", 'tot')}</div>
+    <div class="rc-f">To'lov: qabul qilganda naqd yoki karta<br>Osh bo'lsin! · +998 95 000 00 00</div></div>`;
+  const imgs = [...$('#print').querySelectorAll('img')];
+  Promise.all(imgs.map(im => im.complete ? 1 : new Promise(r => { im.onload = im.onerror = r; setTimeout(r, 2500); }))).then(() => window.print());
 }
 
 /* ---- Stop-list */

@@ -22,6 +22,21 @@
 .big-dist{font-family:Unbounded;font-size:26px;color:var(--or2)}
 .empty{padding:22px;text-align:center;color:var(--mut);border:1px dashed var(--ln);border-radius:16px;font-size:14px}
 .warn{padding:12px 14px;border-radius:14px;background:rgba(255,90,78,.1);border:1px solid rgba(255,90,78,.3);color:#ffb4ad;font-size:13px}
+.where{display:flex;align-items:center;gap:6px;font-size:13px;padding:8px 12px;border-radius:12px;background:var(--glass);border:1px solid var(--ln)}
+.where b{color:var(--mut);font-weight:700}.where.on{background:rgba(255,122,0,.12);border-color:rgba(255,122,0,.4)}
+.route{display:grid;gap:6px}
+.route>div{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:14px;background:var(--glass);border:1px solid var(--ln)}
+.route i{font-style:normal;font-size:20px;flex:none}
+.route>div>div{flex:1;min-width:0;display:grid}
+.route small{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em;font-weight:800}
+.route span{font-size:12px;color:var(--mut)}
+.route a{flex:none;display:grid;place-items:center;width:44px;height:44px;border-radius:12px;background:var(--grad);text-decoration:none;font-size:20px}
+.its{display:grid;gap:6px;border-top:1px dashed var(--ln);padding-top:8px}
+.it{display:grid;grid-template-columns:44px 1fr auto auto;align-items:center;gap:10px;font-size:13px}
+.it img,.it .ph{width:44px;height:44px;border-radius:10px;object-fit:contain;background:var(--glass);display:grid;place-items:center}
+.it b{display:block;line-height:1.2}.it small{color:var(--mut)}.it em{font-style:normal;color:var(--or2);font-weight:800}
+.its .tot{display:flex;justify-content:space-between;padding-top:6px;border-top:1px dashed var(--ln)}
+.empty small{display:block;margin-top:6px;font-size:12px}
 </style>
 </head>
 <body>
@@ -91,19 +106,32 @@ function draw() {
   const em = box.querySelector('.empty');
   if (!mine.length && !em) box.innerHTML = '<div class="empty">Hozir yo\'lda buyurtmangiz yo\'q</div>';
   if (mine.length && em) em.remove();
-  $('#ready').innerHTML = ready.map(o => `<div class="card"><div class="h"><span class="no">#${o.no}</span><span class="hint">${U.time(o.history.ready || o.createdAt)}</span></div>
-      <div>📍 ${esc(o.addr)}</div>${o.lat != null && pos ? `<div class="hint">Sizdan ${U.fmtDist(U.dist(pos, { lat: o.lat, lng: o.lng }))}</div>` : ''}
-      <div class="hint">${o.items.length} xil mahsulot · ${U.money(o.total)} so'm</div>
-      <button class="btn big" data-take="${o.id}">🛵 Oldim, yo'lga chiqdim</button></div>`).join('') || '<div class="empty">Tayyor buyurtma yo\'q</div>';
+  $('#ready').innerHTML = ready.map(o => { const br = U.BRANCHES[o.branch || 0]; return `<div class="card"><div class="h"><span class="no">#${o.no}</span><span class="hint">${U.time(o.history.ready || o.createdAt)}</span></div>
+      <div class="where"><span>📦</span><b>Hozir:</b> Oshxonada tayyor — kuryerni kutmoqda</div>
+      <div class="route">
+        <div><i>🏪</i><div><small>Olib ketish</small><b>${esc(br ? br.uz : 'Filial')}</b>${br && br.addr && br.addr.uz ? `<span>${esc(br.addr.uz)}</span>` : ''}</div>${br ? `<a href="${U.navLink(br)}" target="_blank" rel="noopener">🧭</a>` : ''}</div>
+        <div><i>🏠</i><div><small>Mijozga</small><b>${esc(o.addr)}</b><span>${o.dist != null ? 'Filialdan ' + o.dist + ' km' : ''}${o.lat != null && pos ? ' · sizdan ' + U.fmtDist(U.dist(pos, { lat: o.lat, lng: o.lng })) : ''}</span></div>${o.lat != null ? `<a href="${U.navLink({ lat: o.lat, lng: o.lng })}" target="_blank" rel="noopener">🧭</a>` : ''}</div>
+      </div>
+      ${itemsHTML(o)}
+      <button class="btn big" data-take="${o.id}">🛵 Oldim, yo'lga chiqdim</button></div>`; }).join('') || '<div class="empty">Tayyor buyurtma yo\'q.<br><small>Oshxona «Tayyor» bosgan yetkazish buyurtmalari shu yerda chiqadi. «Olib ketish» buyurtmalari kuryerga kelmaydi.</small></div>';
+  if (ready.length && !pos && !mine.length) peekPos();
   mine.length ? startGps() : stopGps();
 }
+function itemsHTML(o) {
+  return `<div class="its">${o.items.map(i => `<div class="it">${i.img ? `<img src="img/${esc(i.pid || String(i.id).split(':')[0])}.webp" alt="" loading="lazy">` : '<span class="ph">🍽️</span>'}<div><b>${esc(i.n)}</b><small>${esc(i.s || '')}</small></div><em>×${i.q}</em><span>${U.money(i.price * i.q)}</span></div>`).join('')}
+    <div class="tot"><span>Mijozdan olinadi</span><b>${U.money(o.total)} so'm</b></div></div>`;
+}
+// Tayyor buyurtmalargacha masofani ko'rsatish uchun bir marta joylashuv
+let peeked = false;
+function peekPos() { if (peeked || !navigator.geolocation) return; peeked = true; navigator.geolocation.getCurrentPosition(p => { pos = { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy }; draw(); }, () => {}, { maximumAge: 60000, timeout: 15000 }); }
 function mineCard(o) {
   return `<div class="card" data-oid="${o.id}">
     <div class="h"><span class="no">#${o.no}</span><span class="pill warn">Yo'lda</span></div>
+    <div class="where on"><span>🛵</span><b>Hozir:</b> Kuryerda (sizda) — mijozga olib boryapsiz</div>
     <div class="who"><b>${esc(o.name)}</b><span class="tel">${esc(o.phone)}</span></div>
     <div>📍 ${esc(o.addr)}</div>${o.note ? `<div class="note">💬 ${esc(o.note)}</div>` : ''}
     ${o.lat != null ? `<div class="cmap" id="m-${o.id}"></div><div style="display:flex;justify-content:space-between;align-items:center"><span class="big-dist" id="d-${o.id}">—</span><a class="btn ghost" href="${U.navLink({ lat: o.lat, lng: o.lng })}" target="_blank" rel="noopener">🧭 Navigator</a></div>` : '<div class="hint">Mijoz xaritada belgilamagan — manzil bo\'yicha boring yoki qo\'ng\'iroq qiling.</div>'}
-    <div class="items">${o.items.map(i => `<div><span>${esc(i.n)} × ${i.q}</span><span>${U.money(i.price * i.q)}</span></div>`).join('')}<div class="tot"><span>Mijozdan olinadi</span><span>${U.money(o.total)} so'm</span></div></div>
+    ${itemsHTML(o)}
     <button class="btn ok big" data-done="${o.id}">🎉 Yetkazdim</button></div>`;
 }
 async function updMine(o) {
@@ -163,7 +191,13 @@ document.addEventListener('click', async e => {
     if (take) { toast('Yo\'l bo\'lsin! GPS yoqildi'); startGps(); setTimeout(() => send(true), 800); } else toast('Rahmat! Buyurtma yopildi');
   } catch (x) { b.disabled = false; toast(x.message === 'late' ? 'Bu buyurtmani boshqa kuryer oldi' : x.message === 'notyours' ? 'Bu buyurtma sizniki emas' : 'Xato: ' + x.message); if (x.status === 401) { ls.set('me', null); location.reload(); } }
 });
-ME && ME.token ? api('staff/me').then(s => { if (s.role !== 'courier') throw new Error(); start(); }).catch(() => { ME = null; ls.set('me', null); loginView(); }) : loginView();
+U.api('menu').then(m => { U.setBranches(m.branches); draw(); }).catch(() => {});
+// Sahifa yangilansa kirish saqlanadi: faqat server "token eskirgan" (401) desa chiqaramiz
+async function boot(k = 0) {
+  try { const s = await api('staff/me'); if (s.role !== 'courier') throw Object.assign(new Error(), { status: 401 }); start(); }
+  catch (e) { if (e.status === 401 || e.status === 403 || k > 5) { ME = null; ls.set('me', null); loginView(); } else { $('#app').innerHTML = '<div class="login glass" style="text-align:center">Server bilan ulanmoqda...</div>'; setTimeout(() => boot(k + 1), 2500); } }
+}
+ME && ME.token ? boot() : loginView();
 </script>
 </body>
 </html>

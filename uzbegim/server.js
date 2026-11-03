@@ -47,7 +47,7 @@ const ZONES = [[3, 10000], [6, 14000], [10, 18000], [15, 24000]];
 const MAX_KM = 15;
 
 /* ================= Saqlash: JSON fayl yoki Supabase ================= */
-const COLLS = ['orders', 'users', 'staff', 'settings', 'apps'];
+const COLLS = ['orders', 'users', 'staff', 'settings', 'apps', 'sess'];
 const DB = Object.fromEntries(COLLS.map(c => [c, {}]));
 // Supabase: 1) SUPABASE_ANON_KEY + UZ_DB_SECRET — maxfiy kalit bilan himoyalangan funksiyalar orqali (tavsiya)
 //           2) SUPABASE_SERVICE_KEY — to'g'ridan-to'g'ri jadvalga
@@ -163,7 +163,7 @@ function priceOrder(b, user) {
     if (!v) continue;
     if (stop.has(pid)) { stopped.push(pid); continue; }
     const q = Math.max(1, Math.min(99, +i.q | 0));
-    items.push({ id: pid + ':' + (+vi || 0), n: p.v.length > 1 ? `${p.n.uz} (${v.l.uz})` : p.n.uz, q, price: v.p });
+    items.push({ id: pid + ':' + (+vi || 0), pid, img: !!p.img, n: p.v.length > 1 ? `${p.n.uz} (${v.l.uz})` : p.n.uz, s: v.s ? v.s.uz : (p.v.length === 1 ? v.l.uz : ''), q, price: v.p });
   }
   const sub = items.reduce((a, i) => a + i.price * i.q, 0);
   let branch = Math.max(0, Math.min(branches().length - 1, +b.branch | 0)), dist = null, del = 0, zone = null;
@@ -216,7 +216,13 @@ function newSession(holder, coll, key) {
 
 // Xodimlar: bosh admin (ADMIN_PIN), umumiy kuryer (COURIER_PIN) va admin qo'shgan shaxsiy akkauntlar
 const MASTER = { id: 'master', name: 'Bosh admin', role: 'admin', branch: null, active: true };
-const sessions = new Map(); // master/umumiy kuryer sessiyalari xotirada
+// Bosh admin va umumiy kuryer sessiyalari bazada saqlanadi (sahifa yangilansa yoki server qayta ishga tushsa ham chiqib ketmaydi)
+const SESS_TTL = 30 * 86400e3;
+const sessions = {
+  has: t => { const x = DB.sess[t]; if (x && Date.now() - x.at > SESS_TTL) { delete DB.sess[t]; return false; } return !!x; },
+  get: t => (DB.sess[t].staff.id === 'master' ? MASTER : DB.sess[t].staff),
+  set: (t, staff) => { DB.sess[t] = { staff: staff.id === 'master' ? { id: 'master' } : staff, at: Date.now() }; put('sess', t); },
+};
 function staffBy(req, url) {
   const t = (req.headers.authorization || '').replace(/^Bearer /, '') || (url && url.searchParams.get('st')) || '';
   if (!t.startsWith('S.')) return null;

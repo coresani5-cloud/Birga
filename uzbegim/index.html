@@ -700,7 +700,7 @@ addEventListener("scroll",spy,{passive:true});
 function totals(){
   const sub=Object.entries(cart).reduce((a,[k,q])=>a+(PK(k)?.v.p||0)*q,0);
   let disc=0,del=(mode==="p"||sub>=FREE_FROM||!sub)?0:DELIVERY;
-  if(promo&&PROMOS[promo]){const pr=PROMOS[promo];if(pr.t==="pct")disc=Math.round(sub*pr.v/1000)*100;if(pr.t==="fix")disc=Math.min(pr.v,sub);if(pr.t==="del")del=0}
+  if(promo&&PROMOS[promo]){const pr=PROMOS[promo];if(pr.t==="pct")disc=Math.round(sub*pr.v/10000)*100;if(pr.t==="fix")disc=Math.min(pr.v,sub);if(pr.t==="del")del=0}
   return{sub,disc,del,tot:Math.max(0,sub-disc+del),n:Object.values(cart).reduce((a,q)=>a+q,0)};
 }
 const save=()=>{store.set("cart",cart);store.set("promo",promo);store.set("favs",favs);store.set("mode",mode)};

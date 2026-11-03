@@ -123,6 +123,32 @@ function serveStatic(url, res) {
   });
 }
 
+// ---- Menyu va narxlar index.html dan olinadi: narxni server o'zi hisoblaydi
+function loadCatalog() {
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const P = JSON.parse(html.match(/const P=(\[.*?\])\.map\(/s)[1]);
+  const PROMOS = Function('return ' + html.match(/const PROMOS=(\{.*?\});/)[1])();
+  const [, del, free] = html.match(/const DELIVERY=(\d+),FREE_FROM=(\d+);/);
+  return { byId: Object.fromEntries(P.map(p => [p.id, p])), PROMOS, DELIVERY: +del, FREE_FROM: +free };
+}
+const CAT = loadCatalog();
+function priceOrder(rawItems, mode, promo) {
+  const items = [];
+  for (const i of (Array.isArray(rawItems) ? rawItems : []).slice(0, 60)) {
+    const [pid, vi] = String(i.id || '').split(':');
+    const p = CAT.byId[pid], v = p && p.v[+vi || 0];
+    if (!v) continue;
+    const q = Math.max(1, Math.min(99, +i.q | 0));
+    const n = p.v.length > 1 ? `${p.n.uz} (${v.l.uz})` : p.n.uz;
+    items.push({ id: pid + ':' + (+vi || 0), n, q, price: v.p });
+  }
+  const sub = items.reduce((a, i) => a + i.price * i.q, 0);
+  let disc = 0, del = mode === 'p' || sub >= CAT.FREE_FROM || !sub ? 0 : CAT.DELIVERY;
+  const pr = promo && CAT.PROMOS[promo];
+  if (pr) { if (pr.t === 'pct') disc = Math.round((sub * pr.v) / 10000) * 100; if (pr.t === 'fix') disc = Math.min(pr.v, sub); if (pr.t === 'del') del = 0; }
+  return { items, sub, disc, del, total: Math.max(0, sub - disc + del), promo: pr ? promo : null };
+}
+
 let seq = Object.values(orders).reduce((m, o) => Math.max(m, o.no || 0), 1000);
 
 // ---- Marshrutlar
@@ -178,8 +204,9 @@ const server = http.createServer(async (req, res) => {
       const u = userBy(req);
       if (!u) return json(res, 401, { error: 'auth' });
       const b = await body(req);
-      const items = (Array.isArray(b.items) ? b.items : []).slice(0, 60).map(i => ({ id: str(i.id, 10), n: str(i.n, 80), q: Math.max(1, Math.min(99, +i.q | 0)), price: Math.max(0, +i.price | 0) }));
       const mode = b.mode === 'p' ? 'p' : 'd';
+      const priced = priceOrder(b.items, mode, str(b.promo, 20).toUpperCase());
+      const items = priced.items;
       if (!items.length) return json(res, 400, { error: 'items' });
       if (mode === 'd' && !str(b.addr)) return json(res, 400, { error: 'addr' });
       const id = crypto.randomBytes(6).toString('hex');
@@ -188,7 +215,7 @@ const server = http.createServer(async (req, res) => {
         mode, status: 'new', history: { new: Date.now() }, userId: u.id,
         name: u.name, phone: u.phone, addr: str(b.addr, 200), note: str(b.note, 300),
         lat: num(b.lat), lng: num(b.lng), branch: Math.max(0, +b.branch | 0),
-        items, total: Math.max(0, +b.total | 0), promo: str(b.promo, 20) || null,
+        items, total: priced.total, promo: priced.promo,
         courier: null, loc: null, createdAt: Date.now(),
       };
       orders[id] = o; save(); broadcast(o);

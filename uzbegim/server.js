@@ -3,19 +3,24 @@
 //
 // Sozlamalar (env):
 //   PORT                 — port (standart 8080)
-//   ADMIN_PIN            — bosh admin PIN (standart 1234). Shu PIN bilan kirib xodimlar qo'shiladi.
+//   ADMIN_PIN            — bosh admin PIN. Berilmasa, birinchi ishga tushishda tasodifiy 8 xonali PIN yaratiladi
+//                          va server logida ko'rsatiladi. Shu PIN bilan kirib xodimlar qo'shiladi.
 //   COURIER_PIN          — umumiy kuryer PIN (ixtiyoriy). Xodim akkauntlari bo'lmasa ham kuryer kira oladi.
+//                          ADMIN_PIN bilan bir xil bo'lmasin: aks holda kuryer oshxona paneliga ham kira oladi.
+//   PUBLIC_URL           — saytning to'liq manzili (masalan https://uzbegim.uz). Berilmasa so'rovdan aniqlanadi.
 //   SUPABASE_URL, SUPABASE_SERVICE_KEY — berilsa, ma'lumotlar Supabase'da saqlanadi (aks holda data/ papkada)
 //   TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID — berilsa, yangi buyurtma Telegram guruhga yuboriladi
-//   OPEN_FROM, OPEN_TO   — ish vaqti, Toshkent vaqti bo'yicha soat (standart 9 va 3)
+//   OPEN_FROM, OPEN_TO   — ish vaqti, O'zbekiston vaqti (UTC+5) bo'yicha soat (standart 9 va 3). Oshxona panelidagi
+//                          "Sozlamalar" bo'limida o'zgartirilsa, o'sha ustun turadi.
 //   ALWAYS_OPEN=1        — ish vaqtini tekshirmaslik (sinov uchun)
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const zlib = require('zlib');
 
 const PORT = +process.env.PORT || 8080;
-const ADMIN_PIN = process.env.ADMIN_PIN || '1234';
+let ADMIN_PIN = process.env.ADMIN_PIN || ''; // bo'sh bo'lsa ishga tushganda yaratiladi (pastda)
 const COURIER_PIN = process.env.COURIER_PIN || '';
 const ROOT = __dirname;
 const DATA_DIR = path.join(ROOT, 'data');
@@ -32,22 +37,17 @@ const CAN = {
   courier: ['onway', 'delivered'],
 };
 
-// Filiallar (mijoz sahifasidagi shared.js bilan bir xil)
+// Filiallar — Namangan. Aniq manzil va xaritadagi joy oshxona panelining "Filiallar" bo'limida kiritiladi.
 // Standart filiallar (birinchi ishga tushishda). Keyin oshxona panelidan tahrirlanadi va qo'shiladi.
 const DEFAULT_BRANCHES = [
-  { name: { uz: 'Amir Temur', ru: 'Амир Темур' }, addr: { uz: "Amir Temur ko'chasi, 15", ru: 'ул. Амира Темура, 15' }, lat: 41.3111, lng: 69.2797 },
-  { name: { uz: 'Chilonzor', ru: 'Чиланзар' }, addr: { uz: 'Chilonzor, 9-kvartal', ru: 'Чиланзар, 9-квартал' }, lat: 41.2756, lng: 69.2034 },
-  { name: { uz: 'Yunusobod', ru: 'Юнусабад' }, addr: { uz: 'Yunusobod, 4-mavze', ru: 'Юнусабад, 4-квартал' }, lat: 41.3640, lng: 69.2870 },
-  { name: { uz: 'Samarqand Darvoza', ru: 'Самарканд Дарвоза' }, addr: { uz: "Qoratosh ko'chasi, 5A", ru: 'ул. Караташ, 5А' }, lat: 41.3165, lng: 69.2290 },
-  { name: { uz: 'Sergeli', ru: 'Сергели' }, addr: { uz: 'Sergeli, Yangi hayot', ru: 'Сергели, Янги хаёт' }, lat: 41.2290, lng: 69.2200 },
-  { name: { uz: 'Samarqand', ru: 'Самарканд' }, addr: { uz: "Registon ko'chasi, 12", ru: 'ул. Регистан, 12' }, lat: 39.6547, lng: 66.9758 },
+  { name: { uz: 'Markaziy filial', ru: 'Центральный филиал' }, addr: { uz: 'Namangan shahri, markaz', ru: 'г. Наманган, центр' }, lat: 40.9983, lng: 71.6726 },
 ].map(b => ({ ...b, hours: '09:00 — 03:00', active: true }));
 // Yetkazish narxi eng yaqin filialgacha bo'lgan masofaga qarab (km → so'm)
 const ZONES = [[3, 10000], [6, 14000], [10, 18000], [15, 24000]];
 const MAX_KM = 15;
 
 /* ================= Saqlash: JSON fayl yoki Supabase ================= */
-const COLLS = ['orders', 'users', 'staff', 'settings', 'apps', 'sess'];
+const COLLS = ['orders', 'users', 'staff', 'settings', 'apps', 'sess', 'img'];
 const DB = Object.fromEntries(COLLS.map(c => [c, {}]));
 // Supabase: 1) SUPABASE_ANON_KEY + UZ_DB_SECRET — maxfiy kalit bilan himoyalangan funksiyalar orqali (tavsiya)
 //           2) SUPABASE_SERVICE_KEY — to'g'ridan-to'g'ri jadvalga
@@ -97,8 +97,45 @@ async function flush() {
   }
 }
 const settings = () => (DB.settings.main = DB.settings.main || { stop: [] });
-const branches = () => { const st = settings(); if (!Array.isArray(st.branches) || !st.branches.length) st.branches = DEFAULT_BRANCHES.map(b => ({ ...b })); return st.branches; };
+// Avvalgi versiyadagi namunaviy (Toshkent) filiallar o'zgartirilmagan bo'lsa — Namangan standartiga almashtiriladi
+const OLD_SAMPLE = ['Amir Temur', 'Chilonzor', 'Yunusobod', 'Samarqand Darvoza', 'Sergeli', 'Samarqand'];
+const branches = () => {
+  const st = settings();
+  const sample = Array.isArray(st.branches) && st.branches.length === OLD_SAMPLE.length && st.branches.every((b, i) => b && b.name && b.name.uz === OLD_SAMPLE[i]);
+  if (!Array.isArray(st.branches) || !st.branches.length || sample) { st.branches = DEFAULT_BRANCHES.map(b => ({ ...b })); put('settings', 'main'); }
+  return st.branches;
+};
 const brName = i => (branches()[i] ? branches()[i].name.uz : '—');
+
+/* ================= Ish sozlamalari (oshxona panelidagi "Sozlamalar") ================= */
+const opsRaw = () => { const st = settings(); if (!st.ops) st.ops = {}; return st.ops; };
+const OPS = {
+  get from() { const v = opsRaw().from; return Number.isInteger(v) ? v : OPEN_FROM; },
+  get to() { const v = opsRaw().to; return Number.isInteger(v) ? v : OPEN_TO; },
+  get zones() { const z = opsRaw().zones; return Array.isArray(z) && z.length ? z : ZONES; },
+  get maxKm() { return opsRaw().maxKm || MAX_KM; },
+  get freeFrom() { const v = opsRaw().freeFrom; return Number.isInteger(v) ? v : CAT.FREE_FROM; },
+};
+// Buyurtma qabul qilishni vaqtincha to'xtatish: hamma filial (i = null) yoki bitta filial
+function pauseOf(i) {
+  const o = opsRaw(), p = i == null ? o.pause : o.pauseBr && o.pauseBr[i];
+  if (!p) return null;
+  if (p.until && Date.now() > p.until) { if (i == null) o.pause = null; else delete o.pauseBr[i]; put('settings', 'main'); return null; }
+  return p;
+}
+const brOpen = i => { const b = branches()[i]; return !!b && b.active !== false && !pauseOf(i); };
+
+/* ================= Menyu: index.html dagi asosiy menyu + paneldan qilingan o'zgarishlar ================= */
+const CAT_IDS = ['combo', 'burger', 'lavash', 'hotdog', 'pizza', 'chicken', 'snack', 'drink'];
+const CAT_E = { combo: '🍱', burger: '🍔', lavash: '🌯', hotdog: '🌭', pizza: '🍕', chicken: '🍗', snack: '🍟', drink: '🥤' };
+const menuCfg = () => { const st = settings(); if (!st.menu) st.menu = { edits: {}, extra: [] }; return st.menu; };
+// Sotuvdagi mahsulotlar (yashirilganlarsiz). Narx doim shu yerdan olinadi.
+function catalog() {
+  const m = menuCfg(), out = {};
+  for (const [id, p] of Object.entries(CAT.byId)) { const e = m.edits[id]; if (!(e && e.hidden)) out[id] = e ? { ...p, ...e } : p; }
+  for (const p of m.extra) if (!p.hidden) out[p.id] = p;
+  return out;
+}
 
 /* ================= Yordamchilar ================= */
 const digits = v => String(v ?? '').replace(/\D/g, '');
@@ -108,15 +145,22 @@ const rid = (n = 6) => crypto.randomBytes(n).toString('hex');
 const hashPw = (pw, salt) => crypto.scryptSync(String(pw), salt, 32).toString('hex');
 const pwOk = (pw, u) => u && u.hash && crypto.timingSafeEqual(Buffer.from(hashPw(pw || '', u.salt), 'hex'), Buffer.from(u.hash, 'hex'));
 const km = (a, b) => { const R = 6371, r = x => (x * Math.PI) / 180, dLat = r(b.lat - a.lat), dLng = r(b.lng - a.lng); const h = Math.sin(dLat / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLng / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)); };
-function nearest(p) { let best = 0, d = Infinity; branches().forEach((b, i) => { if (b.active === false) return; const x = km(p, b); if (x < d) { d = x; best = i; } }); return { branch: best, km: d }; }
+function nearest(p) { let best = 0, d = Infinity; branches().forEach((b, i) => { if (!brOpen(i)) return; const x = km(p, b); if (x < d) { d = x; best = i; } }); return { branch: best, km: d }; }
 function tashkentHour(t = Date.now()) { return new Date(t + 5 * 3600e3).getUTCHours(); }
-function isOpen(t) { if (ALWAYS_OPEN) return true; const h = tashkentHour(t); return OPEN_FROM < OPEN_TO ? h >= OPEN_FROM && h < OPEN_TO : h >= OPEN_FROM || h < OPEN_TO; }
-const hoursText = () => `${String(OPEN_FROM).padStart(2, '0')}:00 — ${String(OPEN_TO).padStart(2, '0')}:00`;
+// Hamma filial to'xtatilgan yoki yopiq bo'lsa — "pauza"
+const allPaused = () => !!pauseOf(null) || !branches().some((b, i) => brOpen(i));
+function isOpen(t) {
+  if (allPaused()) return false;
+  if (ALWAYS_OPEN) return true;
+  const h = tashkentHour(t), F = OPS.from, T = OPS.to;
+  return F < T ? h >= F && h < T : h >= F || h < T; // F === T — kun bo'yi ochiq
+}
+const hoursText = () => (OPS.from === OPS.to ? '24/7' : `${String(OPS.from).padStart(2, '0')}:00 — ${String(OPS.to).padStart(2, '0')}:00`);
 
-function body(req) {
+function body(req, max = 1e5) {
   return new Promise((ok, bad) => {
     let b = '';
-    req.on('data', c => { b += c; if (b.length > 1e5) { bad(new Error('too big')); req.destroy(); } });
+    req.on('data', c => { b += c; if (b.length > max) { bad(new Error('too big')); req.destroy(); } });
     req.on('end', () => { try { ok(b ? JSON.parse(b) : {}); } catch (e) { bad(e); } });
   });
 }
@@ -132,6 +176,14 @@ function limited(req, key) {
   list.push(now); tries.set(k, list);
   return list.length > 12;
 }
+// IP manzilni soxtalashtirib cheklovni aylanib o'tishdan himoya: noto'g'ri urinishlar akkaunt bo'yicha
+// (telefon) va umumiy hisoblanadi. Masalan, bitta telefonga 15 daqiqada 8 ta xato — 15 daqiqa blok.
+const fails = new Map();
+setInterval(() => { const now = Date.now(); for (const [k, v] of fails) if (!v.some(t => now - t < 3600e3)) fails.delete(k); }, 600000);
+const failN = (k, win) => { const now = Date.now(), l = (fails.get(k) || []).filter(t => now - t < win); fails.set(k, l); return l.length; };
+const failAdd = (...keys) => keys.forEach(k => { const l = fails.get(k) || []; l.push(Date.now()); fails.set(k, l); });
+const LOCK = { acc: [8, 15 * 60e3], staffAll: [30, 10 * 60e3], master: [20, 10 * 60e3], reg: [100, 10 * 60e3] };
+const locked = (k, kind) => failN(k, LOCK[kind][1]) >= LOCK[kind][0];
 
 /* ================= Menyu va narx (index.html dan) ================= */
 function loadCatalog() {
@@ -155,28 +207,33 @@ function promoCheck(code, user) {
 }
 function priceOrder(b, user) {
   const mode = b.mode === 'p' ? 'p' : 'd';
-  const stop = new Set(settings().stop);
+  const stop = new Set(settings().stop), C = catalog();
   const items = [], stopped = [];
   for (const i of (Array.isArray(b.items) ? b.items : []).slice(0, 60)) {
     const [pid, vi] = String(i.id || '').split(':');
-    const p = CAT.byId[pid], v = p && p.v[+vi || 0];
-    if (!v) continue;
+    const p = C[pid], v = p && p.v[+vi || 0];
+    // Menyudan olib tashlangan (yashirilgan) taom savatda qolib ketgan bo'lsa — mijozga aytamiz, jimgina tashlab yubormaymiz
+    if (!v) { if (pid && !p && (CAT.byId[pid] || menuCfg().extra.some(x => x.id === pid))) stopped.push(pid); continue; }
     if (stop.has(pid)) { stopped.push(pid); continue; }
     const q = Math.max(1, Math.min(99, +i.q | 0));
     items.push({ id: pid + ':' + (+vi || 0), pid, img: !!p.img, n: p.v.length > 1 ? `${p.n.uz} (${v.l.uz})` : p.n.uz, s: v.s ? v.s.uz : (p.v.length === 1 ? v.l.uz : ''), q, price: v.p });
   }
   const sub = items.reduce((a, i) => a + i.price * i.q, 0);
   let branch = Math.max(0, Math.min(branches().length - 1, +b.branch | 0)), dist = null, del = 0, zone = null;
-  if (mode === 'p' && branches()[branch] && branches()[branch].active === false) zone = 'branch';
+  if (mode === 'p' && !brOpen(branch)) zone = 'branch';
   const lat = num(b.lat), lng = num(b.lng);
   if (mode === 'd') {
     if (lat == null || lng == null) zone = 'nopoint';
     else {
-      const n = nearest({ lat, lng }); branch = n.branch; dist = +n.km.toFixed(2);
-      if (n.km > MAX_KM) zone = 'far';
-      else del = (ZONES.find(z => n.km <= z[0]) || ZONES[ZONES.length - 1])[1];
+      const n = nearest({ lat, lng }), Z = OPS.zones;
+      if (!Number.isFinite(n.km)) zone = 'paused'; // ochiq filial qolmagan
+      else {
+        branch = n.branch; dist = +n.km.toFixed(2);
+        if (n.km > OPS.maxKm) zone = 'far';
+        else del = (Z.find(z => n.km <= z[0]) || Z[Z.length - 1])[1];
+      }
     }
-    if (sub >= CAT.FREE_FROM) del = 0;
+    if (OPS.freeFrom && sub >= OPS.freeFrom) del = 0; // 0 — bepul yetkazish yo'q
   }
   // Avtomatik aksiyalar (saytdagi Aksiyalar bo'limidagi va'dalar)
   const h = tashkentHour(), deals = [];
@@ -196,7 +253,7 @@ function priceOrder(b, user) {
   const pr = code && !promoError ? CAT.PROMOS[code] : null;
   if (pr) { if (pr.t === 'pct') disc = Math.round((sub * pr.v) / 10000) * 100; if (pr.t === 'fix') disc = Math.min(pr.v, sub); if (pr.t === 'del') del = 0; }
   disc = Math.min(sub, disc + dealSum);
-  return { mode, items, stopped, sub, disc, deals, del, total: Math.max(0, sub - disc + del), promo: pr ? code : null, promoError, branch, dist, zone, lat, lng, open: isOpen(), hours: hoursText() };
+  return { mode, items, stopped, sub, disc, deals, del, total: Math.max(0, sub - disc + del), promo: pr ? code : null, promoError, branch, dist, zone, lat, lng, open: isOpen(), paused: allPaused(), hours: hoursText() };
 }
 
 /* ================= Akkauntlar ================= */
@@ -206,7 +263,7 @@ function userBy(req) {
   if (!t || t.startsWith('S.')) return null;
   return Object.values(users()).find(u => u.sessions?.includes(t)) || null;
 }
-const me = u => ({ id: u.id, name: u.name, phone: u.phone, addresses: u.addresses || [] });
+const me = u => ({ id: u.id, name: u.name, phone: u.phone, addresses: u.addresses || [], pwTemp: !!u.pwTemp });
 function newSession(holder, coll, key) {
   const t = (coll === 'staff' ? 'S.' : '') + rid(24);
   holder.sessions = [t, ...(holder.sessions || [])].slice(0, 10);
@@ -231,6 +288,8 @@ function staffBy(req, url) {
   return s && s.active ? s : null;
 }
 const staffPublic = s => ({ id: s.id, name: s.name, phone: s.phone || '', role: s.role, branch: s.branch ?? null, active: s.active !== false });
+// Bosh admin PIN xavfsizligi haqida ogohlantirish (oshxona panelida qizil yozuv chiqadi)
+const pinWarn = () => (COURIER_PIN && ADMIN_PIN === COURIER_PIN ? 'samepin' : ADMIN_PIN.length < 6 ? 'short' : null);
 const canSee = (s, o) => s.branch == null || o.branch === s.branch;
 
 /* ================= Jonli ulanishlar (SSE) ================= */
@@ -256,7 +315,11 @@ function broadcast(o) {
   if (subs) for (const r of subs) send(r, publicView(o));
   for (const s of staffSubs) if (canSee(s.staff, o)) send(s.res, { type: 'order', order: staffView(o) });
 }
-const broadcastMenu = () => { for (const s of staffSubs) send(s.res, { type: 'menu', stop: settings().stop, branches: branches() }); };
+const opsPublic = () => ({
+  from: OPS.from, to: OPS.to, zones: OPS.zones, maxKm: OPS.maxKm, freeFrom: OPS.freeFrom, hours: hoursText(), open: isOpen(),
+  pause: pauseOf(null), pauseBr: Object.fromEntries(branches().map((b, i) => [i, pauseOf(i)]).filter(x => x[1])),
+});
+const broadcastMenu = () => { for (const s of staffSubs) send(s.res, { type: 'menu', stop: settings().stop, branches: branches(), menu: menuCfg(), ops: opsPublic() }); };
 
 /* ================= Telegram xabari ================= */
 async function telegram(text) {
@@ -269,16 +332,62 @@ const money = n => (n || 0).toLocaleString('ru-RU').replace(/[ ,]/g, ' ');
 
 /* ================= Statik fayllar ================= */
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.md': 'text/plain; charset=utf-8', '.txt': 'text/plain; charset=utf-8', '.webmanifest': 'application/manifest+json' };
-function serveStatic(url, res) {
-  let p = decodeURIComponent(url.pathname);
+// Sahifalar uchun xavfsizlik siyosati: skript va uslublar faqat o'zimizdan va kerakli CDN'lardan
+const CSP = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://cdnjs.cloudflare.com; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'";
+const ZIP = new Set(['.html', '.js', '.css', '.json', '.svg', '.txt', '.webmanifest', '.xml']);
+const fcache = new Map(); // fayl → { mtime, buf, gz, etag } — har so'rovda diskdan o'qimaslik va siqilgan nusxa uchun
+function entryOf(key, buf, ext) {
+  const ent = { buf, ext, etag: '"' + crypto.createHash('sha1').update(buf).digest('hex').slice(0, 20) + '"' };
+  if (ZIP.has(ext) && buf.length > 1024) ent.gz = zlib.gzipSync(buf, { level: 8 });
+  if (fcache.size > 400) for (const k of [...fcache.keys()].slice(0, 100)) fcache.delete(k); // xotira cheklovi
+  fcache.set(key, ent);
+  return ent;
+}
+function reply(req, res, ent, type, cacheCtl, extra = {}) {
+  const h = { ...SEC, 'Content-Type': type, 'Cache-Control': cacheCtl, ETag: ent.etag, Vary: 'Accept-Encoding', ...extra };
+  if ((req.headers['if-none-match'] || '').split(/\s*,\s*/).includes(ent.etag)) { res.writeHead(304, h); return res.end(); }
+  const gz = ent.gz && /\bgzip\b/.test(req.headers['accept-encoding'] || '');
+  if (gz) h['Content-Encoding'] = 'gzip';
+  const out = gz ? ent.gz : ent.buf;
+  h['Content-Length'] = out.length;
+  res.writeHead(200, h);
+  res.end(req.method === 'HEAD' ? undefined : out);
+}
+const baseUrl = req => (process.env.PUBLIC_URL || ((req.headers['x-forwarded-proto'] || 'http').split(',')[0].trim() + '://' + (req.headers['x-forwarded-host'] || req.headers.host || 'localhost'))).replace(/\/$/, '');
+const notFound = res => { res.writeHead(404, { ...SEC, 'Content-Type': 'text/html; charset=utf-8' }); res.end('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Topilmadi</title><body style="font-family:sans-serif;background:#0f0c0a;color:#fbf3ea;display:grid;place-items:center;height:100vh;margin:0"><div style="text-align:center"><h1>404</h1><p>Sahifa topilmadi</p><a href="/" style="color:#ffa62b">Bosh sahifaga</a></div>'); };
+function serveStatic(req, url, res) {
+  let p;
+  try { p = decodeURIComponent(url.pathname); } catch (e) { return notFound(res); }
   if (p === '/') p = '/index.html';
+  // Oshxona panelidan yuklangan mahsulot rasmi (asl rasm o'rniga yoki yangi mahsulot uchun)
+  const im = p.match(/^\/img\/([a-z0-9]{1,12})\.webp$/);
+  if (im && DB.img[im[1]] && !DB.img[im[1]].deleted) {
+    const r = DB.img[im[1]], key = 'img:' + im[1] + ':' + r.at;
+    const ent = fcache.get(key) || entryOf(key, Buffer.from(r.b64, 'base64'), '.webp');
+    return reply(req, res, ent, r.type || 'image/webp', 'no-cache');
+  }
+  if (p === '/sitemap.xml') {
+    const b = baseUrl(req), key = 'sitemap:' + b;
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${['/', '/oferta.html', '/privacy.html'].map(u => `<url><loc>${b}${u}</loc></url>`).join('')}</urlset>`;
+    return reply(req, res, fcache.get(key) || entryOf(key, Buffer.from(xml), '.xml'), 'application/xml; charset=utf-8', 'no-cache');
+  }
   const file = path.normalize(path.join(ROOT, p));
-  if (!file.startsWith(ROOT + path.sep) || file.startsWith(DATA_DIR) || file === __filename || /\.md$/.test(file)) { res.writeHead(404); return res.end(); }
-  fs.readFile(file, (err, buf) => {
-    if (err) { res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end('<!doctype html><meta charset="utf-8"><title>Topilmadi</title><body style="font-family:sans-serif;background:#0f0c0a;color:#fbf3ea;display:grid;place-items:center;height:100vh;margin:0"><div style="text-align:center"><h1>404</h1><p>Sahifa topilmadi</p><a href="/" style="color:#ffa62b">Bosh sahifaga</a></div>'); }
-    const ext = path.extname(file);
-    res.writeHead(200, { ...SEC, 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': ext === '.webp' || ext === '.svg' ? 'public, max-age=86400' : 'no-cache' });
-    res.end(buf);
+  if (!file.startsWith(ROOT + path.sep) || file.startsWith(DATA_DIR + path.sep) || file === __filename || /\.(md|py|sh)$/.test(file)) return notFound(res);
+  fs.stat(file, (err, st) => {
+    if (err || !st.isFile()) return notFound(res);
+    const ext = path.extname(file), type = MIME[ext] || 'application/octet-stream';
+    const html = ext === '.html', b = html || p === '/robots.txt' ? baseUrl(req) : '';
+    const key = file + '|' + st.mtimeMs + '|' + b;
+    const done = ent => reply(req, res, ent, type, ext === '.webp' || ext === '.png' || ext === '.jpg' ? 'public, max-age=3600' : 'no-cache', html ? { 'Content-Security-Policy': CSP } : {});
+    const c = fcache.get(key);
+    if (c) return done(c);
+    fs.readFile(file, (e, buf) => {
+      if (e) return notFound(res);
+      // Ijtimoiy tarmoqlar uchun to'liq manzillar (Telegram/Instagram havola oldindan ko'rinishi)
+      if (html) buf = Buffer.from(String(buf).replace(/content="\/img\/og\.jpg"/g, `content="${b}/img/og.jpg"`).replace('<link rel="canonical" href="/">', `<link rel="canonical" href="${b}${p === '/index.html' ? '/' : p}">`).replace('<meta property="og:url" content="/">', `<meta property="og:url" content="${b}/">`));
+      if (p === '/robots.txt') buf = Buffer.concat([buf, Buffer.from(`\nSitemap: ${b}/sitemap.xml\n`)]);
+      done(entryOf(key, buf, ext));
+    });
   });
 }
 
@@ -289,11 +398,18 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   const P = url.pathname, parts = P.split('/').filter(Boolean), M = req.method;
   try {
-    if (parts[0] !== 'api') return serveStatic(url, res);
+    if (parts[0] !== 'api') return serveStatic(req, url, res);
     if (P === '/api/ping') return json(res, 200, { ok: true });
 
     // ---- Menyu holati: ish vaqti va tugagan mahsulotlar
-    if (P === '/api/menu' && M === 'GET') return json(res, 200, { branches: branches(), stop: settings().stop, open: isOpen(), hours: hoursText(), zones: ZONES, maxKm: MAX_KM, freeFrom: CAT.FREE_FROM });
+    if (P === '/api/menu' && M === 'GET') {
+      const pz = pauseOf(null);
+      return json(res, 200, {
+        branches: branches().map((b, i) => ({ ...b, paused: !!pauseOf(i) })), stop: settings().stop, open: isOpen(),
+        paused: allPaused(), pauseMsg: (pz && pz.msg) || '', pauseUntil: (pz && pz.until) || null,
+        hours: hoursText(), from: OPS.from, to: OPS.to, zones: OPS.zones, maxKm: OPS.maxKm, freeFrom: OPS.freeFrom, menu: menuCfg(),
+      });
+    }
 
     // ---- Narxni oldindan hisoblash (savat va rasmiylashtirish oynasi uchun)
     if (P === '/api/quote' && M === 'POST') { const b = await body(req); return json(res, 200, priceOrder(b, userBy(req))); }
@@ -312,7 +428,7 @@ const server = http.createServer(async (req, res) => {
 
     // ---- Mijoz akkaunti
     if (P === '/api/auth/register' && M === 'POST') {
-      if (limited(req, 'reg')) return json(res, 429, { error: 'slow' });
+      if (limited(req, 'reg') || locked('reg', 'reg')) return json(res, 429, { error: 'slow' });
       const b = await body(req);
       const ph = digits(b.phone), name = str(b.name, 60), pw = String(b.password || '');
       if (!name) return json(res, 400, { error: 'name' });
@@ -322,12 +438,15 @@ const server = http.createServer(async (req, res) => {
       if (users()[ph]) return json(res, 409, { error: 'exists' });
       const salt = rid(16);
       const u = users()[ph] = { id: rid(), name, phone: '+' + ph, salt, hash: hashPw(pw, salt), addresses: [], sessions: [], createdAt: Date.now(), consentAt: Date.now() };
+      failAdd('reg'); // umumiy hisob: 10 daqiqada 100 tadan ko'p yangi akkaunt — soxta ro'yxatdan himoya
       return json(res, 201, { token: newSession(u, 'users', ph), user: me(u) });
     }
     if (P === '/api/auth/login' && M === 'POST') {
       if (limited(req, 'login')) return json(res, 429, { error: 'slow' });
       const b = await body(req), key = digits(b.phone), u = users()[key];
-      if (!pwOk(b.password, u)) return json(res, 401, { error: 'login' });
+      if (locked('u' + key, 'acc')) return json(res, 429, { error: 'locked' });
+      if (!pwOk(b.password, u)) { failAdd('u' + key); return json(res, 401, { error: 'login' }); }
+      fails.delete('u' + key);
       return json(res, 200, { token: newSession(u, 'users', key), user: me(u) });
     }
     if (P === '/api/auth/logout' && M === 'POST') {
@@ -340,6 +459,13 @@ const server = http.createServer(async (req, res) => {
       if (!u) return json(res, 401, { error: 'auth' });
       if (M === 'PUT') {
         const b = await body(req);
+        if (b.newPassword !== undefined) { // parolni o'zgartirish: eski parol kerak
+          if (locked('u' + digits(u.phone), 'acc')) return json(res, 429, { error: 'locked' });
+          if (!pwOk(b.password, u)) { failAdd('u' + digits(u.phone)); return json(res, 403, { error: 'oldpw' }); }
+          if (String(b.newPassword).length < 6) return json(res, 400, { error: 'password' });
+          const t = (req.headers.authorization || '').slice(7);
+          u.salt = rid(16); u.hash = hashPw(String(b.newPassword), u.salt); u.sessions = [t]; u.pwTemp = false; // boshqa qurilmalar chiqariladi
+        }
         if (str(b.name)) u.name = str(b.name, 60);
         if (Array.isArray(b.addresses)) u.addresses = b.addresses.slice(0, 10).map(a => ({ label: str(a.label, 30), addr: str(a.addr, 200), lat: num(a.lat), lng: num(a.lng) })).filter(a => a.addr);
         put('users', digits(u.phone));
@@ -358,7 +484,10 @@ const server = http.createServer(async (req, res) => {
       if (!u) return json(res, 401, { error: 'auth' });
       const b = await body(req);
       const q = priceOrder(b, u);
-      if (!q.open) return json(res, 409, { error: 'closed', hours: q.hours });
+      if (!q.open) return json(res, 409, { error: 'closed', hours: q.hours, paused: q.paused });
+      // Soxta buyurtmalar bilan oshxonani to'ldirib yuborishdan himoya: bir mijozda bir vaqtda 3 tagacha faol buyurtma
+      const mine = Object.values(DB.orders).filter(o => o.userId === u.id);
+      if (mine.filter(o => !['delivered', 'cancelled'].includes(o.status)).length >= 3) return json(res, 429, { error: 'active_limit' });
       if (q.stopped.length) return json(res, 409, { error: 'stopped', ids: q.stopped });
       if (!q.items.length) return json(res, 400, { error: 'items' });
       if (q.promoError) return json(res, 400, { error: 'promo', reason: q.promoError });
@@ -374,9 +503,10 @@ const server = http.createServer(async (req, res) => {
         lat: q.mode === 'd' ? q.lat : null, lng: q.mode === 'd' ? q.lng : null, branch: q.branch, dist: q.dist,
         items: q.items, sub: q.sub, disc: q.disc, del: q.del, total: q.total, promo: q.promo,
         courier: null, loc: null, createdAt: Date.now(),
+        newCustomer: !mine.some(o => o.status === 'delivered'), // oshxona qo'ng'iroq qilib tasdiqlashi uchun belgi
       };
       DB.orders[id] = o; put('orders', id); broadcast(o);
-      telegram(`🔔 Yangi buyurtma #${o.no} (${o.mode === 'd' ? 'yetkazish' : 'olib ketish'})\n👤 ${o.name} ${o.phone}\n📍 ${o.addr}${o.dist != null ? ` (${o.dist} km)` : ''}\n🏪 ${brName(o.branch)}\n` + o.items.map(i => `• ${i.n} × ${i.q}`).join('\n') + `\n💰 ${money(o.total)} so'm${o.note ? '\n💬 ' + o.note : ''}`);
+      telegram(`🔔 Yangi buyurtma #${o.no} (${o.mode === 'd' ? 'yetkazish' : 'olib ketish'})${o.newCustomer ? '\n🆕 Yangi mijoz — qo\'ng\'iroq qilib tasdiqlang' : ''}\n👤 ${o.name} ${o.phone}\n📍 ${o.addr}${o.dist != null ? ` (${o.dist} km)` : ''}\n🏪 ${brName(o.branch)}\n` + o.items.map(i => `• ${i.n} × ${i.q}`).join('\n') + `\n💰 ${money(o.total)} so'm${o.note ? '\n💬 ' + o.note : ''}`);
       return json(res, 201, { id, token: o.token, no: o.no });
     }
 
@@ -420,31 +550,35 @@ const server = http.createServer(async (req, res) => {
       if (limited(req, 'staff')) return json(res, 429, { error: 'slow' });
       const b = await body(req);
       const pin = String(b.pin || req.headers['x-pin'] || ''), ph = digits(b.phone);
+      // Taxmin qilishdan himoya: telefon bo'yicha va umumiy noto'g'ri urinishlar soni
+      if (locked('staffAll', 'staffAll') || (ph ? locked('s' + ph, 'acc') : locked('master', 'master'))) return json(res, 429, { error: 'locked' });
+      const eq = (a, c) => { if (!a || !c) return false; const x = Buffer.from(a), y = Buffer.from(c); return x.length === y.length && crypto.timingSafeEqual(x, y); };
       // 1) shaxsiy akkaunt: telefon + PIN
       if (ph) {
         const s = Object.values(DB.staff).find(x => digits(x.phone) === ph && x.active !== false);
-        if (s && pwOk(pin, s)) return json(res, 200, { token: newSession(s, 'staff', s.id), staff: staffPublic(s) });
+        if (s && pwOk(pin, s)) { fails.delete('s' + ph); return json(res, 200, { token: newSession(s, 'staff', s.id), staff: staffPublic(s) }); }
       }
       // 2) bosh admin PIN
-      if (pin && pin === ADMIN_PIN && !b.as) { const t = 'S.' + rid(24); sessions.set(t, MASTER); return json(res, 200, { token: t, staff: staffPublic(MASTER) }); }
+      if (eq(pin, ADMIN_PIN) && !b.as) { const t = 'S.' + rid(24); sessions.set(t, MASTER); return json(res, 200, { token: t, staff: { ...staffPublic(MASTER), warn: pinWarn() } }); }
       // 3) umumiy kuryer PIN (ism va telefon bilan)
-      if (pin && COURIER_PIN && pin === COURIER_PIN && ph.length === 12) {
+      if (eq(pin, COURIER_PIN) && ph.length === 12) {
         const known = Object.values(DB.staff).find(x => digits(x.phone) === ph);
         const t = 'S.' + rid(24), s = { id: 'c' + ph, name: str(b.name, 40) || (known && known.name) || 'Kuryer ' + ph.slice(-4), phone: '+' + ph, role: 'courier', branch: null, active: true };
         sessions.set(t, s); return json(res, 200, { token: t, staff: staffPublic(s) });
       }
+      failAdd('staffAll', ph ? 's' + ph : 'master');
       return json(res, 401, { error: 'pin' });
     }
     const S = staffBy(req, url);
     if (P.startsWith('/api/staff/') && !S) return json(res, 401, { error: 'auth' });
 
-    if (P === '/api/staff/me') return json(res, 200, staffPublic(S));
+    if (P === '/api/staff/me') return json(res, 200, { ...staffPublic(S), warn: S.id === 'master' ? pinWarn() : null });
 
     // ---- Xodim: jonli oqim
     if (P === '/api/staff/stream') {
       sse(res);
       const since = Date.now() - 36 * 3600e3;
-      send(res, { type: 'all', me: staffPublic(S), branches: branches(), stop: settings().stop, orders: Object.values(DB.orders).filter(o => (o.createdAt > since || !['delivered', 'cancelled'].includes(o.status)) && canSee(S, o)).map(staffView) });
+      send(res, { type: 'all', me: staffPublic(S), branches: branches(), stop: settings().stop, menu: menuCfg(), ops: opsPublic(), orders: Object.values(DB.orders).filter(o => (o.createdAt > since || !['delivered', 'cancelled'].includes(o.status)) && canSee(S, o)).map(staffView) });
       const sub = { res, staff: S }; staffSubs.add(sub);
       req.on('close', () => staffSubs.delete(sub));
       return;
@@ -492,10 +626,128 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { branches: list });
     }
 
+    // ---- Bosh admin: menyu (narx, nom, tavsif, variantlar, rasm, yashirish, yangi mahsulot, o'chirish)
+    if (P === '/api/staff/menu' && M === 'POST' && S.role === 'admin') {
+      if (S.branch != null) return json(res, 403, { error: 'forbidden' });
+      const b = await body(req, 1.6e6); // rasm bilan birga
+      const m = menuCfg(), id = str(b.id, 12);
+      const base = id ? CAT.byId[id] : null, ex = id ? m.extra.find(p => p.id === id) : null;
+      if (id && !base && !ex) return json(res, 404, { error: 'notfound' });
+      const dropImg = pid => { if (DB.img[pid]) { DB.img[pid] = { deleted: true, at: Date.now() }; put('img', pid); } };
+      let pid = id;
+      if (b.reset && base) { delete m.edits[id]; dropImg(id); } // asl holiga qaytarish
+      else if (b.remove && ex) { m.extra = m.extra.filter(p => p.id !== id); settings().stop = settings().stop.filter(x => x !== id); dropImg(id); }
+      else if (b.only === 'hidden' && (base || ex)) { if (base) m.edits[id] = { ...(m.edits[id] || {}), hidden: !!b.hidden }; else ex.hidden = !!b.hidden; }
+      else {
+        const T2 = (o, n) => ({ uz: str(o && o.uz, n), ru: str(o && o.ru, n) || str(o && o.uz, n) });
+        const n = T2(b.n, 60), d = T2(b.d, 240);
+        if (!n.uz) return json(res, 400, { error: 'name' });
+        if (!Array.isArray(b.v) || !b.v.length || b.v.length > 6) return json(res, 400, { error: 'variants' });
+        const v = b.v.map(x => { const s = T2(x && x.s, 30); return { l: T2(x && x.l, 30), s: s.uz ? s : null, p: Math.round(+(x && x.p)) }; });
+        if (v.some(x => !(x.p >= 100 && x.p <= 10000000))) return json(res, 400, { error: 'price' });
+        if (v.length > 1 && v.some(x => !x.l.uz)) return json(res, 400, { error: 'varname' });
+        let old = Math.max(0, Math.round(+b.old || 0)); if (old && old <= v[0].p) old = 0; // eski narx faqat kattaroq bo'lsa
+        const badge = ['hit', 'new', 'hot'].includes(b.badge) ? b.badge : '';
+        let img = null;
+        if (b.img) {
+          const mm = /^data:(image\/(?:webp|png|jpeg));base64,([A-Za-z0-9+/=]+)$/.exec(String(b.img));
+          if (!mm) return json(res, 400, { error: 'img' });
+          const buf = Buffer.from(mm[2], 'base64');
+          const real = (mm[1] === 'image/png' && buf.slice(0, 4).toString('hex') === '89504e47') || (mm[1] === 'image/jpeg' && buf[0] === 0xff && buf[1] === 0xd8) || (mm[1] === 'image/webp' && buf.slice(0, 4).toString() === 'RIFF' && buf.slice(8, 12).toString() === 'WEBP');
+          if (!real) return json(res, 400, { error: 'img' });
+          if (buf.length > 900e3) return json(res, 413, { error: 'imgsize' });
+          img = { type: mm[1], b64: mm[2] };
+        }
+        const now = Date.now();
+        if (base) {
+          const prev = m.edits[id] || {};
+          m.edits[id] = { n, d, v, old, badge, hidden: !!b.hidden, ...(img ? { iv: now } : prev.iv ? { iv: prev.iv } : {}) };
+        } else if (ex) {
+          Object.assign(ex, { n, d, v, old, badge, hidden: !!b.hidden });
+          if (CAT_IDS.includes(b.cat)) { ex.cat = b.cat; ex.e = CAT_E[b.cat]; }
+          if (img) { ex.img = true; ex.iv = now; }
+        } else {
+          if (!CAT_IDS.includes(b.cat)) return json(res, 400, { error: 'cat' });
+          if (m.extra.length >= 200) return json(res, 400, { error: 'limit' });
+          pid = 'x' + rid(3);
+          m.extra.push({ id: pid, cat: b.cat, e: CAT_E[b.cat], n, d, v, old, badge, hidden: !!b.hidden, img: !!img, iv: img ? now : 0, createdAt: now });
+        }
+        if (img) { DB.img[pid] = { type: img.type, b64: img.b64, at: now }; put('img', pid); }
+      }
+      put('settings', 'main'); broadcastMenu();
+      return json(res, 200, { id: pid, menu: m });
+    }
+
+    // ---- Sozlamalar: buyurtmani vaqtincha to'xtatish, ish vaqti, yetkazish narxi
+    if (P === '/api/staff/ops' && S.role === 'admin') {
+      if (M === 'POST') {
+        const b = await body(req), o = opsRaw();
+        if (b.pause !== undefined) {
+          // Filial admini faqat o'z filialini to'xtatadi; bosh admin — hammasini yoki tanlangan filialni
+          const target = S.branch != null ? S.branch : b.branch === '' || b.branch == null ? null : +b.branch | 0;
+          if (target != null && !branches()[target]) return json(res, 404, { error: 'notfound' });
+          const mins = b.pause === false || b.pause === 0 ? 0 : b.pause === true ? -1 : Math.max(5, Math.min(1440, +b.pause | 0));
+          const rec = mins === 0 ? null : { until: mins > 0 ? Date.now() + mins * 60e3 : null, msg: str(b.msg, 120), by: S.name, at: Date.now() };
+          if (target == null) o.pause = rec;
+          else { o.pauseBr = o.pauseBr || {}; if (rec) o.pauseBr[target] = rec; else delete o.pauseBr[target]; }
+        }
+        const global = ['from', 'to', 'zones', 'maxKm', 'freeFrom'].some(k => b[k] !== undefined);
+        if (global && S.branch != null) return json(res, 403, { error: 'forbidden' });
+        if (b.from !== undefined || b.to !== undefined) {
+          const f = +b.from, t = +b.to;
+          if (![f, t].every(x => Number.isInteger(x) && x >= 0 && x <= 23)) return json(res, 400, { error: 'hours' });
+          o.from = f; o.to = t;
+        }
+        if (b.zones !== undefined) {
+          if (!Array.isArray(b.zones) || !b.zones.length || b.zones.length > 8) return json(res, 400, { error: 'zones' });
+          const z = b.zones.map(x => [Math.round(+x[0] * 10) / 10, Math.round(+x[1])]).sort((a, c) => a[0] - c[0]);
+          if (z.some(x => !(x[0] >= 0.5 && x[0] <= 100 && x[1] >= 0 && x[1] <= 500000)) || new Set(z.map(x => x[0])).size !== z.length) return json(res, 400, { error: 'zones' });
+          o.zones = z;
+        }
+        if (b.maxKm !== undefined) { const v = +b.maxKm; if (!(v >= 1 && v <= 100)) return json(res, 400, { error: 'maxkm' }); o.maxKm = Math.round(v * 10) / 10; }
+        if (b.freeFrom !== undefined) { const v = Math.round(+b.freeFrom); if (!(v >= 0 && v <= 10000000)) return json(res, 400, { error: 'free' }); o.freeFrom = v; }
+        put('settings', 'main'); broadcastMenu();
+      }
+      return json(res, 200, opsPublic());
+    }
+
+    // ---- Excel uchun buyurtmalar ro'yxati (CSV, ";" bilan — Excel'da to'g'ridan-to'g'ri ochiladi)
+    if (P === '/api/staff/export' && S.role === 'admin') {
+      const days = Math.max(1, Math.min(366, +url.searchParams.get('days') || 30));
+      // Hisobot bilan bir xil: bugungi kun (O'zbekiston vaqti) boshidan orqaga
+      const since = (() => { const d = new Date(Date.now() + 5 * 3600e3); d.setUTCHours(0, 0, 0, 0); return d.getTime() - 5 * 3600e3 - (days - 1) * 86400e3; })();
+      const list = Object.values(DB.orders).filter(o => o.createdAt >= since && canSee(S, o)).sort((a, c) => a.createdAt - c.createdAt);
+      const STN = { new: 'Yangi', accepted: 'Qabul qilindi', cooking: 'Tayyorlanmoqda', ready: 'Tayyor', onway: "Yo'lda", delivered: 'Yetkazildi', cancelled: 'Bekor qilindi' };
+      const cell = v => { if (typeof v === 'number') return String(v); let s = String(v ?? ''); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return /[";\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+      const dt = t => new Date(t + 5 * 3600e3).toISOString().slice(0, 16).replace('T', ' ');
+      const tel = p => digits(p).replace(/^(\d{3})(\d{2})(\d{3})(\d{2})(\d{2})$/, '$1 $2 $3 $4 $5');
+      const head = ['№', 'Sana', 'Filial', 'Turi', 'Holat', 'Mijoz', 'Telefon', 'Manzil', 'Mahsulotlar', 'Summa', 'Chegirma', 'Promokod', 'Yetkazish', 'Jami', 'Kuryer', 'Baho', 'Izoh', 'Bekor qilish sababi'];
+      const rows = list.map(o => [o.no, dt(o.createdAt), brName(o.branch), o.mode === 'd' ? 'Yetkazish' : 'Olib ketish', STN[o.status] || o.status, o.name, tel(o.phone), o.addr || '', o.items.map(i => `${i.n} x${i.q}`).join(', '), o.sub || 0, o.disc || 0, o.promo || '', o.del || 0, o.total || 0, o.courier ? o.courier.name : '', o.rating ? o.rating.stars : '', o.note || '', o.cancelReason || '']);
+      res.writeHead(200, { ...SEC, 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="uzbegim-buyurtmalar-${days}-kun.csv"`, 'Cache-Control': 'no-store' });
+      return res.end('﻿' + [head, ...rows].map(r => r.map(cell).join(';')).join('\r\n'));
+    }
+
+    // ---- To'liq zaxira nusxa (faqat bosh admin): buyurtmalar, mijozlar, xodimlar, sozlamalar, rasmlar
+    if (P === '/api/staff/backup' && S.id === 'master') {
+      const { sess, ...data } = DB;
+      res.writeHead(200, { ...SEC, 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': `attachment; filename="uzbegim-zaxira-${new Date(Date.now() + 5 * 3600e3).toISOString().slice(0, 10)}.json"`, 'Cache-Control': 'no-store' });
+      return res.end(JSON.stringify({ app: 'uzbegim', at: Date.now(), data }));
+    }
+
+    // ---- Mijoz parolini tiklash (mijoz qo'ng'iroq qilganda): vaqtinchalik 6 xonali parol beriladi
+    if (P === '/api/staff/user-reset' && M === 'POST' && S.role === 'admin') {
+      const b = await body(req), ph = digits(b.phone), u = users()[ph];
+      if (!u) return json(res, 404, { error: 'nouser' });
+      const pw = String(crypto.randomInt(100000, 1000000));
+      u.salt = rid(16); u.hash = hashPw(pw, u.salt); u.sessions = []; u.pwTemp = true; u.resetBy = S.name; u.resetAt = Date.now();
+      fails.delete('u' + ph); put('users', ph);
+      return json(res, 200, { name: u.name, phone: u.phone, password: pw });
+    }
+
     // ---- Admin: tugagan mahsulotlar (stop-list)
     if (P === '/api/staff/stop' && M === 'POST' && S.role === 'admin') {
-      const b = await body(req), id = str(b.id, 10);
-      if (!CAT.byId[id]) return json(res, 400, { error: 'item' });
+      const b = await body(req), id = str(b.id, 12);
+      if (!CAT.byId[id] && !menuCfg().extra.some(p => p.id === id)) return json(res, 400, { error: 'item' });
       const set = new Set(settings().stop);
       b.stop ? set.add(id) : set.delete(id);
       settings().stop = [...set]; put('settings', 'main'); broadcastMenu();
@@ -568,10 +820,17 @@ const server = http.createServer(async (req, res) => {
 
 loadAll().then(() => {
   seq = Object.values(DB.orders).reduce((m, o) => Math.max(m, o.no || 0), 1000);
+  // ADMIN_PIN berilmagan bo'lsa — hamma biladigan "1234" o'rniga tasodifiy PIN (bir marta yaratiladi va saqlanadi)
+  if (!ADMIN_PIN) {
+    const st = settings();
+    if (!st.adminPin) { st.adminPin = String(crypto.randomInt(10000000, 100000000)); put('settings', 'main'); }
+    ADMIN_PIN = st.adminPin;
+    console.log(`Diqqat: ADMIN_PIN berilmagan. Bosh admin PIN: ${ADMIN_PIN} (Render → Environment'da ADMIN_PIN qo'yib o'zgartiring)`);
+  }
+  if (pinWarn() === 'samepin') console.log('Diqqat: ADMIN_PIN va COURIER_PIN bir xil — kuryer oshxona paneliga ham kira oladi. Ularni farqli qiling.');
   server.listen(PORT, () => {
     console.log(`Uzbegim: http://localhost:${PORT}`);
     console.log(`Oshxona: /admin.html  ·  Kuryer: /courier.html  ·  Ish vaqti: ${ALWAYS_OPEN ? 'doim ochiq' : hoursText()}`);
-    if (!process.env.ADMIN_PIN) console.log('Diqqat: ADMIN_PIN berilmagan, standart 1234 ishlatilmoqda');
   });
 }).catch(e => { console.error('Ma\'lumotlarni yuklab bo\'lmadi:', e.message); process.exit(1); });
 process.on('SIGTERM', async () => { await flush(); process.exit(0); });

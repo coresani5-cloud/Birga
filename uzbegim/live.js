@@ -12,7 +12,7 @@ Object.assign(T.uz, {
   addrPh: "Ko'cha, uy, xonadon, mo'ljal", pickMap: '📍 Xaritada belgilash', myLoc: '🎯 Joylashuvimni aniqlash', mapDone: '✓ Xaritada belgilandi', saveAddr: 'Manzilni saqlab qo\'yish', addrLabel: 'Nomi (Uy, Ish...)', pickBranch: 'Filialni tanlang', mapHint: "Xaritani suring — pin manzilingiz ustida tursin",
   locDenied: "Joylashuvni aniqlab bo'lmadi. Xaritada qo'lda belgilang.", needAddr: 'Manzilni kiriting', orderFor: 'Buyurtmachi',
   waiting: 'Oshxona buyurtmangizni ko\'rib chiqmoqda...', courierCard: 'Kuryeringiz', dist: 'Masofa', left: 'Qoldi', upd: 'Yangilandi', near: '🔔 Kuryer yetib kelay dedi! Eshikka chiqing.', mins: 'daq', demo: 'Demo rejim: holatlar avtomatik o\'zgaradi. Haqiqiy rejim uchun serverni ishga tushiring.',
-  myOrder: 'Buyurtmam', jmAgo: '{m} daqiqa oldin berilgan', jm_new: 'Buyurtmangiz oshxonaga yetib bordi, tasdiqlashni kutyapmiz', jm_accepted: 'Oshxona buyurtmangizni oldi, navbatga qo\'ydi', jm_cooking: 'Oshpaz hozir tayyorlayapti — hammasi yangi va issiq', jm_ready: 'Qadoqlandi! Kuryer olib ketmoqda', jm_readyP: 'Filialda sizni kutyapti — kelib oling', jm_onway: 'Kuryer yo\'lda — xaritada kuzatib boring', jm_delivered: 'Osh bo\'lsin! Bahoyingizni qoldiring', jm_deliveredP: 'Osh bo\'lsin! Bahoyingizni qoldiring', jm_cancelled: 'Buyurtma yopildi', consent: 'Men <a href="oferta.html" target="_blank">ommaviy oferta</a> shartlariga va <a href="privacy.html" target="_blank">shaxsiy ma\'lumotlarim</a> qayta ishlanishiga roziman', eConsent: 'Davom etish uchun oferta va maxfiylik shartlariga rozilik bering', forgot: 'Parolni unutdingizmi? Call-markazga qo\'ng\'iroq qiling.', dealLavash: '1+1: ikkinchi lavash yarim narxda', dealNight: 'Tungi aksiya: kombolarga −20%', eClosed: 'Hozir yopiqmiz. Ish vaqti: {h}', closedBar: '🌙 Hozir yopiqmiz — buyurtmalar {h} oralig\'ida qabul qilinadi. Menyuni ko\'rib turishingiz mumkin.', eStopped: 'Savatdagi ba\'zi taomlar tugab qoldi. Ularni savatdan olib tashlang.', ePromoFirst: 'Bu promokod faqat birinchi buyurtmaga', ePromoUsed: 'Bu promokoddan allaqachon foydalangansiz', eNoPoint: 'Xaritada manzilingizni belgilang', eFar: 'Bu manzil yetkazish hududidan tashqarida ({km} km dan uzoq)', eSlow: 'Juda ko\'p urinish. Bir daqiqadan keyin qayta urinib ko\'ring.', eMap: 'Xarita yuklanmadi. Internetni tekshiring.', delPick: 'xaritada belgilang', fromBranch: 'Filial', stepPoint: 'Xaritada uyingizni belgilang', stepAddr: 'Uy, xonadon, qavat, mo\'ljal', soldout: 'Tugagan', cancelBtn: 'Buyurtmani bekor qilish', cancelSure: 'Rostdan bekor qilinsinmi? Yana bosing', eLate: 'Oshxona buyurtmani qabul qilib bo\'ldi, endi bekor qilib bo\'lmaydi. Qo\'ng\'iroq qiling: +998 95 000 00 00', youCancelled: 'Siz buyurtmani bekor qildingiz.', reason: 'Sabab', rateQ: 'Buyurtma sizga yoqdimi?', rateComment: 'Fikringiz (ixtiyoriy)', send: 'Yuborish', thanksRate: 'Baho uchun rahmat!', delFrom: '{x} so\'mdan', cancelled: 'Buyurtma bekor qilindi. Savollar bo\'lsa qo\'ng\'iroq qiling: +998 95 000 00 00', items: 'Tarkib', gpsWait: 'Kuryer GPS signali kutilmoqda...', toYou: 'sizgacha',
+  myOrder: 'Buyurtmam', jmAgo: '{m} daqiqa oldin berilgan', jm_new: 'Buyurtmangiz oshxonaga yetib bordi, tasdiqlashni kutyapmiz', jm_accepted: 'Oshxona buyurtmangizni oldi, navbatga qo\'ydi', jm_cooking: 'Oshpaz hozir tayyorlayapti — hammasi yangi va issiq', jm_ready: 'Qadoqlandi! Kuryer olib ketmoqda', jm_readyP: 'Filialda sizni kutyapti — kelib oling', jm_onway: 'Kuryer yo\'lda — xaritada kuzatib boring', jm_delivered: 'Osh bo\'lsin! Bahoyingizni qoldiring', jm_deliveredP: 'Osh bo\'lsin! Bahoyingizni qoldiring', jm_cancelled: 'Buyurtma yopildi', consent: 'Men <a href="oferta.html" target="_blank">ommaviy oferta</a> shartlariga va <a href="privacy.html" target="_blank">shaxsiy ma\'lumotlarim</a> qayta ishlanishiga roziman', eConsent: 'Davom etish uchun oferta va maxfiylik shartlariga rozilik bering', forgot: 'Parolni unutdingizmi? +998 95 000 00 00 raqamiga qo\'ng\'iroq qiling — operator yangi vaqtinchalik parol beradi.', eLocked: 'Ko\'p marta noto\'g\'ri parol kiritildi. 15 daqiqadan keyin urinib ko\'ring yoki qo\'ng\'iroq qiling: +998 95 000 00 00', ePaused: 'Hozir buyurtmalar vaqtincha qabul qilinmayapti{m}. Birozdan keyin qayta urinib ko\'ring.', pausedBar: '⏸ Buyurtmalar vaqtincha to\'xtatilgan{m}{u}. Menyuni ko\'rib turishingiz mumkin.', pausedUntil: ' — soat {t} gacha', eActive: 'Sizda 3 ta faol buyurtma bor. Ular yetkazilgach yangisini bering yoki qo\'ng\'iroq qiling: +998 95 000 00 00', pwChange: 'Parolni o\'zgartirish', pwOld: 'Hozirgi parol', pwNew: 'Yangi parol (kamida 6 belgi)', pwSave: 'Saqlash', pwSaved: 'Parol o\'zgartirildi', eOldPw: 'Hozirgi parol noto\'g\'ri', pwTempNote: 'Siz vaqtinchalik parol bilan kirdingiz. Iltimos, o\'zingizga yangi parol o\'rnating.', hrsTpl: 'Har kuni {a} dan {b} gacha', hrs247: 'Har kuni, kun bo\'yi', dealLavash: '1+1: ikkinchi lavash yarim narxda', dealNight: 'Tungi aksiya: kombolarga −20%', eClosed: 'Hozir yopiqmiz. Ish vaqti: {h}', closedBar: '🌙 Hozir yopiqmiz — buyurtmalar {h} oralig\'ida qabul qilinadi. Menyuni ko\'rib turishingiz mumkin.', eStopped: 'Savatdagi ba\'zi taomlar tugab qoldi. Ularni savatdan olib tashlang.', ePromoFirst: 'Bu promokod faqat birinchi buyurtmaga', ePromoUsed: 'Bu promokoddan allaqachon foydalangansiz', eNoPoint: 'Xaritada manzilingizni belgilang', eFar: 'Bu manzil yetkazish hududidan tashqarida ({km} km dan uzoq)', eSlow: 'Juda ko\'p urinish. Bir daqiqadan keyin qayta urinib ko\'ring.', eMap: 'Xarita yuklanmadi. Internetni tekshiring.', delPick: 'xaritada belgilang', fromBranch: 'Filial', stepPoint: 'Xaritada uyingizni belgilang', stepAddr: 'Uy, xonadon, qavat, mo\'ljal', soldout: 'Tugagan', cancelBtn: 'Buyurtmani bekor qilish', cancelSure: 'Rostdan bekor qilinsinmi? Yana bosing', eLate: 'Oshxona buyurtmani qabul qilib bo\'ldi, endi bekor qilib bo\'lmaydi. Qo\'ng\'iroq qiling: +998 95 000 00 00', youCancelled: 'Siz buyurtmani bekor qildingiz.', reason: 'Sabab', rateQ: 'Buyurtma sizga yoqdimi?', rateComment: 'Fikringiz (ixtiyoriy)', send: 'Yuborish', thanksRate: 'Baho uchun rahmat!', delFrom: '{x} so\'mdan', cancelled: 'Buyurtma bekor qilindi. Savollar bo\'lsa qo\'ng\'iroq qiling: +998 95 000 00 00', items: 'Tarkib', gpsWait: 'Kuryer GPS signali kutilmoqda...', toYou: 'sizgacha',
 });
 Object.assign(T.ru, {
   login: 'Войти', register: 'Регистрация', password: 'Пароль (минимум 6 символов)', haveAcc: 'Уже есть аккаунт?', noAcc: 'Нет аккаунта?',
@@ -22,7 +22,7 @@ Object.assign(T.ru, {
   addrPh: 'Улица, дом, квартира, ориентир', pickMap: '📍 Отметить на карте', myLoc: '🎯 Определить местоположение', mapDone: '✓ Отмечено на карте', saveAddr: 'Сохранить адрес', addrLabel: 'Название (Дом, Работа...)', pickBranch: 'Выберите филиал', mapHint: 'Двигайте карту — пин должен стоять на вашем адресе',
   locDenied: 'Не удалось определить местоположение. Отметьте на карте вручную.', needAddr: 'Укажите адрес', orderFor: 'Заказчик',
   waiting: 'Кухня рассматривает ваш заказ...', courierCard: 'Ваш курьер', dist: 'Расстояние', left: 'Осталось', upd: 'Обновлено', near: '🔔 Курьер почти у вас! Выходите к двери.', mins: 'мин', demo: 'Демо-режим: статусы меняются автоматически. Для реальной работы запустите сервер.',
-  myOrder: 'Мой заказ', jmAgo: 'оформлен {m} мин назад', jm_new: 'Заказ получен кухней, ждём подтверждения', jm_accepted: 'Кухня приняла заказ и поставила в очередь', jm_cooking: 'Повар готовит прямо сейчас — всё свежее и горячее', jm_ready: 'Упаковано! Курьер забирает заказ', jm_readyP: 'Ждёт вас в филиале — можно забирать', jm_onway: 'Курьер в пути — следите на карте', jm_delivered: 'Приятного аппетита! Оставьте оценку', jm_deliveredP: 'Приятного аппетита! Оставьте оценку', jm_cancelled: 'Заказ закрыт', consent: 'Я согласен с <a href="oferta.html" target="_blank">публичной офертой</a> и <a href="privacy.html" target="_blank">обработкой персональных данных</a>', eConsent: 'Чтобы продолжить, примите условия оферты и политики конфиденциальности', forgot: 'Забыли пароль? Позвоните в колл-центр.', dealLavash: '1+1: второй лаваш за полцены', dealNight: 'Ночная акция: −20% на комбо', eClosed: 'Сейчас мы закрыты. Часы работы: {h}', closedBar: '🌙 Сейчас мы закрыты — заказы принимаются с {h}. Меню можно посмотреть.', eStopped: 'Некоторые блюда закончились. Уберите их из корзины.', ePromoFirst: 'Этот промокод только для первого заказа', ePromoUsed: 'Вы уже использовали этот промокод', eNoPoint: 'Отметьте ваш адрес на карте', eFar: 'Адрес вне зоны доставки (дальше {km} км)', eSlow: 'Слишком много попыток. Попробуйте через минуту.', eMap: 'Карта не загрузилась. Проверьте интернет.', delPick: 'отметьте на карте', fromBranch: 'Филиал', stepPoint: 'Отметьте дом на карте', stepAddr: 'Дом, квартира, этаж, ориентир', soldout: 'Закончилось', cancelBtn: 'Отменить заказ', cancelSure: 'Точно отменить? Нажмите ещё раз', eLate: 'Кухня уже приняла заказ, отменить нельзя. Позвоните: +998 95 000 00 00', youCancelled: 'Вы отменили заказ.', reason: 'Причина', rateQ: 'Понравился заказ?', rateComment: 'Ваш отзыв (необязательно)', send: 'Отправить', thanksRate: 'Спасибо за оценку!', delFrom: 'от {x} сум', cancelled: 'Заказ отменён. Вопросы: +998 95 000 00 00', items: 'Состав', gpsWait: 'Ждём GPS-сигнал курьера...', toYou: 'до вас',
+  myOrder: 'Мой заказ', jmAgo: 'оформлен {m} мин назад', jm_new: 'Заказ получен кухней, ждём подтверждения', jm_accepted: 'Кухня приняла заказ и поставила в очередь', jm_cooking: 'Повар готовит прямо сейчас — всё свежее и горячее', jm_ready: 'Упаковано! Курьер забирает заказ', jm_readyP: 'Ждёт вас в филиале — можно забирать', jm_onway: 'Курьер в пути — следите на карте', jm_delivered: 'Приятного аппетита! Оставьте оценку', jm_deliveredP: 'Приятного аппетита! Оставьте оценку', jm_cancelled: 'Заказ закрыт', consent: 'Я согласен с <a href="oferta.html" target="_blank">публичной офертой</a> и <a href="privacy.html" target="_blank">обработкой персональных данных</a>', eConsent: 'Чтобы продолжить, примите условия оферты и политики конфиденциальности', forgot: 'Забыли пароль? Позвоните +998 95 000 00 00 — оператор выдаст новый временный пароль.', eLocked: 'Слишком много неверных попыток. Попробуйте через 15 минут или позвоните: +998 95 000 00 00', ePaused: 'Сейчас заказы временно не принимаются{m}. Попробуйте чуть позже.', pausedBar: '⏸ Приём заказов временно приостановлен{m}{u}. Меню можно посмотреть.', pausedUntil: ' — до {t}', eActive: 'У вас уже 3 активных заказа. Оформите новый после доставки или позвоните: +998 95 000 00 00', pwChange: 'Сменить пароль', pwOld: 'Текущий пароль', pwNew: 'Новый пароль (не короче 6 символов)', pwSave: 'Сохранить', pwSaved: 'Пароль изменён', eOldPw: 'Текущий пароль неверный', pwTempNote: 'Вы вошли по временному паролю. Пожалуйста, задайте свой новый пароль.', hrsTpl: 'Ежедневно с {a} до {b}', hrs247: 'Ежедневно, круглосуточно', dealLavash: '1+1: второй лаваш за полцены', dealNight: 'Ночная акция: −20% на комбо', eClosed: 'Сейчас мы закрыты. Часы работы: {h}', closedBar: '🌙 Сейчас мы закрыты — заказы принимаются с {h}. Меню можно посмотреть.', eStopped: 'Некоторые блюда закончились. Уберите их из корзины.', ePromoFirst: 'Этот промокод только для первого заказа', ePromoUsed: 'Вы уже использовали этот промокод', eNoPoint: 'Отметьте ваш адрес на карте', eFar: 'Адрес вне зоны доставки (дальше {km} км)', eSlow: 'Слишком много попыток. Попробуйте через минуту.', eMap: 'Карта не загрузилась. Проверьте интернет.', delPick: 'отметьте на карте', fromBranch: 'Филиал', stepPoint: 'Отметьте дом на карте', stepAddr: 'Дом, квартира, этаж, ориентир', soldout: 'Закончилось', cancelBtn: 'Отменить заказ', cancelSure: 'Точно отменить? Нажмите ещё раз', eLate: 'Кухня уже приняла заказ, отменить нельзя. Позвоните: +998 95 000 00 00', youCancelled: 'Вы отменили заказ.', reason: 'Причина', rateQ: 'Понравился заказ?', rateComment: 'Ваш отзыв (необязательно)', send: 'Отправить', thanksRate: 'Спасибо за оценку!', delFrom: 'от {x} сум', cancelled: 'Заказ отменён. Вопросы: +998 95 000 00 00', items: 'Состав', gpsWait: 'Ждём GPS-сигнал курьера...', toYou: 'до вас',
 });
 
 /* ---------- Stil ---------- */
@@ -182,9 +182,10 @@ function openAuth(after, tab = 'reg') {
           ME = { name: u[key].name, phone: key, addresses: u[key].addresses || [] }; store.set('demo_me', ME);
         }
         updateUserUi(); closeAll(); toast(`👋 ${t('welcomeU')}, ${ME.name}!`);
-        if (after) setTimeout(after, 250);
+        if (ME.pwTemp) setTimeout(openProfile, 250); // vaqtinchalik parol — darhol yangisini so'raymiz
+        else if (after) setTimeout(after, 250);
       } catch (x) {
-        err.textContent = x.message === 'consent' ? t('eConsent') : x.message === 'slow' ? t('eSlow') : x.message === 'exists' ? t('eExists') : x.message === 'login' ? t('eLogin') : x.message === 'phone' ? t('ePhone') : x.message === 'password' ? t('ePw') : t('eNet');
+        err.textContent = x.message === 'consent' ? t('eConsent') : x.message === 'locked' ? t('eLocked') : x.message === 'slow' ? t('eSlow') : x.message === 'exists' ? t('eExists') : x.message === 'login' ? t('eLogin') : x.message === 'phone' ? t('ePhone') : x.message === 'password' ? t('ePw') : t('eNet');
       }
     };
   };
@@ -203,7 +204,18 @@ async function openProfile() {
     <div class="olist" id="pAddr" style="margin-top:8px"></div>
     <div class="lbl" style="margin-top:18px">${t('myOrders')}</div>
     <div class="olist" id="pOrders" style="margin-top:8px"><div class="hint">...</div></div>
+    ${LIVE ? `<details class="pw" id="pPw" ${ME.pwTemp ? 'open' : ''} style="margin-top:18px"><summary class="lbl" style="cursor:pointer">${t('pwChange')}</summary>
+      ${ME.pwTemp ? `<p class="hint" style="margin:8px 0;color:var(--or2)">${t('pwTempNote')}</p>` : ''}
+      <form class="form" id="pwF" style="margin-top:8px"><input id="pwOld" type="password" placeholder="${t('pwOld')}" autocomplete="current-password"><input id="pwNew" type="password" placeholder="${t('pwNew')}" autocomplete="new-password"><div class="err" id="pwErr"></div><button class="btn wide" type="submit">${t('pwSave')}</button></form></details>` : ''}
     <button class="btn ghost wide" id="pOut" style="margin-top:18px">${t('logout')}</button></div>`);
+  const pwF = document.getElementById('pwF');
+  if (pwF) pwF.onsubmit = async e => {
+    e.preventDefault();
+    const er = document.getElementById('pwErr'), nw = document.getElementById('pwNew').value;
+    if (nw.length < 6) return (er.textContent = t('ePw'));
+    try { ME = await UZ.api('me', { method: 'PUT', body: { password: document.getElementById('pwOld').value, newPassword: nw } }); toast('✅ ' + t('pwSaved')); document.getElementById('pPw').open = false; er.textContent = ''; }
+    catch (x) { er.textContent = x.message === 'oldpw' ? t('eOldPw') : x.message === 'locked' ? t('eLocked') : x.message === 'password' ? t('ePw') : t('eNet'); }
+  };
   const drawAddr = () => {
     document.getElementById('pAddr').innerHTML = (ME.addresses || []).length
       ? ME.addresses.map((a, i) => `<div class="oi"><span style="font-size:22px">📍</span><div class="m"><b>${esc(a.label || t('addr'))}</b><span>${esc(a.addr)}</span></div><button class="x" data-deladdr="${i}" aria-label="delete">✕</button></div>`).join('')
@@ -230,7 +242,11 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '
 // Server javobidagi xato kodlarini tushunarli matnga aylantirish
 function errText(e) {
   const c = e && (e.message || e.error), r = e && e.data;
-  if (c === 'closed') return t('eClosed').replace('{h}', MENU.hours || '');
+  const pm = () => (MENU.pauseMsg ? ` (${MENU.pauseMsg})` : '');
+  if (c === 'closed') return r && r.paused ? t('ePaused').replace('{m}', pm()) : t('eClosed').replace('{h}', MENU.hours || '');
+  if (c === 'paused') return t('ePaused').replace('{m}', pm());
+  if (c === 'active_limit') return t('eActive');
+  if (c === 'locked') return t('eLocked');
   if (c === 'stopped') return t('eStopped');
   if (c === 'promo') return t(r && r.reason === 'first' ? 'ePromoFirst' : r && r.reason === 'used' ? 'ePromoUsed' : 'promoBad');
   if (c === 'nopoint') return t('eNoPoint');
@@ -261,6 +277,7 @@ function openCheckout() {
     let delLine;
     if (mode !== 'd') delLine = '';
     else if (Q.zone === 'nopoint') delLine = `<div class="line"><span>${t('del')}</span><span class="hint">${t('delPick')}</span></div>`;
+    else if (Q.zone === 'paused') delLine = `<div class="line"><span>${t('del')}</span><span style="color:#ff6b5e">${errText({ message: 'paused' })}</span></div>`;
     else if (Q.zone === 'far') delLine = `<div class="line"><span>${t('del')}</span><span style="color:#ff6b5e">${t('eFar').replace('{km}', MENU.maxKm || 15)}</span></div>`;
     else delLine = `<div class="line"><span>${t('del')}${Q.dist != null ? ` · ${String(Q.dist).replace('.', ',')} km` : ''}</span><span>${Q.del ? fmt(Q.del) : t('free')}</span></div>`;
     el.innerHTML = `<div class="line"><span>${t('sub')}</span><span>${fmt(Q.sub)}</span></div>
@@ -336,7 +353,7 @@ function openCheckout() {
       sel.addr = document.getElementById('fAddr').value.trim();
       if (LIVE && sel.lat == null) return (err.textContent = t('eNoPoint'));
       if (!sel.addr) return (err.textContent = t('needAddr'));
-      if (Q && Q.zone === 'far') return (err.textContent = errText({ message: 'far' }));
+      if (Q && (Q.zone === 'far' || Q.zone === 'paused')) return (err.textContent = errText({ message: Q.zone }));
     } else sel.branch = +document.getElementById('fBranch').value;
     if (Q && Q.promoError) return (err.textContent = errText({ message: 'promo', data: { reason: Q.promoError } }));
     const b = { ...body(), note: document.getElementById('fNote').value.trim() };
@@ -379,9 +396,24 @@ async function loadMenu() {
     const bc = document.getElementById('brCount'); if (bc) bc.textContent = BRANCHES.length;
     if (typeof renderInfo === 'function') renderInfo();
   }
-  renderMenu();
+  // Oshxona panelidagi o'zgarishlar: menyu (narx, yangi/olib tashlangan taom), yetkazish narxi, ish vaqti
+  let changed = false;
+  if (MENU.menu && typeof applyMenu === 'function' && applyMenu(MENU.menu)) { store.set('menuX', MENU.menu); save(); changed = true; }
+  if (MENU.freeFrom != null && MENU.freeFrom !== FREE_FROM) { FREE_FROM = MENU.freeFrom; changed = true; }
+  if (MENU.zones && MENU.zones[0] && MENU.zones[0][1] !== DELIVERY) { DELIVERY = MENU.zones[0][1]; changed = true; }
+  if (MENU.from != null) {
+    const hh = x => String(x).padStart(2, '0') + ':00';
+    for (const lg of ['uz', 'ru']) { const v = MENU.from === MENU.to ? T[lg].hrs247 : T[lg].hrsTpl.replace('{a}', hh(MENU.from)).replace('{b}', hh(MENU.to)); if (T[lg].hrs !== v) { T[lg].hrs = v; changed = true; } }
+  }
+  if (changed) renderAll(); else renderMenu();
+  const hc = document.getElementById('hrsCount');
+  if (hc && MENU.from != null) hc.textContent = (MENU.from === MENU.to ? 24 : (MENU.to - MENU.from + 24) % 24) + (L === 'ru' ? ' ч' : ' soat');
   const bar = document.getElementById('closedBar');
-  if (bar) { bar.hidden = MENU.open !== false; bar.textContent = t('closedBar').replace('{h}', MENU.hours || ''); }
+  if (bar) {
+    bar.hidden = MENU.open !== false;
+    const until = MENU.pauseUntil ? t('pausedUntil').replace('{t}', UZ.time(MENU.pauseUntil)) : '';
+    bar.textContent = MENU.paused ? t('pausedBar').replace('{m}', MENU.pauseMsg ? ` (${MENU.pauseMsg})` : '').replace('{u}', until) : t('closedBar').replace('{h}', MENU.hours || '');
+  }
 }
 
 /* ---------- Jonli kuzatuv ---------- */

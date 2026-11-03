@@ -109,12 +109,57 @@ td.num{text-align:right;font-variant-numeric:tabular-nums}
 .sw::after{content:"";position:absolute;top:3px;left:23px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.2s}
 .mi.off .sw{background:#555}.mi.off .sw::after{left:3px}
 
+.alarm{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:60;display:flex;gap:10px;align-items:center;padding:12px 16px;border-radius:16px;background:#2a1609;border:1px solid var(--or);box-shadow:0 10px 30px rgba(0,0,0,.5);font-weight:800;font-size:14px;max-width:calc(100% - 24px);cursor:pointer}
+.alarm[hidden]{display:none}
+.warnbar{margin-bottom:12px;padding:12px 14px;border-radius:14px;background:rgba(255,90,78,.12);border:1px solid rgba(255,90,78,.45);color:#ffb4ad;font-size:13px;font-weight:700}
+.pausebar{margin-bottom:12px;padding:12px 14px;border-radius:14px;background:rgba(255,166,43,.12);border:1px solid rgba(255,166,43,.5);font-size:14px;font-weight:800;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.pausebar .btn{height:36px;padding:0 14px;font-size:13px}
+.card.late{border-color:var(--red);box-shadow:0 0 0 3px rgba(255,90,78,.18)}
+.lt{color:var(--red);font-weight:800}
+.pill.nc{background:rgba(31,182,193,.14);color:#6fe3ea;border-color:rgba(31,182,193,.45);justify-self:start;white-space:normal}
+.mtool{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.mtool .fld{flex:1;min-width:180px}
+.mcats{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin-bottom:12px}
+.mcats::-webkit-scrollbar{display:none}
+.mcats button{flex:none;height:34px;padding:0 12px;border-radius:10px;background:var(--glass);border:1px solid var(--ln);font-weight:800;font-size:12px}
+.mcats button.on{background:var(--grad);color:#120d09;border-color:transparent}
+.mlist{display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(min(100%,480px),1fr))}
+.dlg .fld,.zrow .fld,.vrow .fld{min-width:0;width:100%}.zrow>*,.vrow>*,.dlg .grid2>*{min-width:0}
+.dlg .row h2{min-width:0;overflow-wrap:anywhere}
+.mrow{display:grid;grid-template-columns:52px 1fr auto;gap:12px;align-items:center;padding:10px 12px;border-radius:14px;background:var(--glass);border:1px solid var(--ln)}
+.mrow img,.mrow .ph{width:52px;height:52px;border-radius:12px;object-fit:contain;background:rgba(255,255,255,.05);display:grid;place-items:center;font-size:24px}
+.mrow .t{min-width:0}.mrow .t b{display:block;font-size:14px}.mrow .t small{color:var(--mut);font-size:12px}
+.mrow .pr{font-variant-numeric:tabular-nums;color:var(--or2);font-weight:800;font-size:13px}
+.mrow.hid{opacity:.55}.mrow.stop{border-color:rgba(255,90,78,.45)}
+.mrow .ac{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.mrow .ac .btn{height:36px;padding:0 12px;font-size:12px}
+@media (max-width:640px){.mrow{grid-template-columns:44px 1fr}.mrow img,.mrow .ph{width:44px;height:44px}.mrow .ac{grid-column:1/-1}.mrow .ac .btn{flex:1}}
+.dlg{position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.65);display:grid;grid-template-columns:minmax(0,660px);justify-content:center;align-items:center;padding:12px;overflow:auto}
+.dlg[hidden]{display:none}
+.dlg form{width:100%;min-width:0;max-height:calc(100vh - 24px);overflow:auto;padding:18px;display:grid;gap:10px;background:var(--bg2);border:1px solid var(--ln);border-radius:20px}
+.vrow{display:grid;grid-template-columns:1fr 1fr 120px 36px;gap:6px;align-items:center}
+.vrow .x{width:36px;height:36px;border-radius:10px;background:rgba(255,90,78,.15);color:var(--red);font-weight:800}
+@media (max-width:560px){.vrow{grid-template-columns:1fr 1fr}.vrow .x{width:100%}}
+.imgbox{display:flex;gap:12px;align-items:center}
+.imgbox img,.imgbox .ph{width:96px;height:96px;flex:none;border-radius:14px;object-fit:contain;background:rgba(255,255,255,.06);display:grid;place-items:center;font-size:40px}
+.lbl2{font-size:12px;font-weight:800;color:var(--mut);text-transform:uppercase;letter-spacing:.06em}
+.sets{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));gap:14px;align-items:start}
+.sets>.glass{padding:18px;display:grid;gap:10px}
+.sets h2{font-size:16px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.zrow{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.tg{display:flex;justify-content:space-between;align-items:center;gap:10px;font-weight:700;font-size:14px}
+.tg input{width:22px;height:22px;flex:none;accent-color:#ff7a00}
+.kbd{font-family:ui-monospace,monospace;font-size:12px;background:var(--glass2);padding:2px 6px;border-radius:6px}
+.newpw{font-family:Unbounded;font-size:26px;letter-spacing:.12em;color:var(--or2)}
 </style>
 </head>
 <body>
 <div class="flag"></div>
 <div id="app"></div>
 <div id="print"></div>
+<div class="dlg" id="dlg" hidden></div>
+<div class="alarm" id="alarm" hidden>🔔 Yangi buyurtma ovozi o'chiq — yoqish uchun ekranning istalgan joyiga bir marta bosing</div>
 <div class="toast" id="toast"></div>
 <script src="shared.js"></script>
 <script>
@@ -123,16 +168,27 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const LOGO = '<img src="logo.svg" alt="" style="width:40px;height:40px;border-radius:50%">';
 const ss = { get(k) { try { return localStorage.getItem(k) || sessionStorage.getItem(k) || ''; } catch (e) { return ''; } }, set(k, v) { try { v ? localStorage.setItem(k, v) : (localStorage.removeItem(k), sessionStorage.removeItem(k)); } catch (e) {} } };
-let TOK = ss.get('uzb_staff'), ME = null, ORD = {}, BR = [], STOP = new Set(), STAFF = [], es = null, map = null, mk = {}, sound = ss.get('uzb_snd') !== '0', fresh = new Set(), branchF = ss.get('uzb_brf'), view = ss.get('uzb_view') || 'board', colSel = ss.get('uzb_col') || 'c-new', CATI = {};
+let TOK = ss.get('uzb_staff'), ME = null, ORD = {}, BR = [], STOP = new Set(), STAFF = [], es = null, map = null, mk = {}, sound = ss.get('uzb_snd') !== '0', fresh = new Set(), branchF = ss.get('uzb_brf'), view = ss.get('uzb_view') || 'board', colSel = ss.get('uzb_col') || 'c-new', CATI = {}, BASEP = [], MENUCFG = { edits: {}, extra: [] }, OPSD = null;
 let tt; function toast(m) { const e = $('#toast'); e.textContent = m; e.classList.add('on'); clearTimeout(tt); tt = setTimeout(() => e.classList.remove('on'), 2800); }
 const api = (p, o = {}) => U.api(p, { ...o, headers: { Authorization: 'Bearer ' + TOK } });
-const ERR = { forbidden: 'Bu amalga ruxsat yo\'q', closed_order: 'Buyurtma allaqachon yopilgan', exists: 'Bu telefon bilan xodim bor', pin: 'PIN kamida 6 ta raqamdan iborat bo\'lsin', name_phone: 'Ism va telefonni to\'liq yozing', auth: 'Qayta kiring', slow: 'Ko\'p urinish, bir daqiqa kuting' };
+const ERR = { locked: 'Ko\'p noto\'g\'ri urinish. 10–15 daqiqadan keyin qayta urinib ko\'ring', forbidden: 'Bu amalga ruxsat yo\'q', closed_order: 'Buyurtma allaqachon yopilgan', exists: 'Bu telefon bilan xodim bor', pin: 'PIN kamida 6 ta raqamdan iborat bo\'lsin', name_phone: 'Ism va telefonni to\'liq yozing', auth: 'Qayta kiring', slow: 'Ko\'p urinish, bir daqiqa kuting' };
 const errMsg = x => ERR[x.message] || (x.status ? 'Xato: ' + x.message : 'Server bilan aloqa yo\'q');
 
+// Shu qurilma sozlamalari (planshet/kompyuter)
+const dev = (() => { const d = { rep: true, wake: true, print: false }; try { return { ...d, ...JSON.parse(localStorage.getItem('uzb_dev') || '{}') }; } catch (e) { return d; } })();
+const devSave = () => { try { localStorage.setItem('uzb_dev', JSON.stringify(dev)); } catch (e) {} };
+// Brauzerlar ovozni foydalanuvchi ekranga bosmaguncha bloklaydi (sahifa yangilangandan keyin ham).
+// Shuning uchun bitta ovoz konteksti va bosilganda uni "uyg'otish"; bloklangan bo'lsa pastda ogohlantirish chiqadi.
+let AC = null;
+function actx() { if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); AC.onstatechange = alarmUi; } catch (e) {} } return AC; }
+function unlockAudio() { const a = actx(); if (a && a.state !== 'running') a.resume().then(alarmUi, alarmUi); else alarmUi(); }
+['pointerdown', 'keydown', 'touchend'].forEach(ev => document.addEventListener(ev, unlockAudio, { capture: true, passive: true }));
+function alarmUi() { const el = $('#alarm'); if (el) el.hidden = !(sound && ME && (!AC || AC.state !== 'running')); }
 function beep() {
   if (!sound) return;
   try {
-    const a = new (window.AudioContext || window.webkitAudioContext)();
+    const a = actx(); if (!a) return;
+    if (a.state !== 'running') { a.resume().catch(() => {}); alarmUi(); }
     [0, .18, .36].forEach((d, i) => { const o = a.createOscillator(), g = a.createGain(); o.frequency.value = [880, 1175, 1568][i]; g.gain.setValueAtTime(.2, a.currentTime + d); g.gain.exponentialRampToValueAtTime(.001, a.currentTime + d + .16); o.connect(g).connect(a.destination); o.start(a.currentTime + d); o.stop(a.currentTime + d + .17); });
   } catch (e) {}
 }
@@ -150,7 +206,7 @@ function loginView(msg = '') {
     try {
       const r = await U.api('staff/login', { body: { phone: $('#ph').value, pin: $('#pin').value.trim() } });
       if (r.staff.role !== 'admin') return loginView('Bu kuryer akkaunti. Kuryerlar courier.html sahifasidan kiradi.');
-      TOK = r.token; ss.set('uzb_staff', TOK); ME = r.staff; start();
+      TOK = r.token; ss.set('uzb_staff', TOK); ME = r.staff; unlockAudio(); start();
     } catch (x) { loginView(x.status === 401 ? 'Telefon yoki PIN noto\'g\'ri' : errMsg(x)); }
   };
 }
@@ -182,7 +238,7 @@ const isMob = () => matchMedia('(max-width: 900px)').matches;
 function start() {
   const isMaster = ME.branch == null;
   if (!isMaster && ['branches', 'staff'].includes(view)) view = 'board';
-  const T = [['board', 'Buyurtmalar'], ['menu', 'Stop-list'], ['stats', 'Hisobot'], ['apps', 'Arizalar']].concat(isMaster ? [['branches', 'Filiallar'], ['staff', 'Xodimlar']] : []);
+  const T = [['board', 'Buyurtmalar'], ['menu', 'Menyu'], ['stats', 'Hisobot'], ['settings', 'Sozlamalar'], ['apps', 'Arizalar']].concat(isMaster ? [['branches', 'Filiallar'], ['staff', 'Xodimlar']] : []);
   $('#app').innerHTML = `<header class="top2">
       <div class="brand">${LOGO}<div>Uzbegim<small>${esc(ME.name)}${ME.branch != null ? ' · ' + esc(BR[ME.branch] || '') : ''}</small></div></div>
       <div class="tools"><span class="pill" id="conn">Ulanmoqda...</span><button class="ib" id="snd" title="Ovoz"></button><button class="ib" id="out" title="Chiqish">${ICN.out}</button></div>
@@ -190,12 +246,14 @@ function start() {
     </header>
     <div class="wrap">
       <section class="view" id="v-board" ${view === 'board' ? '' : 'hidden'}>
+        <div id="warnB"></div><div id="pauseB"></div>
         <div class="btool"><select class="fld" id="brf" ${ME.branch != null ? 'hidden' : ''}><option value="">Barcha filiallar</option></select><span class="pill" id="stats"></span><div class="grow"></div><button class="btn ghost sm" id="mapT">${ICN.map} <span>Xarita</span></button></div>
         <div id="ovMapW"><div id="ovMap"></div></div>
         <div class="stabs" id="stabs"></div>
         <div class="board" id="board"></div>
       </section>
-      <section class="view" id="v-menu" ${view === 'menu' ? '' : 'hidden'}><h2 style="font-size:18px;margin-bottom:6px">Stop-list</h2><p class="hint" style="margin-bottom:14px">Tugagan taomni o'chiring — mijozlar uni "Tugagan" deb ko'radi va buyurtma qila olmaydi.</p><div class="menu-list" id="menuList"></div></section>
+      <section class="view" id="v-menu" ${view === 'menu' ? '' : 'hidden'}></section>
+      <section class="view" id="v-settings" ${view === 'settings' ? '' : 'hidden'}></section>
       <section class="view" id="v-stats" ${view === 'stats' ? '' : 'hidden'}></section>
       <section class="view" id="v-staff" ${view === 'staff' ? '' : 'hidden'}></section>
       <section class="view" id="v-apps" ${view === 'apps' ? '' : 'hidden'}></section>
@@ -204,13 +262,13 @@ function start() {
   const sndUi = () => { $('#snd').innerHTML = sound ? ICN.bell : ICN.mute; $('#snd').classList.toggle('off', !sound); $('#snd').title = sound ? 'Ovoz yoqilgan' : "Ovoz o'chiq"; };
   sndUi();
   $('#out').onclick = () => { ss.set('uzb_staff', ''); es && es.close(); location.reload(); };
-  $('#snd').onclick = () => { sound = !sound; ss.set('uzb_snd', sound ? '1' : '0'); sndUi(); toast(sound ? 'Ovoz yoqildi' : "Ovoz o'chirildi"); if (sound) beep(); };
+  $('#snd').onclick = () => { sound = !sound; ss.set('uzb_snd', sound ? '1' : '0'); sndUi(); alarmUi(); toast(sound ? 'Ovoz yoqildi' : "Ovoz o'chirildi"); if (sound) beep(); if (view === 'settings') settingsView(); };
   $('#brf').onchange = () => { branchF = $('#brf').value; ss.set('uzb_brf', branchF); draw(); };
   const mapOpen = () => ss.get('uzb_map') === '1' || (!ss.get('uzb_map') && !isMob());
   const mapUi = () => { $('#ovMapW').hidden = !mapOpen(); $('#mapT').classList.toggle('on', mapOpen()); if (mapOpen() && map) setTimeout(() => map.invalidateSize(), 50); };
   $('#mapT').onclick = () => { ss.set('uzb_map', mapOpen() ? '0' : '1'); mapUi(); };
   mapUi();
-  const openView = v => { view = v; ss.set('uzb_view', v); document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x.dataset.v === v)); document.querySelectorAll('.view').forEach(x => (x.hidden = x.id !== 'v-' + v)); if (v === 'stats') stats(1); if (v === 'staff') staffView(); if (v === 'menu') menuView(); if (v === 'apps') appsView(); if (v === 'branches') branchView(); if (v === 'board') draw(); };
+  const openView = v => { view = v; ss.set('uzb_view', v); document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x.dataset.v === v)); document.querySelectorAll('.view').forEach(x => (x.hidden = x.id !== 'v-' + v)); if (v === 'stats') stats(1); if (v === 'staff') staffView(); if (v === 'menu') menuView(); if (v === 'settings') settingsView(); if (v === 'apps') appsView(); if (v === 'branches') branchView(); if (v === 'board') draw(); };
   $('#tabs').onclick = e => { const b = e.target.closest('[data-v]'); if (b) openView(b.dataset.v); };
   $('#stabs').onclick = e => { const b = e.target.closest('[data-col]'); if (!b) return; colSel = b.dataset.col; ss.set('uzb_col', colSel); draw(); };
   addEventListener('resize', () => draw());
@@ -219,13 +277,22 @@ function start() {
   U.makeMap($('#ovMap'), U.CENTER, 11).then(m => { map = m; if (BRF.length) setBR(BRF); drawMap(); }).catch(() => { $('#ovMapW').hidden = true; });
   if (view !== 'board') setTimeout(() => openView(view), 0);
   connect();
+  warnUi(); actx(); alarmUi(); wake();
 }
 // Menyu: taom rasmi va grammini olish uchun
-function loadCat() { fetch('index.html').then(r => r.text()).then(h => { JSON.parse(h.match(/const P=(\[.*?\])\.map\(/s)[1]).forEach(p => (CATI[p.id] = p)); draw(); }).catch(() => {}); }
+function loadCat() { fetch('index.html').then(r => r.text()).then(h => { BASEP = JSON.parse(h.match(/const P=(\[.*?\])\.map\(/s)[1]); buildCat(); }).catch(() => {}); }
+// Asosiy menyu + paneldagi o'zgarishlar (yashirilganlar ham — eski buyurtmalarda rasm ko'rinishi uchun)
+function buildCat() {
+  CATI = {};
+  BASEP.forEach(p => { const e = MENUCFG.edits[p.id]; CATI[p.id] = e ? { ...p, ...e, base: true, edited: true } : { ...p, base: true }; });
+  (MENUCFG.extra || []).forEach(p => (CATI[p.id] = { ...p, base: false }));
+  draw(); if (view === 'menu') menuView();
+}
+const imgSrc = p => `img/${p.id}.webp${p.iv ? '?v=' + p.iv : ''}`;
 function itemInfo(i) {
   const [pid, vi] = String(i.id || '').split(':'), p = CATI[pid], v = p && p.v[+vi || 0];
   const name = p ? p.n.uz : i.n, size = i.s || (v ? (v.s ? v.s.uz : '') : ''), varL = p && p.v.length > 1 && v ? v.l.uz : '';
-  return { pid, img: p ? p.img : i.img, name, sub: [varL, size].filter(Boolean).join(' · ') };
+  return { pid, img: p ? p.img : i.img, src: p ? imgSrc(p) : `img/${pid}.webp`, name, sub: [varL, size].filter(Boolean).join(' · ') };
 }
 // Buyurtma hozir qayerda
 function where(o) {
@@ -294,20 +361,29 @@ function connect() {
   es && es.close();
   es = new EventSource('api/staff/stream?st=' + encodeURIComponent(TOK));
   es.onopen = () => { $('#conn').className = 'pill on'; $('#conn').textContent = '● Jonli'; };
-  es.onerror = () => { $('#conn').className = 'pill bad'; $('#conn').textContent = 'Aloqa uzildi, qayta ulanmoqda...'; };
+  es.onerror = () => {
+    $('#conn').className = 'pill bad'; $('#conn').textContent = 'Aloqa uzildi, qayta ulanmoqda...';
+    // Kirish muddati tugagan bo'lsa — qayta kirish oynasi (aks holda abadiy "ulanmoqda")
+    clearTimeout(connect.t); connect.t = setTimeout(() => api('staff/me').catch(x => { if (x.status === 401) { ss.set('uzb_staff', ''); location.reload(); } }), 8000);
+  };
   es.onmessage = e => {
     const d = JSON.parse(e.data);
     if (d.type === 'all') {
+      const prev = ORD, had = Object.keys(prev).length;
       ORD = {}; d.orders.forEach(o => (ORD[o.id] = o)); setBR(d.branches); STOP = new Set(d.stop);
+      // Aloqa uzilib qolgan paytda kelgan yangi buyurtmalar ham signal bersin
+      if (had) { const nw = d.orders.filter(o => o.status === 'new' && !prev[o.id]); if (nw.length) { beep(); nw.forEach(o => { fresh.add(o.id); notify(o); }); } }
+      if (d.menu) { MENUCFG = d.menu; buildCat(); }
+      if (d.ops) { OPSD = d.ops; pauseUi(); }
       if (!STAFF.length && ME.branch == null) api('staff/list').then(l => { STAFF = l; draw(); }).catch(() => {});
     }
     if (d.type === 'order') {
       const isNew = !ORD[d.order.id];
       ORD[d.order.id] = d.order;
-      if (isNew && d.order.status === 'new') { fresh.add(d.order.id); beep(); toast(`🔔 Yangi buyurtma #${d.order.no} — ${d.order.name}`); setTimeout(() => { fresh.delete(d.order.id); draw(); }, 15000); }
+      if (isNew && d.order.status === 'new') { fresh.add(d.order.id); beep(); notify(d.order); try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch (e) {} toast(`🔔 Yangi buyurtma #${d.order.no} — ${d.order.name}`); setTimeout(() => { fresh.delete(d.order.id); draw(); }, 15000); }
       if (d.order.status === 'cancelled' && d.order.cancelledBy === 'customer') toast(`✖️ Mijoz #${d.order.no} ni bekor qildi`);
     }
-    if (d.type === 'menu') { STOP = new Set(d.stop); if (d.branches) setBR(d.branches); if (view === 'menu') menuView(); }
+    if (d.type === 'menu') { STOP = new Set(d.stop); if (d.branches) setBR(d.branches); if (d.menu) { MENUCFG = d.menu; buildCat(); } if (d.ops) { OPSD = d.ops; pauseUi(); if (view === 'settings' && !$('#v-settings').contains(document.activeElement)) settingsView(); } if (view === 'menu') menuView(); }
     draw();
   };
 }
@@ -334,23 +410,25 @@ function actions(o) {
 }
 function card(o) {
   const ago = Math.round((Date.now() - o.createdAt) / 60000);
+  const late = (o.status === 'new' && ago >= 3) || (!['delivered', 'cancelled'].includes(o.status) && ago >= 45);
   let gps = '';
   if (o.status === 'onway') {
     if (o.loc && o.lat != null) gps = `<span class="pill warn">📍 ${U.fmtDist(U.dist(o.loc, { lat: o.lat, lng: o.lng }))} qoldi · ${U.ago(o.loc.at)}</span>`;
     else gps = `<span class="pill">GPS kutilmoqda</span>`;
   }
   const w = where(o);
-  return `<article class="card ${fresh.has(o.id) ? 'fresh' : ''}">
+  return `<article class="card ${fresh.has(o.id) ? 'fresh' : ''} ${late ? 'late' : ''}">
     <div class="h"><span class="no">#${o.no}</span><span class="pill ${o.mode === 'd' ? 'warn' : ''}">${o.mode === 'd' ? bi('moto') + 'Yetkazish' : bi('run') + 'Olib ketish'}</span></div>
     <div class="where ${w[2]}"><span>${w[0]}</span><b>Hozir:</b> ${esc(w[1])}</div>
-    <div class="hint">${U.time(o.createdAt)} · ${ago} daq oldin · 🏪 ${esc(BR[o.branch] || '')}</div>
+    <div class="hint">${U.time(o.createdAt)} · <span class="${late ? 'lt' : ''}">${ago} daq oldin${late && o.status === 'new' ? ' — javob kutmoqda!' : ''}</span> · 🏪 ${esc(BR[o.branch] || '')}</div>
+    ${o.newCustomer && ['new', 'accepted'].includes(o.status) ? '<span class="pill nc">Yangi mijoz — qo\'ng\'iroq qilib tasdiqlang</span>' : ''}
     ${o.status === 'cancelled' ? `<div class="note" style="border-color:rgba(255,90,78,.4)">✖️ ${o.cancelledBy === 'customer' ? 'Mijoz bekor qildi' : 'Rad etildi'}${o.cancelReason ? ': ' + esc(o.cancelReason) : ''}</div>` : ''}
     <div class="who"><b>${esc(o.name)}</b><span class="tel">${esc(o.phone)}</span></div>
     <div style="font-size:13px">📍 ${esc(o.addr || '—')}${o.dist != null ? ` · ${o.dist} km` : ''} ${o.lat != null ? `· <a href="${U.navLink({ lat: o.lat, lng: o.lng })}" target="_blank" rel="noopener">xaritada</a>` : ''}</div>
     ${o.note ? `<div class="note">💬 ${esc(o.note)}</div>` : ''}
     ${o.courier ? `<div class="cour">🛵 <b>${esc(o.courier.name)}</b> <span class="tel">${esc(o.courier.phone || '')}</span> ${gps}</div>` : gps}
     ${o.rating ? `<div><span class="stars">${'★'.repeat(o.rating.stars)}${'☆'.repeat(5 - o.rating.stars)}</span>${o.rating.comment ? ` <span class="hint">“${esc(o.rating.comment)}”</span>` : ''}</div>` : ''}
-    <div class="items2">${o.items.map(i => { const x = itemInfo(i); return `<div class="it">${x.img ? `<img src="img/${esc(x.pid)}.webp" alt="" loading="lazy">` : '<span class="noimg"></span>'}<div class="m"><b>${esc(x.name)}</b>${x.sub ? `<small>${esc(x.sub)}</small>` : ''}</div><span class="q">×${i.q}</span><span class="pr">${U.money(i.price * i.q)}</span></div>`; }).join('')}
+    <div class="items2">${o.items.map(i => { const x = itemInfo(i); return `<div class="it">${x.img ? `<img src="${esc(x.src)}" alt="" loading="lazy">` : '<span class="noimg"></span>'}<div class="m"><b>${esc(x.name)}</b>${x.sub ? `<small>${esc(x.sub)}</small>` : ''}</div><span class="q">×${i.q}</span><span class="pr">${U.money(i.price * i.q)}</span></div>`; }).join('')}
       <div class="sum">${o.del ? `<div><span>Yetkazish</span><span>${U.money(o.del)}</span></div>` : ''}${o.disc ? `<div><span>Chegirma ${esc(o.promo || '')}</span><span>−${U.money(o.disc)}</span></div>` : ''}
       <div class="tot"><span>Jami</span><span>${U.money(o.total)} so'm</span></div></div></div>
     ${actions(o)}</article>`;
@@ -410,21 +488,218 @@ function printOrder(o) {
     <div class="rc-no">#${o.no}</div>
     <div class="rc-meta">${L('Sana', new Date(o.createdAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }))}${L('Turi', o.mode === 'd' ? 'Yetkazib berish' : 'Olib ketish')}${L('Mijoz', esc(o.name))}${L('Telefon', esc(o.phone))}${o.mode === 'd' ? L('Manzil', esc(o.addr || '')) : ''}</div>
     ${o.note ? `<div class="rc-note">Izoh: ${esc(o.note)}</div>` : ''}
-    <div class="rc-items">${o.items.map(i => { const x = itemInfo(i); return `<div class="ri">${x.img ? `<img src="img/${esc(x.pid)}.webp" alt="">` : '<span class="noimg"></span>'}<div class="m"><b>${esc(x.name)}</b><small>${esc(x.sub || '')}</small><small>${i.q} × ${U.money(i.price)}</small></div><span class="s">${U.money(i.price * i.q)}</span></div>`; }).join('')}</div>
+    <div class="rc-items">${o.items.map(i => { const x = itemInfo(i); return `<div class="ri">${x.img ? `<img src="${esc(x.src)}" alt="">` : '<span class="noimg"></span>'}<div class="m"><b>${esc(x.name)}</b><small>${esc(x.sub || '')}</small><small>${i.q} × ${U.money(i.price)}</small></div><span class="s">${U.money(i.price * i.q)}</span></div>`; }).join('')}</div>
     <div class="rc-sum">${L('Mahsulotlar (' + n + ' ta)', U.money(o.sub || o.items.reduce((a, i) => a + i.price * i.q, 0)))}${o.del ? L('Yetkazish' + (o.dist != null ? ' · ' + o.dist + ' km' : ''), U.money(o.del)) : ''}${o.disc ? L('Chegirma' + (o.promo ? ' (' + esc(o.promo) + ')' : ''), '−' + U.money(o.disc)) : ''}${L('JAMI', U.money(o.total) + " so'm", 'tot')}</div>
     <div class="rc-f">To'lov: qabul qilganda naqd yoki karta<br>Osh bo'lsin! · +998 95 000 00 00</div></div>`;
   const imgs = [...$('#print').querySelectorAll('img')];
   Promise.all(imgs.map(im => im.complete ? 1 : new Promise(r => { im.onload = im.onerror = r; setTimeout(r, 2500); }))).then(() => window.print());
 }
 
-/* ---- Stop-list */
+/* ---- Menyu: narx, nom, rasm, yangi mahsulot, o'chirish, stop-list */
+const CAT_IDS = ['combo', 'burger', 'lavash', 'hotdog', 'pizza', 'chicken', 'snack', 'drink'];
+const CATN = { combo: 'Kombo', burger: 'Burger', lavash: 'Lavash va sendvich', hotdog: 'Hot-dog', pizza: 'Pitsa', chicken: 'Tovuq', snack: 'Fri va gazak', drink: 'Ichimlik' };
+const canEditMenu = () => ME && ME.branch == null;
+let mQ = '', mCat = '', MED = null;
+const priceTxt = p => (p.v.length > 1 ? `${U.money(Math.min(...p.v.map(v => v.p)))} – ${U.money(Math.max(...p.v.map(v => v.p)))}` : U.money(p.v[0].p)) + " so'm";
 function menuView() {
-  let P = [];
-  fetch('index.html').then(r => r.text()).then(h => {
-    P = JSON.parse(h.match(/const P=(\[.*?\])\.map\(/s)[1]);
-    $('#menuList').innerHTML = P.map(p => `<button class="mi ${STOP.has(p.id) ? 'off' : ''}" data-stop="${p.id}"><img src="img/${p.id}.webp" alt="" onerror="this.remove()"><span class="t">${esc(p.n.uz)}<br><span class="hint">${STOP.has(p.id) ? 'Tugagan' : 'Sotuvda'}</span></span><span class="sw"></span></button>`).join('');
-  });
+  const el = $('#v-menu'); if (!el) return;
+  const all = Object.values(CATI);
+  if (!all.length) { el.innerHTML = '<div class="hint">Menyu yuklanmoqda...</div>'; return; }
+  const hadFocus = document.activeElement && document.activeElement.id === 'mQ';
+  const q = mQ.trim().toLowerCase();
+  const list = all.filter(p => (!mCat || p.cat === mCat) && (!q || (p.n.uz + ' ' + (p.n.ru || '')).toLowerCase().includes(q)));
+  el.innerHTML = `<div class="mtool"><h2 style="font-size:18px;margin-right:auto">Menyu <span class="hint">· ${all.filter(p => !p.hidden).length} ta taom saytda</span></h2>${canEditMenu() ? '<button class="btn sm" data-mnew>+ Yangi mahsulot</button>' : ''}</div>
+    <p class="hint" style="margin-bottom:10px"><b>Tugagan</b> — vaqtincha yo'q: mijoz ko'radi, lekin buyurtma qila olmaydi. <b>Yashirish</b> va <b>o'chirish</b> — tahrirlash oynasida. O'zgarish mijozlar saytida 1 daqiqa ichida ko'rinadi.${canEditMenu() ? '' : ' Narx va taomlarni bosh admin o\'zgartiradi.'}</p>
+    <div class="mtool"><input class="fld" id="mQ" placeholder="Qidirish: taom nomi" value="${esc(mQ)}"></div>
+    <div class="mcats">${[['', 'Hammasi']].concat(CAT_IDS.map(c => [c, CATN[c]])).map(([c, n]) => `<button type="button" data-mcat="${c}" class="${c === mCat ? 'on' : ''}">${n}</button>`).join('')}</div>
+    <div class="mlist">${list.map(p => `<div class="mrow ${p.hidden ? 'hid' : ''} ${STOP.has(p.id) ? 'stop' : ''}">
+      ${p.img ? `<img src="${imgSrc(p)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : `<span class="ph">${esc(p.e || '🍽️')}</span>`}
+      <div class="t"><b>${esc(p.n.uz)}</b><small>${esc(CATN[p.cat] || p.cat)}${p.v.length > 1 ? ' · ' + p.v.length + ' xil' : ''}${p.hidden ? ' · <span class="lt">saytda yashirilgan</span>' : ''}${!p.base ? ' · yangi' : p.edited ? ' · o\'zgartirilgan' : ''}</small><div class="pr">${priceTxt(p)}</div></div>
+      <div class="ac"><button type="button" class="btn ${STOP.has(p.id) ? 'red' : 'ghost'}" data-stop="${p.id}">${STOP.has(p.id) ? 'Tugagan' : 'Sotuvda'}</button>${canEditMenu() ? `<button type="button" class="btn ghost" data-medit="${p.id}">Tahrirlash</button>` : ''}</div></div>`).join('') || '<div class="empty">Topilmadi</div>'}</div>`;
+  const qi = $('#mQ'); qi.oninput = () => { mQ = qi.value; menuView(); };
+  if (hadFocus) { qi.focus(); qi.setSelectionRange(qi.value.length, qi.value.length); }
 }
+// O'lchov birliklarini ruschaga: 200 g → 200 г, 0.5 L → 0.5 л
+const ruUnit = t => String(t || '').replace(/(\d)\s*kg\b/gi, '$1 кг').replace(/(\d)\s*g\b/g, '$1 г').replace(/(\d)\s*ml\b/gi, '$1 мл').replace(/(\d)\s*L\b/g, '$1 л').replace(/(\d)\s*sm\b/g, '$1 см').replace(/\bdona\b/g, 'шт');
+const MERR = { name: 'Taom nomini yozing', price: "Narx 100 so'mdan 10 000 000 so'mgacha bo'lsin", varname: 'Bir nechta variant bo\'lsa, har biriga nom bering (masalan: Kichik / Katta)', variants: 'Kamida 1 ta, ko\'pi bilan 6 ta variant', img: 'Rasm formati noto\'g\'ri. JPG, PNG yoki WEBP tanlang', imgsize: 'Rasm juda katta', cat: 'Bo\'limni tanlang', limit: 'Yangi mahsulotlar juda ko\'p (200 tagacha)', notfound: 'Mahsulot topilmadi' };
+function menuEdit(id) {
+  const p = id ? CATI[id] : null;
+  MED = { id: p ? p.id : null, img: null, v: p ? p.v.map(x => ({ l: { ...(x.l || { uz: '' }) }, s: x.s ? { ...x.s } : { uz: '' }, p: x.p })) : [{ l: { uz: '' }, s: { uz: '' }, p: '' }] };
+  const dlg = $('#dlg'); dlg.hidden = false;
+  dlg.innerHTML = `<form id="mf" novalidate>
+    <div class="row" style="justify-content:space-between"><h2 style="font-size:17px">${p ? 'Tahrirlash: ' + esc(p.n.uz) : 'Yangi mahsulot'}</h2><button type="button" class="btn ghost sm" data-mclose>Yopish</button></div>
+    <div class="imgbox">${p && p.img ? `<img id="mImg" src="${imgSrc(p)}" alt="">` : `<span class="ph" id="mImg">${esc(p ? p.e || '🍽️' : '📷')}</span>`}
+      <div style="display:grid;gap:6px"><label class="btn ghost sm" style="cursor:pointer;justify-self:start">${p && p.img ? 'Rasmni almashtirish' : 'Rasm yuklash'}<input type="file" id="mFile" accept="image/*" hidden></label><span class="hint">Kvadrat, oq yoki shaffof fonli rasm eng chiroyli ko'rinadi. Avtomatik 480×480 qilinadi.</span></div></div>
+    <div class="lbl2">Nomi</div>
+    <div class="grid2" style="gap:8px"><input class="fld" id="mNu" placeholder="O'zbekcha" value="${esc(p?.n.uz || '')}" maxlength="60"><input class="fld" id="mNr" placeholder="Русский (ixtiyoriy)" value="${esc(p?.n.ru || '')}" maxlength="60"></div>
+    <div class="lbl2">Tarkibi</div>
+    <div class="grid2" style="gap:8px"><input class="fld" id="mDu" placeholder="O'zbekcha: mol go'shti, pishloq..." value="${esc(p?.d?.uz || '')}" maxlength="240"><input class="fld" id="mDr" placeholder="Русский (ixtiyoriy)" value="${esc(p?.d?.ru || '')}" maxlength="240"></div>
+    <div class="grid2" style="gap:8px">
+      <label style="display:grid;gap:4px"><span class="lbl2">Bo'lim</span><select class="fld" id="mCat" ${p && p.base ? 'disabled' : ''}>${CAT_IDS.map(c => `<option value="${c}" ${(p ? p.cat : mCat || 'burger') === c ? 'selected' : ''}>${CATN[c]}</option>`).join('')}</select></label>
+      <label style="display:grid;gap:4px"><span class="lbl2">Belgi</span><select class="fld" id="mBadge"><option value="">—</option><option value="hit" ${p?.badge === 'hit' ? 'selected' : ''}>Hit</option><option value="new" ${p?.badge === 'new' ? 'selected' : ''}>Yangi</option><option value="hot" ${p?.badge === 'hot' ? 'selected' : ''}>Achchiq</option></select></label></div>
+    <div class="lbl2">Variantlar: nomi · hajmi · narxi (so'm)</div>
+    <div id="mVars" style="display:grid;gap:6px"></div>
+    <button type="button" class="btn ghost sm" id="mVadd" style="justify-self:start">+ Variant qo'shish</button>
+    <label style="display:grid;gap:4px"><span class="lbl2">Eski narx — chegirmani ko'rsatish uchun (ixtiyoriy)</span><input class="fld" id="mOld" inputmode="numeric" value="${p?.old || ''}" placeholder="Masalan 55000"></label>
+    <label class="tg"><span>Saytda yashirish (mijozlar ko'rmaydi)</span><input type="checkbox" id="mHid" ${p?.hidden ? 'checked' : ''}></label>
+    <div class="err" id="mErr"></div>
+    <div class="row"><button class="btn" id="mSave">${p ? 'Saqlash' : "Menyuga qo'shish"}</button>
+      ${p && p.base && p.edited ? '<button type="button" class="btn ghost" data-mreset>Asl holiga qaytarish</button>' : ''}
+      ${p && !p.base ? '<button type="button" class="btn red" data-mdel>Menyudan o\'chirish</button>' : ''}
+      ${p && p.base ? '<span class="hint">Asosiy taomni butunlay o\'chirib bo\'lmaydi — "Saytda yashirish"ni belgilang.</span>' : ''}</div>
+  </form>`;
+  drawVars();
+  $('#mVadd').onclick = () => { readVars(); if (MED.v.length >= 6) return toast('Ko\'pi bilan 6 ta variant'); MED.v.push({ l: { uz: '' }, s: { uz: '' }, p: '' }); drawVars(); };
+  $('#mFile').onchange = async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try { MED.img = await toDataUrl(f); const box = $('#mImg'), im = Object.assign(document.createElement('img'), { id: 'mImg', src: MED.img, alt: '' }); box.replaceWith(im); }
+    catch (x) { toast('Rasmni ochib bo\'lmadi'); }
+  };
+  $('#mf').onsubmit = async e => {
+    e.preventDefault(); readVars();
+    const err = $('#mErr'), btn = $('#mSave');
+    const v = MED.v.map(x => {
+      const lu = String(x.l.uz || '').trim(), su = String(x.s.uz || '').trim();
+      // Ruscha nom: o'zgarmagan bo'lsa eskisi qoladi, aks holda o'zbekchadan (birliklari ruschaga)
+      const lr = x.l._uz0 === lu && x.l.ru ? x.l.ru : ruUnit(lu), sr = x.s._uz0 === su && x.s.ru ? x.s.ru : ruUnit(su);
+      return { l: { uz: lu, ru: lr }, s: { uz: su, ru: sr }, p: +String(x.p).replace(/\D/g, '') };
+    });
+    if (!$('#mNu').value.trim()) return (err.textContent = MERR.name);
+    if (v.some(x => !(x.p >= 100))) return (err.textContent = "Har bir variantga narx yozing (so'mda, masalan 29000)");
+    if (v.length > 1 && v.some(x => !x.l.uz)) return (err.textContent = MERR.varname);
+    const body = { id: MED.id, cat: $('#mCat').value, n: { uz: $('#mNu').value, ru: $('#mNr').value }, d: { uz: $('#mDu').value, ru: $('#mDr').value }, v, old: +String($('#mOld').value).replace(/\D/g, '') || 0, badge: $('#mBadge').value, hidden: $('#mHid').checked };
+    if (MED.img) body.img = MED.img;
+    btn.disabled = true; err.textContent = '';
+    try { const r = await api('staff/menu', { body }); MENUCFG = r.menu; buildCat(); closeDlg(); toast(MED.id ? 'Saqlandi — saytda 1 daqiqada yangilanadi' : "Menyuga qo'shildi"); }
+    catch (x) { err.textContent = MERR[x.message] || errMsg(x); btn.disabled = false; }
+  };
+}
+function readVars() {
+  document.querySelectorAll('[data-vl]').forEach(el => { const x = MED.v[+el.dataset.vl]; if (x) x.l.uz = el.value; });
+  document.querySelectorAll('[data-vs]').forEach(el => { const x = MED.v[+el.dataset.vs]; if (x) x.s.uz = el.value; });
+  document.querySelectorAll('[data-vp]').forEach(el => { const x = MED.v[+el.dataset.vp]; if (x) x.p = el.value; });
+}
+function drawVars() {
+  MED.v.forEach(x => { if (x.l._uz0 === undefined) x.l._uz0 = x.l.uz || ''; if (x.s._uz0 === undefined) x.s._uz0 = x.s.uz || ''; });
+  $('#mVars').innerHTML = MED.v.map((x, i) => `<div class="vrow"><input class="fld" data-vl="${i}" placeholder="${MED.v.length > 1 ? 'Nomi: Kichik, 0.5 L' : 'Nomi (ixtiyoriy)'}" value="${esc(x.l.uz || '')}" maxlength="30"><input class="fld" data-vs="${i}" placeholder="Hajmi: 200 g" value="${esc(x.s.uz || '')}" maxlength="30"><input class="fld" data-vp="${i}" inputmode="numeric" placeholder="Narx" value="${x.p || ''}">${MED.v.length > 1 ? `<button type="button" class="x" data-vdel="${i}" title="Variantni o'chirish">✕</button>` : '<span></span>'}</div>`).join('');
+}
+function closeDlg() { const d = $('#dlg'); d.hidden = true; d.innerHTML = ''; MED = null; }
+// Rasmni 480×480 ga kichraytirish (kvadrat ichiga, fon shaffof qoladi)
+async function toDataUrl(file) {
+  const u = URL.createObjectURL(file);
+  try {
+    const im = await new Promise((ok, bad) => { const x = new Image(); x.onload = () => ok(x); x.onerror = bad; x.src = u; });
+    const S = 480, c = document.createElement('canvas'); c.width = c.height = S;
+    const k = Math.min(S / im.naturalWidth, S / im.naturalHeight), w = im.naturalWidth * k, h = im.naturalHeight * k;
+    c.getContext('2d').drawImage(im, (S - w) / 2, (S - h) / 2, w, h);
+    let url = c.toDataURL('image/webp', 0.86);
+    if (!url.startsWith('data:image/webp')) url = c.toDataURL('image/png');
+    if (url.length > 1.1e6) url = c.toDataURL('image/jpeg', 0.86);
+    return url;
+  } finally { URL.revokeObjectURL(u); }
+}
+
+/* ---- Sozlamalar: buyurtmani to'xtatish, ish vaqti, yetkazish narxi, qurilma, mijoz paroli, zaxira */
+const hOpts = sel => Array.from({ length: 24 }, (_, h) => `<option value="${h}" ${h === sel ? 'selected' : ''}>${String(h).padStart(2, '0')}:00</option>`).join('');
+const pzTxt = p => (p ? `To'xtatilgan${p.until ? ' — soat ' + U.time(p.until) + ' gacha' : " — qo'lda yoqilguncha"}${p.msg ? ' · ' + esc(p.msg) : ''}` : 'Buyurtma qabul qilinmoqda');
+const myPause = () => (OPSD ? (ME.branch != null ? (OPSD.pauseBr || {})[ME.branch] : OPSD.pause) : null);
+function pauseUi() {
+  const el = $('#pauseB'); if (!el || !OPSD) return;
+  const p = myPause(), brs = ME.branch == null ? Object.keys(OPSD.pauseBr || {}) : [];
+  el.innerHTML = p ? `<div class="pausebar">⏸ ${pzTxt(p)}. Mijozlar hozir buyurtma bera olmaydi. <button class="btn ok" data-pz="0">Qayta ochish</button></div>`
+    : brs.length ? `<div class="pausebar">⏸ To'xtatilgan filial: ${brs.map(i => esc(BR[i] || '')).join(', ')} <button class="btn ghost" data-v2go="settings">Sozlamalar</button></div>` : '';
+}
+function warnUi() {
+  const el = $('#warnB'); if (!el) return;
+  el.innerHTML = ME.warn === 'samepin' ? '<div class="warnbar">⚠️ Xavfsizlik: bosh admin PIN kuryerlarning umumiy PIN\'i bilan bir xil — har bir kuryer oshxona paneliga ham kira oladi. Render → Environment bo\'limida ADMIN_PIN\'ni boshqa raqamga o\'zgartiring yoki kuryerlarga "Xodimlar" bo\'limida shaxsiy PIN bering.</div>'
+    : ME.warn === 'short' ? '<div class="warnbar">⚠️ Bosh admin PIN juda qisqa. Kamida 8 xonali PIN qo\'ying (Render → Environment → ADMIN_PIN).</div>' : '';
+}
+const notifTxt = () => (!('Notification' in window) ? 'Bildirishnoma bu brauzerda yo\'q' : Notification.permission === 'granted' ? 'Bildirishnoma yoqilgan ✓' : Notification.permission === 'denied' ? 'Bildirishnoma bloklangan' : 'Brauzer bildirishnomasini yoqish');
+function notify(o) {
+  try {
+    if (!('Notification' in window) || Notification.permission !== 'granted' || !document.hidden) return;
+    const n = new Notification(`Yangi buyurtma #${o.no}`, { body: `${o.name} · ${U.money(o.total)} so'm`, icon: 'icon-192.png', tag: 'o' + o.id, requireInteraction: true });
+    n.onclick = () => { window.focus(); n.close(); };
+  } catch (e) {}
+}
+let WL = null;
+async function wake() {
+  if (!dev.wake) { if (WL) { WL.release().catch(() => {}); WL = null; } return; }
+  if (WL || document.hidden || !('wakeLock' in navigator) || !ME) return;
+  try { WL = await navigator.wakeLock.request('screen'); WL.addEventListener('release', () => (WL = null)); } catch (e) {}
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) wake(); });
+async function download(path, name) {
+  try {
+    const r = await fetch('api/' + path, { headers: { Authorization: 'Bearer ' + TOK } });
+    if (!r.ok) throw new Error(r.status === 404 ? 'ruxsat yo\'q' : 'xato ' + r.status);
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(await r.blob()), download: name });
+    document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+  } catch (x) { toast('Yuklab bo\'lmadi: ' + x.message); }
+}
+function settingsView() {
+  const el = $('#v-settings'); if (!el) return;
+  const o = OPSD || {}, master = ME.branch == null, p = myPause(), z = o.zones || [];
+  el.innerHTML = `<div class="sets">
+    <div class="glass"><h2>Buyurtma qabul qilish${ME.branch != null ? ' · ' + esc(BR[ME.branch] || '') : ''}</h2>
+      <span class="pill ${p ? 'bad' : 'on'}" style="justify-self:start;white-space:normal">${pzTxt(p)}</span>
+      ${master ? `<label style="display:grid;gap:4px"><span class="lbl2">Qaysi filial</span><select class="fld" id="pzBr"><option value="">Hamma filiallar</option>${BR.map((n, i) => `<option value="${i}">${esc(n)}${(o.pauseBr || {})[i] ? ' — to\'xtatilgan' : ''}</option>`).join('')}</select></label>` : ''}
+      <input class="fld" id="pzMsg" placeholder="Sabab, mijozga ko'rinadi (ixtiyoriy): masalan, svet o'chdi" maxlength="120">
+      <div class="row"><button type="button" class="btn red sm" data-pz="30">30 daqiqaga to'xtatish</button><button type="button" class="btn red sm" data-pz="60">1 soatga</button><button type="button" class="btn red sm" data-pz="-1">Qo'lda yoqilguncha</button><button type="button" class="btn ok sm" data-pz="0">Qayta ochish</button></div>
+      <p class="hint">Oshxona to'lib ketsa, svet yoki gaz o'chsa — buyurtma qabul qilishni to'xtating. Mijozlar saytda "vaqtincha to'xtatilgan" yozuvini ko'radi.${master ? ' Bitta filial to\'xtatilsa, yetkazish buyurtmalari keyingi eng yaqin filialga tushadi.' : ''}</p>
+      ${master && Object.keys(o.pauseBr || {}).length ? `<div class="hint">To'xtatilgan filiallar: ${Object.entries(o.pauseBr).map(([i, q]) => esc(BR[i] || '') + (q.until ? ' (' + U.time(q.until) + ' gacha)' : '')).join(', ')}</div>` : ''}
+    </div>
+    ${master ? `<form class="glass" id="hrsF"><h2>Ish vaqti</h2>
+      <div class="zrow"><label style="display:grid;gap:4px"><span class="lbl2">Ochiladi</span><select class="fld" id="hF">${hOpts(o.from)}</select></label><label style="display:grid;gap:4px"><span class="lbl2">Yopiladi</span><select class="fld" id="hT">${hOpts(o.to)}</select></label></div>
+      <p class="hint">O'zbekiston vaqti. Yopilish ertasi kun bo'lsa ham bo'ladi (09:00 → 03:00). Ikkalasi bir xil bo'lsa — kun bo'yi ochiq. Hozir: <b>${esc(o.hours || '')}</b>, ${o.open ? 'ochiq' : 'yopiq'}.</p>
+      <div class="err" id="hErr"></div><button class="btn sm" style="justify-self:start">Saqlash</button></form>
+    <form class="glass" id="zF"><h2>Yetkazish narxi</h2>
+      <div class="hint">Mijozdan eng yaqin ochiq filialgacha bo'lgan masofaga qarab. Chap: necha km gacha, o'ng: narxi.</div>
+      <div style="display:grid;gap:6px">${[0, 1, 2, 3, 4, 5].map(i => `<div class="zrow"><input class="fld" data-zk="${i}" inputmode="decimal" placeholder="km gacha" value="${z[i] ? z[i][0] : ''}"><input class="fld" data-zp="${i}" inputmode="numeric" placeholder="so'm" value="${z[i] ? z[i][1] : ''}"></div>`).join('')}</div>
+      <div class="zrow"><label style="display:grid;gap:4px"><span class="lbl2">Eng uzoq masofa, km</span><input class="fld" id="zMax" inputmode="decimal" value="${o.maxKm ?? ''}"></label><label style="display:grid;gap:4px"><span class="lbl2">Bepul yetkazish, so'mdan</span><input class="fld" id="zFree" inputmode="numeric" value="${o.freeFrom ?? ''}"></label></div>
+      <p class="hint">Bo'sh qatorlar hisobga olinmaydi. "Bepul yetkazish" 0 bo'lsa — bepul yetkazish bo'lmaydi.</p>
+      <div class="err" id="zErr"></div><button class="btn sm" style="justify-self:start">Saqlash</button></form>` : ''}
+    <div class="glass"><h2>Shu qurilma (oshxona planshet yoki kompyuteri)</h2>
+      <label class="tg"><span>Yangi buyurtma ovozi</span><input type="checkbox" data-dev="snd" ${sound ? 'checked' : ''}></label>
+      <label class="tg"><span>Qabul qilinmaguncha har 20 soniyada takrorlansin</span><input type="checkbox" data-dev="rep" ${dev.rep ? 'checked' : ''}></label>
+      <label class="tg"><span>Ekran o'chib qolmasin</span><input type="checkbox" data-dev="wake" ${dev.wake ? 'checked' : ''}></label>
+      <label class="tg"><span>"Qabul qilish" bosilganda chek avtomatik chiqsin</span><input type="checkbox" data-dev="print" ${dev.print ? 'checked' : ''}></label>
+      <div class="row"><button type="button" class="btn ghost sm" id="notifB">${notifTxt()}</button><button type="button" class="btn ghost sm" id="testB">Ovozni sinash</button></div>
+      <p class="hint">Chek printeri: 80 mm termoprinter. Chrome'ni <span class="kbd">--kiosk-printing</span> belgisi bilan ochsangiz, chek oynasiz to'g'ridan-to'g'ri chiqadi. Planshetni quvvatga ulab qo'ying.</p></div>
+    <div class="glass"><h2>Mijoz parolini tiklash</h2>
+      <p class="hint">Mijoz parolini unutib qo'ng'iroq qilsa: telefon raqamini yozing — vaqtinchalik parol chiqadi, uni mijozga ayting. Mijoz kirgach o'zi yangisini qo'yadi.</p>
+      <div class="row"><input class="fld" id="rPh" type="tel" placeholder="+998 90 123 45 67" style="flex:1;min-width:180px"><button type="button" class="btn sm" id="rB">Parol berish</button></div><div id="rOut"></div></div>
+    ${ME.id === 'master' ? `<div class="glass"><h2>Zaxira nusxa</h2><p class="hint">Barcha buyurtmalar, mijozlar, xodimlar, menyu va sozlamalar bitta faylga yuklanadi. Haftada bir marta yuklab, xavfsiz joyda saqlang (faylda mijozlarning shaxsiy ma'lumotlari bor).</p><button type="button" class="btn ghost sm" id="bkB" style="justify-self:start">Zaxira faylini yuklab olish</button></div>` : ''}
+  </div>`;
+  const hf = $('#hrsF');
+  if (hf) hf.onsubmit = async e => { e.preventDefault(); try { OPSD = await api('staff/ops', { body: { from: +$('#hF').value, to: +$('#hT').value } }); toast('Ish vaqti saqlandi'); settingsView(); } catch (x) { $('#hErr').textContent = errMsg(x); } };
+  const zf = $('#zF');
+  if (zf) zf.onsubmit = async e => {
+    e.preventDefault();
+    const zones = [0, 1, 2, 3, 4, 5].map(i => [document.querySelector(`[data-zk="${i}"]`).value.replace(',', '.').trim(), document.querySelector(`[data-zp="${i}"]`).value.replace(/\D/g, '')]).filter(x => x[0] && x[1] !== '').map(x => [+x[0], +x[1]]);
+    if (!zones.length) return ($('#zErr').textContent = 'Kamida bitta qator to\'ldiring');
+    try { OPSD = await api('staff/ops', { body: { zones, maxKm: +String($('#zMax').value).replace(',', '.'), freeFrom: +String($('#zFree').value).replace(/\D/g, '') || 0 } }); toast('Yetkazish narxi saqlandi'); settingsView(); }
+    catch (x) { $('#zErr').textContent = { zones: 'Masofa 0.5–100 km, narx 0–500 000 so\'m bo\'lsin, masofalar takrorlanmasin', maxkm: 'Eng uzoq masofa 1–100 km', free: 'Bepul yetkazish summasi noto\'g\'ri' }[x.message] || errMsg(x); }
+  };
+  $('#notifB').onclick = async () => { try { if ('Notification' in window) await Notification.requestPermission(); } catch (e) {} settingsView(); };
+  $('#testB').onclick = () => { unlockAudio(); const s0 = sound; sound = true; beep(); sound = s0; };
+  $('#rB').onclick = async () => {
+    const out = $('#rOut');
+    try { const r = await api('staff/user-reset', { body: { phone: $('#rPh').value } }); out.innerHTML = `<div class="note">Mijoz: <b>${esc(r.name)}</b> ${esc(r.phone)}<br>Yangi parol: <span class="newpw">${esc(r.password)}</span><br><span class="hint">Mijozga ayting. Kirgach o'zi yangi parol qo'yadi.</span></div>`; }
+    catch (x) { out.innerHTML = `<div class="err">${x.message === 'nouser' ? 'Bu raqam bilan mijoz topilmadi' : errMsg(x)}</div>`; }
+  };
+  const bk = $('#bkB'); if (bk) bk.onclick = () => download('staff/backup', `uzbegim-zaxira-${new Date().toISOString().slice(0, 10)}.json`);
+}
+document.addEventListener('change', e => {
+  const d = e.target.closest('[data-dev]'); if (!d) return;
+  const k = d.dataset.dev;
+  if (k === 'snd') { sound = d.checked; ss.set('uzb_snd', sound ? '1' : '0'); const b = $('#snd'); if (b) { b.innerHTML = sound ? ICN.bell : ICN.mute; b.classList.toggle('off', !sound); } alarmUi(); if (sound) { unlockAudio(); beep(); } return; }
+  dev[k] = d.checked; devSave(); if (k === 'wake') wake();
+});
+// Qabul qilinmagan buyurtma turganda signal takrorlanadi, sarlavha miltillaydi
+setInterval(() => { if (!ME || !dev.rep) return; if (Object.values(ORD).some(o => o.status === 'new')) { beep(); try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch (e) {} } }, 20000);
+let flashOn = false;
+setInterval(() => { const n = Object.values(ORD).filter(o => o.status === 'new').length; if (!n || !document.hidden) return; flashOn = !flashOn; document.title = flashOn ? `🔔 ${n} ta YANGI BUYURTMA` : `(${n}) Uzbegim Oshxona`; }, 1200);
 
 /* ---- Hisobot */
 async function stats(days) {
@@ -432,7 +707,7 @@ async function stats(days) {
   el.innerHTML = '<div class="hint">Yuklanmoqda...</div>';
   try {
     const s = await api('staff/stats?days=' + days);
-    el.innerHTML = `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px"><h2 style="font-size:18px;margin-right:auto">Hisobot</h2>${[[1, 'Bugun'], [7, '7 kun'], [30, '30 kun']].map(([d, n]) => `<button class="btn ${d === days ? '' : 'ghost'}" data-days="${d}">${n}</button>`).join('')}</div>
+    el.innerHTML = `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px"><h2 style="font-size:18px;margin-right:auto">Hisobot</h2>${[[1, 'Bugun'], [7, '7 kun'], [30, '30 kun']].map(([d, n]) => `<button class="btn ${d === days ? '' : 'ghost'}" data-days="${d}">${n}</button>`).join('')}<button class="btn ghost" data-exp="${days}" title="Buyurtmalar ro'yxati Excel uchun">Excel'ga yuklab olish</button></div>
       <div class="kpis">
         <div class="kpi"><span>Tushum (yetkazilgan)</span><b>${U.money(s.revenue)}</b> so'm</div>
         <div class="kpi"><span>Buyurtmalar</span><b>${s.orders}</b></div>
@@ -495,6 +770,26 @@ document.addEventListener('click', async e => {
   const pr = e.target.closest('[data-print]'); if (pr) return printOrder(ORD[pr.dataset.print]);
   const ed = e.target.closest('[data-edit]'); if (ed) return staffView(ed.dataset.edit);
   const dd = e.target.closest('[data-days]'); if (dd) return stats(+dd.dataset.days);
+  const ex = e.target.closest('[data-exp]'); if (ex) return download('staff/export?days=' + ex.dataset.exp, `uzbegim-buyurtmalar-${ex.dataset.exp}-kun.csv`);
+  const mc = e.target.closest('[data-mcat]'); if (mc) { mCat = mc.dataset.mcat; return menuView(); }
+  if (e.target.closest('[data-mnew]')) return menuEdit(null);
+  const me2 = e.target.closest('[data-medit]'); if (me2) return menuEdit(me2.dataset.medit);
+  if (e.target.closest('[data-mclose]') || e.target.id === 'dlg') return closeDlg();
+  const vd = e.target.closest('[data-vdel]'); if (vd) { readVars(); MED.v.splice(+vd.dataset.vdel, 1); return drawVars(); }
+  if (e.target.closest('[data-mreset]') || e.target.closest('[data-mdel]')) {
+    const del = !!e.target.closest('[data-mdel]');
+    if (!confirm(del ? 'Bu mahsulot menyudan butunlay o\'chirilsinmi?' : 'Narx, nom va rasm asl holiga qaytarilsinmi?')) return;
+    try { const r = await api('staff/menu', { body: { id: MED.id, [del ? 'remove' : 'reset']: true } }); MENUCFG = r.menu; buildCat(); closeDlg(); toast(del ? 'O\'chirildi' : 'Asl holiga qaytarildi'); } catch (x) { toast(errMsg(x)); }
+    return;
+  }
+  const pzb = e.target.closest('[data-pz]');
+  if (pzb) {
+    const m = +pzb.dataset.pz, br = $('#pzBr') ? $('#pzBr').value : '';
+    try { OPSD = await api('staff/ops', { body: { pause: m === 0 ? false : m === -1 ? true : m, msg: $('#pzMsg') ? $('#pzMsg').value : '', branch: br } }); pauseUi(); if (view === 'settings') settingsView(); toast(m === 0 ? 'Buyurtma qabul qilish qayta ochildi' : 'Buyurtma qabul qilish to\'xtatildi'); }
+    catch (x) { toast(errMsg(x)); }
+    return;
+  }
+  const g2 = e.target.closest('[data-v2go]'); if (g2) { const b2 = document.querySelector(`#tabs [data-v="${g2.dataset.v2go}"]`); if (b2) b2.click(); return; }
   const sp = e.target.closest('[data-stop]');
   if (sp) { const id = sp.dataset.stop; try { const r = await api('staff/stop', { body: { id, stop: !STOP.has(id) } }); STOP = new Set(r.stop); menuView(); } catch (x) { toast(errMsg(x)); } return; }
   const b = e.target.closest('[data-st]');
@@ -512,11 +807,23 @@ document.addEventListener('click', async e => {
     else body.courier = { id: sel };
   }
   b.disabled = true;
-  try { await api(`orders/${id}/status`, { body }); }
+  try { const r = await api(`orders/${id}/status`, { body }); if (st === 'accepted' && dev.print && r) printOrder(r); }
   catch (x) { b.disabled = false; toast(errMsg(x)); }
 });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#dlg').hidden) closeDlg(); });
 setInterval(() => Object.keys(ORD).length && view === 'board' && draw(), 30000);
-TOK ? api('staff/me').then(s => { if (s.role !== 'admin') throw new Error(); ME = s; start(); }).catch(() => { ss.set('uzb_staff', ''); loginView(); }) : loginView();
+// Sahifa yangilansa kirish saqlanadi. Faqat server "kirish yaroqsiz" (401) desa chiqaramiz;
+// server uyg'onayotgan bo'lsa (Render) kutib, qayta urinamiz.
+async function boot(k = 0) {
+  if (!TOK) return loginView();
+  try { const s = await api('staff/me'); if (s.role !== 'admin') { ss.set('uzb_staff', ''); return loginView('Bu kuryer akkaunti. Kuryerlar courier.html sahifasidan kiradi.'); } ME = s; start(); }
+  catch (x) {
+    if (x.status === 401 || x.status === 403) { ss.set('uzb_staff', ''); return loginView(); }
+    $('#app').innerHTML = `<div class="login glass" style="text-align:center"><b>Server bilan ulanmoqda...</b><p class="hint">Internet yoki server uyg'onishini kutyapmiz${k ? ' (' + k + ')' : ''}</p></div>`;
+    setTimeout(() => boot(k + 1), 3000);
+  }
+}
+boot();
 </script>
 </body>
 </html>

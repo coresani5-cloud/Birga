@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Uzbegim — Fast food yetkazib berish</title>
+<meta name="description" content="Uzbegim — burger, lavash, shaurma, hot-dog va pitsa. Tez, issiq va mazali yetkazib berish.">
+<meta name="theme-color" content="#0f0c0a">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;900&family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23ff7a00'/%3E%3Ctext x='32' y='44' font-size='34' text-anchor='middle' font-family='Arial Black' fill='%23120d09'%3EU%3C/text%3E%3C/svg%3E">
+<style>
+:root{
+  --or:#ff7a00; --or2:#ffa62b; --or-d:#c75200; --red:#ff3b30;
+  --bg:#0f0c0a; --bg2:#17120e; --glass:rgba(255,255,255,.055); --glass2:rgba(255,255,255,.09);
+  --ln:rgba(255,255,255,.10); --ink:#fbf3ea; --mut:#a99c90; --pic:rgba(255,140,40,.10);
+  --shadow:0 20px 50px rgba(0,0,0,.45); --r:24px;
+  --grad:linear-gradient(135deg,#ffa62b,#ff6a00);
+}
+:root[data-theme="light"]{
+  --bg:#fff7ef; --bg2:#ffeedd; --glass:rgba(255,255,255,.75); --glass2:#fff;
+  --ln:rgba(120,60,10,.12); --ink:#1d140d; --mut:#7d6a5b; --pic:rgba(255,140,40,.12);
+  --shadow:0 16px 40px rgba(150,70,10,.14);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:Manrope,system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.45;overflow-x:hidden;transition:background .3s,color .3s}
+body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:radial-gradient(600px 400px at 85% 5%,rgba(255,122,0,.22),transparent 70%),radial-gradient(500px 500px at 0% 60%,rgba(255,90,0,.12),transparent 70%),radial-gradient(500px 300px at 60% 100%,rgba(255,166,43,.10),transparent 70%)}
+button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
+input,textarea,select{font:inherit;color:inherit}
+a{color:inherit;text-decoration:none}
+.wrap{max-width:1240px;margin:0 auto;padding:0 16px}
+h1,h2,h3{font-family:Unbounded,Manrope,sans-serif;letter-spacing:-.02em}
+.acc{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.glass{background:var(--glass);border:1px solid var(--ln);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+
+/* header */
+header{position:sticky;top:0;z-index:50;background:color-mix(in srgb,var(--bg) 78%,transparent);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-bottom:1px solid var(--ln)}
+.hdr{display:flex;align-items:center;gap:14px;height:76px}
+.logo{display:flex;align-items:center;gap:6px;font-family:Unbounded;font-weight:900;font-size:21px;background:#000;border:1px solid var(--ln);padding:6px 6px 6px 14px;border-radius:999px;color:var(--or2);flex:none}
+:root[data-theme="light"] .logo{background:#1d140d}
+.logo b{background:var(--grad);color:#120d09;border-radius:999px;padding:4px 10px}
+nav.main{display:flex;gap:2px;margin-left:6px}
+nav.main a{white-space:nowrap;padding:8px 12px;border-radius:999px;font-weight:700;font-size:15px;opacity:.85;transition:.2s}
+nav.main a:hover,nav.main a.on{opacity:1;background:var(--glass2);color:var(--or2)}
+.hr{margin-left:auto;display:flex;align-items:center;gap:10px}
+.otype{height:46px;padding:0 20px;border-radius:999px;background:var(--grad);color:#120d09;font-weight:800;white-space:nowrap;box-shadow:0 8px 24px rgba(255,122,0,.35)}
+.ph{line-height:1.15;white-space:nowrap}
+.ph b{font-family:Unbounded;font-size:16px;display:block}
+.ph span{font-size:11px;color:var(--mut)}
+.icons{display:flex;gap:2px}
+.ic{width:42px;height:42px;border-radius:999px;display:grid;place-items:center;position:relative;transition:.2s}
+.ic:hover{background:var(--glass2);color:var(--or2)}
+.ic svg{width:22px;height:22px}
+.ic .cnt{position:absolute;top:2px;right:0;background:var(--or);color:#120d09;border-radius:999px;min-width:18px;height:18px;font-size:11px;font-weight:800;display:grid;place-items:center;padding:0 4px}
+.ic .cnt:empty,.ic .cnt[data-z]{display:none}
+.ic.bump{animation:bump .45s}
+@keyframes bump{30%{transform:scale(1.25) rotate(-8deg)}60%{transform:scale(.9)}}
+.ic .lg{font-size:11px;font-weight:800;position:absolute;bottom:3px;right:2px}
+.sbar{max-height:0;overflow:hidden;transition:max-height .3s}
+.sbar.on{max-height:80px}
+.sbar .wrap{padding-bottom:14px;position:relative}
+.sbar input{width:100%;height:50px;border-radius:999px;border:1px solid var(--ln);background:var(--glass);padding:0 20px 0 48px;outline:none}
+.sbar input:focus{border-color:var(--or)}
+.sbar svg{position:absolute;left:34px;top:15px;width:20px;opacity:.6}
+.menuBtn{display:none}
+
+/* hero */
+.hero{margin-top:22px;display:grid;grid-template-columns:1.65fr 1fr;gap:18px}
+.slider{position:relative;border-radius:32px;overflow:hidden;min-height:430px;border:1px solid var(--ln)}
+.slide{position:absolute;inset:0;display:flex;align-items:center;padding:40px 48px 60px;color:#fff;opacity:0;transition:opacity .7s,transform .7s;transform:scale(1.03)}
+.slide.on{opacity:1;transform:none;z-index:1}
+.slide .txt{max-width:58%;position:relative;z-index:2}
+.slide .tag{display:inline-flex;gap:6px;align-items:center;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);backdrop-filter:blur(8px);font-weight:700;padding:6px 14px;border-radius:999px;font-size:13px;margin-bottom:18px}
+.slide h1{font-size:clamp(24px,2.9vw,38px);line-height:1.05;font-weight:900}
+.slide .huge{font-family:Unbounded;font-weight:900;font-size:clamp(64px,8vw,112px);line-height:.9;display:block;margin:4px 0}
+.slide p{margin:12px 0 22px;opacity:.85;font-size:16px;max-width:400px}
+.slide .big{position:absolute;right:-10px;bottom:-30px;font-size:min(260px,28vw);line-height:1;filter:drop-shadow(0 30px 40px rgba(255,110,0,.45));animation:float 5s ease-in-out infinite}
+@keyframes float{50%{transform:translateY(-14px) rotate(4deg)}}
+.arr{position:absolute;top:50%;transform:translateY(-50%);z-index:3;width:46px;height:46px;border-radius:99px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);backdrop-filter:blur(8px);color:#fff;font-size:20px}
+.arr.l{left:14px}.arr.r{right:14px}
+.dots{position:absolute;left:48px;bottom:24px;display:flex;gap:8px;z-index:3}
+.dots button{width:10px;height:10px;border-radius:99px;background:rgba(255,255,255,.35);transition:width .3s}
+.dots button.on{width:34px;background:var(--or2)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:52px;padding:0 26px;border-radius:999px;font-weight:800;background:var(--grad);color:#120d09;box-shadow:0 10px 26px rgba(255,122,0,.35);transition:transform .15s}
+.btn:active{transform:scale(.97)}
+.btn.ghost{background:var(--glass2);color:var(--ink);box-shadow:none;border:1px solid var(--ln)}
+.side{display:grid;gap:18px;grid-template-rows:1fr 1fr}
+.tile{border-radius:32px;padding:26px;position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;min-height:190px}
+.tile h3{font-size:21px;line-height:1.15}
+.tile p{color:var(--mut);font-size:14px;margin-top:6px}
+.tile .em{position:absolute;right:16px;top:8px;font-size:92px;transform:rotate(12deg);filter:drop-shadow(0 16px 20px rgba(255,110,0,.35))}
+.tile .k{font-family:Unbounded;font-size:44px;font-weight:900}
+
+/* categories: tabs + sliding indicator */
+.cats{position:sticky;top:76px;z-index:40;margin-top:34px;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--ln);display:flex;align-items:center;gap:6px}
+.cats .all{flex:none;width:44px;height:44px;border-radius:14px;display:grid;place-items:center}
+.cats .all:hover{background:var(--glass2);color:var(--or2)}
+.cats .all svg{width:22px}
+.cats .row{position:relative;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;flex:1;scroll-behavior:smooth}
+.cats .row::-webkit-scrollbar{display:none}
+.cat{flex:none;padding:18px 14px 16px;font-weight:700;font-size:15px;color:var(--mut);transition:color .25s;white-space:nowrap;display:flex;gap:6px;align-items:center}
+.cat i{font-style:normal;font-size:17px;filter:grayscale(1);opacity:.6;transition:.25s}
+.cat:hover{color:var(--ink)}
+.cat.on{color:var(--ink)}
+.cat.on i{filter:none;opacity:1;transform:scale(1.15)}
+.ind{position:absolute;bottom:0;left:0;height:3px;border-radius:3px 3px 0 0;background:var(--grad);box-shadow:0 0 12px rgba(255,122,0,.7);transition:transform .35s cubic-bezier(.2,.8,.2,1),width .35s cubic-bezier(.2,.8,.2,1);pointer-events:none}
+.catGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}
+.catGrid button{padding:16px 8px;border-radius:18px;border:1px solid var(--ln);background:var(--glass);font-weight:700;font-size:13px;display:grid;gap:6px;justify-items:center}
+.catGrid button i{font-style:normal;font-size:30px}
+.catGrid button.on{border-color:var(--or);color:var(--or2)}
+.toTop{position:fixed;left:20px;bottom:24px;z-index:55;width:56px;height:56px;border-radius:99px;background:var(--grad);color:#120d09;font-size:24px;font-weight:900;box-shadow:0 10px 26px rgba(255,122,0,.45);transform:scale(0);transition:transform .3s}
+.toTop.on{transform:scale(1)}
+
+/* menu */
+section.sec{margin-top:34px;scroll-margin-top:150px}
+.sh{display:flex;align-items:end;justify-content:space-between;gap:12px;margin-bottom:16px}
+.sec h2{font-size:clamp(22px,3vw,30px);display:flex;align-items:center;gap:12px}
+.sec h2 .pill{font-family:Manrope;font-size:13px;font-weight:800;background:var(--glass2);color:var(--or2);padding:4px 10px;border-radius:999px;border:1px solid var(--ln)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:16px}
+.card{border-radius:var(--r);overflow:hidden;display:flex;flex-direction:column;transition:transform .25s,box-shadow .25s,border-color .25s;position:relative}
+.card:hover{transform:translateY(-6px);box-shadow:var(--shadow);border-color:rgba(255,140,40,.4)}
+.card .pic{aspect-ratio:1/1;display:grid;place-items:center;font-size:110px;position:relative;cursor:pointer;background:radial-gradient(circle at 50% 58%,rgba(255,140,40,.26),transparent 62%)}
+.card .pic span{transition:transform .35s;filter:drop-shadow(0 18px 18px rgba(0,0,0,.4))}
+.card:hover .pic span{transform:scale(1.1) rotate(-6deg)}
+.badge{position:absolute;left:12px;top:12px;font-size:11px;font-weight:800;padding:5px 10px;border-radius:999px;background:var(--red);color:#fff}
+.badge.new{background:#14b8a6}
+.badge.hit{background:var(--grad);color:#120d09}
+.fav{position:absolute;right:10px;top:10px;width:36px;height:36px;border-radius:99px;background:rgba(0,0,0,.35);backdrop-filter:blur(6px);display:grid;place-items:center;font-size:16px;color:#fff;z-index:2;transition:transform .2s}
+.fav:active{transform:scale(1.3)}
+.ctl{position:absolute;right:12px;bottom:12px;z-index:2}
+.add{width:50px;height:50px;border-radius:99px;background:var(--glass2);border:1px solid var(--ln);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);display:grid;place-items:center;box-shadow:0 8px 20px rgba(0,0,0,.35);transition:transform .2s,background .2s,color .2s}
+.add svg{width:22px;height:22px}
+.card:hover .add,.add:hover{background:var(--grad);color:#120d09;border-color:transparent;transform:rotate(90deg)}
+.qty{display:flex;align-items:center;background:var(--grad);color:#120d09;border-radius:999px;height:50px;padding:0 4px;box-shadow:0 8px 20px rgba(255,122,0,.4)}
+.qty button{width:40px;height:100%;font-size:22px;font-weight:900}
+.qty b{min-width:20px;text-align:center;font-size:16px}
+.card .body{padding:12px 16px 18px;display:flex;flex-direction:column;flex:1}
+.price{font-family:Unbounded;font-weight:700;font-size:22px;color:var(--ink);display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.price small{font-family:Manrope;font-size:13px;color:var(--mut);font-weight:600}
+.price s{font-family:Manrope;font-size:13px;color:var(--red);font-weight:600}
+.card h3{font-family:Manrope;font-weight:700;font-size:15px;text-transform:uppercase;letter-spacing:.02em;margin-top:4px}
+.meta{display:flex;gap:10px;font-size:13px;color:var(--mut);margin-top:4px}
+.meta b{color:var(--or2)}
+.empty{padding:40px;text-align:center;color:var(--mut)}
+
+/* about */
+.about{margin-top:70px;display:grid;grid-template-columns:1.1fr 1fr;gap:18px;scroll-margin-top:100px}
+.ab{border-radius:32px;padding:38px}
+.ab h2{font-size:clamp(24px,3vw,36px);margin-bottom:14px}
+.ab p{color:var(--mut);margin-bottom:12px}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.stat{border-radius:24px;padding:22px}
+.stat b{font-family:Unbounded;font-size:30px;display:block}
+.stat span{color:var(--mut);font-size:14px}
+.vals{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
+.vals span{padding:8px 14px;border-radius:999px;background:var(--glass2);border:1px solid var(--ln);font-weight:700;font-size:13px}
+
+/* promos */
+.promos{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.pr{border-radius:28px;padding:26px;position:relative;overflow:hidden;min-height:220px;display:flex;flex-direction:column}
+.pr .em{position:absolute;right:-6px;bottom:-14px;font-size:110px;opacity:.95;filter:drop-shadow(0 16px 20px rgba(255,110,0,.35))}
+.pr .k{font-family:Unbounded;font-weight:900;font-size:40px;line-height:1}
+.pr h3{font-family:Manrope;font-weight:800;font-size:18px;margin:10px 0 6px;max-width:70%}
+.pr p{color:var(--mut);font-size:14px;max-width:65%;flex:1}
+.code{margin-top:14px;align-self:flex-start;display:inline-flex;gap:8px;align-items:center;border:1.5px dashed var(--or);color:var(--or2);padding:8px 14px;border-radius:12px;font-family:Unbounded;font-size:13px;font-weight:700}
+
+/* vacancies */
+.vacs{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.vac{border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:6px}
+.vac .e{font-size:40px}
+.vac h3{font-family:Manrope;font-weight:800;font-size:18px}
+.vac .sal{font-family:Unbounded;font-size:15px;color:var(--or2)}
+.vac p{color:var(--mut);font-size:13px;flex:1}
+.vac .btn{height:44px;margin-top:10px;font-size:14px}
+
+/* contacts */
+.contact{display:grid;grid-template-columns:1fr 1.3fr;gap:18px}
+.cinfo{border-radius:28px;padding:30px;display:grid;gap:16px;align-content:start}
+.crow{display:flex;gap:14px;align-items:center}
+.crow i{font-style:normal;width:48px;height:48px;border-radius:16px;background:var(--glass2);border:1px solid var(--ln);display:grid;place-items:center;font-size:22px;flex:none}
+.crow b{display:block}.crow span{color:var(--mut);font-size:14px}
+.blist{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.br{border-radius:22px;padding:18px}
+.br h3{font-family:Manrope;font-weight:800;font-size:16px}
+.br p{color:var(--mut);font-size:13px;margin:4px 0}
+.open{font-size:12px;font-weight:800;color:#34d399}
+
+footer{margin-top:80px;border-top:1px solid var(--ln);padding:44px 0 110px;background:rgba(0,0,0,.25)}
+:root[data-theme="light"] footer{background:rgba(255,255,255,.5)}
+.fgrid{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:24px}
+footer h4{font-family:Unbounded;margin-bottom:12px;font-size:15px}
+footer a{display:block;color:var(--mut);padding:3px 0;font-size:14px}
+footer a:hover{color:var(--or2)}
+.soc{display:flex;gap:8px;margin-top:14px}
+.soc a{width:42px;height:42px;border-radius:14px;background:var(--glass2);border:1px solid var(--ln);display:grid;place-items:center;color:var(--ink)}
+.copy{border-top:1px solid var(--ln);margin-top:30px;padding-top:20px;font-size:13px;color:var(--mut);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+
+/* drawer & modal */
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:90;opacity:0;pointer-events:none;transition:.3s;backdrop-filter:blur(4px)}
+.ov.on{opacity:1;pointer-events:auto}
+.drawer{position:fixed;right:0;top:0;bottom:0;width:min(440px,100%);background:var(--bg2);border-left:1px solid var(--ln);z-index:100;transform:translateX(105%);transition:transform .35s cubic-bezier(.2,.8,.2,1);display:flex;flex-direction:column}
+.drawer.on{transform:none}
+.dh{display:flex;justify-content:space-between;align-items:center;padding:20px;border-bottom:1px solid var(--ln)}
+.dh h3{font-size:20px}
+.x{width:42px;height:42px;border-radius:99px;background:var(--glass2);border:1px solid var(--ln);font-size:18px}
+.db{flex:1;overflow-y:auto;padding:16px 20px}
+.ci{display:flex;gap:12px;align-items:center;padding:12px 0;border-bottom:1px dashed var(--ln)}
+.ci .e{width:62px;height:62px;border-radius:18px;display:grid;place-items:center;font-size:34px;flex:none;background:var(--pic)}
+.ci .m{flex:1;min-width:0}
+.ci .m b{display:block;font-size:14px}
+.ci .m span{font-size:13px;color:var(--mut)}
+.df{padding:18px 20px;border-top:1px solid var(--ln)}
+.line{display:flex;justify-content:space-between;font-size:14px;margin:4px 0;color:var(--mut)}
+.line.tot{color:var(--ink);font-weight:800;font-size:18px;margin-top:10px}
+.promo{display:flex;gap:8px;margin:12px 0}
+.promo input{flex:1;height:46px;border-radius:14px;border:1px solid var(--ln);background:var(--glass);padding:0 14px;outline:none;text-transform:uppercase}
+.promo button{padding:0 16px;border-radius:14px;background:var(--glass2);border:1px solid var(--ln);font-weight:800}
+.wide{width:100%}
+.prog{height:8px;border-radius:99px;background:var(--glass2);overflow:hidden;margin:6px 0 4px}
+.prog i{display:block;height:100%;background:var(--grad);transition:width .4s}
+.hint{font-size:12px;color:var(--mut)}
+.modal{position:fixed;inset:0;z-index:110;display:grid;place-items:center;padding:16px;pointer-events:none;opacity:0;transition:.25s}
+.modal.on{opacity:1;pointer-events:auto}
+.mbox{background:var(--bg2);border:1px solid var(--ln);border-radius:30px;width:min(500px,100%);max-height:92vh;overflow-y:auto;position:relative;transform:translateY(20px) scale(.97);transition:.3s;box-shadow:var(--shadow)}
+.modal.on .mbox{transform:none}
+.mbox>.x{position:absolute;right:14px;top:14px;z-index:2}
+.mpic{aspect-ratio:16/10;display:grid;place-items:center;font-size:150px;background:radial-gradient(circle at 50% 60%,rgba(255,140,40,.35),transparent 65%)}
+.mbody{padding:24px}
+.mbody h3{font-size:23px}
+.form{display:grid;gap:10px;margin-top:16px}
+.form input,.form textarea,.form select{height:50px;border-radius:16px;border:1px solid var(--ln);background:var(--glass);padding:0 16px;outline:none}
+.form select option{background:var(--bg2)}
+.form textarea{height:84px;padding:12px 16px;resize:none}
+.form input:focus,.form textarea:focus,.form select:focus{border-color:var(--or)}
+.seg{display:grid;grid-template-columns:1fr 1fr;background:var(--glass);border:1px solid var(--ln);border-radius:16px;padding:4px;gap:4px}
+.seg button{height:44px;border-radius:12px;font-weight:800;font-size:14px}
+.seg button.on{background:var(--grad);color:#120d09}
+.types{display:grid;gap:10px;margin-top:16px}
+.type{display:flex;gap:14px;align-items:center;padding:16px;border-radius:20px;border:1px solid var(--ln);background:var(--glass);text-align:left;transition:.2s}
+.type i{font-style:normal;font-size:34px}
+.type b{display:block;font-size:16px}.type span{color:var(--mut);font-size:13px}
+.type.on{border-color:var(--or);background:rgba(255,122,0,.12)}
+.track{margin:18px 0;text-align:left}
+.ts{display:flex;gap:12px;align-items:center;opacity:.3;transition:.4s}
+.ts.on{opacity:1}
+.ts .d{width:42px;height:42px;border-radius:99px;background:var(--glass2);border:1px solid var(--ln);display:grid;place-items:center;font-size:18px;flex:none}
+.ts.on .d{background:var(--grad);border-color:transparent}
+.ts .bar{width:2px;height:20px;background:var(--ln);margin-left:20px}
+.ts.cur .d{animation:pulse 1.2s infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 10px rgba(255,122,0,.15)}}
+.eta{font-family:Unbounded;font-size:34px;color:var(--or2)}
+
+.toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,140px);background:var(--ink);color:var(--bg);padding:12px 20px;border-radius:999px;font-weight:700;z-index:200;transition:.35s;box-shadow:var(--shadow);font-size:14px;max-width:calc(100% - 32px);text-align:center}
+.toast.on{transform:translate(-50%,0)}
+.fly{position:fixed;z-index:300;font-size:40px;pointer-events:none;transition:all .7s cubic-bezier(.5,-.3,.7,1)}
+.confetti{position:fixed;width:10px;height:14px;z-index:300;pointer-events:none;top:-20px;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(110vh) rotate(720deg)}}
+
+/* mobile tab bar */
+.tabs{display:none}
+.mnav{display:none}
+
+@media (max-width:1240px){.ph{display:none}}
+@media (max-width:1000px){
+  nav.main{display:none}
+  .menuBtn{display:grid}
+  .mnav{display:block;max-height:0;overflow:hidden;transition:max-height .3s}
+  .mnav.on{max-height:400px}
+  .mnav a{display:block;padding:12px 16px;font-weight:700;border-top:1px solid var(--ln)}
+  .hero{grid-template-columns:1fr}
+  .side{grid-template-columns:1fr 1fr;grid-template-rows:auto}
+  .about,.contact{grid-template-columns:1fr}
+  .promos{grid-template-columns:1fr 1fr}
+  .vacs{grid-template-columns:1fr 1fr}
+  .fgrid{grid-template-columns:1fr 1fr}
+}
+@media (max-width:640px){
+  .hdr{height:64px;gap:6px}
+  .cats{top:64px}
+  .otype{display:none}
+  .icons .hm{display:none}
+  .logo{font-size:17px;padding:4px 4px 4px 10px}
+  .ic{width:38px;height:38px}
+  .slider{min-height:420px}
+  .slide{padding:26px;align-items:flex-start}
+  .slide .txt{max-width:100%}
+  .slide .big{font-size:170px;right:-14px;bottom:-16px}
+  .arr{display:none}
+  .dots{left:26px}
+  .side{grid-template-columns:1fr}
+  .grid{grid-template-columns:1fr 1fr;gap:10px}
+  .card .pic{font-size:72px}
+  .card .body{padding:8px 12px 12px}
+  .card h3{font-size:12px}
+  .price{font-size:16px}
+  .ctl{right:8px;bottom:8px}
+  .add{width:42px;height:42px}.qty{height:42px}
+  .qty button{width:30px}
+  .cat{padding:15px 10px 13px;font-size:14px}
+  .toTop{bottom:96px;left:auto;right:16px;width:48px;height:48px}
+  .ab{padding:26px}
+  .promos,.vacs,.blist{grid-template-columns:1fr}
+  .fgrid{grid-template-columns:1fr}
+  .tabs{display:grid;grid-template-columns:repeat(4,1fr);position:fixed;left:12px;right:12px;bottom:12px;z-index:60;border-radius:24px;padding:8px;background:color-mix(in srgb,var(--bg2) 85%,transparent)}
+  .tabs a,.tabs button{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;font-weight:700;color:var(--mut);position:relative;padding:4px 0}
+  .tabs i{font-style:normal;font-size:20px}
+  .tabs .on{color:var(--or2)}
+  .tabs .cnt{position:absolute;top:0;left:55%;background:var(--or);color:#120d09;border-radius:99px;min-width:18px;height:18px;font-size:11px;display:grid;place-items:center}
+  .tabs .cnt[data-z]{display:none}
+  .toast{bottom:96px}
+  .catGrid{grid-template-columns:repeat(2,1fr)}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap hdr">
+    <a href="#top" class="logo">Uzbe<b>gim</b></a>
+    <nav class="main" id="nav">
+      <a href="#about" data-i="nAbout"></a>
+      <a href="#menu" data-i="nMenu"></a>
+      <a href="#promos" data-i="nPromo"></a>
+      <a href="#vacancies" data-i="nVac"></a>
+      <a href="#contacts" data-i="nCt"></a>
+    </nav>
+    <div class="hr">
+      <button class="otype" id="otype"></button>
+      <a class="ph" href="tel:+998712000000"><b>+998 71 200-00-00</b><span data-i="hrs"></span></a>
+      <div class="icons">
+        <button class="ic" id="sBtn" aria-label="Search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
+        <button class="ic" id="cartBtn" aria-label="Cart"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.5L21 8H6"/><circle cx="10" cy="20.5" r="1.2"/><circle cx="17" cy="20.5" r="1.2"/></svg><span class="cnt" id="cnt"></span></button>
+        <button class="ic hm" id="favBtn" aria-label="Favorites"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20s-7-4.4-9.2-9A5 5 0 0 1 12 6a5 5 0 0 1 9.2 5C19 15.6 12 20 12 20Z"/></svg><span class="cnt" id="fcnt"></span></button>
+        <button class="ic" id="lang" aria-label="Language"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><span class="lg" id="lgTxt"></span></button>
+        <button class="ic hm" id="theme" aria-label="Theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z"/></svg></button>
+        <button class="ic menuBtn" id="menuBtn" aria-label="Menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+      </div>
+    </div>
+  </div>
+  <div class="mnav" id="mnav">
+    <a href="#about" data-i="nAbout"></a><a href="#menu" data-i="nMenu"></a><a href="#promos" data-i="nPromo"></a><a href="#vacancies" data-i="nVac"></a><a href="#contacts" data-i="nCt"></a>
+    <a href="#" id="mTheme" data-i="themeTxt"></a>
+  </div>
+  <div class="sbar" id="sbar"><div class="wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" type="search" autocomplete="off"></div></div>
+</header>
+
+<main class="wrap" id="top">
+  <div class="hero">
+    <div class="slider" id="slider"></div>
+    <div class="side">
+      <div class="tile glass"><span class="em">🛵</span><div class="k acc">30'</div><h3 data-i="t1h"></h3><p data-i="t1p"></p></div>
+      <div class="tile glass"><span class="em">🎁</span><div class="k acc">-10%</div><h3 data-i="t2h"></h3><p data-i="t2p"></p></div>
+    </div>
+  </div>
+
+  <div class="cats" id="menu"><button class="all" id="allCats" aria-label="Categories"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></svg></button><div class="row" id="cats"></div></div>
+  <div id="sections"></div>
+
+  <section class="about" id="about">
+    <div class="ab glass">
+      <h2><span data-i="abH1"></span> <span class="acc" data-i="abH2"></span></h2>
+      <p data-i="ab1"></p><p data-i="ab2"></p>
+      <div class="vals" id="vals"></div>
+    </div>
+    <div class="stats">
+      <div class="stat glass"><b class="acc">2016</b><span data-i="st1"></span></div>
+      <div class="stat glass"><b class="acc">24</b><span data-i="st2"></span></div>
+      <div class="stat glass"><b class="acc">1M+</b><span data-i="st3"></span></div>
+      <div class="stat glass"><b class="acc">4.9★</b><span data-i="st4"></span></div>
+    </div>
+  </section>
+
+  <section class="sec" id="promos">
+    <div class="sh"><h2 data-i="nPromo"></h2></div>
+    <div class="promos" id="promoList"></div>
+  </section>
+
+  <section class="sec" id="vacancies">
+    <div class="sh"><h2 data-i="nVac"></h2></div>
+    <div class="vacs" id="vacList"></div>
+  </section>
+
+  <section class="sec" id="contacts">
+    <div class="sh"><h2 data-i="nCt"></h2></div>
+    <div class="contact">
+      <div class="cinfo glass">
+        <div class="crow"><i>📞</i><div><b>+998 71 200-00-00</b><span data-i="callC"></span></div></div>
+        <div class="crow"><i>🕘</i><div><b data-i="hrs"></b><span data-i="hrsP"></span></div></div>
+        <div class="crow"><i>✉️</i><div><b>info@uzbegim.uz</b><span data-i="mailP"></span></div></div>
+        <div class="crow"><i>✈️</i><div><b>@uzbegim_bot</b><span data-i="tgP"></span></div></div>
+        <div class="crow"><i>📍</i><div><b data-i="fAddr"></b><span data-i="addrP"></span></div></div>
+      </div>
+      <div class="blist" id="blist"></div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="fgrid">
+      <div>
+        <a href="#top" class="logo" style="display:inline-flex">Uzbe<b>gim</b></a>
+        <p style="color:var(--mut);margin-top:14px;font-size:14px;max-width:300px" data-i="fAbout"></p>
+        <div class="soc"><a href="#">✈️</a><a href="#">📸</a><a href="#">▶️</a><a href="#">f</a></div>
+      </div>
+      <div><h4 data-i="nMenu"></h4><div id="fcats"></div></div>
+      <div><h4 data-i="fCo"></h4><a href="#about" data-i="nAbout"></a><a href="#promos" data-i="nPromo"></a><a href="#vacancies" data-i="nVac"></a><a href="#contacts" data-i="nCt"></a></div>
+      <div><h4 data-i="nCt"></h4><a href="tel:+998712000000">+998 71 200-00-00</a><a href="#">info@uzbegim.uz</a><a href="#contacts" data-i="fAddr"></a><a href="#contacts" data-i="hrs"></a></div>
+    </div>
+    <div class="copy"><span>© <span id="yr"></span> Uzbegim. <span data-i="rights"></span></span><span data-i="madeIn"></span></div>
+  </div>
+</footer>
+
+<nav class="tabs glass" id="tabs">
+  <a href="#top" class="on"><i>🏠</i><span data-i="tHome"></span></a>
+  <a href="#promos"><i>🏷️</i><span data-i="nPromo"></span></a>
+  <button id="tCart"><i>🛍️</i><span data-i="cart"></span><span class="cnt" id="tcnt"></span></button>
+  <button id="tFav"><i>❤️</i><span data-i="tFav"></span></button>
+</nav>
+
+<div class="ov" id="ov"></div>
+<aside class="drawer" id="drawer" aria-label="Cart">
+  <div class="dh"><h3 id="dTitle"></h3><button class="x" data-close>✕</button></div>
+  <div class="db" id="cartList"></div>
+  <div class="df" id="cartFoot"></div>
+</aside>
+<div class="modal" id="modal"><div class="mbox" id="mbox"></div></div>
+<div class="toast" id="toast"></div>
+<button class="toTop" id="toTop" aria-label="Up">↑</button>
+
+<script>
+/* ===== Matnlar ===== */
+const T={
+uz:{
+  nAbout:"Biz haqimizda",nMenu:"Menyu",nPromo:"Aksiyalar",nVac:"Vakansiyalar",nCt:"Aloqa",
+  hrs:"Har kuni 09:00 dan 03:00 gacha",themeTxt:"🌗 Kunduzgi / tungi rejim",search:"Burger, lavash, shaurma...",cart:"Savat",tHome:"Asosiy",tFav:"Sevimli",
+  oType:"Buyurtma turi",oDel:"🛵 Yetkazib berish",oPick:"🏃 Olib ketish",oDelP:"30 daqiqada eshigingizgacha",oPickP:"Yaqin filialdan o'zingiz olasiz — navbatsiz",oChoose:"Buyurtma turini tanlang",
+  t1h:"30 daqiqada eshigingizda",t1p:"Kechiksak — keyingi buyurtma bizdan sovg'a",t2h:"Birinchi buyurtmaga",t2p:"UZBEGIM10 promokodi bilan butun menyuga",
+  add:"Qo'shish",sum:"so'm",empty:"Hech narsa topilmadi 🤷",favs:"Sevimlilar",noFav:"Sevimlilar ro'yxati bo'sh. Taomlardagi ♡ ni bosing.",
+  abH1:"Mazali, tez va",abH2:"o'zbekona",
+  ab1:"Uzbegim — 2016-yilda Toshkentdagi kichik bir lavash do'konidan boshlangan. Bugun biz butun O'zbekiston bo'ylab 24 ta filialga ega fast food tarmog'imiz.",
+  ab2:"Har bir burger va lavash buyurtmadan keyin tayyorlanadi: yangi go'sht, kunlik non va o'zimizning maxfiy souslarimiz. Bizning maqsad — o'zbekona mehmondo'stlikni zamonaviy fast food bilan birlashtirish.",
+  vals:["🥩 Yangi go'sht","🍞 Kunlik non","⚡ 30 daqiqa","❤️ Halol","🌿 Toza oshxona"],
+  st1:"yildan beri ishlaymiz",st2:"ta filial",st3:"mamnun mijoz",st4:"o'rtacha baho",
+  promos:[["-10%","Birinchi buyurtmaga chegirma","Ilova yoki sayt orqali birinchi buyurtmangizga butun menyuga 10%.","UZBEGIM10","🎁"],["1+1","Ikkinchi lavash yarim narxda","Har kuni 12:00 — 16:00 oralig'ida barcha filiallarda.","","🌯"],["0 so'm","Bepul yetkazib berish","150 000 so'mdan yuqori buyurtmalarga yoki promokod bilan.","BEPUL","🛵"],["-15 000","Do'stingizni taklif qiling","Do'stingiz ham, siz ham 15 000 so'mlik chegirma olasiz.","SALOM","🤝"],["🎂","Tug'ilgan kun sovg'asi","Tug'ilgan kuningizda chizkeyk — bizdan sovg'a.","","🍰"],["-20%","Tungi aksiya","Har kuni 23:00 dan keyin barcha kombolarga 20%.","","🌙"]],
+  copy:"Nusxalash",copied:"Promokod nusxalandi:",
+  vacs:[["👨‍🍳","Oshpaz","5 000 000 — 8 000 000 so'm","Tajriba 1 yildan. Bepul ovqat va forma."],["💁","Kassir","4 000 000 — 5 500 000 so'm","Xushmuomala, rus tilini bilish afzallik."],["🛵","Kuryer","6 000 000 — 10 000 000 so'm","O'z transporti bilan. Kunlik to'lov."],["📋","Filial menejeri","9 000 000 — 12 000 000 so'm","Jamoani boshqarish tajribasi 2 yildan."]],
+  apply:"Ariza qoldirish",vacH:"Vakansiyaga ariza",vacP:"Ma'lumotlaringizni qoldiring — HR bo'limi 1 kun ichida qo'ng'iroq qiladi.",age:"Yoshingiz",exp:"Tajribangiz haqida qisqacha",send:"Yuborish",vacOk:"Arizangiz qabul qilindi! Tez orada bog'lanamiz 🤝",
+  callC:"Call-markaz, bepul",hrsP:"Dam olish kunlarisiz",mailP:"Taklif va shikoyatlar uchun",tgP:"Telegram orqali buyurtma",fAddr:"Toshkent, Amir Temur ko'chasi, 15",addrP:"Bosh ofis",open:"● Hozir ochiq",
+  fAbout:"Uzbegim — o'zbekona mehmondo'stlik va zamonaviy fast food. Har bir taom sevgi bilan tayyorlanadi.",fCo:"Kompaniya",rights:"Barcha huquqlar himoyalangan.",madeIn:"O'zbekistonda ❤️ bilan yaratilgan",
+  cartEmpty:"Savat hozircha bo'sh",cartEmptyP:"Mazali narsalar sizni kutmoqda!",goMenu:"Menyuga o'tish",
+  sub:"Mahsulotlar",del:"Yetkazib berish",free:"Bepul",disc:"Chegirma",total:"Jami",checkout:"Rasmiylashtirish",
+  promoPh:"Promokod",applyP:"Qo'llash",promoOk:"Promokod qo'llandi! 🎉",promoBad:"Bunday promokod yo'q",
+  freeLeft:"Bepul yetkazishgacha yana",freeOk:"🎉 Yetkazib berish bepul!",added:"savatga qo'shildi",
+  ordH:"Buyurtmani rasmiylashtirish",name:"Ismingiz",addr:"Manzil",note:"Izoh (ixtiyoriy)",pay:"To'lov: qabul qilganda naqd yoki karta",confirm:"Tasdiqlash",fill:"Iltimos, ism, telefon va manzilni kiriting",
+  thanks:"Rahmat! Buyurtma qabul qilindi",ordNo:"Buyurtma raqami",eta:"Taxminiy vaqt",min:"daqiqa",tr1:"Qabul qilindi",tr2:"Oshpaz tayyorlamoqda",tr3:"Kuryer yo'lda",tr4:"Yetkazildi — yoqimli ishtaha!",trP:"Olib ketishga tayyor!",close:"Yopish",
+  slides:[["🎉 Faqat yangi mijozlar uchun","Birinchi buyurtmaga chegirma","-10%","butun menyuga — UZBEGIM10"],["🔥 Yangi","Dabl Uzbegim","2×","ikki kotlet, ikki qavat chedder va maxfiy sous"],["⏰ 12:00 — 16:00","Ikkinchi lavash","1+1","yarim narxda — har kuni"]],
+  order:"Buyurtma berish",
+},
+ru:{
+  nAbout:"О нас",nMenu:"Меню",nPromo:"Акции",nVac:"Вакансии",nCt:"Контакты",
+  hrs:"Ежедневно с 09:00 до 03:00",themeTxt:"🌗 Светлая / тёмная тема",search:"Бургер, лаваш, шаурма...",cart:"Корзина",tHome:"Главная",tFav:"Избранное",
+  oType:"Тип заказа",oDel:"🛵 Доставка",oPick:"🏃 Самовывоз",oDelP:"До вашей двери за 30 минут",oPickP:"Заберёте сами в ближайшем филиале — без очереди",oChoose:"Выберите тип заказа",
+  t1h:"У вашей двери за 30 минут",t1p:"Опоздаем — следующий заказ за наш счёт",t2h:"На первый заказ",t2p:"На всё меню по промокоду UZBEGIM10",
+  add:"Добавить",sum:"сум",empty:"Ничего не найдено 🤷",favs:"Избранное",noFav:"Список избранного пуст. Нажмите ♡ на блюде.",
+  abH1:"Вкусно, быстро и",abH2:"по-узбекски",
+  ab1:"Uzbegim начинался в 2016 году с маленькой лавашной в Ташкенте. Сегодня мы — сеть фастфуда с 24 филиалами по всему Узбекистану.",
+  ab2:"Каждый бургер и лаваш готовится после заказа: свежее мясо, хлеб каждый день и наши фирменные соусы. Наша цель — соединить узбекское гостеприимство с современным фастфудом.",
+  vals:["🥩 Свежее мясо","🍞 Хлеб каждый день","⚡ 30 минут","❤️ Халяль","🌿 Чистая кухня"],
+  st1:"работаем с этого года",st2:"филиала",st3:"довольных гостей",st4:"средняя оценка",
+  promos:[["-10%","Скидка на первый заказ","10% на всё меню при первом заказе через сайт или приложение.","UZBEGIM10","🎁"],["1+1","Второй лаваш за полцены","Каждый день с 12:00 до 16:00 во всех филиалах.","","🌯"],["0 сум","Бесплатная доставка","При заказе от 150 000 сум или по промокоду.","BEPUL","🛵"],["-15 000","Пригласи друга","И вы, и друг получаете скидку 15 000 сум.","SALOM","🤝"],["🎂","Подарок на день рождения","Чизкейк в подарок в ваш день рождения.","","🍰"],["-20%","Ночная акция","Каждый день после 23:00 — 20% на все комбо.","","🌙"]],
+  copy:"Копировать",copied:"Промокод скопирован:",
+  vacs:[["👨‍🍳","Повар","5 000 000 — 8 000 000 сум","Опыт от 1 года. Бесплатное питание и форма."],["💁","Кассир","4 000 000 — 5 500 000 сум","Вежливость, знание узбекского — плюс."],["🛵","Курьер","6 000 000 — 10 000 000 сум","Со своим транспортом. Ежедневная оплата."],["📋","Менеджер филиала","9 000 000 — 12 000 000 сум","Опыт управления командой от 2 лет."]],
+  apply:"Откликнуться",vacH:"Отклик на вакансию",vacP:"Оставьте данные — HR позвонит в течение дня.",age:"Ваш возраст",exp:"Коротко о вашем опыте",send:"Отправить",vacOk:"Заявка принята! Скоро свяжемся 🤝",
+  callC:"Колл-центр, бесплатно",hrsP:"Без выходных",mailP:"Для предложений и жалоб",tgP:"Заказ через Telegram",fAddr:"Ташкент, ул. Амира Темура, 15",addrP:"Главный офис",open:"● Сейчас открыто",
+  fAbout:"Uzbegim — узбекское гостеприимство и современный фастфуд. Каждое блюдо готовится с любовью.",fCo:"Компания",rights:"Все права защищены.",madeIn:"Сделано с ❤️ в Узбекистане",
+  cartEmpty:"Корзина пока пуста",cartEmptyP:"Вкусняшки уже ждут вас!",goMenu:"Перейти в меню",
+  sub:"Товары",del:"Доставка",free:"Бесплатно",disc:"Скидка",total:"Итого",checkout:"Оформить",
+  promoPh:"Промокод",applyP:"Применить",promoOk:"Промокод применён! 🎉",promoBad:"Такого промокода нет",
+  freeLeft:"До бесплатной доставки ещё",freeOk:"🎉 Доставка бесплатно!",added:"добавлен в корзину",
+  ordH:"Оформление заказа",name:"Ваше имя",addr:"Адрес",note:"Комментарий (необязательно)",pay:"Оплата: наличными или картой при получении",confirm:"Подтвердить",fill:"Пожалуйста, укажите имя, телефон и адрес",
+  thanks:"Спасибо! Заказ принят",ordNo:"Номер заказа",eta:"Примерное время",min:"минут",tr1:"Принят",tr2:"Повар готовит",tr3:"Курьер в пути",tr4:"Доставлен — приятного аппетита!",trP:"Готов к выдаче!",close:"Закрыть",
+  slides:[["🎉 Только для новых клиентов","На первый заказ скидка","-10%","на всё меню — UZBEGIM10"],["🔥 Новинка","Дабл Узбегим","2×","две котлеты, двойной чеддер и секретный соус"],["⏰ 12:00 — 16:00","Второй лаваш","1+1","за полцены — каждый день"]],
+  order:"Заказать",
+}};
+
+const CATS=[
+ {id:"new",e:"✨",uz:"Yangiliklar",ru:"Новинки"},
+ {id:"combo",e:"🍱",uz:"Kombo",ru:"Комбо"},{id:"burger",e:"🍔",uz:"Burger",ru:"Бургер"},{id:"lavash",e:"🌯",uz:"Lavash",ru:"Лаваш"},
+ {id:"shaurma",e:"🥙",uz:"Shaurma",ru:"Шаурма"},{id:"hotdog",e:"🌭",uz:"Hot-dog",ru:"Хот-дог"},{id:"pizza",e:"🍕",uz:"Pitsa",ru:"Пицца"},
+ {id:"chicken",e:"🍗",uz:"Tovuq",ru:"Курица"},{id:"snack",e:"🍟",uz:"Fri",ru:"Фри"},{id:"drink",e:"🥤",uz:"Ichimlik",ru:"Напитки"},{id:"dessert",e:"🍦",uz:"Desert",ru:"Десерты"},
+];
+const P=[
+ ["c1","combo","🍱","Uzbegim Kombo","Узбегим Комбо","Burger + fri + kola 0.5","Бургер + фри + кола 0.5",59000,72000,"hit"],
+ ["c2","combo","🎉","Do'stlar to'plami","Набор «Друзья»","4 lavash, 2 fri, 4 ichimlik","4 лаваша, 2 фри, 4 напитка",169000,205000,"hot"],
+ ["c3","combo","👨‍👩‍👧","Oilaviy kombo","Семейное комбо","Pitsa, 6 qanot, fri, 1.5 l kola","Пицца, 6 крыльев, фри, кола 1.5 л",179000,215000,""],
+ ["c4","combo","🧒","Bolajon kombo","Детское комбо","Mini-burger, fri, sharbat, o'yinchoq","Мини-бургер, фри, сок, игрушка",39000,0,"new"],
+ ["b1","burger","🍔","Chizburger","Чизбургер","Mol go'shti kotleti, chedder, pomidor, sous","Котлета из говядины, чеддер, томат, соус",32000,0,""],
+ ["b2","burger","🍔","Dabl Uzbegim","Дабл Узбегим","2 ta kotlet, 2 qavat chedder, karamel piyoz","2 котлеты, двойной чеддер, карамельный лук",48000,0,"hit"],
+ ["b3","burger","🔥","Achchiq chiken burger","Острый чикен бургер","Achchiq qarsildoq tovuq, salat, piyoz","Острая хрустящая курица, салат, лук",36000,0,"hot"],
+ ["b4","burger","🍔","Big Toshkent","Биг Ташкент","Katta kotlet, bodring, maxsus sous","Большая котлета, огурцы, фирменный соус",44000,0,""],
+ ["b5","burger","🧀","Pishloqli bomba","Сырная бомба","Ichida eriydigan pishloq bilan kotlet","Котлета с тающим сыром внутри",46000,0,"new"],
+ ["l1","lavash","🌯","Lavash klassik","Лаваш классический","Mol go'shti, chipslar, pomidor, sous","Говядина, чипсы, томаты, соус",33000,0,"hit"],
+ ["l2","lavash","🌯","Tovuqli lavash","Лаваш с курицей","Tovuq, bodring, pishloqli sous","Курица, огурцы, сырный соус",30000,0,""],
+ ["l3","lavash","🧀","Pishloqli lavash","Сырный лаваш","Ikki baravar pishloq, go'sht, fri ichida","Двойной сыр, мясо, фри внутри",37000,0,""],
+ ["l4","lavash","🌶️","Achchiq lavash","Острый лаваш","Achchiq qalampir va maxsus sous","Острый перец и фирменный соус",35000,0,"hot"],
+ ["l5","lavash","🥖","Tandir lavash","Тандыр лаваш","Tandir nonida, qo'y go'shti, ko'katlar","В тандырной лепёшке, баранина, зелень",42000,0,"new"],
+ ["s1","shaurma","🥙","Shaurma","Шаурма","Go'sht, sabzavotlar, sarimsoqli sous","Мясо, овощи, чесночный соус",29000,0,""],
+ ["s2","shaurma","🥙","Donar kabob","Донар кебаб","Go'sht, guruch, salat, sous","Мясо, рис, салат, соус",36000,0,"hit"],
+ ["s3","shaurma","🥗","Donar boks","Донар бокс","Fri ustida go'sht va sous","Мясо и соус на картофеле фри",34000,0,""],
+ ["h1","hotdog","🌭","Hot-dog klassik","Хот-дог классический","Sosiska, ketchup, xantal","Сосиска, кетчуп, горчица",18000,0,""],
+ ["h2","hotdog","🌭","Fransuz hot-dog","Французский хот-дог","Bulka ichida sosiska va pishloqli sous","Сосиска в багете с сырным соусом",22000,0,""],
+ ["h3","hotdog","🌭","Dabl hot-dog","Дабл хот-дог","2 ta sosiska, piyoz, sous","2 сосиски, лук, соус",27000,0,"hit"],
+ ["p1","pizza","🍕","Pepperoni","Пепперони","Pepperoni, motsarella, tomat sousi","Пепперони, моцарелла, томатный соус",79000,0,"hit"],
+ ["p2","pizza","🍕","Margarita","Маргарита","Motsarella, pomidor, rayhon","Моцарелла, томаты, базилик",65000,0,""],
+ ["p3","pizza","🍕","Uzbegim pitsa","Пицца Узбегим","Qazi, go'sht, qo'ziqorin, zaytun","Казы, мясо, грибы, оливки",89000,0,"new"],
+ ["p4","pizza","🍕","4 pishloq","4 сыра","Motsarella, chedder, parmezan, dor-blu","Моцарелла, чеддер, пармезан, дор-блю",85000,0,""],
+ ["k1","chicken","🍗","Tovuq qanotlari","Куриные крылья","6 dona, BBQ yoki achchiq","6 шт, BBQ или острые",39000,0,"hot"],
+ ["k2","chicken","🍗","Strips","Стрипсы","5 dona qarsildoq file","5 шт хрустящего филе",35000,0,""],
+ ["k3","chicken","🪣","Chelak","Баскет","12 bo'lak tovuq + 2 sous","12 кусочков курицы + 2 соуса",99000,119000,"hit"],
+ ["n1","snack","🍟","Kartoshka fri","Картофель фри","Oltin rangli va qarsildoq","Золотистый и хрустящий",15000,0,""],
+ ["n2","snack","🥔","Dehqoncha kartoshka","Картофель по-деревенски","Ziravorlar bilan","Со специями",17000,0,""],
+ ["n3","snack","🧅","Piyoz halqalari","Луковые кольца","8 dona, sous bilan","8 шт, с соусом",19000,0,""],
+ ["n4","snack","🧆","Naggetslar","Наггетсы","9 dona tovuq naggets","9 шт куриных наггетсов",26000,0,"new"],
+ ["d1","drink","🥤","Coca-Cola 0.5","Coca-Cola 0.5","Muzdek","Ледяная",10000,0,""],
+ ["d2","drink","🍋","Limonad","Лимонад","Uyda tayyorlangan, yalpiz bilan","Домашний, с мятой",16000,0,"new"],
+ ["d3","drink","🥛","Ayron","Айран","Sovuq, yangi","Холодный, свежий",9000,0,""],
+ ["d4","drink","🍵","Ko'k choy","Зелёный чай","Choynakda, limon bilan","В чайнике, с лимоном",8000,0,""],
+ ["d5","drink","🧋","Milkshake","Милкшейк","Qulupnay, shokolad yoki vanil","Клубника, шоколад или ваниль",22000,0,""],
+ ["e1","dessert","🍦","Muzqaymoq","Мороженое","Shokolad yoki karamel topping","Шоколадный или карамельный топпинг",14000,0,""],
+ ["e2","dessert","🍩","Ponchik","Пончик","Shokoladli glazur","Шоколадная глазурь",12000,0,""],
+ ["e3","dessert","🍰","Chizkeyk","Чизкейк","Nyu-York uslubida","Нью-Йорк",25000,0,"hit"],
+ ["e4","dessert","🥞","Chak-chak","Чак-чак","Asal bilan, uyda","С мёдом, домашний",18000,0,"new"],
+].map((a,i)=>({id:a[0],cat:a[1],e:a[2],n:{uz:a[3],ru:a[4]},d:{uz:a[5],ru:a[6]},price:a[7],old:a[8],badge:a[9],rate:(4.5+((i*7)%5)/10).toFixed(1),votes:80+(i*37)%400,g:a[1]==="drink"?(a[0]==="d4"?"700 ml":"500 ml"):(a[1]==="combo"?"":(140+(i*53)%260)+" g")}));
+const byId=Object.fromEntries(P.map(p=>[p.id,p]));
+const SL=[{e:"🍔",bg:"radial-gradient(700px 400px at 80% 70%,rgba(255,122,0,.55),transparent 60%),linear-gradient(120deg,#1a120c,#2a1609)"},{e:"🍔",bg:"radial-gradient(700px 400px at 80% 70%,rgba(255,60,30,.5),transparent 60%),linear-gradient(120deg,#1a0f0c,#2b100a)"},{e:"🌯",bg:"radial-gradient(700px 400px at 80% 70%,rgba(255,170,40,.5),transparent 60%),linear-gradient(120deg,#16120a,#2a1d08)"}];
+const BRANCHES=[
+ {uz:["Amir Temur","Amir Temur ko'chasi, 15"],ru:["Амир Темур","ул. Амира Темура, 15"]},
+ {uz:["Chilonzor","Chilonzor, 9-kvartal"],ru:["Чиланзар","Чиланзар, 9-квартал"]},
+ {uz:["Yunusobod","Yunusobod, 4-mavze"],ru:["Юнусабад","Юнусабад, 4-квартал"]},
+ {uz:["Samarqand Darvoza","Qoratosh ko'chasi, 5A"],ru:["Самарканд Дарвоза","ул. Караташ, 5А"]},
+ {uz:["Sergeli","Sergeli, Yangi hayot"],ru:["Сергели","Сергели, Янги хаёт"]},
+ {uz:["Samarqand","Registon ko'chasi, 12"],ru:["Самарканд","ул. Регистан, 12"]},
+];
+const PROMOS={UZBEGIM10:{t:"pct",v:10},SALOM:{t:"fix",v:15000},BEPUL:{t:"del",v:0}};
+const DELIVERY=12000,FREE_FROM=150000;
+
+/* ===== Holat ===== */
+const store={get(k,d){try{const v=localStorage.getItem("uzb2_"+k);return v?JSON.parse(v):d}catch(e){return d}},set(k,v){try{localStorage.setItem("uzb2_"+k,JSON.stringify(v))}catch(e){}}};
+let L=store.get("lang","uz"),cart=store.get("cart",{}),promo=store.get("promo",null),favs=store.get("favs",[]),mode=store.get("mode","d");
+const $=s=>document.querySelector(s);
+const t=k=>T[L][k]??k;
+const fmt=n=>n.toLocaleString("ru-RU").replace(/[ ,]/g," ")+" "+t("sum");
+
+function setTheme(th){document.documentElement.dataset.theme=th;store.set("theme",th)}
+setTheme(store.get("theme","dark"));
+const toggleTheme=()=>setTheme(document.documentElement.dataset.theme==="dark"?"light":"dark");
+
+/* ===== Render ===== */
+function renderText(){
+  document.documentElement.lang=L;
+  document.querySelectorAll("[data-i]").forEach(el=>el.textContent=t(el.dataset.i));
+  $("#q").placeholder=t("search");
+  $("#lgTxt").textContent=L.toUpperCase();
+  $("#yr").textContent=new Date().getFullYear();
+  $("#otype").textContent=mode==="d"?t("oDel"):t("oPick");
+  $("#vals").innerHTML=t("vals").map(v=>`<span>${v}</span>`).join("");
+}
+let sI=0,sTimer;
+function renderSlider(){
+  $("#slider").innerHTML=t("slides").map((x,i)=>`<div class="slide ${i===sI?"on":""}" style="background:${SL[i].bg}">
+    <div class="txt"><span class="tag">${x[0]}</span><h1>${x[1]}</h1><span class="huge acc">${x[2]}</span><p>${x[3]}</p><a class="btn" href="#menu">${t("order")} →</a></div>
+    <div class="big">${SL[i].e}</div></div>`).join("")+
+    `<button class="arr l" data-sl="-1">←</button><button class="arr r" data-sl="1">→</button>
+     <div class="dots">${SL.map((_,i)=>`<button class="${i===sI?"on":""}" data-s="${i}" aria-label="${i+1}"></button>`).join("")}</div>`;
+}
+function go(i){sI=(i+SL.length)%SL.length;document.querySelectorAll(".slide").forEach((e,j)=>e.classList.toggle("on",j===sI));document.querySelectorAll(".dots button").forEach((e,j)=>e.classList.toggle("on",j===sI));clearInterval(sTimer);sTimer=setInterval(()=>go(sI+1),5500)}
+
+const qtyOf=id=>cart[id]||0;
+const PLUS='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
+function ctlHTML(p){const q=qtyOf(p.id);return `<div class="ctl">${q?`<div class="qty"><button data-dec="${p.id}">−</button><b>${q}</b><button data-inc="${p.id}">+</button></div>`:`<button class="add" data-add="${p.id}" aria-label="${t("add")}">${PLUS}</button>`}</div>`}
+function cardHTML(p){
+  const badge=p.badge?`<span class="badge ${p.badge}">${p.badge==="hit"?"Hit":p.badge==="new"?(L==="uz"?"Yangi":"Новинка"):(L==="uz"?"🌶 Achchiq":"🌶 Острое")}</span>`:"";
+  return `<article class="card glass" data-id="${p.id}">
+    <button class="fav" data-fav="${p.id}">${favs.includes(p.id)?"❤️":"♡"}</button>
+    <div style="position:relative"><div class="pic" data-open="${p.id}">${badge}<span>${p.e}</span></div>${ctlHTML(p)}</div>
+    <div class="body"><div class="price">${p.price.toLocaleString("ru-RU").replace(/[\u00a0,]/g," ")} <small>${t("sum")}</small>${p.old?`<s>${p.old.toLocaleString("ru-RU").replace(/[\u00a0,]/g," ")}</s>`:""}</div>
+    <h3>${p.n[L]}</h3><div class="meta"><b>★ ${p.rate}</b>${p.g?`<span>${p.g}</span>`:""}</div></div></article>`;
+}
+function renderMenu(){
+  const q=$("#q").value.trim().toLowerCase();
+  $("#cats").innerHTML=CATS.map(c=>`<button class="cat" data-cat="${c.id}"><i>${c.e}</i>${c[L]}</button>`).join("")+`<span class="ind" id="ind"></span>`;curCat=null;
+  let html="";
+  if(favs.length&&!q)html+=`<section class="sec" id="sec-fav"><div class="sh"><h2>❤️ ${t("favs")} <span class="pill">${favs.length}</span></h2></div><div class="grid">${favs.map(id=>cardHTML(byId[id])).join("")}</div></section>`;
+  CATS.forEach(c=>{
+    const items=P.filter(p=>(c.id==="new"?p.badge==="new":p.cat===c.id)&&(!q||(p.n.uz+p.n.ru+p.d.uz+p.d.ru).toLowerCase().includes(q)));
+    if(items.length)html+=`<section class="sec" id="sec-${c.id}"><div class="sh"><h2>${c.e} ${c[L]} <span class="pill">${items.length}</span></h2></div><div class="grid">${items.map(cardHTML).join("")}</div></section>`;
+  });
+  $("#sections").innerHTML=html||`<div class="empty">${t("empty")}</div>`;
+  $("#fcats").innerHTML=CATS.slice(1,7).map(c=>`<a href="#sec-${c.id}">${c[L]}</a>`).join("");
+  $("#fcnt").textContent=favs.length||"";
+  spy();
+}
+function renderInfo(){
+  $("#promoList").innerHTML=t("promos").map(p=>`<div class="pr glass"><span class="em">${p[4]}</span><div class="k acc">${p[0]}</div><h3>${p[1]}</h3><p>${p[2]}</p>${p[3]?`<button class="code" data-code="${p[3]}">🏷 ${p[3]}</button>`:`<a class="code" href="#menu">${t("order")} →</a>`}</div>`).join("");
+  $("#vacList").innerHTML=t("vacs").map((v,i)=>`<div class="vac glass"><span class="e">${v[0]}</span><h3>${v[1]}</h3><span class="sal">${v[2]}</span><p>${v[3]}</p><button class="btn" data-vac="${i}">${t("apply")}</button></div>`).join("");
+  $("#blist").innerHTML=BRANCHES.map(b=>`<div class="br glass"><h3>📍 ${b[L][0]}</h3><p>${b[L][1]}</p><p>09:00 — 03:00</p><span class="open">${t("open")}</span></div>`).join("");
+}
+function renderAll(){renderText();renderSlider();renderMenu();renderInfo();renderCart()}
+
+/* scroll-spy: faol bo'lim tugmasi belgilanadi */
+let curCat=null;
+const catsBottom=()=>$(".cats")?.getBoundingClientRect().height+$("header").getBoundingClientRect().height;
+function moveInd(){
+  const ind=$("#ind"),b=document.querySelector(`.cat[data-cat="${curCat}"]`);
+  if(!ind)return;
+  if(!b){ind.style.width="0px";return}
+  ind.style.width=b.offsetWidth-16+"px";ind.style.transform=`translateX(${b.offsetLeft+8}px)`;
+}
+function spy(){
+  const top=catsBottom()+60;
+  let cur=null;
+  document.querySelectorAll("#sections .sec").forEach(s=>{if(s.getBoundingClientRect().top<top)cur=s.id.slice(4)});
+  if(cur==="fav")cur=null;
+  const last=[...document.querySelectorAll("#sections .sec")].pop();
+  if(last&&last.getBoundingClientRect().bottom<top)cur=null;
+  if(cur!==curCat){
+    curCat=cur;
+    document.querySelectorAll(".cat").forEach(b=>b.classList.toggle("on",b.dataset.cat===cur));
+    const b=document.querySelector(`.cat[data-cat="${cur}"]`),row=$("#cats");
+    if(b)row.scrollLeft=b.offsetLeft-row.clientWidth/2+b.offsetWidth/2;
+    moveInd();
+  }
+  $("#toTop").classList.toggle("on",scrollY>900);
+  let nav=null;["menu","about","promos","vacancies","contacts"].forEach(id=>{const el=document.getElementById(id);if(el&&el.getBoundingClientRect().top<200)nav=id});
+  document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("on",a.getAttribute("href")==="#"+nav));
+}
+addEventListener("resize",moveInd);
+addEventListener("scroll",spy,{passive:true});
+
+/* ===== Savat ===== */
+function totals(){
+  const sub=Object.entries(cart).reduce((a,[id,q])=>a+byId[id].price*q,0);
+  let disc=0,del=(mode==="p"||sub>=FREE_FROM||!sub)?0:DELIVERY;
+  if(promo&&PROMOS[promo]){const pr=PROMOS[promo];if(pr.t==="pct")disc=Math.round(sub*pr.v/1000)*100;if(pr.t==="fix")disc=Math.min(pr.v,sub);if(pr.t==="del")del=0}
+  return{sub,disc,del,tot:Math.max(0,sub-disc+del),n:Object.values(cart).reduce((a,q)=>a+q,0)};
+}
+const save=()=>{store.set("cart",cart);store.set("promo",promo);store.set("favs",favs);store.set("mode",mode)};
+function change(id,d,el){
+  cart[id]=(cart[id]||0)+d;if(cart[id]<=0)delete cart[id];save();
+  if(d>0&&el){flyTo(el,byId[id].e);if(cart[id]===1)toast(`${byId[id].e} ${byId[id].n[L]} ${t("added")}`)}
+  document.querySelectorAll(`.card[data-id="${id}"] .ctl`).forEach(f=>{const tmp=document.createElement("div");tmp.innerHTML=ctlHTML(byId[id]);f.replaceWith(tmp.firstChild)});
+  renderCart();
+}
+function renderCart(){
+  const s=totals();
+  for(const el of [$("#cnt"),$("#tcnt")]){el.textContent=s.n;s.n?el.removeAttribute("data-z"):el.setAttribute("data-z","")}
+  $("#dTitle").textContent=t("cart");
+  const ids=Object.keys(cart);
+  if(!ids.length){
+    $("#cartList").innerHTML=`<div class="empty" style="padding-top:70px"><div style="font-size:84px">🛍️</div><h3 style="margin:10px 0 4px">${t("cartEmpty")}</h3><p>${t("cartEmptyP")}</p><br><button class="btn" data-close data-gomenu>${t("goMenu")}</button></div>`;
+    $("#cartFoot").innerHTML="";return;
+  }
+  $("#cartList").innerHTML=`<div class="seg" style="margin-bottom:8px"><button class="${mode==="d"?"on":""}" data-mode="d">${t("oDel")}</button><button class="${mode==="p"?"on":""}" data-mode="p">${t("oPick")}</button></div>`+
+    ids.map(id=>{const p=byId[id];return `<div class="ci"><div class="e">${p.e}</div><div class="m"><b>${p.n[L]}</b><span>${fmt(p.price)}</span></div><div class="qty"><button data-dec="${id}">−</button><b>${cart[id]}</b><button data-inc="${id}">+</button></div></div>`}).join("");
+  const left=FREE_FROM-s.sub;
+  $("#cartFoot").innerHTML=`
+    ${mode==="d"?`<div class="hint">${left>0?`${t("freeLeft")} <b>${fmt(left)}</b>`:t("freeOk")}</div><div class="prog"><i style="width:${Math.min(100,s.sub/FREE_FROM*100)}%"></i></div>`:""}
+    <div class="promo"><input id="promoIn" placeholder="${t("promoPh")}" value="${promo||""}"><button id="promoBtn">${t("applyP")}</button></div>
+    <div class="line"><span>${t("sub")}</span><span>${fmt(s.sub)}</span></div>
+    ${s.disc?`<div class="line" style="color:#34d399"><span>${t("disc")} (${promo})</span><span>−${fmt(s.disc)}</span></div>`:""}
+    ${mode==="d"?`<div class="line"><span>${t("del")}</span><span>${s.del?fmt(s.del):t("free")}</span></div>`:""}
+    <div class="line tot"><span>${t("total")}</span><span>${fmt(s.tot)}</span></div>
+    <button class="btn wide" id="checkout" style="margin-top:12px">${t("checkout")} • ${fmt(s.tot)}</button>`;
+  $("#promoBtn").onclick=()=>applyPromo($("#promoIn").value);
+  $("#checkout").onclick=openCheckout;
+}
+function applyPromo(v){v=v.trim().toUpperCase();if(PROMOS[v]){promo=v;save();renderCart();toast(t("promoOk"));confetti(40)}else toast(t("promoBad"))}
+function openCart(){$("#drawer").classList.add("on");$("#ov").classList.add("on")}
+function openModal(html){$("#mbox").innerHTML=`<button class="x" data-close>✕</button>`+html;$("#modal").classList.add("on");$("#ov").classList.add("on");$("#mbox").scrollTop=0}
+function closeAll(){["#drawer","#ov","#modal"].forEach(s=>$(s).classList.remove("on"))}
+
+/* ===== Modallar ===== */
+function openProduct(id){
+  const p=byId[id];
+  openModal(`<div class="mpic"><span style="filter:drop-shadow(0 20px 26px rgba(0,0,0,.45))">${p.e}</span></div>
+    <div class="mbody"><div style="display:flex;justify-content:space-between;gap:10px;align-items:start"><h3>${p.n[L]}</h3><span class="price" style="font-size:22px">${fmt(p.price)}</span></div>
+    <div class="rt" style="margin-top:6px"><b>★ ${p.rate}</b> (${p.votes})</div>
+    <p style="color:var(--mut);margin:10px 0 20px">${p.d[L]}</p>
+    <button class="btn wide" data-add="${p.id}" data-close>${t("add")} • ${fmt(p.price)}</button></div>`);
+}
+function openType(){
+  const draw=()=>openModal(`<div class="mbody" style="padding-top:30px"><h3>${t("oChoose")}</h3><div class="types">
+    <button class="type ${mode==="d"?"on":""}" data-mode="d" data-close><i>🛵</i><div><b>${t("oDel").slice(2)}</b><span>${t("oDelP")}</span></div></button>
+    <button class="type ${mode==="p"?"on":""}" data-mode="p" data-close><i>🏃</i><div><b>${t("oPick").slice(2)}</b><span>${t("oPickP")}</span></div></button></div></div>`);
+  draw();
+}
+function setMode(m){mode=m;save();renderText();renderCart()}
+const phoneOk=v=>v.replace(/\D/g,"").length>=12;
+function openCheckout(){
+  const s=totals();
+  $("#drawer").classList.remove("on");
+  openModal(`<div class="mbody" style="padding-top:30px"><h3>${t("ordH")}</h3><div class="form">
+    <div class="seg"><button class="${mode==="d"?"on":""}" data-mode="d" data-reco>${t("oDel")}</button><button class="${mode==="p"?"on":""}" data-mode="p" data-reco>${t("oPick")}</button></div>
+    <input id="fName" placeholder="${t("name")}" autocomplete="name">
+    <input id="fPhone" type="tel" value="+998 " autocomplete="tel">
+    ${mode==="d"?`<input id="fAddr" placeholder="${t("addr")}" autocomplete="street-address">`:`<select id="fAddr">${BRANCHES.map(b=>`<option>${b[L][0]} — ${b[L][1]}</option>`).join("")}</select>`}
+    <textarea id="fNote" placeholder="${t("note")}"></textarea>
+    <div class="hint">💳 ${t("pay")}</div>
+    <div class="line tot"><span>${t("total")}</span><span>${fmt(s.tot)}</span></div>
+    <button class="btn wide" id="fGo">${t("confirm")} ✓</button></div></div>`);
+  $("#fGo").onclick=()=>{
+    if(!$("#fName").value.trim()||!phoneOk($("#fPhone").value)||!$("#fAddr").value.trim()){toast(t("fill"));return}
+    cart={};promo=null;save();renderMenu();renderCart();showTracker();
+  };
+}
+function showTracker(){
+  const no="UZ-"+Math.floor(10000+Math.random()*89999);
+  const steps=mode==="d"?[["✅","tr1"],["👨‍🍳","tr2"],["🛵","tr3"],["🎉","tr4"]]:[["✅","tr1"],["👨‍🍳","tr2"],["🛍️","trP"]];
+  let eta=mode==="d"?30:15;
+  openModal(`<div class="mbody" style="padding-top:34px;text-align:center">
+    <div style="font-size:64px">🥳</div><h3>${t("thanks")}</h3><p style="color:var(--mut);margin-top:4px">${t("ordNo")}: <b style="color:var(--ink)">${no}</b></p>
+    <p style="color:var(--mut);margin-top:14px">${t("eta")}</p><div class="eta"><span id="eta">${eta}</span> ${t("min")}</div>
+    <div class="track">${steps.map((s,i)=>`${i?'<div class="bar"></div>':""}<div class="ts" data-st="${i}"><span class="d">${s[0]}</span><b>${t(s[1])}</b></div>`).join("")}</div>
+    <button class="btn wide" data-close>${t("close")}</button></div>`);
+  confetti(80);
+  steps.forEach((_,i)=>setTimeout(()=>{
+    document.querySelectorAll(".ts").forEach(e=>e.classList.remove("cur"));
+    const e=document.querySelector(`[data-st="${i}"]`);if(!e)return;e.classList.add("on");if(i<steps.length-1)e.classList.add("cur");
+    const el=$("#eta");if(el)el.textContent=Math.max(0,Math.round(eta*(1-i/(steps.length-1))));
+  },300+i*1800));
+}
+function openVac(i){
+  const v=t("vacs")[i];
+  openModal(`<div class="mbody" style="padding-top:30px"><div style="font-size:48px">${v[0]}</div><h3>${t("vacH")}: ${v[1]}</h3><p style="color:var(--mut);margin-top:6px">${t("vacP")}</p>
+    <div class="form"><input id="vName" placeholder="${t("name")}"><input id="vPhone" type="tel" value="+998 "><input id="vAge" type="number" min="16" max="70" placeholder="${t("age")}"><textarea id="vExp" placeholder="${t("exp")}"></textarea>
+    <button class="btn wide" id="vGo">${t("send")}</button></div></div>`);
+  $("#vGo").onclick=()=>{if(!$("#vName").value.trim()||!phoneOk($("#vPhone").value)){toast(t("fill").split(",")[0]);return}closeAll();toast(t("vacOk"))};
+}
+
+/* ===== Effektlar ===== */
+let toastT;function toast(m){const e=$("#toast");e.textContent=m;e.classList.add("on");clearTimeout(toastT);toastT=setTimeout(()=>e.classList.remove("on"),2400)}
+function flyTo(el,emoji){
+  const target=innerWidth<=640?$("#tCart"):$("#cartBtn");
+  const r=el.getBoundingClientRect(),c=target.getBoundingClientRect();
+  const f=document.createElement("div");f.className="fly";f.textContent=emoji;f.style.left=r.left+r.width/2-20+"px";f.style.top=r.top-10+"px";document.body.appendChild(f);
+  requestAnimationFrame(()=>{f.style.left=c.left+c.width/2-20+"px";f.style.top=c.top+"px";f.style.transform="scale(.4)";f.style.opacity=".4"});
+  setTimeout(()=>{f.remove();const b=$("#cartBtn");b.classList.remove("bump");void b.offsetWidth;b.classList.add("bump")},700);
+}
+function confetti(n){const cs=["#ff7a00","#ffa62b","#ff3b30","#fff","#ffd166"];for(let i=0;i<n;i++){const d=document.createElement("i");d.className="confetti";d.style.left=Math.random()*100+"vw";d.style.background=cs[i%cs.length];d.style.animationDuration=1.8+Math.random()*1.8+"s";d.style.animationDelay=Math.random()*.4+"s";document.body.appendChild(d);setTimeout(()=>d.remove(),4200)}}
+
+/* ===== Hodisalar ===== */
+document.addEventListener("click",e=>{
+  const g=k=>e.target.closest(`[data-${k}]`);
+  let x;
+  if(x=g("add"))change(x.dataset.add,1,x.closest(".card")?.querySelector(".pic span")||x);
+  else if(x=g("inc"))change(x.dataset.inc,1);
+  else if(x=g("dec"))change(x.dataset.dec,-1);
+  else if(x=g("open"))openProduct(x.dataset.open);
+  else if(x=g("fav")){const id=x.dataset.fav;favs=favs.includes(id)?favs.filter(f=>f!==id):[...favs,id];save();const y=scrollY;renderMenu();scrollTo(0,y)}
+  else if(x=g("cat")){const el=document.getElementById("sec-"+x.dataset.cat);if(el){closeAll();scrollTo({top:el.getBoundingClientRect().top+scrollY-catsBottom()-8,behavior:"smooth"})}}
+  else if(x=g("mode")){setMode(x.dataset.mode);if(x.dataset.reco!==undefined)openCheckout()}
+  else if(x=g("code")){const c=x.dataset.code;navigator.clipboard?.writeText(c).catch(()=>{});promo=c;save();renderCart();toast(`${t("copied")} ${c} ✓`)}
+  else if(x=g("vac"))openVac(+x.dataset.vac);
+  else if(x=g("sl"))go(sI+ +x.dataset.sl);
+  else if(x=g("s"))go(+x.dataset.s);
+  const cl=g("close");
+  if(cl){closeAll();if(cl.dataset.gomenu!==undefined)document.getElementById("menu").scrollIntoView({behavior:"smooth"})}
+  if(e.target.closest("#mnav a"))$("#mnav").classList.remove("on");
+});
+$("#ov").onclick=closeAll;
+$("#modal").onclick=e=>{if(e.target.id==="modal")closeAll()};
+addEventListener("keydown",e=>{if(e.key==="Escape")closeAll()});
+$("#cartBtn").onclick=openCart;$("#tCart").onclick=openCart;
+const goFav=()=>{const s=document.getElementById("sec-fav");if(s)s.scrollIntoView({behavior:"smooth"});else toast(t("noFav"))};
+$("#favBtn").onclick=goFav;$("#tFav").onclick=goFav;
+$("#otype").onclick=openType;
+$("#allCats").onclick=()=>openModal(`<div class="mbody" style="padding-top:30px"><h3>${t("nMenu")}</h3><div class="catGrid">${CATS.map(c=>`<button class="${c.id===curCat?"on":""}" data-cat="${c.id}"><i>${c.e}</i>${c[L]}</button>`).join("")}</div></div>`);
+$("#toTop").onclick=()=>scrollTo({top:0,behavior:"smooth"});
+$("#theme").onclick=toggleTheme;$("#mTheme").onclick=e=>{e.preventDefault();toggleTheme()};
+$("#menuBtn").onclick=()=>$("#mnav").classList.toggle("on");
+$("#sBtn").onclick=()=>{const s=$("#sbar");s.classList.toggle("on");if(s.classList.contains("on"))setTimeout(()=>$("#q").focus(),200)};
+$("#lang").onclick=()=>{L=L==="uz"?"ru":"uz";store.set("lang",L);renderAll()};
+let qT;$("#q").oninput=()=>{clearTimeout(qT);qT=setTimeout(()=>{renderMenu();document.getElementById("menu").scrollIntoView({behavior:"smooth"})},250)};
+
+renderAll();go(0);
+</script>
+</body>
+</html>

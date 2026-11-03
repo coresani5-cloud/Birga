@@ -1,35 +1,40 @@
 # Uzbegim — fast food yetkazib berish sayti
 
-## Ishga tushirish
-
 ```bash
 node uzbegim/server.js
 ```
 
-Qo'shimcha paket o'rnatish shart emas (Node 18+). Keyin brauzerda:
+Qo'shimcha paket kerak emas (Node 18+).
 
-| Sahifa | Manzil | Kim uchun |
-|---|---|---|
-| Sayt | http://localhost:8080/ | Mijozlar: ro'yxatdan o'tish, buyurtma, kuzatuv |
-| Oshxona paneli | http://localhost:8080/admin.html | Xodimlar (PIN: `1234`) |
-| Kuryer | http://localhost:8080/courier.html | Kuryerlar (PIN: `0000`) |
+| Sahifa | Kim uchun |
+|---|---|
+| `/` | Mijozlar: ro'yxatdan o'tish, buyurtma, jonli kuzatuv, bekor qilish, baho |
+| `/admin.html` | Oshxona: buyurtmalar, stop-list, hisobot, xodimlar |
+| `/courier.html` | Kuryerlar: buyurtmani olish, GPS, yetkazdim |
 
-PIN va portni o'zgartirish: `PORT=80 ADMIN_PIN=... COURIER_PIN=... node uzbegim/server.js`
+## Sozlamalar (environment)
 
-## Buyurtma qanday yuradi
+| O'zgaruvchi | Vazifasi |
+|---|---|
+| `ADMIN_PIN` | Bosh admin PIN. Shu bilan kirib, Xodimlar bo'limida oshxona xodimlari va kuryerlarni qo'shasiz |
+| `COURIER_PIN` | Ixtiyoriy: umumiy kuryer PIN (ism + telefon bilan kiriladi) |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` | Berilsa, ma'lumotlar Supabase'da saqlanadi va server qayta ishga tushganda o'chmaydi |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Berilsa, har yangi buyurtma Telegram guruhga keladi |
+| `OPEN_FROM`, `OPEN_TO` | Ish vaqti, Toshkent vaqti bo'yicha soat (standart 9 va 3) |
 
-1. Mijoz ro'yxatdan o'tadi (ism, telefon, parol), manzilni yozadi va xaritada belgilaydi.
-2. Oshxona panelida buyurtma ovozli signal bilan chiqadi. Xodim bosadi: **Qabul qilish → Tayyorlashni boshlash → Tayyor**.
-3. Kuryer sahifasida "Olib ketishga tayyor" ro'yxatidan **Oldim, yo'lga chiqdim** ni bosadi — telefon GPS'i yoqiladi.
-4. Mijoz xaritada kuryerni, masofa va qolgan vaqtni ko'radi; 350 m qolganda "Kuryer yetib kelay dedi" chiqadi.
-5. Kuryer **Yetkazdim** ni bosadi.
+Supabase jadvali:
 
-Mijozdagi holat belgilari faqat xodim yoki kuryer bosgandagina yonadi.
+```sql
+create table uz_store (coll text not null, id text not null, data jsonb not null, primary key (coll, id));
+alter table uz_store enable row level security;  -- faqat server (service key) kira oladi
+```
 
-## Muhim
+## Qoidalar
 
-- Telefonlarda GPS faqat **https://** manzilda ishlaydi. Serverni HTTPS bilan (masalan Render, Railway yoki Nginx + Let's Encrypt) joylang.
-- Ma'lumotlar `uzbegim/data/` papkasida JSON fayllarda saqlanadi (git'ga kirmaydi).
-- SMS orqali tasdiqlash yo'q: ro'yxatdan o'tish telefon + parol bilan.
-- `index.html` faylini serversiz ochsangiz, sayt **demo rejimda** ishlaydi: holatlar avtomatik o'zgaradi.
-- Narxlar Toshkent fast food tarmoqlarining odatiy narxlari asosida qo'yilgan namuna. `index.html` ichidagi `P` ro'yxatida o'zgartiriladi.
+- Narx, yetkazish va chegirmani server hisoblaydi.
+- Yetkazishda xaritada nuqta majburiy. Buyurtma eng yaqin filialga tushadi. Yetkazish narxi: 3 km gacha 10 000, 6 km — 14 000, 10 km — 18 000, 15 km — 24 000 so'm; 15 km dan uzoq qabul qilinmaydi; 150 000 so'mdan yuqori bepul.
+- Ish vaqtidan tashqari buyurtma qabul qilinmaydi.
+- UZBEGIM10 faqat birinchi buyurtmaga, SALOM va BEPUL har mijozga bir marta.
+- Mijoz buyurtmani oshxona qabul qilguncha bekor qila oladi; oshxona sabab bilan rad etadi.
+- Kuryer faqat "Tayyor" buyurtmani oladi va faqat o'z buyurtmasining GPS'ini yuboradi.
+- Filialga biriktirilgan xodim faqat o'z filiali buyurtmalarini ko'radi.

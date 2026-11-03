@@ -12,7 +12,7 @@ Object.assign(T.uz, {
   addrPh: "Ko'cha, uy, xonadon, mo'ljal", pickMap: '📍 Xaritada belgilash', myLoc: '🎯 Joylashuvimni aniqlash', mapDone: '✓ Xaritada belgilandi', saveAddr: 'Manzilni saqlab qo\'yish', addrLabel: 'Nomi (Uy, Ish...)', pickBranch: 'Filialni tanlang', mapHint: "Xaritani suring — pin manzilingiz ustida tursin",
   locDenied: "Joylashuvni aniqlab bo'lmadi. Xaritada qo'lda belgilang.", needAddr: 'Manzilni kiriting', orderFor: 'Buyurtmachi',
   waiting: 'Oshxona buyurtmangizni ko\'rib chiqmoqda...', courierCard: 'Kuryeringiz', dist: 'Masofa', left: 'Qoldi', upd: 'Yangilandi', near: '🔔 Kuryer yetib kelay dedi! Eshikka chiqing.', mins: 'daq', demo: 'Demo rejim: holatlar avtomatik o\'zgaradi. Haqiqiy rejim uchun serverni ishga tushiring.',
-  myOrder: 'Buyurtmam', cancelled: 'Buyurtma bekor qilindi. Savollar bo\'lsa qo\'ng\'iroq qiling: +998 71 200-00-00', items: 'Tarkib', gpsWait: 'Kuryer GPS signali kutilmoqda...', toYou: 'sizgacha',
+  myOrder: 'Buyurtmam', eClosed: 'Hozir yopiqmiz. Ish vaqti: {h}', closedBar: '🌙 Hozir yopiqmiz — buyurtmalar {h} oralig\'ida qabul qilinadi. Menyuni ko\'rib turishingiz mumkin.', eStopped: 'Savatdagi ba\'zi taomlar tugab qoldi. Ularni savatdan olib tashlang.', ePromoFirst: 'Bu promokod faqat birinchi buyurtmaga', ePromoUsed: 'Bu promokoddan allaqachon foydalangansiz', eNoPoint: 'Xaritada manzilingizni belgilang', eFar: 'Bu manzil yetkazish hududidan tashqarida ({km} km dan uzoq)', eSlow: 'Juda ko\'p urinish. Bir daqiqadan keyin qayta urinib ko\'ring.', eMap: 'Xarita yuklanmadi. Internetni tekshiring.', delPick: 'xaritada belgilang', fromBranch: 'Filial', stepPoint: 'Xaritada uyingizni belgilang', stepAddr: 'Uy, xonadon, qavat, mo\'ljal', soldout: 'Tugagan', cancelBtn: 'Buyurtmani bekor qilish', cancelSure: 'Rostdan bekor qilinsinmi? Yana bosing', eLate: 'Oshxona buyurtmani qabul qilib bo\'ldi, endi bekor qilib bo\'lmaydi. Qo\'ng\'iroq qiling: +998 71 200-00-00', youCancelled: 'Siz buyurtmani bekor qildingiz.', reason: 'Sabab', rateQ: 'Buyurtma sizga yoqdimi?', rateComment: 'Fikringiz (ixtiyoriy)', send: 'Yuborish', thanksRate: 'Baho uchun rahmat!', delFrom: '{x} so\'mdan', cancelled: 'Buyurtma bekor qilindi. Savollar bo\'lsa qo\'ng\'iroq qiling: +998 71 200-00-00', items: 'Tarkib', gpsWait: 'Kuryer GPS signali kutilmoqda...', toYou: 'sizgacha',
 });
 Object.assign(T.ru, {
   login: 'Войти', register: 'Регистрация', password: 'Пароль (минимум 6 символов)', haveAcc: 'Уже есть аккаунт?', noAcc: 'Нет аккаунта?',
@@ -22,7 +22,7 @@ Object.assign(T.ru, {
   addrPh: 'Улица, дом, квартира, ориентир', pickMap: '📍 Отметить на карте', myLoc: '🎯 Определить местоположение', mapDone: '✓ Отмечено на карте', saveAddr: 'Сохранить адрес', addrLabel: 'Название (Дом, Работа...)', pickBranch: 'Выберите филиал', mapHint: 'Двигайте карту — пин должен стоять на вашем адресе',
   locDenied: 'Не удалось определить местоположение. Отметьте на карте вручную.', needAddr: 'Укажите адрес', orderFor: 'Заказчик',
   waiting: 'Кухня рассматривает ваш заказ...', courierCard: 'Ваш курьер', dist: 'Расстояние', left: 'Осталось', upd: 'Обновлено', near: '🔔 Курьер почти у вас! Выходите к двери.', mins: 'мин', demo: 'Демо-режим: статусы меняются автоматически. Для реальной работы запустите сервер.',
-  myOrder: 'Мой заказ', cancelled: 'Заказ отменён. Вопросы: +998 71 200-00-00', items: 'Состав', gpsWait: 'Ждём GPS-сигнал курьера...', toYou: 'до вас',
+  myOrder: 'Мой заказ', eClosed: 'Сейчас мы закрыты. Часы работы: {h}', closedBar: '🌙 Сейчас мы закрыты — заказы принимаются с {h}. Меню можно посмотреть.', eStopped: 'Некоторые блюда закончились. Уберите их из корзины.', ePromoFirst: 'Этот промокод только для первого заказа', ePromoUsed: 'Вы уже использовали этот промокод', eNoPoint: 'Отметьте ваш адрес на карте', eFar: 'Адрес вне зоны доставки (дальше {km} км)', eSlow: 'Слишком много попыток. Попробуйте через минуту.', eMap: 'Карта не загрузилась. Проверьте интернет.', delPick: 'отметьте на карте', fromBranch: 'Филиал', stepPoint: 'Отметьте дом на карте', stepAddr: 'Дом, квартира, этаж, ориентир', soldout: 'Закончилось', cancelBtn: 'Отменить заказ', cancelSure: 'Точно отменить? Нажмите ещё раз', eLate: 'Кухня уже приняла заказ, отменить нельзя. Позвоните: +998 71 200-00-00', youCancelled: 'Вы отменили заказ.', reason: 'Причина', rateQ: 'Понравился заказ?', rateComment: 'Ваш отзыв (необязательно)', send: 'Отправить', thanksRate: 'Спасибо за оценку!', delFrom: 'от {x} сум', cancelled: 'Заказ отменён. Вопросы: +998 71 200-00-00', items: 'Состав', gpsWait: 'Ждём GPS-сигнал курьера...', toYou: 'до вас',
 });
 
 /* ---------- Stil ---------- */
@@ -61,6 +61,10 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .ts small{display:block;color:var(--mut);font-weight:600;font-size:12px}
 .ts.on b{color:var(--ink)}
 .demo-note{margin-top:12px;font-size:12px;color:var(--mut);padding:10px 12px;border-radius:12px;border:1px dashed var(--ln)}
+.rate{display:grid;gap:10px;padding:14px;border-radius:18px;background:var(--glass);border:1px solid var(--ln);margin-bottom:10px}
+.rate .stars{display:flex;gap:6px}.rate .stars button{font-size:32px;color:var(--mut);line-height:1}.rate .stars button.on{color:var(--gold,#d9b35b)}
+.rate textarea{height:64px;border-radius:14px;border:1px solid var(--ln);background:var(--glass);padding:10px 12px;resize:none;outline:none}
+.rate.done{display:block;color:var(--gold,#d9b35b);font-size:22px}.rate.done span{font-size:14px;color:var(--mut)}
 .otype.alt{background:var(--glass2);color:var(--ink);border:1px solid rgba(255,122,0,.5);box-shadow:none;animation:nearp 2s infinite}
 </style>`);
 
@@ -166,85 +170,154 @@ async function openProfile() {
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 /* ---------- Buyurtma berish ---------- */
+// Server javobidagi xato kodlarini tushunarli matnga aylantirish
+function errText(e) {
+  const c = e && (e.message || e.error), r = e && e.data;
+  if (c === 'closed') return t('eClosed').replace('{h}', MENU.hours || '');
+  if (c === 'stopped') return t('eStopped');
+  if (c === 'promo') return t(r && r.reason === 'first' ? 'ePromoFirst' : r && r.reason === 'used' ? 'ePromoUsed' : 'promoBad');
+  if (c === 'nopoint') return t('eNoPoint');
+  if (c === 'far') return t('eFar').replace('{km}', MENU.maxKm || 15);
+  if (c === 'addr') return t('needAddr');
+  if (c === 'items') return t('cartEmpty');
+  if (c === 'slow') return t('eSlow');
+  return t('eNet');
+}
+function cartItems() { return Object.entries(cart).map(([k, q]) => { const r = PK(k); return { id: k, n: vName(r.p, r.vi), q, price: r.v.p }; }); }
+function localQuote(b) {
+  const tt = totals();
+  return { sub: tt.sub, disc: tt.disc, del: b.mode === 'd' && tt.sub < FREE_FROM ? 10000 : 0, total: tt.sub - tt.disc + (b.mode === 'd' && tt.sub < FREE_FROM ? 10000 : 0), branch: b.branch || 0, dist: null, zone: null, promoError: null, open: true };
+}
 function openCheckout() {
   if (!ME) { $('#drawer').classList.remove('on'); return openAuth(openCheckout); }
-  const s = totals();
+  if (LIVE && MENU.open === false) { toast(t('eClosed').replace('{h}', MENU.hours || '')); return; }
   const sel = { addr: '', lat: null, lng: null, branch: 0, label: '' };
   const saved = ME.addresses || [];
   if (saved[0]) Object.assign(sel, saved[0]);
-  let pickMap = null;
+  let pickMap = null, Q = null, qT = null, seq = 0;
   $('#drawer').classList.remove('on');
+  const body = () => ({ mode, addr: sel.addr, lat: mode === 'd' ? sel.lat : null, lng: mode === 'd' ? sel.lng : null, branch: sel.branch, items: cartItems(), promo });
+  const drawSum = () => {
+    const el = document.getElementById('fSum'); if (!el) return;
+    if (!Q) { el.innerHTML = `<div class="hint">...</div>`; return; }
+    const br = UZ.BRANCHES[Q.branch || 0];
+    let delLine;
+    if (mode !== 'd') delLine = '';
+    else if (Q.zone === 'nopoint') delLine = `<div class="line"><span>${t('del')}</span><span class="hint">${t('delPick')}</span></div>`;
+    else if (Q.zone === 'far') delLine = `<div class="line"><span>${t('del')}</span><span style="color:#ff6b5e">${t('eFar').replace('{km}', MENU.maxKm || 15)}</span></div>`;
+    else delLine = `<div class="line"><span>${t('del')}${Q.dist != null ? ` · ${String(Q.dist).replace('.', ',')} km` : ''}</span><span>${Q.del ? fmt(Q.del) : t('free')}</span></div>`;
+    el.innerHTML = `<div class="line"><span>${t('sub')}</span><span>${fmt(Q.sub)}</span></div>
+      ${Q.disc ? `<div class="line" style="color:#34d399"><span>${t('disc')} (${promo})</span><span>−${fmt(Q.disc)}</span></div>` : ''}
+      ${Q.promoError ? `<div class="line" style="color:#ff6b5e"><span>${promo}</span><span>${t(Q.promoError === 'first' ? 'ePromoFirst' : Q.promoError === 'used' ? 'ePromoUsed' : 'promoBad')}</span></div>` : ''}
+      ${delLine}
+      ${mode === 'd' && Q.dist != null ? `<div class="hint">🏪 ${t('fromBranch')}: ${br[L]}</div>` : ''}
+      <div class="line tot"><span>${t('total')}</span><span>${fmt(Q.total)}</span></div>`;
+    const go = document.getElementById('fGo');
+    if (go) go.textContent = `${t('confirm')} • ${fmt(Q.total)}`;
+  };
+  const requote = () => {
+    clearTimeout(qT);
+    qT = setTimeout(async () => {
+      const my = ++seq;
+      try { const q = LIVE ? await UZ.api('quote', { body: body() }) : localQuote(body()); if (my === seq) { Q = q; drawSum(); } }
+      catch (e) { if (my === seq) { Q = localQuote(body()); drawSum(); } }
+    }, 250);
+  };
+  const showOk = () => { const o = document.getElementById('fMapOk'); if (o) o.hidden = sel.lat == null; };
+  const openPick = async c => {
+    const w = document.getElementById('fMapW'); if (!w) return;
+    w.hidden = false;
+    try {
+      if (!pickMap || !document.getElementById('fMap').children.length) {
+        pickMap = await UZ.makeMap(document.getElementById('fMap'), c || (sel.lat != null ? sel : UZ.CENTER), sel.lat != null || c ? 16 : 12);
+        pickMap.on('moveend', () => { const p = pickMap.getCenter(); sel.lat = +p.lat.toFixed(6); sel.lng = +p.lng.toFixed(6); showOk(); requote(); const er = document.getElementById('fErr'); if (er) er.textContent = ''; });
+      } else if (c) pickMap.setView([c.lat, c.lng], 17);
+      if (c || sel.lat != null) { const p = pickMap.getCenter(); sel.lat = +p.lat.toFixed(6); sel.lng = +p.lng.toFixed(6); showOk(); requote(); }
+    } catch (e) { document.getElementById('fMap').innerHTML = `<div class="hint" style="padding:16px">${t('eMap')}</div>`; }
+  };
   const draw = () => {
+    pickMap = null;
     openModal(`<div class="mbody" style="padding-top:30px"><h3>${t('ordH')}</h3><div class="form">
       <div class="seg"><button type="button" class="${mode === 'd' ? 'on' : ''}" data-cm="d">${t('oDel')}</button><button type="button" class="${mode === 'p' ? 'on' : ''}" data-cm="p">${t('oPick')}</button></div>
       <div class="me-card" style="padding:12px"><div class="me-av" style="width:40px;height:40px;font-size:16px">${esc(ME.name[0].toUpperCase())}</div><div><span class="hint">${t('orderFor')}</span><b style="display:block">${esc(ME.name)} • ${esc(ME.phone)}</b></div></div>
       ${mode === 'd' ? `
         ${saved.length ? `<div class="chips">${saved.map((a, i) => `<button type="button" class="chipb ${sel.addr === a.addr ? 'on' : ''}" data-sa="${i}">📍 ${esc(a.label || a.addr)}</button>`).join('')}</div>` : ''}
-        <textarea id="fAddr" placeholder="${t('addrPh')}" style="height:70px">${esc(sel.addr)}</textarea>
-        <div class="row2"><button type="button" class="btn ghost" id="fLoc">${t('myLoc')}</button><button type="button" class="btn ghost" id="fMapB">${t('pickMap')}</button></div>
-        <div id="fMapW" hidden><div class="pick"><div id="fMap" style="height:100%"></div><span class="cpin">📍</span></div><div class="hint" style="margin-top:6px">${t('mapHint')}</div></div>
+        <div class="lbl">1. ${t('stepPoint')}</div>
+        <div id="fMapW"><div class="pick"><div id="fMap" style="height:100%"></div><span class="cpin">📍</span></div><div class="hint" style="margin-top:6px">${t('mapHint')}</div></div>
+        <div class="row2"><button type="button" class="btn ghost" id="fLoc">${t('myLoc')}</button></div>
         <div id="fMapOk" class="ok" ${sel.lat == null ? 'hidden' : ''}>${t('mapDone')}</div>
+        <div class="lbl">2. ${t('stepAddr')}</div>
+        <textarea id="fAddr" placeholder="${t('addrPh')}" style="height:70px">${esc(sel.addr)}</textarea>
         <label style="display:flex;gap:10px;align-items:center;font-weight:700;font-size:14px"><input type="checkbox" id="fSave" ${saved.some(a => a.addr === sel.addr) ? '' : 'checked'} style="width:20px;height:20px;accent-color:#ff7a00"> ${t('saveAddr')}</label>
       ` : `<select id="fBranch">${UZ.BRANCHES.map((b, i) => `<option value="${i}" ${sel.branch === i ? 'selected' : ''}>${b[L]}</option>`).join('')}</select>`}
       <textarea id="fNote" placeholder="${t('note')}"></textarea>
       <div class="hint">💳 ${t('pay')}</div>
-      <div class="line tot"><span>${t('total')}</span><span>${fmt(totals().tot)}</span></div>
+      <div id="fSum"></div>
       <div class="err" id="fErr"></div>
-      <button type="button" class="btn wide" id="fGo">${t('confirm')} ✓</button></div></div>`);
+      <button type="button" class="btn wide" id="fGo">${t('confirm')}</button></div></div>`);
     document.querySelectorAll('[data-cm]').forEach(b => (b.onclick = () => { setMode(b.dataset.cm); draw(); }));
     document.querySelectorAll('[data-sa]').forEach(b => (b.onclick = () => { Object.assign(sel, saved[+b.dataset.sa]); draw(); }));
     const addrEl = document.getElementById('fAddr');
     if (addrEl) addrEl.oninput = () => (sel.addr = addrEl.value);
-    const showOk = () => { const o = document.getElementById('fMapOk'); if (o) o.hidden = sel.lat == null; };
-    const openPick = async c => {
-      document.getElementById('fMapW').hidden = false;
-      try {
-        if (!pickMap || !document.getElementById('fMap').children.length) {
-          pickMap = await UZ.makeMap(document.getElementById('fMap'), c || (sel.lat != null ? sel : UZ.CENTER), 16);
-          pickMap.on('moveend', () => { const p = pickMap.getCenter(); sel.lat = +p.lat.toFixed(6); sel.lng = +p.lng.toFixed(6); showOk(); });
-        } else if (c) pickMap.setView([c.lat, c.lng], 17);
-        const p = pickMap.getCenter(); sel.lat = +p.lat.toFixed(6); sel.lng = +p.lng.toFixed(6); showOk();
-      } catch (e) { toast(t('eNet')); }
-    };
-    const mb = document.getElementById('fMapB');
-    if (mb) mb.onclick = () => { pickMap = null; openPick(); };
+    const brEl = document.getElementById('fBranch');
+    if (brEl) brEl.onchange = () => { sel.branch = +brEl.value; requote(); };
     const lb = document.getElementById('fLoc');
     if (lb) lb.onclick = () => {
       if (!navigator.geolocation) return toast(t('locDenied'));
       lb.textContent = '...';
-      navigator.geolocation.getCurrentPosition(p => { lb.textContent = t('myLoc'); pickMap = null; openPick({ lat: p.coords.latitude, lng: p.coords.longitude }); },
-        () => { lb.textContent = t('myLoc'); toast(t('locDenied')); pickMap = null; openPick(); }, { enableHighAccuracy: true, timeout: 10000 });
+      navigator.geolocation.getCurrentPosition(p => { lb.textContent = t('myLoc'); openPick({ lat: p.coords.latitude, lng: p.coords.longitude }); },
+        () => { lb.textContent = t('myLoc'); toast(t('locDenied')); }, { enableHighAccuracy: true, timeout: 10000 });
     };
+    if (mode === 'd') openPick();
     document.getElementById('fGo').onclick = submit;
+    drawSum(); requote();
   };
   const submit = async () => {
     const err = document.getElementById('fErr');
-    const note = document.getElementById('fNote').value.trim();
-    if (mode === 'd') { sel.addr = document.getElementById('fAddr').value.trim(); if (!sel.addr) return (err.textContent = t('needAddr')); }
-    else sel.branch = +document.getElementById('fBranch').value;
-    const tt = totals();
-    const items = Object.entries(cart).map(([k, q]) => { const r = PK(k); return { id: k, n: vName(r.p, r.vi), q, price: r.v.p }; });
-    const body = { mode, addr: mode === 'd' ? sel.addr : UZ.BRANCHES[sel.branch][L], lat: mode === 'd' ? sel.lat : null, lng: mode === 'd' ? sel.lng : null, branch: sel.branch, note, items, total: tt.tot, promo };
+    if (mode === 'd') {
+      sel.addr = document.getElementById('fAddr').value.trim();
+      if (LIVE && sel.lat == null) return (err.textContent = t('eNoPoint'));
+      if (!sel.addr) return (err.textContent = t('needAddr'));
+      if (Q && Q.zone === 'far') return (err.textContent = errText({ message: 'far' }));
+    } else sel.branch = +document.getElementById('fBranch').value;
+    if (Q && Q.promoError) return (err.textContent = errText({ message: 'promo', data: { reason: Q.promoError } }));
+    const b = { ...body(), note: document.getElementById('fNote').value.trim() };
+    if (mode === 'p') b.addr = UZ.BRANCHES[sel.branch][L];
     if (mode === 'd' && document.getElementById('fSave')?.checked && !(ME.addresses || []).some(a => a.addr === sel.addr)) {
-      await saveMe({ addresses: [{ label: sel.label || (L === 'ru' ? 'Адрес' : 'Manzil') + ' ' + ((ME.addresses || []).length + 1), addr: sel.addr, lat: sel.lat, lng: sel.lng }, ...(ME.addresses || [])] });
+      await saveMe({ addresses: [{ label: (L === 'ru' ? 'Адрес' : 'Manzil') + ' ' + ((ME.addresses || []).length + 1), addr: sel.addr, lat: sel.lat, lng: sel.lng }, ...(ME.addresses || [])] });
     }
     const btn = document.getElementById('fGo'); btn.disabled = true; btn.textContent = '...';
     let ref;
-    try {
-      if (LIVE) ref = await UZ.api('orders', { body });
-      else ref = demoCreate(body);
-    } catch (e) {
-      btn.disabled = false; btn.textContent = t('confirm') + ' ✓';
+    try { ref = LIVE ? await UZ.api('orders', { body: b }) : demoCreate({ ...b, total: (Q || localQuote(b)).total }); }
+    catch (e) {
+      btn.disabled = false; drawSum();
       if (e.status === 401) { ME = null; UZ.setToken(''); return openAuth(openCheckout, 'in'); }
-      return (err.textContent = t('eNet'));
+      if (e.message === 'stopped') loadMenu();
+      return (err.textContent = errText(e));
     }
     cart = {}; promo = null; save(); renderMenu(); renderCart();
     store.set('active', { id: ref.id, token: ref.token });
-    updateActive();
-    confetti(70);
+    updateActive(); confetti(70); askNotify();
     openTrack(ref);
   };
   draw();
+}
+
+/* Brauzer xabarnomasi: sahifa ochiq turganda holat o'zgarsa */
+function askNotify() { try { if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission(); } catch (e) {} }
+function notify(title, text) {
+  try { if (document.visibilityState !== 'visible' && 'Notification' in window && Notification.permission === 'granted') new Notification(title, { body: text, icon: 'logo.svg' }); } catch (e) {}
+}
+
+/* ---------- Menyu holati: tugagan mahsulotlar va ish vaqti ---------- */
+let MENU = { stop: [], open: true, hours: '09:00 — 03:00', maxKm: 15 };
+async function loadMenu() {
+  if (!LIVE) return;
+  try { MENU = await UZ.api('menu'); } catch (e) { return; }
+  window.STOP = new Set(MENU.stop || []);
+  renderMenu();
+  const bar = document.getElementById('closedBar');
+  if (bar) { bar.hidden = MENU.open !== false; bar.textContent = t('closedBar').replace('{h}', MENU.hours || ''); }
 }
 
 /* ---------- Jonli kuzatuv ---------- */
@@ -257,7 +330,8 @@ async function openTrack(ref) {
   openModal(`<div class="mbody trk" style="padding-top:26px">
     <div class="trk-h"><div><span class="hint">${t('ordNo')}</span><h3 id="tNo">#…</h3></div><span class="stc" id="tChip"></span></div>
     <div class="trk-big"><span class="e" id="tE">🕓</span><div><b id="tTitle">${t('waiting')}</b><span id="tSub"></span></div></div>
-    <div id="tCancel" class="err" hidden>${t('cancelled')}</div>
+    <div id="tCancel" class="err" hidden></div>
+    <div id="tAct"></div>
     <div id="tMapW" hidden><div class="trk-map" id="tMap"></div>
       <div class="trk-stats"><div><span>${t('dist')}</span><b id="tDist">—</b></div><div><span>${t('left')}</span><b id="tEta">—</b></div><div><span>${t('upd')}</span><b id="tUpd" style="font-size:12px;font-family:Manrope">—</b></div></div>
       <div id="tNear" class="near" hidden>${t('near')}</div></div>
@@ -292,7 +366,35 @@ async function renderTrack(o) {
   document.getElementById('tE').textContent = S.e;
   document.getElementById('tTitle').textContent = o.status === 'new' ? t('waiting') : S[L];
   document.getElementById('tSub').textContent = o.status === 'onway' && o.courier ? `${o.courier.name}` : o.mode === 'p' ? UZ.BRANCHES[o.branch || 0][L] : '';
-  document.getElementById('tCancel').hidden = o.status !== 'cancelled';
+  const cEl = document.getElementById('tCancel');
+  cEl.hidden = o.status !== 'cancelled';
+  if (o.status === 'cancelled') cEl.textContent = (o.cancelledBy === 'customer' ? t('youCancelled') : t('cancelled')) + (o.cancelReason ? ' ' + t('reason') + ': ' + o.cancelReason : '');
+  // Mijoz amallari: oshxona qabul qilguncha bekor qilish; yetkazilgandan keyin baho
+  const act = document.getElementById('tAct');
+  if (o.status === 'new') {
+    if (!act.querySelector('[data-cx]')) act.innerHTML = `<button class="btn ghost wide" data-cx style="margin-bottom:10px">${t('cancelBtn')}</button>`;
+    act.querySelector('[data-cx]').onclick = async ev => {
+      const b = ev.currentTarget;
+      if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = t('cancelSure'); return; }
+      b.disabled = true;
+      try {
+        if (LIVE) renderTrack(await UZ.api(`orders/${o.id}/cancel?t=${encodeURIComponent(me.ref.token || '')}`, { body: {} }));
+        else { const d = demoGet(o.id); d.status = 'cancelled'; d.cancelledBy = 'customer'; d.history.cancelled = Date.now(); d.cancelledAt = 1; store.set('demo_orders', store.get('demo_orders', []).map(x => (x.id === d.id ? d : x))); renderTrack(d); }
+      } catch (e) { b.disabled = false; toast(e.message === 'late' ? t('eLate') : t('eNet')); }
+    };
+  } else if (o.status === 'delivered') {
+    if (o.rating) act.innerHTML = `<div class="rate done">${'★'.repeat(o.rating.stars)}${'☆'.repeat(5 - o.rating.stars)} <span>${t('thanksRate')}</span></div>`;
+    else if (!act.querySelector('.rate')) {
+      act.innerHTML = `<div class="rate"><b>${t('rateQ')}</b><div class="stars">${[1, 2, 3, 4, 5].map(n => `<button data-star="${n}" aria-label="${n}">★</button>`).join('')}</div><textarea id="rComment" placeholder="${t('rateComment')}"></textarea><button class="btn wide" id="rSend" disabled>${t('send')}</button></div>`;
+      let stars = 0;
+      act.querySelectorAll('[data-star]').forEach(b => (b.onclick = () => { stars = +b.dataset.star; act.querySelectorAll('[data-star]').forEach(x => x.classList.toggle('on', +x.dataset.star <= stars)); document.getElementById('rSend').disabled = false; }));
+      document.getElementById('rSend').onclick = async () => {
+        const body = { stars, comment: document.getElementById('rComment').value };
+        try { if (LIVE) renderTrack(await UZ.api(`orders/${o.id}/rate?t=${encodeURIComponent(me.ref.token || '')}`, { body })); else { act.innerHTML = ''; renderTrack({ ...o, rating: body }); } toast(t('thanksRate')); }
+        catch (e) { toast(t('eNet')); }
+      };
+    }
+  } else act.innerHTML = '';
   // Bosqichlar: faqat oshxona/kuryer belgilaganlari yonadi
   document.getElementById('tSteps').innerHTML = flow.map((st, i) => {
     const kk = UZ.statusKey(st, o.mode), on = o.status !== 'cancelled' && i <= idx;
@@ -303,7 +405,7 @@ async function renderTrack(o) {
   document.getElementById('tCourier').innerHTML = o.courier && (o.status === 'onway' || o.status === 'delivered')
     ? `<div class="me-card" style="margin-top:12px"><div class="me-av">🛵</div><div><span class="hint">${t('courierCard')}</span><b style="display:block">${esc(o.courier.name)}</b>${o.courier.phone ? `<span style="user-select:all;color:var(--or2);font-weight:800">${esc(o.courier.phone)}</span>` : ''}</div></div>` : '';
   if (o.status === 'delivered' && prev && prev.status !== 'delivered') { confetti(90); toast(S[L]); }
-  if (prev && prev.status !== o.status && o.status !== 'new') { try { navigator.vibrate && navigator.vibrate(120); } catch (e) {} }
+  if (prev && prev.status !== o.status && o.status !== 'new') { try { navigator.vibrate && navigator.vibrate(120); } catch (e) {} notify(`Uzbegim #${o.no}`, S[L]); }
   updateActive(o);
 
   // Xarita: yetkazib berishda, kuryer yo'lga chiqqanda
@@ -319,7 +421,7 @@ async function renderTrack(o) {
     document.getElementById('tSub').textContent = `${o.courier ? o.courier.name + ' • ' : ''}${UZ.fmtDist(m, L)} ${t('toYou')}`;
     const near = o.status === 'onway' && m < 350;
     document.getElementById('tNear').hidden = !near;
-    if (near && !me.nearShown) { me.nearShown = true; toast(t('near')); try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch (e) {} }
+    if (near && !me.nearShown) { me.nearShown = true; toast(t('near')); notify(`Uzbegim #${o.no}`, t('near')); try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch (e) {} }
   }
   if (loc) document.getElementById('tUpd').textContent = UZ.ago(loc.at, L);
   else document.getElementById('tUpd').textContent = t('gpsWait');
@@ -385,6 +487,8 @@ function demoTick(o) {
 (async () => {
   LIVE = await UZ.isLive;
   await loadMe();
+  await loadMenu();
+  setInterval(loadMenu, 60000);
   const a = store.get('active', null);
   if (a) {
     updateActive();

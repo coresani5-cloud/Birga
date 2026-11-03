@@ -36,7 +36,7 @@
     const r = await fetch('api/' + path, { method: opt.method || (opt.body ? 'POST' : 'GET'), headers: h, body: opt.body ? JSON.stringify(opt.body) : undefined });
     let data = null;
     try { data = await r.json(); } catch (e) {}
-    if (!r.ok) { const err = new Error((data && data.error) || 'http ' + r.status); err.status = r.status; throw err; }
+    if (!r.ok) { const err = new Error((data && data.error) || 'http ' + r.status); err.status = r.status; err.data = data; throw err; }
     return data;
   };
   U.token = () => { try { return localStorage.getItem('uzb_token') || ''; } catch (e) { return ''; } };

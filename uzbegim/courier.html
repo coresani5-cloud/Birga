@@ -41,18 +41,21 @@ const LOGO = '<img src="logo.svg" alt="" style="width:40px;height:40px;border-ra
 function loginView(msg = '') {
   $('#app').innerHTML = `<form class="login glass" id="lf">
     <div class="brand">${LOGO}<div>Uzbegim<small>Kuryer</small></div></div>
-    <p class="hint">Ismingiz va telefoningiz mijozga ko'rinadi. Joylashuvingiz faqat buyurtma yo'lda bo'lganda yuboriladi.</p>
-    <input id="cn" placeholder="Ismingiz" value="${esc(ME?.name || '')}" autocomplete="name">
-    <input id="cp" type="tel" placeholder="Telefon" value="${esc(ME?.phone || '+998 ')}" autocomplete="tel">
-    <input id="pin" type="password" inputmode="numeric" placeholder="Kuryer PIN kodi">
+    <p class="hint">Telefon raqamingiz va oshxona bergan PIN bilan kiring. Ismingiz va telefoningiz mijozga ko'rinadi. Joylashuvingiz faqat buyurtma yo'lda bo'lganda yuboriladi.</p>
+    <input id="cp" type="tel" placeholder="Telefon" value="${esc(ME?.phone || '+998 ')}" autocomplete="username">
+    <input id="pin" type="password" inputmode="numeric" placeholder="PIN kod" autocomplete="current-password">
+    <details><summary class="hint" style="cursor:pointer">Umumiy kuryer PIN bilan kirish</summary><input id="cn" placeholder="Ismingiz" style="margin-top:8px;width:100%" autocomplete="name"></details>
     <div class="err">${esc(msg)}</div>
     <button class="btn big">Kirish</button></form>`;
   $('#lf').onsubmit = async e => {
     e.preventDefault();
     const name = $('#cn').value.trim(), phone = $('#cp').value.trim(), pin = $('#pin').value.trim();
-    if (!name || phone.replace(/\D/g, '').length < 12) return loginView('Ism va telefonni to\'liq kiriting');
-    try { const r = await U.api('staff/login', { body: {}, pin }); if (r.role !== 'courier' && r.role !== 'admin') throw new Error(); ME = { name, phone, pin }; ls.set('me', ME); start(); }
-    catch (x) { loginView(x.status ? 'PIN noto\'g\'ri' : 'Server bilan aloqa yo\'q'); }
+    if (phone.replace(/\D/g, '').length < 12) return loginView('Telefonni to\'liq kiriting');
+    try {
+      const r = await U.api('staff/login', { body: { phone, pin, name, as: 'courier' } });
+      if (r.staff.role !== 'courier') return loginView('Bu oshxona akkaunti. Oshxona admin.html sahifasidan kiradi.');
+      ME = { ...r.staff, token: r.token }; ls.set('me', ME); start();
+    } catch (x) { loginView(x.status === 401 ? 'Telefon yoki PIN noto\'g\'ri' : x.status === 429 ? 'Ko\'p urinish, bir daqiqa kuting' : 'Server bilan aloqa yo\'q'); }
   };
 }
 
@@ -65,7 +68,7 @@ function start() {
       <div class="sec"><h2>📦 Olib ketishga tayyor</h2><div id="ready"></div></div>
     </div>`;
   $('#out').onclick = () => { ls.set('me', null); stopGps(); es && es.close(); location.reload(); };
-  es = new EventSource('api/staff/stream?pin=' + encodeURIComponent(ME.pin));
+  es = new EventSource('api/staff/stream?st=' + encodeURIComponent(ME.token));
   es.onopen = () => { $('#conn').className = 'pill on'; $('#conn').textContent = '● Jonli'; };
   es.onerror = () => { $('#conn').className = 'pill bad'; $('#conn').textContent = 'Aloqa yo\'q'; };
   es.onmessage = e => {
@@ -76,7 +79,8 @@ function start() {
   };
 }
 
-const mineList = () => Object.values(ORD).filter(o => o.status === 'onway' && o.courier && o.courier.phone === ME.phone);
+const mineList = () => Object.values(ORD).filter(o => o.status === 'onway' && o.courier && o.courier.id === ME.id);
+const api = (p, o = {}) => U.api(p, { ...o, headers: { Authorization: 'Bearer ' + ME.token } });
 function draw() {
   const mine = mineList();
   const ready = Object.values(ORD).filter(o => o.mode === 'd' && o.status === 'ready').sort((a, b) => a.createdAt - b.createdAt);
@@ -144,7 +148,7 @@ function stopGps() {
 async function send(force) {
   if (!pos || (!force && Date.now() - lastSent < 4000)) return;
   lastSent = Date.now();
-  for (const o of mineList()) { try { await U.api(`orders/${o.id}/location`, { body: pos, pin: ME.pin }); } catch (e) {} }
+  for (const o of mineList()) { try { await api(`orders/${o.id}/location`, { body: pos }); } catch (e) {} }
 }
 setInterval(() => send(), 5000);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && watch != null) { try { navigator.wakeLock && navigator.wakeLock.request('screen').then(w => (wake = w)).catch(() => {}); } catch (e) {} } });
@@ -155,11 +159,11 @@ document.addEventListener('click', async e => {
   if (done && !b.dataset.sure) { b.dataset.sure = 1; b.textContent = 'Mijozga topshirdingizmi? Yana bosing'; return; }
   b.disabled = true;
   try {
-    await U.api(`orders/${(take || done).dataset[take ? 'take' : 'done']}/status`, { body: take ? { status: 'onway', courier: { name: ME.name, phone: ME.phone } } : { status: 'delivered' }, pin: ME.pin });
+    await api(`orders/${(take || done).dataset[take ? 'take' : 'done']}/status`, { body: { status: take ? 'onway' : 'delivered' } });
     if (take) { toast('Yo\'l bo\'lsin! GPS yoqildi'); startGps(); setTimeout(() => send(true), 800); } else toast('Rahmat! Buyurtma yopildi');
-  } catch (x) { b.disabled = false; toast(x.message); }
+  } catch (x) { b.disabled = false; toast(x.message === 'late' ? 'Bu buyurtmani boshqa kuryer oldi' : x.message === 'notyours' ? 'Bu buyurtma sizniki emas' : 'Xato: ' + x.message); if (x.status === 401) { ls.set('me', null); location.reload(); } }
 });
-ME ? U.api('staff/login', { body: {}, pin: ME.pin }).then(start).catch(() => loginView()) : loginView();
+ME && ME.token ? api('staff/me').then(s => { if (s.role !== 'courier') throw new Error(); start(); }).catch(() => { ME = null; ls.set('me', null); loginView(); }) : loginView();
 </script>
 </body>
 </html>

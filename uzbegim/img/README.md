@@ -5,6 +5,9 @@ Rasm bo'lsa saytda avtomatik chiqadi, bo'lmasa emoji ko'rinadi. Kvadrat (1:1) ra
 
 | Kod | Taom | Kod | Taom |
 |---|---|---|---|
+| m1 | Tandir somsa | m4 | Shashlik lavash |
+| m2 | Go'shtli non | m5 | Achchiq-chuchuk |
+| m3 | Qazi burger | | |
 | c1 | Uzbegim Kombo | p1 | Pepperoni |
 | c2 | Do'stlar to'plami | p2 | Margarita |
 | c3 | Oilaviy kombo | p3 | Uzbegim pitsa |

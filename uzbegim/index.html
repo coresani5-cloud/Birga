@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;900&family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23ff7a00'/%3E%3Ctext x='32' y='44' font-size='34' text-anchor='middle' font-family='Arial Black' fill='%23120d09'%3EU%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Cdefs%3E%3ClinearGradient id=%22eg%22 x1=%220%22 y1=%220%22 x2=%221%22 y2=%221%22%3E%3Cstop offset=%220%22 stop-color=%22%23ffb547%22/%3E%3Cstop offset=%221%22 stop-color=%22%23ff6a00%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpolygon points=%2250.0,0.0 64.5,14.9 85.4,14.6 85.1,35.5 100.0,50.0 85.1,64.5 85.4,85.4 64.5,85.1 50.0,100.0 35.5,85.1 14.6,85.4 14.9,64.5 0.0,50.0 14.9,35.5 14.6,14.6 35.5,14.9%22 fill=%22url%28%23eg%29%22/%3E%3Ccircle cx=%2250%22 cy=%2250%22 r=%2233%22 fill=%22%23120d09%22/%3E%3Cpolygon points=%2250.0,19.0 59.6,26.9 71.9,28.1 73.1,40.4 81.0,50.0 73.1,59.6 71.9,71.9 59.6,73.1 50.0,81.0 40.4,73.1 28.1,71.9 26.9,59.6 19.0,50.0 26.9,40.4 28.1,28.1 40.4,26.9%22 fill=%22none%22 stroke=%22%23ffb547%22 stroke-width=%221.6%22/%3E%3Cg fill=%22%231fb6c1%22%3E%3Cellipse cx=%2250%22 cy=%2231%22 rx=%226%22 ry=%2212%22 transform=%22rotate%280 50 50%29%22/%3E%3Cellipse cx=%2250%22 cy=%2231%22 rx=%226%22 ry=%2212%22 transform=%22rotate%2845 50 50%29%22/%3E%3Cellipse cx=%2250%22 cy=%2231%22 rx=%226%22 ry=%2212%22 transform=%22rotate%2890 50 50%29%22/%3E%3Cellipse cx=%2250%22 cy=%2231%22 rx=%226%22 ry=%2212%22 transform=%22rotate%28135 50 50%29%22/%3E%3Cellipse cx=%2250%22 cy=%2231%22 rx=%226%22 ry=%2212%22 transform=%22rotate%28180 50 50%29%22/%3E%3Cellipse cx=%2250%22 cy=%2231%22 rx=%226%22 ry=%2212%22 transform=%22rotate%28225 50 50%29%22/%3E%3Cellipse cx=%2250%22 cy=%2231%22 rx=%226%22 ry=%2212%22 transform=%22rotate%28270 50 50%29%22/%3E%3Cellipse cx=%2250%22 cy=%2231%22 rx=%226%22 ry=%2212%22 transform=%22rotate%28315 50 50%29%22/%3E%3C/g%3E%3Ccircle cx=%2250%22 cy=%2250%22 r=%228%22 fill=%22%23ffb547%22/%3E%3Ccircle cx=%2250%22 cy=%2250%22 r=%223.5%22 fill=%22%23120d09%22/%3E%3C/svg%3E">
 <style>
 :root{
   --or:#ff7a00; --or2:#ffa62b; --or-d:#c75200; --red:#ff3b30;
@@ -95,7 +95,7 @@ nav.main a:hover,nav.main a.on{opacity:1;background:var(--glass2);color:var(--or
 .tile .k{font-family:Unbounded;font-size:44px;font-weight:900}
 
 /* categories: tabs + sliding indicator */
-.cats{position:sticky;top:76px;z-index:40;margin-top:34px;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--ln);display:flex;align-items:center;gap:6px}
+.cats{position:sticky;top:92px;z-index:40;margin-top:34px;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--ln);display:flex;align-items:center;gap:6px}
 .cats .all{flex:none;width:44px;height:44px;border-radius:14px;display:grid;place-items:center}
 .cats .all:hover{background:var(--glass2);color:var(--or2)}
 .cats .all svg{width:22px}
@@ -192,7 +192,7 @@ section.sec{margin-top:34px;scroll-margin-top:150px}
 .br p{color:var(--mut);font-size:13px;margin:4px 0}
 .open{font-size:12px;font-weight:800;color:#34d399}
 
-footer{margin-top:80px;border-top:1px solid var(--ln);padding:44px 0 110px;background:rgba(0,0,0,.25)}
+footer{margin-top:0;border-top:1px solid var(--ln);padding:44px 0 110px;background:rgba(0,0,0,.25)}
 :root[data-theme="light"] footer{background:rgba(255,255,255,.5)}
 .fgrid{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:24px}
 footer h4{font-family:Unbounded;margin-bottom:12px;font-size:15px}
@@ -257,6 +257,34 @@ footer a:hover{color:var(--or2)}
 @keyframes pulse{50%{box-shadow:0 0 0 10px rgba(255,122,0,.15)}}
 .eta{font-family:Unbounded;font-size:34px;color:var(--or2)}
 
+
+/* ===== Milliy naqshlar: Registon koshinlari, girih, chust do'ppi ===== */
+.flag{height:4px;background:linear-gradient(#0099b5 0 33%,#ce1126 33% 37%,#fff 37% 63%,#ce1126 63% 67%,#1eb53a 67%)}
+.band{height:16px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='16' viewBox='0 0 48 16'%3E%3Cg fill='none' stroke-width='1.3'%3E%3Cpolygon points='12.0,1.0 13.6,4.1 16.9,3.1 15.9,6.4 19.0,8.0 15.9,9.6 16.9,12.9 13.6,11.9 12.0,15.0 10.4,11.9 7.1,12.9 8.1,9.6 5.0,8.0 8.1,6.4 7.1,3.1 10.4,4.1' stroke='%23ff8a1f'/%3E%3Cpolygon points='36.0,1.0 37.6,4.1 40.9,3.1 39.9,6.4 43.0,8.0 39.9,9.6 40.9,12.9 37.6,11.9 36.0,15.0 34.4,11.9 31.1,12.9 32.1,9.6 29.0,8.0 32.1,6.4 31.1,3.1 34.4,4.1' stroke='%231fb6c1'/%3E%3Cpath d='M0 8h4M20 8h8M44 8h4' stroke='%23ff8a1f' stroke-opacity='.6'/%3E%3C/g%3E%3Ccircle cx='12' cy='8' r='1.6' fill='%231fb6c1'/%3E%3Ccircle cx='36' cy='8' r='1.6' fill='%23ff8a1f'/%3E%3C/svg%3E") repeat-x center/48px 16px;opacity:.85}
+.tile-bg{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Cg fill='none' stroke='%23ff9a3c' stroke-opacity='.12' stroke-width='1.2'%3E%3Cpolygon points='40.0,18.0 46.1,25.2 55.6,24.4 54.8,33.9 62.0,40.0 54.8,46.1 55.6,55.6 46.1,54.8 40.0,62.0 33.9,54.8 24.4,55.6 25.2,46.1 18.0,40.0 25.2,33.9 24.4,24.4 33.9,25.2'/%3E%3Cpolygon points='0.0,-22.0 6.1,-14.8 15.6,-15.6 14.8,-6.1 22.0,0.0 14.8,6.1 15.6,15.6 6.1,14.8 0.0,22.0 -6.1,14.8 -15.6,15.6 -14.8,6.1 -22.0,0.0 -14.8,-6.1 -15.6,-15.6 -6.1,-14.8'/%3E%3Cpolygon points='80.0,-22.0 86.1,-14.8 95.6,-15.6 94.8,-6.1 102.0,0.0 94.8,6.1 95.6,15.6 86.1,14.8 80.0,22.0 73.9,14.8 64.4,15.6 65.2,6.1 58.0,0.0 65.2,-6.1 64.4,-15.6 73.9,-14.8'/%3E%3Cpolygon points='0.0,58.0 6.1,65.2 15.6,64.4 14.8,73.9 22.0,80.0 14.8,86.1 15.6,95.6 6.1,94.8 0.0,102.0 -6.1,94.8 -15.6,95.6 -14.8,86.1 -22.0,80.0 -14.8,73.9 -15.6,64.4 -6.1,65.2'/%3E%3Cpolygon points='80.0,58.0 86.1,65.2 95.6,64.4 94.8,73.9 102.0,80.0 94.8,86.1 95.6,95.6 86.1,94.8 80.0,102.0 73.9,94.8 64.4,95.6 65.2,86.1 58.0,80.0 65.2,73.9 64.4,64.4 73.9,65.2'/%3E%3Cpath d='M40 18V0M40 62v18M18 40H0M62 40h18'/%3E%3C/g%3E%3C/svg%3E");background-size:80px 80px}
+.doppi{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56'%3E%3Cg fill='%23ffffff' fill-opacity='.06'%3E%3Cpath d='M28 6c7 6 9 16 4 26-2 4-6 7-4 12-6-4-9-12-6-21 2-6 6-10 6-17z'/%3E%3Cpath d='M4 34c4 3 5 8 2 13-1 2-3 3-2 6-3-2-5-6-3-11 1-3 3-5 3-8z'/%3E%3Cpath d='M52 34c-4 3-5 8-2 13 1 2 3 3 2 6 3-2 5-6 3-11-1-3-3-5-3-8z'/%3E%3C/g%3E%3C/svg%3E");background-size:56px 56px}
+.logo{background:none!important;border:0!important;padding:0!important}
+.logo-in{display:flex;align-items:center;gap:10px}
+.emb{width:46px;height:46px;flex:none;filter:drop-shadow(0 6px 14px rgba(255,122,0,.35));transition:transform .8s cubic-bezier(.2,.8,.2,1)}
+.logo:hover .emb{transform:rotate(45deg)}
+.wm{position:relative;font-family:Unbounded,Manrope,sans-serif;font-weight:900;font-size:22px;letter-spacing:-.01em;background:linear-gradient(90deg,#ffb547,#ff6a00 60%,#1fb6c1);-webkit-background-clip:text;background-clip:text;color:transparent;padding-bottom:7px}
+.wl{position:absolute;left:0;right:0;bottom:0;height:8px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='16' viewBox='0 0 48 16'%3E%3Cg fill='none' stroke-width='1.3'%3E%3Cpolygon points='12.0,1.0 13.6,4.1 16.9,3.1 15.9,6.4 19.0,8.0 15.9,9.6 16.9,12.9 13.6,11.9 12.0,15.0 10.4,11.9 7.1,12.9 8.1,9.6 5.0,8.0 8.1,6.4 7.1,3.1 10.4,4.1' stroke='%23ff8a1f'/%3E%3Cpolygon points='36.0,1.0 37.6,4.1 40.9,3.1 39.9,6.4 43.0,8.0 39.9,9.6 40.9,12.9 37.6,11.9 36.0,15.0 34.4,11.9 31.1,12.9 32.1,9.6 29.0,8.0 32.1,6.4 31.1,3.1 34.4,4.1' stroke='%231fb6c1'/%3E%3Cpath d='M0 8h4M20 8h8M44 8h4' stroke='%23ff8a1f' stroke-opacity='.6'/%3E%3C/g%3E%3Ccircle cx='12' cy='8' r='1.6' fill='%231fb6c1'/%3E%3Ccircle cx='36' cy='8' r='1.6' fill='%23ff8a1f'/%3E%3C/svg%3E") repeat-x left center/24px 8px}
+.slide .rose{position:absolute;right:2%;top:50%;width:min(440px,46vw);aspect-ratio:1;margin-top:calc(min(440px,46vw)/-2);background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Cg fill='none' stroke='%23ffb547' stroke-opacity='.35' stroke-width='1.4'%3E%3Cpolygon points='100.0,2.0 119.7,26.6 149.0,15.1 153.7,46.3 184.9,51.0 173.4,80.3 198.0,100.0 173.4,119.7 184.9,149.0 153.7,153.7 149.0,184.9 119.7,173.4 100.0,198.0 80.3,173.4 51.0,184.9 46.3,153.7 15.1,149.0 26.6,119.7 2.0,100.0 26.6,80.3 15.1,51.0 46.3,46.3 51.0,15.1 80.3,26.6'/%3E%3Cpolygon points='100.0,28.0 121.4,48.3 150.9,49.1 151.7,78.6 172.0,100.0 151.7,121.4 150.9,150.9 121.4,151.7 100.0,172.0 78.6,151.7 49.1,150.9 48.3,121.4 28.0,100.0 48.3,78.6 49.1,49.1 78.6,48.3'/%3E%3Ccircle cx='100' cy='100' r='48'/%3E%3Cellipse cx='100' cy='42' rx='10' ry='26' transform='rotate(0 100 100)'/%3E%3Cellipse cx='100' cy='42' rx='10' ry='26' transform='rotate(30 100 100)'/%3E%3Cellipse cx='100' cy='42' rx='10' ry='26' transform='rotate(60 100 100)'/%3E%3Cellipse cx='100' cy='42' rx='10' ry='26' transform='rotate(90 100 100)'/%3E%3Cellipse cx='100' cy='42' rx='10' ry='26' transform='rotate(120 100 100)'/%3E%3Cellipse cx='100' cy='42' rx='10' ry='26' transform='rotate(150 100 100)'/%3E%3Cellipse cx='100' cy='42' rx='10' ry='26' transform='rotate(180 100 100)'/%3E%3Cellipse cx='100' cy='42' rx='10' ry='26' transform='rotate(210 100 100)'/%3E%3Cellipse cx='100' cy='42' rx='10' ry='26' transform='rotate(240 100 100)'/%3E%3Cellipse cx='100' cy='42' rx='10' ry='26' transform='rotate(270 100 100)'/%3E%3Cellipse cx='100' cy='42' rx='10' ry='26' transform='rotate(300 100 100)'/%3E%3Cellipse cx='100' cy='42' rx='10' ry='26' transform='rotate(330 100 100)'/%3E%3Ccircle cx='100' cy='100' r='20'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat;animation:rot 60s linear infinite;pointer-events:none}
+@keyframes rot{to{transform:rotate(360deg)}}
+.orn{display:flex;align-items:center;gap:14px;margin:56px 0 0;color:var(--or2)}
+.orn::before,.orn::after{content:"";flex:1;height:16px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='16' viewBox='0 0 48 16'%3E%3Cg fill='none' stroke-width='1.3'%3E%3Cpolygon points='12.0,1.0 13.6,4.1 16.9,3.1 15.9,6.4 19.0,8.0 15.9,9.6 16.9,12.9 13.6,11.9 12.0,15.0 10.4,11.9 7.1,12.9 8.1,9.6 5.0,8.0 8.1,6.4 7.1,3.1 10.4,4.1' stroke='%23ff8a1f'/%3E%3Cpolygon points='36.0,1.0 37.6,4.1 40.9,3.1 39.9,6.4 43.0,8.0 39.9,9.6 40.9,12.9 37.6,11.9 36.0,15.0 34.4,11.9 31.1,12.9 32.1,9.6 29.0,8.0 32.1,6.4 31.1,3.1 34.4,4.1' stroke='%231fb6c1'/%3E%3Cpath d='M0 8h4M20 8h8M44 8h4' stroke='%23ff8a1f' stroke-opacity='.6'/%3E%3C/g%3E%3Ccircle cx='12' cy='8' r='1.6' fill='%231fb6c1'/%3E%3Ccircle cx='36' cy='8' r='1.6' fill='%23ff8a1f'/%3E%3C/svg%3E") repeat-x center/48px 16px;opacity:.55}
+.orn svg{width:30px;height:30px;animation:rot 20s linear infinite}
+.skyline{display:block;width:100%;height:auto;margin-top:70px}
+.skyline .dome{fill:#1fb6c1}
+.skyline .dome2{fill:#178a93}
+.skyline .wall{fill:var(--bg2)}
+.skyline .arch{fill:var(--bg)}
+.skyline .gold{fill:#ffb547}
+.milliy-note{display:inline-flex;gap:8px;align-items:center;margin-top:16px;padding:8px 14px;border-radius:999px;border:1px solid rgba(31,182,193,.35);background:rgba(31,182,193,.10);color:#6fe0e8;font-weight:700;font-size:13px}
+.welcome{font-family:Unbounded;font-size:13px;color:#6fe0e8;letter-spacing:.06em;margin-bottom:10px;display:block}
+:root[data-theme="light"] .milliy-note{color:#0e7c85}
+@media (max-width:640px){.emb{width:38px;height:38px}.wm{font-size:18px}.slide .rose{width:80vw;margin-top:-40vw;right:-22vw;top:72%}}
+
 .toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,140px);background:var(--ink);color:var(--bg);padding:12px 20px;border-radius:999px;font-weight:700;z-index:200;transition:.35s;box-shadow:var(--shadow);font-size:14px;max-width:calc(100% - 32px);text-align:center}
 .toast.on{transform:translate(-50%,0)}
 .fly{position:fixed;z-index:300;font-size:40px;pointer-events:none;transition:all .7s cubic-bezier(.5,-.3,.7,1)}
@@ -283,7 +311,7 @@ footer a:hover{color:var(--or2)}
 }
 @media (max-width:640px){
   .hdr{height:64px;gap:6px}
-  .cats{top:64px}
+  .cats{top:80px}
   .otype{display:none}
   .icons .hm{display:none}
   .logo{font-size:17px;padding:4px 4px 4px 10px}
@@ -322,9 +350,10 @@ footer a:hover{color:var(--or2)}
 </head>
 <body>
 
+<div class="flag" aria-hidden="true"></div>
 <header>
   <div class="wrap hdr">
-    <a href="#top" class="logo">Uzbe<b>gim</b></a>
+    <a href="#top" class="logo" aria-label="Uzbegim"><span class="logo-in"><svg class="emb" viewBox="0 0 100 100" aria-hidden="true"><defs><linearGradient id="eg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffb547"/><stop offset="1" stop-color="#ff6a00"/></linearGradient></defs><polygon points="50.0,0.0 64.5,14.9 85.4,14.6 85.1,35.5 100.0,50.0 85.1,64.5 85.4,85.4 64.5,85.1 50.0,100.0 35.5,85.1 14.6,85.4 14.9,64.5 0.0,50.0 14.9,35.5 14.6,14.6 35.5,14.9" fill="url(#eg)"/><circle cx="50" cy="50" r="33" fill="#120d09"/><polygon points="50.0,19.0 59.6,26.9 71.9,28.1 73.1,40.4 81.0,50.0 73.1,59.6 71.9,71.9 59.6,73.1 50.0,81.0 40.4,73.1 28.1,71.9 26.9,59.6 19.0,50.0 26.9,40.4 28.1,28.1 40.4,26.9" fill="none" stroke="#ffb547" stroke-width="1.6"/><g fill="#1fb6c1"><ellipse cx="50" cy="31" rx="6" ry="12" transform="rotate(0 50 50)"/><ellipse cx="50" cy="31" rx="6" ry="12" transform="rotate(45 50 50)"/><ellipse cx="50" cy="31" rx="6" ry="12" transform="rotate(90 50 50)"/><ellipse cx="50" cy="31" rx="6" ry="12" transform="rotate(135 50 50)"/><ellipse cx="50" cy="31" rx="6" ry="12" transform="rotate(180 50 50)"/><ellipse cx="50" cy="31" rx="6" ry="12" transform="rotate(225 50 50)"/><ellipse cx="50" cy="31" rx="6" ry="12" transform="rotate(270 50 50)"/><ellipse cx="50" cy="31" rx="6" ry="12" transform="rotate(315 50 50)"/></g><circle cx="50" cy="50" r="8" fill="#ffb547"/><circle cx="50" cy="50" r="3.5" fill="#120d09"/></svg><span class="wm">Uzbegim<i class="wl"></i></span></span></a>
     <nav class="main" id="nav">
       <a href="#about" data-i="nAbout"></a>
       <a href="#menu" data-i="nMenu"></a>
@@ -349,6 +378,7 @@ footer a:hover{color:var(--or2)}
     <a href="#about" data-i="nAbout"></a><a href="#menu" data-i="nMenu"></a><a href="#promos" data-i="nPromo"></a><a href="#vacancies" data-i="nVac"></a><a href="#contacts" data-i="nCt"></a>
     <a href="#" id="mTheme" data-i="themeTxt"></a>
   </div>
+  <div class="band" aria-hidden="true"></div>
   <div class="sbar" id="sbar"><div class="wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" type="search" autocomplete="off"></div></div>
 </header>
 
@@ -356,19 +386,21 @@ footer a:hover{color:var(--or2)}
   <div class="hero">
     <div class="slider" id="slider"></div>
     <div class="side">
-      <div class="tile glass"><span class="em">🛵</span><div class="k acc">30'</div><h3 data-i="t1h"></h3><p data-i="t1p"></p></div>
-      <div class="tile glass"><span class="em">🎁</span><div class="k acc">-10%</div><h3 data-i="t2h"></h3><p data-i="t2p"></p></div>
+      <div class="tile glass tile-bg"><span class="em">🛵</span><div class="k acc">30'</div><h3 data-i="t1h"></h3><p data-i="t1p"></p></div>
+      <div class="tile glass doppi"><span class="em">🎁</span><div class="k acc">-10%</div><h3 data-i="t2h"></h3><p data-i="t2p"></p></div>
     </div>
   </div>
 
   <div class="cats" id="menu"><button class="all" id="allCats" aria-label="Categories"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></svg></button><div class="row" id="cats"></div></div>
   <div id="sections"></div>
 
+<div class="orn" aria-hidden="true"><svg viewBox="0 0 100 100"><polygon points="50.0,0.0 64.5,14.9 85.4,14.6 85.1,35.5 100.0,50.0 85.1,64.5 85.4,85.4 64.5,85.1 50.0,100.0 35.5,85.1 14.6,85.4 14.9,64.5 0.0,50.0 14.9,35.5 14.6,14.6 35.5,14.9" fill="currentColor"/><circle cx="50" cy="50" r="16" fill="#1fb6c1"/></svg></div>
   <section class="about" id="about">
-    <div class="ab glass">
+    <div class="ab glass doppi">
       <h2><span data-i="abH1"></span> <span class="acc" data-i="abH2"></span></h2>
       <p data-i="ab1"></p><p data-i="ab2"></p>
       <div class="vals" id="vals"></div>
+      <span class="milliy-note" data-i="milliyNote"></span>
     </div>
     <div class="stats">
       <div class="stat glass"><b class="acc">2016</b><span data-i="st1"></span></div>
@@ -378,6 +410,7 @@ footer a:hover{color:var(--or2)}
     </div>
   </section>
 
+<div class="orn" aria-hidden="true"><svg viewBox="0 0 100 100"><polygon points="50.0,0.0 64.5,14.9 85.4,14.6 85.1,35.5 100.0,50.0 85.1,64.5 85.4,85.4 64.5,85.1 50.0,100.0 35.5,85.1 14.6,85.4 14.9,64.5 0.0,50.0 14.9,35.5 14.6,14.6 35.5,14.9" fill="currentColor"/><circle cx="50" cy="50" r="16" fill="#1fb6c1"/></svg></div>
   <section class="sec" id="promos">
     <div class="sh"><h2 data-i="nPromo"></h2></div>
     <div class="promos" id="promoList"></div>
@@ -391,7 +424,7 @@ footer a:hover{color:var(--or2)}
   <section class="sec" id="contacts">
     <div class="sh"><h2 data-i="nCt"></h2></div>
     <div class="contact">
-      <div class="cinfo glass">
+      <div class="cinfo glass tile-bg">
         <div class="crow"><i>📞</i><div><b>+998 71 200-00-00</b><span data-i="callC"></span></div></div>
         <div class="crow"><i>🕘</i><div><b data-i="hrs"></b><span data-i="hrsP"></span></div></div>
         <div class="crow"><i>✉️</i><div><b>info@uzbegim.uz</b><span data-i="mailP"></span></div></div>
@@ -403,11 +436,12 @@ footer a:hover{color:var(--or2)}
   </section>
 </main>
 
+<svg class="skyline" viewBox="0 0 1200 150" preserveAspectRatio="xMidYMax meet" aria-hidden="true"><ellipse class="dome" cx="230" cy="70" rx="32" ry="36"/><rect class="dome2" x="204" y="70" width="52" height="14"/><ellipse class="dome" cx="970" cy="70" rx="32" ry="36"/><rect class="dome2" x="944" y="70" width="52" height="14"/><ellipse class="dome" cx="600" cy="40" rx="46" ry="48"/><rect class="dome2" x="562" y="40" width="76" height="12"/><rect class="gold" x="598" y="-4" width="4" height="10"/><rect class="wall" x="170" y="84" width="120" height="66"/><path class="arch" d="M205 150V123Q205 100 230 90Q255 100 255 123V150Z"/><rect class="wall" x="158" y="48" width="8" height="102"/><rect class="gold" x="157" y="44" width="10" height="5"/><rect class="wall" x="294" y="48" width="8" height="102"/><rect class="gold" x="293" y="44" width="10" height="5"/><rect class="wall" x="910" y="84" width="120" height="66"/><path class="arch" d="M945 150V123Q945 100 970 90Q995 100 995 123V150Z"/><rect class="wall" x="898" y="48" width="8" height="102"/><rect class="gold" x="897" y="44" width="10" height="5"/><rect class="wall" x="1034" y="48" width="8" height="102"/><rect class="gold" x="1033" y="44" width="10" height="5"/><rect class="wall" x="500" y="52" width="200" height="98"/><path class="arch" d="M558 150V114Q558 76 600 60Q642 76 642 114V150Z"/><rect class="wall" x="488" y="16" width="8" height="134"/><rect class="gold" x="487" y="12" width="10" height="5"/><rect class="wall" x="704" y="16" width="8" height="134"/><rect class="gold" x="703" y="12" width="10" height="5"/><rect class="wall" x="0" y="146" width="1200" height="4"/></svg>
 <footer>
   <div class="wrap">
     <div class="fgrid">
       <div>
-        <a href="#top" class="logo" style="display:inline-flex">Uzbe<b>gim</b></a>
+        <a href="#top" class="logo" style="display:inline-flex" aria-label="Uzbegim"><span class="logo-in"><svg class="emb" viewBox="0 0 100 100" aria-hidden="true"><defs><linearGradient id="eg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffb547"/><stop offset="1" stop-color="#ff6a00"/></linearGradient></defs><polygon points="50.0,0.0 64.5,14.9 85.4,14.6 85.1,35.5 100.0,50.0 85.1,64.5 85.4,85.4 64.5,85.1 50.0,100.0 35.5,85.1 14.6,85.4 14.9,64.5 0.0,50.0 14.9,35.5 14.6,14.6 35.5,14.9" fill="url(#eg2)"/><circle cx="50" cy="50" r="33" fill="#120d09"/><polygon points="50.0,19.0 59.6,26.9 71.9,28.1 73.1,40.4 81.0,50.0 73.1,59.6 71.9,71.9 59.6,73.1 50.0,81.0 40.4,73.1 28.1,71.9 26.9,59.6 19.0,50.0 26.9,40.4 28.1,28.1 40.4,26.9" fill="none" stroke="#ffb547" stroke-width="1.6"/><g fill="#1fb6c1"><ellipse cx="50" cy="31" rx="6" ry="12" transform="rotate(0 50 50)"/><ellipse cx="50" cy="31" rx="6" ry="12" transform="rotate(45 50 50)"/><ellipse cx="50" cy="31" rx="6" ry="12" transform="rotate(90 50 50)"/><ellipse cx="50" cy="31" rx="6" ry="12" transform="rotate(135 50 50)"/><ellipse cx="50" cy="31" rx="6" ry="12" transform="rotate(180 50 50)"/><ellipse cx="50" cy="31" rx="6" ry="12" transform="rotate(225 50 50)"/><ellipse cx="50" cy="31" rx="6" ry="12" transform="rotate(270 50 50)"/><ellipse cx="50" cy="31" rx="6" ry="12" transform="rotate(315 50 50)"/></g><circle cx="50" cy="50" r="8" fill="#ffb547"/><circle cx="50" cy="50" r="3.5" fill="#120d09"/></svg><span class="wm">Uzbegim<i class="wl"></i></span></span></a>
         <p style="color:var(--mut);margin-top:14px;font-size:14px;max-width:300px" data-i="fAbout"></p>
         <div class="soc"><a href="#">✈️</a><a href="#">📸</a><a href="#">▶️</a><a href="#">f</a></div>
       </div>
@@ -448,22 +482,23 @@ uz:{
   abH1:"Mazali, tez va",abH2:"o'zbekona",
   ab1:"Uzbegim — 2016-yilda Toshkentdagi kichik bir lavash do'konidan boshlangan. Bugun biz butun O'zbekiston bo'ylab 24 ta filialga ega fast food tarmog'imiz.",
   ab2:"Har bir burger va lavash buyurtmadan keyin tayyorlanadi: yangi go'sht, kunlik non va o'zimizning maxfiy souslarimiz. Bizning maqsad — o'zbekona mehmondo'stlikni zamonaviy fast food bilan birlashtirish.",
-  vals:["🥩 Yangi go'sht","🍞 Kunlik non","⚡ 30 daqiqa","❤️ Halol","🌿 Toza oshxona"],
+  vals:["🥟 Tandir non","🥩 Yangi go'sht","⚡ 30 daqiqa","❤️ Halol","🌿 Toza oshxona"],
   st1:"yildan beri ishlaymiz",st2:"ta filial",st3:"mamnun mijoz",st4:"o'rtacha baho",
   promos:[["-10%","Birinchi buyurtmaga chegirma","Ilova yoki sayt orqali birinchi buyurtmangizga butun menyuga 10%.","UZBEGIM10","🎁"],["1+1","Ikkinchi lavash yarim narxda","Har kuni 12:00 — 16:00 oralig'ida barcha filiallarda.","","🌯"],["0 so'm","Bepul yetkazib berish","150 000 so'mdan yuqori buyurtmalarga yoki promokod bilan.","BEPUL","🛵"],["-15 000","Do'stingizni taklif qiling","Do'stingiz ham, siz ham 15 000 so'mlik chegirma olasiz.","SALOM","🤝"],["🎂","Tug'ilgan kun sovg'asi","Tug'ilgan kuningizda chizkeyk — bizdan sovg'a.","","🍰"],["-20%","Tungi aksiya","Har kuni 23:00 dan keyin barcha kombolarga 20%.","","🌙"]],
   copy:"Nusxalash",copied:"Promokod nusxalandi:",
   vacs:[["👨‍🍳","Oshpaz","5 000 000 — 8 000 000 so'm","Tajriba 1 yildan. Bepul ovqat va forma."],["💁","Kassir","4 000 000 — 5 500 000 so'm","Xushmuomala, rus tilini bilish afzallik."],["🛵","Kuryer","6 000 000 — 10 000 000 so'm","O'z transporti bilan. Kunlik to'lov."],["📋","Filial menejeri","9 000 000 — 12 000 000 so'm","Jamoani boshqarish tajribasi 2 yildan."]],
   apply:"Ariza qoldirish",vacH:"Vakansiyaga ariza",vacP:"Ma'lumotlaringizni qoldiring — HR bo'limi 1 kun ichida qo'ng'iroq qiladi.",age:"Yoshingiz",exp:"Tajribangiz haqida qisqacha",send:"Yuborish",vacOk:"Arizangiz qabul qilindi! Tez orada bog'lanamiz 🤝",
   callC:"Call-markaz, bepul",hrsP:"Dam olish kunlarisiz",mailP:"Taklif va shikoyatlar uchun",tgP:"Telegram orqali buyurtma",fAddr:"Toshkent, Amir Temur ko'chasi, 15",addrP:"Bosh ofis",open:"● Hozir ochiq",
-  fAbout:"Uzbegim — o'zbekona mehmondo'stlik va zamonaviy fast food. Har bir taom sevgi bilan tayyorlanadi.",fCo:"Kompaniya",rights:"Barcha huquqlar himoyalangan.",madeIn:"O'zbekistonda ❤️ bilan yaratilgan",
+  fAbout:"Uzbegim — o'zbekona mehmondo'stlik va zamonaviy fast food. Har bir taom sevgi bilan tayyorlanadi.",fCo:"Kompaniya",rights:"Barcha huquqlar himoyalangan.",madeIn:"🇺🇿 O'zbekistonda mehr bilan yaratilgan",
   cartEmpty:"Savat hozircha bo'sh",cartEmptyP:"Mazali narsalar sizni kutmoqda!",goMenu:"Menyuga o'tish",
   sub:"Mahsulotlar",del:"Yetkazib berish",free:"Bepul",disc:"Chegirma",total:"Jami",checkout:"Rasmiylashtirish",
   promoPh:"Promokod",applyP:"Qo'llash",promoOk:"Promokod qo'llandi! 🎉",promoBad:"Bunday promokod yo'q",
   freeLeft:"Bepul yetkazishgacha yana",freeOk:"🎉 Yetkazib berish bepul!",added:"savatga qo'shildi",
   ordH:"Buyurtmani rasmiylashtirish",name:"Ismingiz",addr:"Manzil",note:"Izoh (ixtiyoriy)",pay:"To'lov: qabul qilganda naqd yoki karta",confirm:"Tasdiqlash",fill:"Iltimos, ism, telefon va manzilni kiriting",
-  thanks:"Rahmat! Buyurtma qabul qilindi",ordNo:"Buyurtma raqami",eta:"Taxminiy vaqt",min:"daqiqa",tr1:"Qabul qilindi",tr2:"Oshpaz tayyorlamoqda",tr3:"Kuryer yo'lda",tr4:"Yetkazildi — yoqimli ishtaha!",trP:"Olib ketishga tayyor!",close:"Yopish",
+  thanks:"Rahmat! Buyurtma qabul qilindi",ordNo:"Buyurtma raqami",eta:"Taxminiy vaqt",min:"daqiqa",tr1:"Qabul qilindi",tr2:"Oshpaz tayyorlamoqda",tr3:"Kuryer yo'lda",tr4:"Yetkazildi — osh bo'lsin!",trP:"Olib ketishga tayyor!",close:"Yopish",
   slides:[["🎉 Faqat yangi mijozlar uchun","Birinchi buyurtmaga chegirma","-10%","butun menyuga — UZBEGIM10"],["🔥 Yangi","Dabl Uzbegim","2×","ikki kotlet, ikki qavat chedder va maxfiy sous"],["⏰ 12:00 — 16:00","Ikkinchi lavash","1+1","yarim narxda — har kuni"]],
   order:"Buyurtma berish",
+  welcome:"XUSH KELIBSIZ!",milliyNote:"🇺🇿 Naqshlarimiz Registon koshinlari va chust do'ppisidan ilhomlangan",
 },
 ru:{
   nAbout:"О нас",nMenu:"Меню",nPromo:"Акции",nVac:"Вакансии",nCt:"Контакты",
@@ -474,14 +509,14 @@ ru:{
   abH1:"Вкусно, быстро и",abH2:"по-узбекски",
   ab1:"Uzbegim начинался в 2016 году с маленькой лавашной в Ташкенте. Сегодня мы — сеть фастфуда с 24 филиалами по всему Узбекистану.",
   ab2:"Каждый бургер и лаваш готовится после заказа: свежее мясо, хлеб каждый день и наши фирменные соусы. Наша цель — соединить узбекское гостеприимство с современным фастфудом.",
-  vals:["🥩 Свежее мясо","🍞 Хлеб каждый день","⚡ 30 минут","❤️ Халяль","🌿 Чистая кухня"],
+  vals:["🥟 Тандырный хлеб","🥩 Свежее мясо","⚡ 30 минут","❤️ Халяль","🌿 Чистая кухня"],
   st1:"работаем с этого года",st2:"филиала",st3:"довольных гостей",st4:"средняя оценка",
   promos:[["-10%","Скидка на первый заказ","10% на всё меню при первом заказе через сайт или приложение.","UZBEGIM10","🎁"],["1+1","Второй лаваш за полцены","Каждый день с 12:00 до 16:00 во всех филиалах.","","🌯"],["0 сум","Бесплатная доставка","При заказе от 150 000 сум или по промокоду.","BEPUL","🛵"],["-15 000","Пригласи друга","И вы, и друг получаете скидку 15 000 сум.","SALOM","🤝"],["🎂","Подарок на день рождения","Чизкейк в подарок в ваш день рождения.","","🍰"],["-20%","Ночная акция","Каждый день после 23:00 — 20% на все комбо.","","🌙"]],
   copy:"Копировать",copied:"Промокод скопирован:",
   vacs:[["👨‍🍳","Повар","5 000 000 — 8 000 000 сум","Опыт от 1 года. Бесплатное питание и форма."],["💁","Кассир","4 000 000 — 5 500 000 сум","Вежливость, знание узбекского — плюс."],["🛵","Курьер","6 000 000 — 10 000 000 сум","Со своим транспортом. Ежедневная оплата."],["📋","Менеджер филиала","9 000 000 — 12 000 000 сум","Опыт управления командой от 2 лет."]],
   apply:"Откликнуться",vacH:"Отклик на вакансию",vacP:"Оставьте данные — HR позвонит в течение дня.",age:"Ваш возраст",exp:"Коротко о вашем опыте",send:"Отправить",vacOk:"Заявка принята! Скоро свяжемся 🤝",
   callC:"Колл-центр, бесплатно",hrsP:"Без выходных",mailP:"Для предложений и жалоб",tgP:"Заказ через Telegram",fAddr:"Ташкент, ул. Амира Темура, 15",addrP:"Главный офис",open:"● Сейчас открыто",
-  fAbout:"Uzbegim — узбекское гостеприимство и современный фастфуд. Каждое блюдо готовится с любовью.",fCo:"Компания",rights:"Все права защищены.",madeIn:"Сделано с ❤️ в Узбекистане",
+  fAbout:"Uzbegim — узбекское гостеприимство и современный фастфуд. Каждое блюдо готовится с любовью.",fCo:"Компания",rights:"Все права защищены.",madeIn:"🇺🇿 Сделано с душой в Узбекистане",
   cartEmpty:"Корзина пока пуста",cartEmptyP:"Вкусняшки уже ждут вас!",goMenu:"Перейти в меню",
   sub:"Товары",del:"Доставка",free:"Бесплатно",disc:"Скидка",total:"Итого",checkout:"Оформить",
   promoPh:"Промокод",applyP:"Применить",promoOk:"Промокод применён! 🎉",promoBad:"Такого промокода нет",
@@ -490,15 +525,22 @@ ru:{
   thanks:"Спасибо! Заказ принят",ordNo:"Номер заказа",eta:"Примерное время",min:"минут",tr1:"Принят",tr2:"Повар готовит",tr3:"Курьер в пути",tr4:"Доставлен — приятного аппетита!",trP:"Готов к выдаче!",close:"Закрыть",
   slides:[["🎉 Только для новых клиентов","На первый заказ скидка","-10%","на всё меню — UZBEGIM10"],["🔥 Новинка","Дабл Узбегим","2×","две котлеты, двойной чеддер и секретный соус"],["⏰ 12:00 — 16:00","Второй лаваш","1+1","за полцены — каждый день"]],
   order:"Заказать",
+  welcome:"ХУШ КЕЛИБСИЗ!",milliyNote:"🇺🇿 Узоры вдохновлены изразцами Регистана и чустской тюбетейкой",
 }};
 
 const CATS=[
  {id:"new",e:"✨",uz:"Yangiliklar",ru:"Новинки"},
+ {id:"milliy",e:"🥟",uz:"Milliy",ru:"Национальное"},
  {id:"combo",e:"🍱",uz:"Kombo",ru:"Комбо"},{id:"burger",e:"🍔",uz:"Burger",ru:"Бургер"},{id:"lavash",e:"🌯",uz:"Lavash",ru:"Лаваш"},
  {id:"shaurma",e:"🥙",uz:"Shaurma",ru:"Шаурма"},{id:"hotdog",e:"🌭",uz:"Hot-dog",ru:"Хот-дог"},{id:"pizza",e:"🍕",uz:"Pitsa",ru:"Пицца"},
  {id:"chicken",e:"🍗",uz:"Tovuq",ru:"Курица"},{id:"snack",e:"🍟",uz:"Fri",ru:"Фри"},{id:"drink",e:"🥤",uz:"Ichimlik",ru:"Напитки"},{id:"dessert",e:"🍦",uz:"Desert",ru:"Десерты"},
 ];
 const P=[
+ ["m1","milliy","🥟","Tandir somsa","Самса из тандыра","Qo'y go'shti, piyoz, dumba — tandirda","Баранина, лук, курдюк — в тандыре",12000,0,"hit"],
+ ["m2","milliy","🫓","Go'shtli non","Гушт нон","Tandir noni ichida go'sht va ko'katlar","Мясо и зелень в тандырной лепёшке",28000,0,""],
+ ["m3","milliy","🍔","Qazi burger","Казы бургер","Qazi, tandir non bulkasi, achchiq-chuchuk","Казы, булка из тандырного хлеба, ачичук",45000,0,"new"],
+ ["m4","milliy","🍢","Shashlik lavash","Шашлык лаваш","Ko'mirda pishgan shashlik, piyoz, sumak","Шашлык на углях, лук, сумах",39000,0,"hot"],
+ ["m5","milliy","🥗","Achchiq-chuchuk","Ачичук","Pomidor, piyoz, qalampir — yangi","Томаты, лук, перец — свежий",9000,0,""],
  ["c1","combo","🍱","Uzbegim Kombo","Узбегим Комбо","Burger + fri + kola 0.5","Бургер + фри + кола 0.5",59000,72000,"hit"],
  ["c2","combo","🎉","Do'stlar to'plami","Набор «Друзья»","4 lavash, 2 fri, 4 ichimlik","4 лаваша, 2 фри, 4 напитка",169000,205000,"hot"],
  ["c3","combo","👨‍👩‍👧","Oilaviy kombo","Семейное комбо","Pitsa, 6 qanot, fri, 1.5 l kola","Пицца, 6 крыльев, фри, кола 1.5 л",179000,215000,""],
@@ -577,8 +619,8 @@ function renderText(){
 let sI=0,sTimer;
 function renderSlider(){
   $("#slider").innerHTML=t("slides").map((x,i)=>`<div class="slide ${i===sI?"on":""}" style="background:${SL[i].bg}">
-    <div class="txt"><span class="tag">${x[0]}</span><h1>${x[1]}</h1><span class="huge acc">${x[2]}</span><p>${x[3]}</p><a class="btn" href="#menu">${t("order")} →</a></div>
-    <div class="big">${SL[i].e}</div></div>`).join("")+
+    <div class="txt">${i===0?`<span class="welcome">${t("welcome")}</span>`:""}<span class="tag">${x[0]}</span><h1>${x[1]}</h1><span class="huge acc">${x[2]}</span><p>${x[3]}</p><a class="btn" href="#menu">${t("order")} →</a></div>
+    <div class="rose"></div><div class="big">${SL[i].e}</div></div>`).join("")+
     `<button class="arr l" data-sl="-1">←</button><button class="arr r" data-sl="1">→</button>
      <div class="dots">${SL.map((_,i)=>`<button class="${i===sI?"on":""}" data-s="${i}" aria-label="${i+1}"></button>`).join("")}</div>`;
 }

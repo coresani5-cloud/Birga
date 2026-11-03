@@ -67,7 +67,7 @@ const ss = { get(k) { try { return sessionStorage.getItem(k) || ''; } catch (e) 
 let TOK = ss.get('uzb_staff'), ME = null, ORD = {}, BR = [], STOP = new Set(), STAFF = [], es = null, map = null, mk = {}, sound = true, fresh = new Set(), branchF = '', view = 'board';
 let tt; function toast(m) { const e = $('#toast'); e.textContent = m; e.classList.add('on'); clearTimeout(tt); tt = setTimeout(() => e.classList.remove('on'), 2800); }
 const api = (p, o = {}) => U.api(p, { ...o, headers: { Authorization: 'Bearer ' + TOK } });
-const ERR = { forbidden: 'Bu amalga ruxsat yo\'q', closed_order: 'Buyurtma allaqachon yopilgan', exists: 'Bu telefon bilan xodim bor', pin: 'PIN kamida 4 raqam', name_phone: 'Ism va telefonni to\'liq yozing', auth: 'Qayta kiring', slow: 'Ko\'p urinish, bir daqiqa kuting' };
+const ERR = { forbidden: 'Bu amalga ruxsat yo\'q', closed_order: 'Buyurtma allaqachon yopilgan', exists: 'Bu telefon bilan xodim bor', pin: 'PIN kamida 6 ta raqamdan iborat bo\'lsin', name_phone: 'Ism va telefonni to\'liq yozing', auth: 'Qayta kiring', slow: 'Ko\'p urinish, bir daqiqa kuting' };
 const errMsg = x => ERR[x.message] || (x.status ? 'Xato: ' + x.message : 'Server bilan aloqa yo\'q');
 
 function beep() {
@@ -107,7 +107,7 @@ const COLS = [
 function start() {
   const isMaster = ME.branch == null;
   $('#app').innerHTML = `<div class="top"><div class="brand">${LOGO}<div>Uzbegim<small>${esc(ME.name)}${ME.branch != null ? ' · ' + esc(BR[ME.branch] || '') : ''}</small></div></div>
-    <div class="tabsbar" id="tabs"><button data-v="board" class="on">Buyurtmalar</button><button data-v="menu">Stop-list</button><button data-v="stats">Hisobot</button>${isMaster ? '<button data-v="staff">Xodimlar</button>' : ''}</div>
+    <div class="tabsbar" id="tabs"><button data-v="board" class="on">Buyurtmalar</button><button data-v="menu">Stop-list</button><button data-v="stats">Hisobot</button><button data-v="apps">Arizalar <span class="pill" id="appsN" hidden></span></button>${isMaster ? '<button data-v="staff">Xodimlar</button>' : ''}</div>
     <div class="grow"></div>
     <select class="fld" id="brf" ${ME.branch != null ? 'hidden' : ''}><option value="">Barcha filiallar</option></select>
     <div class="stats" id="stats"></div>
@@ -119,11 +119,13 @@ function start() {
       <section class="view" id="v-menu" hidden><h2 style="font-size:18px;margin-bottom:6px">Stop-list</h2><p class="hint" style="margin-bottom:14px">Tugagan taomni o'chiring — mijozlar uni "Tugagan" deb ko'radi va buyurtma qila olmaydi.</p><div class="menu-list" id="menuList"></div></section>
       <section class="view" id="v-stats" hidden></section>
       <section class="view" id="v-staff" hidden></section>
+      <section class="view" id="v-apps" hidden></section>
     </div>`;
   $('#out').onclick = () => { ss.set('uzb_staff', ''); es && es.close(); location.reload(); };
   $('#snd').onclick = () => { sound = !sound; $('#snd').textContent = '🔔 Ovoz ' + (sound ? 'yoqilgan' : 'o\'chiq'); if (sound) beep(); };
   $('#brf').onchange = () => { branchF = $('#brf').value; draw(); };
-  $('#tabs').onclick = e => { const b = e.target.closest('[data-v]'); if (!b) return; view = b.dataset.v; document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x === b)); document.querySelectorAll('.view').forEach(v => (v.hidden = v.id !== 'v-' + view)); if (view === 'stats') stats(1); if (view === 'staff') staffView(); if (view === 'menu') menuView(); };
+  $('#tabs').onclick = e => { const b = e.target.closest('[data-v]'); if (!b) return; view = b.dataset.v; document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x === b)); document.querySelectorAll('.view').forEach(v => (v.hidden = v.id !== 'v-' + view)); if (view === 'stats') stats(1); if (view === 'staff') staffView(); if (view === 'menu') menuView(); if (view === 'apps') appsView(); };
+  appsCount(); setInterval(appsCount, 60000);
   U.makeMap($('#ovMap'), U.CENTER, 11).then(m => { map = m; U.BRANCHES.forEach(b => window.L.marker([b.lat, b.lng], { icon: U.pin(window.L, '🏪', 'shop') }).addTo(m).bindTooltip(b.uz)); drawMap(); }).catch(() => { $('#ovMap').hidden = true; });
   connect();
 }
@@ -273,6 +275,15 @@ async function stats(days) {
   } catch (x) { el.innerHTML = `<div class="err">${errMsg(x)}</div>`; }
 }
 
+/* ---- Vakansiya arizalari */
+async function appsCount() { try { const l = await api('staff/apps'); const n = l.filter(a => !a.seen).length; const el = $('#appsN'); if (el) { el.hidden = !n; el.textContent = n; } return l; } catch (e) { return []; } }
+async function appsView() {
+  const l = await appsCount();
+  $('#v-apps').innerHTML = `<h2 style="font-size:18px;margin-bottom:12px">Vakansiyaga arizalar</h2><div class="glass" style="padding:16px"><div class="tw"><table><tr><th>Sana</th><th>Lavozim</th><th>Ism</th><th>Telefon</th><th>Yosh</th><th>Tajriba</th><th></th></tr>
+    ${l.map(a => `<tr style="${a.seen ? 'opacity:.55' : ''}"><td>${new Date(a.createdAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td><td>${esc(a.pos)}</td><td>${esc(a.name)}</td><td class="tel">${esc(a.phone)}</td><td>${a.age || ''}</td><td style="max-width:320px">${esc(a.exp)}</td><td><button class="btn ghost" style="height:34px" data-seen="${a.id}" data-v2="${a.seen ? '' : '1'}">${a.seen ? 'Qaytarish' : 'Ko\'rildi'}</button></td></tr>`).join('') || '<tr><td colspan="7" class="hint">Hali ariza yo\'q</td></tr>'}
+  </table></div></div>`;
+}
+
 /* ---- Xodimlar (faqat bosh admin) */
 async function staffView(edit) {
   const el = $('#v-staff');
@@ -285,7 +296,7 @@ async function staffView(edit) {
       <input class="fld" id="sPhone" type="tel" placeholder="Telefon +998..." value="${esc(s?.phone || '+998 ')}">
       <select class="fld" id="sRole"><option value="courier" ${s?.role === 'courier' ? 'selected' : ''}>Kuryer</option><option value="admin" ${s?.role === 'admin' ? 'selected' : ''}>Oshxona xodimi</option></select>
       <select class="fld" id="sBranch"><option value="">Barcha filiallar</option>${BR.map((n, i) => `<option value="${i}" ${s?.branch === i ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>
-      <input class="fld" id="sPin" type="password" inputmode="numeric" placeholder="${s ? 'Yangi PIN (o\'zgartirmasangiz bo\'sh qoldiring)' : 'PIN (kamida 4 raqam)'}">
+      <input class="fld" id="sPin" type="password" inputmode="numeric" placeholder="${s ? 'Yangi PIN (o\'zgartirmasangiz bo\'sh qoldiring)' : 'PIN (kamida 6 raqam)'}">
       ${s ? `<label style="display:flex;gap:8px;align-items:center;font-weight:700"><input type="checkbox" id="sActive" ${s.active ? 'checked' : ''}> Faol (o'chirsangiz kira olmaydi)</label>` : ''}
       <div class="err" id="sErr"></div>
       <div style="display:flex;gap:8px"><button class="btn">${s ? 'Saqlash' : 'Qo\'shish'}</button>${s ? '<button type="button" class="btn ghost" id="sCancel">Bekor</button>' : ''}</div>
@@ -305,6 +316,7 @@ async function staffView(edit) {
 }
 
 document.addEventListener('click', async e => {
+  const sn = e.target.closest('[data-seen]'); if (sn) { await api('staff/apps', { body: { id: sn.dataset.seen, seen: !!sn.dataset.v2 } }).catch(() => {}); return appsView(); }
   const pr = e.target.closest('[data-print]'); if (pr) return printOrder(ORD[pr.dataset.print]);
   const ed = e.target.closest('[data-edit]'); if (ed) return staffView(ed.dataset.edit);
   const dd = e.target.closest('[data-days]'); if (dd) return stats(+dd.dataset.days);

@@ -12,7 +12,7 @@ Object.assign(T.uz, {
   addrPh: "Ko'cha, uy, xonadon, mo'ljal", pickMap: '📍 Xaritada belgilash', myLoc: '🎯 Joylashuvimni aniqlash', mapDone: '✓ Xaritada belgilandi', saveAddr: 'Manzilni saqlab qo\'yish', addrLabel: 'Nomi (Uy, Ish...)', pickBranch: 'Filialni tanlang', mapHint: "Xaritani suring — pin manzilingiz ustida tursin",
   locDenied: "Joylashuvni aniqlab bo'lmadi. Xaritada qo'lda belgilang.", needAddr: 'Manzilni kiriting', orderFor: 'Buyurtmachi',
   waiting: 'Oshxona buyurtmangizni ko\'rib chiqmoqda...', courierCard: 'Kuryeringiz', dist: 'Masofa', left: 'Qoldi', upd: 'Yangilandi', near: '🔔 Kuryer yetib kelay dedi! Eshikka chiqing.', mins: 'daq', demo: 'Demo rejim: holatlar avtomatik o\'zgaradi. Haqiqiy rejim uchun serverni ishga tushiring.',
-  myOrder: 'Buyurtmam', eClosed: 'Hozir yopiqmiz. Ish vaqti: {h}', closedBar: '🌙 Hozir yopiqmiz — buyurtmalar {h} oralig\'ida qabul qilinadi. Menyuni ko\'rib turishingiz mumkin.', eStopped: 'Savatdagi ba\'zi taomlar tugab qoldi. Ularni savatdan olib tashlang.', ePromoFirst: 'Bu promokod faqat birinchi buyurtmaga', ePromoUsed: 'Bu promokoddan allaqachon foydalangansiz', eNoPoint: 'Xaritada manzilingizni belgilang', eFar: 'Bu manzil yetkazish hududidan tashqarida ({km} km dan uzoq)', eSlow: 'Juda ko\'p urinish. Bir daqiqadan keyin qayta urinib ko\'ring.', eMap: 'Xarita yuklanmadi. Internetni tekshiring.', delPick: 'xaritada belgilang', fromBranch: 'Filial', stepPoint: 'Xaritada uyingizni belgilang', stepAddr: 'Uy, xonadon, qavat, mo\'ljal', soldout: 'Tugagan', cancelBtn: 'Buyurtmani bekor qilish', cancelSure: 'Rostdan bekor qilinsinmi? Yana bosing', eLate: 'Oshxona buyurtmani qabul qilib bo\'ldi, endi bekor qilib bo\'lmaydi. Qo\'ng\'iroq qiling: +998 71 200-00-00', youCancelled: 'Siz buyurtmani bekor qildingiz.', reason: 'Sabab', rateQ: 'Buyurtma sizga yoqdimi?', rateComment: 'Fikringiz (ixtiyoriy)', send: 'Yuborish', thanksRate: 'Baho uchun rahmat!', delFrom: '{x} so\'mdan', cancelled: 'Buyurtma bekor qilindi. Savollar bo\'lsa qo\'ng\'iroq qiling: +998 71 200-00-00', items: 'Tarkib', gpsWait: 'Kuryer GPS signali kutilmoqda...', toYou: 'sizgacha',
+  myOrder: 'Buyurtmam', jmAgo: '{m} daqiqa oldin berilgan', jm_new: 'Buyurtmangiz oshxonaga yetib bordi, tasdiqlashni kutyapmiz', jm_accepted: 'Oshxona buyurtmangizni oldi, navbatga qo\'ydi', jm_cooking: 'Oshpaz hozir tayyorlayapti — hammasi yangi va issiq', jm_ready: 'Qadoqlandi! Kuryer olib ketmoqda', jm_readyP: 'Filialda sizni kutyapti — kelib oling', jm_onway: 'Kuryer yo\'lda — xaritada kuzatib boring', jm_delivered: 'Osh bo\'lsin! Bahoyingizni qoldiring', jm_deliveredP: 'Osh bo\'lsin! Bahoyingizni qoldiring', jm_cancelled: 'Buyurtma yopildi', consent: 'Men <a href="oferta.html" target="_blank">ommaviy oferta</a> shartlariga va <a href="privacy.html" target="_blank">shaxsiy ma\'lumotlarim</a> qayta ishlanishiga roziman', eConsent: 'Davom etish uchun oferta va maxfiylik shartlariga rozilik bering', forgot: 'Parolni unutdingizmi? Call-markazga qo\'ng\'iroq qiling.', dealLavash: '1+1: ikkinchi lavash yarim narxda', dealNight: 'Tungi aksiya: kombolarga −20%', eClosed: 'Hozir yopiqmiz. Ish vaqti: {h}', closedBar: '🌙 Hozir yopiqmiz — buyurtmalar {h} oralig\'ida qabul qilinadi. Menyuni ko\'rib turishingiz mumkin.', eStopped: 'Savatdagi ba\'zi taomlar tugab qoldi. Ularni savatdan olib tashlang.', ePromoFirst: 'Bu promokod faqat birinchi buyurtmaga', ePromoUsed: 'Bu promokoddan allaqachon foydalangansiz', eNoPoint: 'Xaritada manzilingizni belgilang', eFar: 'Bu manzil yetkazish hududidan tashqarida ({km} km dan uzoq)', eSlow: 'Juda ko\'p urinish. Bir daqiqadan keyin qayta urinib ko\'ring.', eMap: 'Xarita yuklanmadi. Internetni tekshiring.', delPick: 'xaritada belgilang', fromBranch: 'Filial', stepPoint: 'Xaritada uyingizni belgilang', stepAddr: 'Uy, xonadon, qavat, mo\'ljal', soldout: 'Tugagan', cancelBtn: 'Buyurtmani bekor qilish', cancelSure: 'Rostdan bekor qilinsinmi? Yana bosing', eLate: 'Oshxona buyurtmani qabul qilib bo\'ldi, endi bekor qilib bo\'lmaydi. Qo\'ng\'iroq qiling: +998 95 000 00 00', youCancelled: 'Siz buyurtmani bekor qildingiz.', reason: 'Sabab', rateQ: 'Buyurtma sizga yoqdimi?', rateComment: 'Fikringiz (ixtiyoriy)', send: 'Yuborish', thanksRate: 'Baho uchun rahmat!', delFrom: '{x} so\'mdan', cancelled: 'Buyurtma bekor qilindi. Savollar bo\'lsa qo\'ng\'iroq qiling: +998 95 000 00 00', items: 'Tarkib', gpsWait: 'Kuryer GPS signali kutilmoqda...', toYou: 'sizgacha',
 });
 Object.assign(T.ru, {
   login: 'Войти', register: 'Регистрация', password: 'Пароль (минимум 6 символов)', haveAcc: 'Уже есть аккаунт?', noAcc: 'Нет аккаунта?',
@@ -22,7 +22,7 @@ Object.assign(T.ru, {
   addrPh: 'Улица, дом, квартира, ориентир', pickMap: '📍 Отметить на карте', myLoc: '🎯 Определить местоположение', mapDone: '✓ Отмечено на карте', saveAddr: 'Сохранить адрес', addrLabel: 'Название (Дом, Работа...)', pickBranch: 'Выберите филиал', mapHint: 'Двигайте карту — пин должен стоять на вашем адресе',
   locDenied: 'Не удалось определить местоположение. Отметьте на карте вручную.', needAddr: 'Укажите адрес', orderFor: 'Заказчик',
   waiting: 'Кухня рассматривает ваш заказ...', courierCard: 'Ваш курьер', dist: 'Расстояние', left: 'Осталось', upd: 'Обновлено', near: '🔔 Курьер почти у вас! Выходите к двери.', mins: 'мин', demo: 'Демо-режим: статусы меняются автоматически. Для реальной работы запустите сервер.',
-  myOrder: 'Мой заказ', eClosed: 'Сейчас мы закрыты. Часы работы: {h}', closedBar: '🌙 Сейчас мы закрыты — заказы принимаются с {h}. Меню можно посмотреть.', eStopped: 'Некоторые блюда закончились. Уберите их из корзины.', ePromoFirst: 'Этот промокод только для первого заказа', ePromoUsed: 'Вы уже использовали этот промокод', eNoPoint: 'Отметьте ваш адрес на карте', eFar: 'Адрес вне зоны доставки (дальше {km} км)', eSlow: 'Слишком много попыток. Попробуйте через минуту.', eMap: 'Карта не загрузилась. Проверьте интернет.', delPick: 'отметьте на карте', fromBranch: 'Филиал', stepPoint: 'Отметьте дом на карте', stepAddr: 'Дом, квартира, этаж, ориентир', soldout: 'Закончилось', cancelBtn: 'Отменить заказ', cancelSure: 'Точно отменить? Нажмите ещё раз', eLate: 'Кухня уже приняла заказ, отменить нельзя. Позвоните: +998 71 200-00-00', youCancelled: 'Вы отменили заказ.', reason: 'Причина', rateQ: 'Понравился заказ?', rateComment: 'Ваш отзыв (необязательно)', send: 'Отправить', thanksRate: 'Спасибо за оценку!', delFrom: 'от {x} сум', cancelled: 'Заказ отменён. Вопросы: +998 71 200-00-00', items: 'Состав', gpsWait: 'Ждём GPS-сигнал курьера...', toYou: 'до вас',
+  myOrder: 'Мой заказ', jmAgo: 'оформлен {m} мин назад', jm_new: 'Заказ получен кухней, ждём подтверждения', jm_accepted: 'Кухня приняла заказ и поставила в очередь', jm_cooking: 'Повар готовит прямо сейчас — всё свежее и горячее', jm_ready: 'Упаковано! Курьер забирает заказ', jm_readyP: 'Ждёт вас в филиале — можно забирать', jm_onway: 'Курьер в пути — следите на карте', jm_delivered: 'Приятного аппетита! Оставьте оценку', jm_deliveredP: 'Приятного аппетита! Оставьте оценку', jm_cancelled: 'Заказ закрыт', consent: 'Я согласен с <a href="oferta.html" target="_blank">публичной офертой</a> и <a href="privacy.html" target="_blank">обработкой персональных данных</a>', eConsent: 'Чтобы продолжить, примите условия оферты и политики конфиденциальности', forgot: 'Забыли пароль? Позвоните в колл-центр.', dealLavash: '1+1: второй лаваш за полцены', dealNight: 'Ночная акция: −20% на комбо', eClosed: 'Сейчас мы закрыты. Часы работы: {h}', closedBar: '🌙 Сейчас мы закрыты — заказы принимаются с {h}. Меню можно посмотреть.', eStopped: 'Некоторые блюда закончились. Уберите их из корзины.', ePromoFirst: 'Этот промокод только для первого заказа', ePromoUsed: 'Вы уже использовали этот промокод', eNoPoint: 'Отметьте ваш адрес на карте', eFar: 'Адрес вне зоны доставки (дальше {km} км)', eSlow: 'Слишком много попыток. Попробуйте через минуту.', eMap: 'Карта не загрузилась. Проверьте интернет.', delPick: 'отметьте на карте', fromBranch: 'Филиал', stepPoint: 'Отметьте дом на карте', stepAddr: 'Дом, квартира, этаж, ориентир', soldout: 'Закончилось', cancelBtn: 'Отменить заказ', cancelSure: 'Точно отменить? Нажмите ещё раз', eLate: 'Кухня уже приняла заказ, отменить нельзя. Позвоните: +998 95 000 00 00', youCancelled: 'Вы отменили заказ.', reason: 'Причина', rateQ: 'Понравился заказ?', rateComment: 'Ваш отзыв (необязательно)', send: 'Отправить', thanksRate: 'Спасибо за оценку!', delFrom: 'от {x} сум', cancelled: 'Заказ отменён. Вопросы: +998 95 000 00 00', items: 'Состав', gpsWait: 'Ждём GPS-сигнал курьера...', toYou: 'до вас',
 });
 
 /* ---------- Stil ---------- */
@@ -63,10 +63,60 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .ts small{display:block;color:var(--mut);font-weight:600;font-size:12px}
 .ts.on b{color:var(--ink)}
 .demo-note{margin-top:12px;font-size:12px;color:var(--mut);padding:10px 12px;border-radius:12px;border:1px dashed var(--ln)}
+/* ===== Buyurtma yo'li ===== */
+.jr{margin:16px 0;padding:18px 14px 14px;border-radius:26px;position:relative;overflow:hidden;border:1px solid rgba(255,122,0,.32);
+  background:radial-gradient(120% 140% at 0% 0%,rgba(255,166,43,.22),transparent 55%),radial-gradient(80% 120% at 100% 100%,rgba(31,182,193,.10),transparent 60%),var(--glass)}
+.jr::before{content:"";position:absolute;right:-40px;top:-40px;width:160px;height:160px;opacity:.10;background:conic-gradient(from 22.5deg,#ffa62b 0 12.5%,transparent 0 25%,#ffa62b 0 37.5%,transparent 0 50%,#ffa62b 0 62.5%,transparent 0 75%,#ffa62b 0 87.5%,transparent 0);border-radius:50%;animation:jrspin 30s linear infinite;pointer-events:none}
+@keyframes jrspin{to{transform:rotate(360deg)}}
+.jr-hero{display:flex;gap:14px;align-items:center;position:relative}
+.jr-orb{width:66px;height:66px;border-radius:50%;background:var(--grad);display:grid;place-items:center;position:relative;flex:none;box-shadow:0 12px 30px rgba(255,106,0,.45)}
+.jr-orb::before,.jr-orb::after{content:"";position:absolute;inset:-7px;border-radius:50%;border:2px solid rgba(255,140,40,.6);animation:jrorb 2.2s ease-out infinite}
+.jr-orb::after{animation-delay:1.1s}
+@keyframes jrorb{from{transform:scale(.85);opacity:1}to{transform:scale(1.55);opacity:0}}
+.jr-orb .gi{width:32px;height:32px;stroke:#fff;stroke-width:1.8;animation:jrbob 2.4s ease-in-out infinite}
+.jr-orb[data-s="cooking"] .gi{animation:jrsizzle .45s ease-in-out infinite alternate}
+.jr-orb[data-s="onway"] .gi{animation:jrride 1s ease-in-out infinite}
+.jr-orb[data-s="new"] .gi{animation:jrtick 2s steps(8) infinite}
+.jr-orb.pop{animation:jrpop .6s cubic-bezier(.3,1.6,.5,1)}
+@keyframes jrbob{50%{transform:translateY(-3px)}}
+@keyframes jrsizzle{from{transform:rotate(-7deg) scale(1)}to{transform:rotate(7deg) scale(1.06)}}
+@keyframes jrride{0%,100%{transform:translateX(-3px)}50%{transform:translateX(3px) translateY(-2px)}}
+@keyframes jrtick{to{transform:rotate(360deg)}}
+@keyframes jrpop{0%{transform:scale(.6)}100%{transform:scale(1)}}
+.jr-txt{min-width:0}
+.jr-txt b{font-family:Unbounded,Manrope,sans-serif;font-size:18px;line-height:1.2;display:block}
+.jr-txt span{color:var(--mut);font-size:13px;display:block;margin-top:2px}
+.jr-txt em{font-style:normal;font-size:13px;color:var(--or2);display:block;margin-top:4px;font-weight:700}
+.jr-track{position:relative;display:grid;grid-template-columns:repeat(var(--n,6),minmax(0,1fr));margin-top:22px}
+.jr-line{position:absolute;top:20px;left:calc(50% / var(--n,6));right:calc(50% / var(--n,6));height:4px;border-radius:4px;background:rgba(255,255,255,.10)}
+.jr-line i{display:block;height:100%;width:0;border-radius:4px;background:linear-gradient(90deg,#ffd166,#ff7a00);transition:width 1.1s cubic-bezier(.2,.8,.2,1);position:relative;box-shadow:0 0 12px rgba(255,122,0,.6)}
+.jr-line i::after{content:"";position:absolute;inset:0;border-radius:4px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.7),transparent);background-size:60px 100%;background-repeat:no-repeat;animation:jrshine 1.8s linear infinite}
+@keyframes jrshine{from{background-position:-60px 0}to{background-position:calc(100% + 60px) 0}}
+.jr-s{display:grid;justify-items:center;align-content:start;gap:6px;text-align:center;position:relative;z-index:1;min-width:0}
+.jr-d{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:var(--bg2);border:2px solid rgba(255,255,255,.14);transition:background .4s,border-color .4s,transform .4s;position:relative}
+.jr-d .gi{width:20px;height:20px;stroke:var(--mut);stroke-width:1.6}
+.jr-s.done .jr-d{background:var(--grad);border-color:transparent}
+.jr-s.done .jr-d .gi{stroke:#fff;stroke-width:1.9}
+.jr-s.done:not(.cur) .jr-d::after{content:"";position:absolute;right:-3px;bottom:-3px;width:16px;height:16px;border-radius:50%;background:#34d399 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23062016' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 12.5 4 4 8-9'/%3E%3C/svg%3E") center/11px no-repeat;border:2px solid var(--bg2)}
+.jr-s.cur .jr-d{transform:scale(1.18);box-shadow:0 0 0 6px rgba(255,122,0,.18),0 8px 22px rgba(255,106,0,.5);animation:jrcur 1.6s ease-in-out infinite}
+@keyframes jrcur{50%{box-shadow:0 0 0 11px rgba(255,122,0,.06),0 8px 22px rgba(255,106,0,.5)}}
+.jr-s b{font-size:11px;font-weight:800;color:var(--mut);line-height:1.2;white-space:nowrap}
+.jr-s.done b,.jr-s.cur b{color:var(--ink)}
+.jr-s small{font-size:10.5px;color:var(--mut);font-variant-numeric:tabular-nums}
+.jr.x{border-color:rgba(255,90,78,.4);background:radial-gradient(120% 140% at 0% 0%,rgba(255,90,78,.18),transparent 55%),var(--glass)}
+.jr.x .jr-orb{background:linear-gradient(135deg,#ff7a6e,#d92f22);box-shadow:0 12px 30px rgba(217,47,34,.4)}
+.jr.x .jr-orb::before,.jr.x .jr-orb::after,.jr.ok .jr-orb::before,.jr.ok .jr-orb::after{animation:none;opacity:0}
+.jr.x .jr-line i{background:#ff5a4e;box-shadow:none}
+.jr.x .jr-line i::after,.jr.ok .jr-line i::after{animation:none;opacity:0}
+.jr.ok{border-color:rgba(52,211,153,.4);background:radial-gradient(120% 140% at 0% 0%,rgba(52,211,153,.16),transparent 55%),var(--glass)}
+.jr.ok .jr-orb{background:linear-gradient(135deg,#5eead4,#10b981);box-shadow:0 12px 30px rgba(16,185,129,.4)}
+@media (max-width:420px){.jr-d{width:38px;height:38px}.jr-line{top:17px}.jr-s b{font-size:9.5px;letter-spacing:-.01em}.jr-txt b{font-size:16px}}
+@media (prefers-reduced-motion:reduce){.jr *,.jr::before{animation:none!important}}
 .rate{display:grid;gap:10px;padding:14px;border-radius:18px;background:var(--glass);border:1px solid var(--ln);margin-bottom:10px}
 .rate .stars{display:flex;gap:6px}.rate .stars button{font-size:32px;color:var(--mut);line-height:1}.rate .stars button.on{color:var(--gold,#d9b35b)}
 .rate textarea{height:64px;border-radius:14px;border:1px solid var(--ln);background:var(--glass);padding:10px 12px;resize:none;outline:none}
 .rate.done{display:block;color:var(--gold,#d9b35b);font-size:22px}.rate.done span{font-size:14px;color:var(--mut)}
+.consent{display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.4;color:var(--mut)}.consent input{width:20px;height:20px;flex:none;margin-top:1px;accent-color:#ff7a00}.consent a{color:var(--or2)}
 .otype.alt{background:var(--glass2);color:var(--ink);border:1px solid rgba(255,122,0,.5);box-shadow:none;animation:nearp 2s infinite}
 </style>`);
 
@@ -101,6 +151,7 @@ function openAuth(after, tab = 'reg') {
         ${tab === 'reg' ? `<input id="aName" placeholder="${t('name')}" autocomplete="name">` : ''}
         <input id="aPhone" type="tel" value="+998 " autocomplete="tel">
         <input id="aPw" type="password" placeholder="${t('password')}" autocomplete="${tab === 'reg' ? 'new-password' : 'current-password'}">
+        ${tab === 'reg' ? `<label class="consent"><input type="checkbox" id="aOk"> <span>${t('consent')}</span></label>` : `<p class="hint">${t('forgot')}</p>`}
         <div class="err" id="aErr"></div>
         <button class="btn wide" type="submit">${tab === 'reg' ? t('register') : t('login')} →</button>
       </form></div>`);
@@ -115,10 +166,11 @@ function openAuth(after, tab = 'reg') {
       if (tab === 'reg' && !name) return (err.textContent = t('eName'));
       if (phone.length !== 12) return (err.textContent = t('ePhone'));
       if (pw.length < 6) return (err.textContent = t('ePw'));
+      if (tab === 'reg' && !document.getElementById('aOk').checked) return (err.textContent = t('eConsent'));
       err.textContent = '';
       try {
         if (LIVE) {
-          const r = await UZ.api(tab === 'reg' ? 'auth/register' : 'auth/login', { body: { name, phone, password: pw } });
+          const r = await UZ.api(tab === 'reg' ? 'auth/register' : 'auth/login', { body: { name, phone, password: pw, consent: tab === 'reg' } });
           UZ.setToken(r.token); ME = r.user;
         } else {
           const u = demoUsers(), key = '+' + phone;
@@ -129,7 +181,7 @@ function openAuth(after, tab = 'reg') {
         updateUserUi(); closeAll(); toast(`👋 ${t('welcomeU')}, ${ME.name}!`);
         if (after) setTimeout(after, 250);
       } catch (x) {
-        err.textContent = x.message === 'exists' ? t('eExists') : x.message === 'login' ? t('eLogin') : x.message === 'phone' ? t('ePhone') : x.message === 'password' ? t('ePw') : t('eNet');
+        err.textContent = x.message === 'consent' ? t('eConsent') : x.message === 'slow' ? t('eSlow') : x.message === 'exists' ? t('eExists') : x.message === 'login' ? t('eLogin') : x.message === 'phone' ? t('ePhone') : x.message === 'password' ? t('ePw') : t('eNet');
       }
     };
   };
@@ -209,7 +261,8 @@ function openCheckout() {
     else if (Q.zone === 'far') delLine = `<div class="line"><span>${t('del')}</span><span style="color:#ff6b5e">${t('eFar').replace('{km}', MENU.maxKm || 15)}</span></div>`;
     else delLine = `<div class="line"><span>${t('del')}${Q.dist != null ? ` · ${String(Q.dist).replace('.', ',')} km` : ''}</span><span>${Q.del ? fmt(Q.del) : t('free')}</span></div>`;
     el.innerHTML = `<div class="line"><span>${t('sub')}</span><span>${fmt(Q.sub)}</span></div>
-      ${Q.disc ? `<div class="line" style="color:#34d399"><span>${t('disc')} (${promo})</span><span>−${fmt(Q.disc)}</span></div>` : ''}
+      ${(Q.deals || []).map(d => `<div class="line" style="color:#34d399"><span>${t(d.id === 'lavash11' ? 'dealLavash' : 'dealNight')}</span><span>−${fmt(d.v)}</span></div>`).join('')}
+      ${Q.disc - (Q.deals || []).reduce((a, d) => a + d.v, 0) > 0 ? `<div class="line" style="color:#34d399"><span>${t('disc')} (${promo})</span><span>−${fmt(Q.disc - (Q.deals || []).reduce((a, d) => a + d.v, 0))}</span></div>` : ''}
       ${Q.promoError ? `<div class="line" style="color:#ff6b5e"><span>${promo}</span><span>${t(Q.promoError === 'first' ? 'ePromoFirst' : Q.promoError === 'used' ? 'ePromoUsed' : 'promoBad')}</span></div>` : ''}
       ${delLine}
       ${mode === 'd' && Q.dist != null ? `<div class="hint">🏪 ${t('fromBranch')}: ${br[L]}</div>` : ''}
@@ -331,13 +384,15 @@ async function openTrack(ref) {
   stopTrack();
   openModal(`<div class="mbody trk" style="padding-top:26px">
     <div class="trk-h"><div><span class="hint">${t('ordNo')}</span><h3 id="tNo">#…</h3></div><span class="stc" id="tChip"></span></div>
-    <div class="trk-big"><span class="e dot sm" id="tE"></span><div><b id="tTitle">${t('waiting')}</b><span id="tSub"></span></div></div>
+    <div class="jr" id="tJr">
+      <div class="jr-hero"><div class="jr-orb" id="tE"></div><div class="jr-txt"><b id="tTitle">${t('waiting')}</b><span id="tSub"></span><em id="tMsg"></em></div></div>
+      <div class="jr-track" id="tSteps"></div>
+    </div>
     <div id="tCancel" class="err" hidden></div>
     <div id="tAct"></div>
     <div id="tMapW" hidden><div class="trk-map" id="tMap"></div>
       <div class="trk-stats"><div><span>${t('dist')}</span><b id="tDist">—</b></div><div><span>${t('left')}</span><b id="tEta">—</b></div><div><span>${t('upd')}</span><b id="tUpd" style="font-size:12px;font-family:Manrope">—</b></div></div>
       <div id="tNear" class="near" hidden>${t('near')}</div></div>
-    <div class="track" id="tSteps"></div>
     <div id="tCourier"></div>
     <details style="margin-top:10px"><summary class="lbl" style="cursor:pointer">${t('items')}</summary><div id="tItems" style="margin-top:8px"></div></details>
     ${LIVE ? '' : `<div class="demo-note">🧪 ${t('demo')}</div>`}
@@ -365,7 +420,12 @@ async function renderTrack(o) {
   const k = UZ.statusKey(o.status, o.mode), S = UZ.STATUS[k];
   document.getElementById('tNo').textContent = '#' + o.no;
   const chip = document.getElementById('tChip'); chip.className = 'stc ' + o.status; chip.textContent = S.s[L];
-  document.getElementById('tE').innerHTML = typeof ICO === 'function' ? ICO(S.ic) : S.e;
+  const orb = document.getElementById('tE');
+  if (orb.dataset.s !== k) { orb.dataset.s = k; orb.innerHTML = typeof ICO === 'function' ? ICO(S.ic) : S.e; orb.classList.remove('pop'); void orb.offsetWidth; orb.classList.add('pop'); }
+  document.getElementById('tJr').classList.toggle('x', o.status === 'cancelled');
+  document.getElementById('tJr').classList.toggle('ok', o.status === 'delivered');
+  const mins = Math.max(0, Math.round((((o.history && (o.history.delivered || o.history.cancelled)) || Date.now()) - o.createdAt) / 60000));
+  document.getElementById('tMsg').textContent = (t('jm_' + k) || '') + (o.status === 'delivered' || o.status === 'cancelled' ? '' : ` · ${t('jmAgo').replace('{m}', mins)}`);
   document.getElementById('tTitle').textContent = o.status === 'new' ? t('waiting') : S[L];
   document.getElementById('tSub').textContent = o.status === 'onway' && o.courier ? `${o.courier.name}` : o.mode === 'p' ? UZ.BRANCHES[o.branch || 0][L] : '';
   const cEl = document.getElementById('tCancel');
@@ -397,12 +457,19 @@ async function renderTrack(o) {
       };
     }
   } else act.innerHTML = '';
-  // Bosqichlar: faqat oshxona/kuryer belgilaganlari yonadi
-  document.getElementById('tSteps').innerHTML = flow.map((st, i) => {
-    const kk = UZ.statusKey(st, o.mode), on = o.status !== 'cancelled' && i <= idx;
+  // Bosqichlar yo'li: faqat oshxona/kuryer belgilaganlari yonadi
+  const n = flow.length, reached = o.status === 'cancelled' ? Math.max(0, ...flow.map((st, i) => (o.history && o.history[st] ? i : 0))) : idx;
+  const track = document.getElementById('tSteps');
+  track.style.setProperty('--n', n);
+  const pct = n > 1 ? (reached / (n - 1)) * 100 : 0;
+  if (!track.querySelector('.jr-line')) track.innerHTML = `<div class="jr-line"><i></i></div>` + flow.map(() => '<div class="jr-s"></div>').join('');
+  track.querySelector('.jr-line i').style.width = pct + '%';
+  track.querySelectorAll('.jr-s').forEach((el, i) => {
+    const st = flow[i], kk = UZ.statusKey(st, o.mode), done = i <= reached && (o.status !== 'cancelled' || (o.history && o.history[st]));
     const tm = o.history && o.history[st] ? UZ.time(o.history[st]) : '';
-    return `${i ? '<div class="bar"></div>' : ''}<div class="ts ${on ? 'on' : ''} ${i === idx && st !== 'delivered' ? 'cur' : ''}"><span class="d">${typeof ICO === 'function' ? ICO(UZ.STATUS[kk].ic) : UZ.STATUS[kk].e}</span><div><b>${UZ.STATUS[kk].s[L]}</b>${tm ? `<small>${tm}</small>` : ''}</div></div>`;
-  }).join('');
+    el.className = 'jr-s' + (done ? ' done' : '') + (i === reached && o.status !== 'delivered' && o.status !== 'cancelled' ? ' cur' : '');
+    el.innerHTML = `<span class="jr-d">${typeof ICO === 'function' ? ICO(UZ.STATUS[kk].ic) : UZ.STATUS[kk].e}</span><b>${(UZ.STATUS[kk].sh || UZ.STATUS[kk].s)[L]}</b><small>${tm || '&nbsp;'}</small>`;
+  });
   document.getElementById('tItems').innerHTML = (o.items || []).map(i => `<div class="line"><span>${esc(i.n)} × ${i.q}</span><span>${UZ.money(i.price * i.q)}</span></div>`).join('') + `<div class="line tot"><span>${t('total')}</span><span>${fmt(o.total)}</span></div>`;
   document.getElementById('tCourier').innerHTML = o.courier && (o.status === 'onway' || o.status === 'delivered')
     ? `<div class="me-card" style="margin-top:12px"><div class="me-av">🛵</div><div><span class="hint">${t('courierCard')}</span><b style="display:block">${esc(o.courier.name)}</b>${o.courier.phone ? `<span style="user-select:all;color:var(--or2);font-weight:800">${esc(o.courier.phone)}</span>` : ''}</div></div>` : '';
@@ -420,7 +487,7 @@ async function renderTrack(o) {
     const m = UZ.dist(loc, dest);
     document.getElementById('tDist').textContent = UZ.fmtDist(m, L);
     document.getElementById('tEta').textContent = o.status === 'delivered' ? '0' : '~' + UZ.etaMin(m, loc.speed) + ' ' + t('mins');
-    document.getElementById('tSub').textContent = `${o.courier ? o.courier.name + ' • ' : ''}${UZ.fmtDist(m, L)} ${t('toYou')}`;
+    document.getElementById('tSub').textContent = o.status === 'onway' ? `${o.courier ? o.courier.name + ' • ' : ''}${UZ.fmtDist(m, L)} ${t('toYou')}` : (o.courier ? o.courier.name : '');
     const near = o.status === 'onway' && m < 350;
     document.getElementById('tNear').hidden = !near;
     if (near && !me.nearShown) { me.nearShown = true; toast(t('near')); notify(`Uzbegim #${o.no}`, t('near')); try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch (e) {} }
@@ -455,7 +522,7 @@ function updateActive(o) {
   const a = store.get('active', null);
   if (o && a && o.id === a.id && (o.status === 'delivered' || o.status === 'cancelled')) { store.set('active', null); b.hidden = true; return; }
   b.hidden = !a;
-  if (a) b.textContent = `${o && o.id === a.id ? UZ.STATUS[UZ.statusKey(o.status, o.mode)].e : '📦'} ${t('myOrder')}${o && o.id === a.id ? ' #' + o.no : ''}`;
+  if (a) { const S = o && o.id === a.id ? UZ.STATUS[UZ.statusKey(o.status, o.mode)] : UZ.STATUS.new; b.innerHTML = `${typeof ICO === 'function' ? ICO(S.ic) : ''}<span>${t('myOrder')}${o && o.id === a.id ? ' #' + o.no : ''}</span>`; }
 }
 
 /* ---------- Demo rejim (server yo'q bo'lsa) ---------- */
@@ -502,4 +569,4 @@ function demoTick(o) {
   const _renderAll = renderAll;
   renderAll = function () { _renderAll(); updateUserUi(); updateActive(TRK && TRK.last); }; // eslint-disable-line no-global-assign
 })();
-document.head.insertAdjacentHTML('beforeend','<style>.lbl{font-weight:800;font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.08em}@media (max-width:640px){#activeBtn{display:inline-flex;height:38px;padding:0 12px;font-size:12px}#activeBtn[hidden]{display:none}}</style>');
+document.head.insertAdjacentHTML('beforeend','<style>.lbl{font-weight:800;font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.08em}#activeBtn{display:inline-flex;align-items:center;gap:8px}#activeBtn .gi{width:20px;height:20px;stroke:currentColor}@media (max-width:640px){#activeBtn{display:inline-flex;position:fixed;left:50%;transform:translateX(-50%);bottom:calc(92px + env(safe-area-inset-bottom,0px));z-index:61;height:44px;padding:0 18px;font-size:13px;background:var(--grad);color:#120d09;border:0;box-shadow:0 10px 26px rgba(255,106,0,.45);animation:none}#activeBtn[hidden]{display:none}}</style>');

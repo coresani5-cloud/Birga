@@ -46,7 +46,7 @@ const ZONES = [[3, 10000], [6, 14000], [10, 18000], [15, 24000]];
 const MAX_KM = 15;
 
 /* ================= Saqlash: JSON fayl yoki Supabase ================= */
-const COLLS = ['orders', 'users', 'staff', 'settings'];
+const COLLS = ['orders', 'users', 'staff', 'settings', 'apps'];
 const DB = Object.fromEntries(COLLS.map(c => [c, {}]));
 const SB = process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY
   ? { url: process.env.SUPABASE_URL.replace(/\/$/, ''), key: process.env.SUPABASE_SERVICE_KEY } : null;
@@ -109,10 +109,12 @@ function body(req) {
     req.on('end', () => { try { ok(b ? JSON.parse(b) : {}); } catch (e) { bad(e); } });
   });
 }
-function json(res, code, data) { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(data)); }
+const SEC = { 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'strict-origin-when-cross-origin', 'Permissions-Policy': 'geolocation=(self), camera=(), microphone=()', 'Strict-Transport-Security': 'max-age=31536000' };
+function json(res, code, data) { res.writeHead(code, { ...SEC, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(data)); }
 
 // Parolni taxmin qilishdan himoya: bir IP'dan daqiqasiga 12 ta urinish
 const tries = new Map();
+setInterval(() => { const now = Date.now(); for (const [k, v] of tries) if (!v.some(t => now - t < 60000)) tries.delete(k); }, 120000);
 function limited(req, key) {
   const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
   const k = key + ip, now = Date.now(), list = (tries.get(k) || []).filter(t => now - t < 60000);
@@ -164,12 +166,25 @@ function priceOrder(b, user) {
     }
     if (sub >= CAT.FREE_FROM) del = 0;
   }
+  // Avtomatik aksiyalar (saytdagi Aksiyalar bo'limidagi va'dalar)
+  const h = tashkentHour(), deals = [];
+  if (h >= 12 && h < 16) { // 1+1: har ikkinchi lavash yarim narxda
+    const units = items.filter(i => /^l[1-5]:/.test(i.id)).flatMap(i => Array(i.q).fill(i.price)).sort((a, b) => b - a);
+    const v = units.reduce((a, p, i) => a + (i % 2 ? Math.round(p / 2 / 100) * 100 : 0), 0);
+    if (v) deals.push({ id: 'lavash11', v });
+  }
+  if (h >= 23 || h < 3) { // tungi aksiya: kombolarga 20%
+    const v = Math.round(items.filter(i => /^c\d:/.test(i.id)).reduce((a, i) => a + i.price * i.q, 0) * 0.2 / 100) * 100;
+    if (v) deals.push({ id: 'night20', v });
+  }
+  const dealSum = deals.reduce((a, d) => a + d.v, 0);
   const code = str(b.promo, 20).toUpperCase() || null;
   const promoError = promoCheck(code, user);
   let disc = 0;
   const pr = code && !promoError ? CAT.PROMOS[code] : null;
   if (pr) { if (pr.t === 'pct') disc = Math.round((sub * pr.v) / 10000) * 100; if (pr.t === 'fix') disc = Math.min(pr.v, sub); if (pr.t === 'del') del = 0; }
-  return { mode, items, stopped, sub, disc, del, total: Math.max(0, sub - disc + del), promo: pr ? code : null, promoError, branch, dist, zone, lat, lng, open: isOpen(), hours: hoursText() };
+  disc = Math.min(sub, disc + dealSum);
+  return { mode, items, stopped, sub, disc, deals, del, total: Math.max(0, sub - disc + del), promo: pr ? code : null, promoError, branch, dist, zone, lat, lng, open: isOpen(), hours: hoursText() };
 }
 
 /* ================= Akkauntlar ================= */
@@ -235,16 +250,16 @@ async function telegram(text) {
 const money = n => (n || 0).toLocaleString('ru-RU').replace(/[ ,]/g, ' ');
 
 /* ================= Statik fayllar ================= */
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.md': 'text/plain; charset=utf-8' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.md': 'text/plain; charset=utf-8', '.txt': 'text/plain; charset=utf-8', '.webmanifest': 'application/manifest+json' };
 function serveStatic(url, res) {
   let p = decodeURIComponent(url.pathname);
   if (p === '/') p = '/index.html';
   const file = path.normalize(path.join(ROOT, p));
-  if (!file.startsWith(ROOT + path.sep) || file.startsWith(DATA_DIR) || file === __filename) { res.writeHead(404); return res.end(); }
+  if (!file.startsWith(ROOT + path.sep) || file.startsWith(DATA_DIR) || file === __filename || /\.md$/.test(file)) { res.writeHead(404); return res.end(); }
   fs.readFile(file, (err, buf) => {
-    if (err) { res.writeHead(404); return res.end('Not found'); }
+    if (err) { res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end('<!doctype html><meta charset="utf-8"><title>Topilmadi</title><body style="font-family:sans-serif;background:#0f0c0a;color:#fbf3ea;display:grid;place-items:center;height:100vh;margin:0"><div style="text-align:center"><h1>404</h1><p>Sahifa topilmadi</p><a href="/" style="color:#ffa62b">Bosh sahifaga</a></div>'); }
     const ext = path.extname(file);
-    res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': ext === '.webp' || ext === '.svg' ? 'public, max-age=86400' : 'no-cache' });
+    res.writeHead(200, { ...SEC, 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': ext === '.webp' || ext === '.svg' ? 'public, max-age=86400' : 'no-cache' });
     res.end(buf);
   });
 }
@@ -265,6 +280,18 @@ const server = http.createServer(async (req, res) => {
     // ---- Narxni oldindan hisoblash (savat va rasmiylashtirish oynasi uchun)
     if (P === '/api/quote' && M === 'POST') { const b = await body(req); return json(res, 200, priceOrder(b, userBy(req))); }
 
+    // ---- Vakansiyaga ariza
+    if (P === '/api/vacancy' && M === 'POST') {
+      if (limited(req, 'vac')) return json(res, 429, { error: 'slow' });
+      const b = await body(req), ph = digits(b.phone);
+      if (!str(b.name) || ph.length !== 12) return json(res, 400, { error: 'name_phone' });
+      const id = rid();
+      DB.apps[id] = { id, pos: str(b.pos, 40), name: str(b.name, 60), phone: '+' + ph, age: Math.max(0, Math.min(99, +b.age | 0)) || null, exp: str(b.exp, 500), createdAt: Date.now(), seen: false };
+      put('apps', id);
+      telegram(`📝 Vakansiyaga ariza: ${DB.apps[id].pos}\n👤 ${DB.apps[id].name} ${DB.apps[id].phone}${DB.apps[id].age ? ', ' + DB.apps[id].age + ' yosh' : ''}\n${DB.apps[id].exp}`);
+      return json(res, 201, { ok: true });
+    }
+
     // ---- Mijoz akkaunti
     if (P === '/api/auth/register' && M === 'POST') {
       if (limited(req, 'reg')) return json(res, 429, { error: 'slow' });
@@ -273,9 +300,10 @@ const server = http.createServer(async (req, res) => {
       if (!name) return json(res, 400, { error: 'name' });
       if (ph.length !== 12 || !ph.startsWith('998')) return json(res, 400, { error: 'phone' });
       if (pw.length < 6) return json(res, 400, { error: 'password' });
+      if (b.consent !== true) return json(res, 400, { error: 'consent' });
       if (users()[ph]) return json(res, 409, { error: 'exists' });
       const salt = rid(16);
-      const u = users()[ph] = { id: rid(), name, phone: '+' + ph, salt, hash: hashPw(pw, salt), addresses: [], sessions: [], createdAt: Date.now() };
+      const u = users()[ph] = { id: rid(), name, phone: '+' + ph, salt, hash: hashPw(pw, salt), addresses: [], sessions: [], createdAt: Date.now(), consentAt: Date.now() };
       return json(res, 201, { token: newSession(u, 'users', ph), user: me(u) });
     }
     if (P === '/api/auth/login' && M === 'POST') {
@@ -412,14 +440,20 @@ const server = http.createServer(async (req, res) => {
       let s = b.id && DB.staff[b.id];
       const clash = Object.values(DB.staff).find(x => digits(x.phone) === ph && x.id !== b.id);
       if (clash) return json(res, 409, { error: 'exists' });
-      if (!s) { if (String(b.pin || '').length < 4) return json(res, 400, { error: 'pin' }); s = { id: rid(), sessions: [], createdAt: Date.now() }; DB.staff[s.id] = s; }
+      if (!s) { if (!/^\d{6,}$/.test(String(b.pin || ''))) return json(res, 400, { error: 'pin' }); s = { id: rid(), sessions: [], createdAt: Date.now() }; DB.staff[s.id] = s; }
       s.name = str(b.name, 40); s.phone = '+' + ph; s.role = b.role === 'admin' ? 'admin' : 'courier';
       s.branch = b.branch === '' || b.branch == null ? null : Math.max(0, Math.min(BRANCHES.length - 1, +b.branch | 0));
       s.active = b.active !== false;
-      if (b.pin) { if (String(b.pin).length < 4) return json(res, 400, { error: 'pin' }); s.salt = rid(16); s.hash = hashPw(b.pin, s.salt); s.sessions = []; }
+      if (b.pin) { if (!/^\d{6,}$/.test(String(b.pin))) return json(res, 400, { error: 'pin' }); s.salt = rid(16); s.hash = hashPw(b.pin, s.salt); s.sessions = []; }
       if (!s.active) s.sessions = [];
       put('staff', s.id);
       return json(res, 200, staffPublic(s));
+    }
+
+    // ---- Admin: vakansiya arizalari
+    if (P === '/api/staff/apps' && S.role === 'admin') {
+      if (M === 'POST') { const b = await body(req), a = DB.apps[str(b.id, 20)]; if (a) { a.seen = !!b.seen; put('apps', a.id); } }
+      return json(res, 200, Object.values(DB.apps).sort((a, b) => b.createdAt - a.createdAt).slice(0, 200));
     }
 
     // ---- Admin: tugagan mahsulotlar (stop-list)
@@ -505,3 +539,6 @@ loadAll().then(() => {
   });
 }).catch(e => { console.error('Ma\'lumotlarni yuklab bo\'lmadi:', e.message); process.exit(1); });
 process.on('SIGTERM', async () => { await flush(); process.exit(0); });
+// Kutilmagan xato serverni to'xtatib qo'ymasin
+process.on('uncaughtException', e => console.error('Kutilmagan xato:', e));
+process.on('unhandledRejection', e => console.error('Kutilmagan xato (promise):', e));

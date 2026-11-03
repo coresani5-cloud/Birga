@@ -4,15 +4,15 @@
 
   // Holatlar: mijozga ko'rinadigan nomlar
   U.STATUS = {
-    new:       { ic: 'clock', e: '🕓', uz: 'Oshxona tasdiqlashini kutmoqda', ru: 'Ждёт подтверждения кухни', s: { uz: 'Yangi', ru: 'Новый' } },
-    accepted:  { ic: 'check', e: '✅', uz: 'Qabul qilindi', ru: 'Принят', s: { uz: 'Qabul qilindi', ru: 'Принят' } },
-    cooking:   { ic: 'chef', e: '👨‍🍳', uz: 'Oshpaz tayyorlamoqda', ru: 'Повар готовит', s: { uz: 'Tayyorlanmoqda', ru: 'Готовится' } },
-    ready:     { ic: 'box', e: '📦', uz: 'Tayyor! Kuryer olib ketmoqda', ru: 'Готов! Курьер забирает', s: { uz: 'Tayyor', ru: 'Готов' } },
-    readyP:    { ic: 'bag', e: '🛍️', uz: 'Tayyor! Olib ketishingiz mumkin', ru: 'Готов! Можно забирать', s: { uz: 'Tayyor', ru: 'Готов' } },
-    onway:     { ic: 'scooter', e: '🛵', uz: 'Kuryer yo\'lda', ru: 'Курьер в пути', s: { uz: 'Yo\'lda', ru: 'В пути' } },
-    delivered: { ic: 'party', e: '🎉', uz: 'Yetkazildi — osh bo\'lsin!', ru: 'Доставлен — приятного аппетита!', s: { uz: 'Yetkazildi', ru: 'Доставлен' } },
-    deliveredP:{ ic: 'party', e: '🎉', uz: 'Berildi — osh bo\'lsin!', ru: 'Выдан — приятного аппетита!', s: { uz: 'Berildi', ru: 'Выдан' } },
-    cancelled: { ic: 'x', e: '✖️', uz: 'Bekor qilindi', ru: 'Отменён', s: { uz: 'Bekor', ru: 'Отменён' } },
+    new:       { sh: { uz: 'Yuborildi', ru: 'Отправлен' }, ic: 'clock', e: '🕓', uz: 'Oshxona tasdiqlashini kutmoqda', ru: 'Ждёт подтверждения кухни', s: { uz: 'Yangi', ru: 'Новый' } },
+    accepted:  { sh: { uz: 'Qabul', ru: 'Принят' }, ic: 'check', e: '✅', uz: 'Qabul qilindi', ru: 'Принят', s: { uz: 'Qabul qilindi', ru: 'Принят' } },
+    cooking:   { sh: { uz: 'Oshxonada', ru: 'Готовится' }, ic: 'chef', e: '👨‍🍳', uz: 'Oshpaz tayyorlamoqda', ru: 'Повар готовит', s: { uz: 'Tayyorlanmoqda', ru: 'Готовится' } },
+    ready:     { sh: { uz: 'Tayyor', ru: 'Готов' }, ic: 'box', e: '📦', uz: 'Tayyor! Kuryer olib ketmoqda', ru: 'Готов! Курьер забирает', s: { uz: 'Tayyor', ru: 'Готов' } },
+    readyP:    { sh: { uz: 'Tayyor', ru: 'Готов' }, ic: 'bag', e: '🛍️', uz: 'Tayyor! Olib ketishingiz mumkin', ru: 'Готов! Можно забирать', s: { uz: 'Tayyor', ru: 'Готов' } },
+    onway:     { sh: { uz: 'Yo\'lda', ru: 'В пути' }, ic: 'scooter', e: '🛵', uz: 'Kuryer yo\'lda', ru: 'Курьер в пути', s: { uz: 'Yo\'lda', ru: 'В пути' } },
+    delivered: { sh: { uz: 'Keldi', ru: 'Доставлен' }, ic: 'party', e: '🎉', uz: 'Yetkazildi — osh bo\'lsin!', ru: 'Доставлен — приятного аппетита!', s: { uz: 'Yetkazildi', ru: 'Доставлен' } },
+    deliveredP:{ sh: { uz: 'Berildi', ru: 'Выдан' }, ic: 'party', e: '🎉', uz: 'Berildi — osh bo\'lsin!', ru: 'Выдан — приятного аппетита!', s: { uz: 'Berildi', ru: 'Выдан' } },
+    cancelled: { sh: { uz: 'Bekor', ru: 'Отменён' }, ic: 'x', e: '✖️', uz: 'Bekor qilindi', ru: 'Отменён', s: { uz: 'Bekor', ru: 'Отменён' } },
   };
   U.FLOW = { d: ['new', 'accepted', 'cooking', 'ready', 'onway', 'delivered'], p: ['new', 'accepted', 'cooking', 'ready', 'delivered'] };
   U.statusKey = (st, mode) => (mode === 'p' && (st === 'ready' || st === 'delivered') ? st + 'P' : st);
@@ -41,10 +41,9 @@
   };
   U.token = () => { try { return localStorage.getItem('uzb_token') || ''; } catch (e) { return ''; } };
   U.setToken = t => { try { t ? localStorage.setItem('uzb_token', t) : localStorage.removeItem('uzb_token'); } catch (e) {} };
-  U.isLive = (async () => {
-    if (!location.protocol.startsWith('http')) return false;
-    try { await U.api('ping'); return true; } catch (e) { return false; }
-  })();
+  // Demo rejim faqat fayl ochilganda yoki claude.ai ko'rinishida. Haqiqiy saytda server javob bermasa ham
+  // demo'ga o'tilmaydi — mijozga "aloqa yo'q" deb ko'rsatiladi (soxta buyurtma bo'lmasligi uchun).
+  U.isLive = Promise.resolve(location.protocol.startsWith('http') && !/claudeusercontent\.com$|claude\.ai$/.test(location.hostname));
 
   // Masofa (metr) va formatlash
   U.dist = (a, b) => {

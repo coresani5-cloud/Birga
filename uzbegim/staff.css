@@ -54,3 +54,4 @@ h1,h2,h3{font-family:Unbounded,Manrope,sans-serif;letter-spacing:-.01em}
 .toast.on{transform:translate(-50%,0)}
 .leaflet-container{background:#1b1510;font-family:inherit}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+[hidden]{display:none!important}

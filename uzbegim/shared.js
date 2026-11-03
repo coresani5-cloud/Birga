@@ -25,6 +25,11 @@
     { uz: 'Sergeli', ru: 'Сергели', lat: 41.2290, lng: 69.2200 },
     { uz: 'Samarqand', ru: 'Самарканд', lat: 39.6547, lng: 66.9758 },
   ];
+  // Serverdan kelgan filiallar ro'yxatini qo'llash (oshxona panelida tahrirlanadi)
+  U.setBranches = list => {
+    if (!Array.isArray(list) || !list.length) return;
+    U.BRANCHES = list.map(b => ({ uz: b.name.uz, ru: b.name.ru || b.name.uz, lat: b.lat, lng: b.lng, addr: b.addr || { uz: '', ru: '' }, hours: b.hours || '', active: b.active !== false }));
+  };
   U.CENTER = { lat: 41.2995, lng: 69.2401 }; // Toshkent
 
   // API: sahifa qaysi papkada bo'lsa ham ishlaydi

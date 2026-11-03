@@ -107,7 +107,7 @@ const COLS = [
 function start() {
   const isMaster = ME.branch == null;
   $('#app').innerHTML = `<div class="top"><div class="brand">${LOGO}<div>Uzbegim<small>${esc(ME.name)}${ME.branch != null ? ' · ' + esc(BR[ME.branch] || '') : ''}</small></div></div>
-    <div class="tabsbar" id="tabs"><button data-v="board" class="on">Buyurtmalar</button><button data-v="menu">Stop-list</button><button data-v="stats">Hisobot</button><button data-v="apps">Arizalar <span class="pill" id="appsN" hidden></span></button>${isMaster ? '<button data-v="staff">Xodimlar</button>' : ''}</div>
+    <div class="tabsbar" id="tabs"><button data-v="board" class="on">Buyurtmalar</button><button data-v="menu">Stop-list</button><button data-v="stats">Hisobot</button><button data-v="apps">Arizalar <span class="pill" id="appsN" hidden></span></button>${isMaster ? '<button data-v="branches">Filiallar</button><button data-v="staff">Xodimlar</button>' : ''}</div>
     <div class="grow"></div>
     <select class="fld" id="brf" ${ME.branch != null ? 'hidden' : ''}><option value="">Barcha filiallar</option></select>
     <div class="stats" id="stats"></div>
@@ -120,14 +120,71 @@ function start() {
       <section class="view" id="v-stats" hidden></section>
       <section class="view" id="v-staff" hidden></section>
       <section class="view" id="v-apps" hidden></section>
+      <section class="view" id="v-branches" hidden></section>
     </div>`;
   $('#out').onclick = () => { ss.set('uzb_staff', ''); es && es.close(); location.reload(); };
   $('#snd').onclick = () => { sound = !sound; $('#snd').textContent = '🔔 Ovoz ' + (sound ? 'yoqilgan' : 'o\'chiq'); if (sound) beep(); };
   $('#brf').onchange = () => { branchF = $('#brf').value; draw(); };
-  $('#tabs').onclick = e => { const b = e.target.closest('[data-v]'); if (!b) return; view = b.dataset.v; document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x === b)); document.querySelectorAll('.view').forEach(v => (v.hidden = v.id !== 'v-' + view)); if (view === 'stats') stats(1); if (view === 'staff') staffView(); if (view === 'menu') menuView(); if (view === 'apps') appsView(); };
+  $('#tabs').onclick = e => { const b = e.target.closest('[data-v]'); if (!b) return; view = b.dataset.v; document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x === b)); document.querySelectorAll('.view').forEach(v => (v.hidden = v.id !== 'v-' + view)); if (view === 'stats') stats(1); if (view === 'staff') staffView(); if (view === 'menu') menuView(); if (view === 'apps') appsView(); if (view === 'branches') branchView(); };
   appsCount(); setInterval(appsCount, 60000);
-  U.makeMap($('#ovMap'), U.CENTER, 11).then(m => { map = m; U.BRANCHES.forEach(b => window.L.marker([b.lat, b.lng], { icon: U.pin(window.L, '🏪', 'shop') }).addTo(m).bindTooltip(b.uz)); drawMap(); }).catch(() => { $('#ovMap').hidden = true; });
+  U.makeMap($('#ovMap'), U.CENTER, 11).then(m => { map = m; if (BRF.length) setBR(BRF); drawMap(); }).catch(() => { $('#ovMap').hidden = true; });
   connect();
+}
+
+let BRF = [], shopMk = [];
+function setBR(list) {
+  if (!Array.isArray(list)) return;
+  BRF = list; U.setBranches(list);
+  BR = list.map(b => b.name.uz + (b.active === false ? ' (yopiq)' : ''));
+  const f = $('#brf');
+  if (f) { const v = f.value; f.innerHTML = '<option value="">Barcha filiallar</option>' + BR.map((n, i) => `<option value="${i}">${esc(n)}</option>`).join(''); f.value = v; }
+  if (map && window.L) { shopMk.forEach(m => map.removeLayer(m)); shopMk = list.map(b => window.L.marker([b.lat, b.lng], { icon: U.pin(window.L, '🏪', 'shop'), opacity: b.active === false ? 0.4 : 1 }).addTo(map).bindTooltip(b.name.uz)); }
+  if (view === 'branches' && !document.getElementById('bf')?.contains(document.activeElement)) branchView(editBr);
+}
+
+/* ---- Filiallar (faqat bosh admin) */
+let editBr = null, brMap = null, brMk = null;
+function branchView(i) {
+  editBr = i === undefined || i === null ? null : i;
+  const b = editBr != null ? BRF[editBr] : null;
+  const el = $('#v-branches');
+  el.innerHTML = `<div class="grid2">
+    <div class="glass" style="padding:18px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;flex-wrap:wrap"><h2 style="font-size:17px">Filiallar (${BRF.length})</h2><button class="btn" data-brnew>+ Yangi filial</button></div>
+      <div class="tw"><table><tr><th>Nomi</th><th>Manzil</th><th>Ish vaqti</th><th></th></tr>
+      ${BRF.map((x, k) => `<tr style="${x.active === false ? 'opacity:.55' : ''}"><td><b>${esc(x.name.uz)}</b>${x.active === false ? ' <span class="pill bad">yopiq</span>' : ''}<div class="hint">${x.lat.toFixed(4)}, ${x.lng.toFixed(4)}</div></td><td>${esc(x.addr.uz || '')}</td><td>${esc(x.hours || '')}</td><td><button class="btn ghost" style="height:34px" data-bredit="${k}">Tahrir</button></td></tr>`).join('')}
+      </table></div>
+      <p class="hint" style="margin-top:10px">Yetkazish buyurtmasi mijozga eng yaqin <b>ochiq</b> filialga tushadi. Filialni o'chirib bo'lmaydi: "Ochiq" belgisini olib tashlang, eski buyurtmalar saqlanib qoladi.</p></div>
+    <form class="glass" id="bf" style="padding:18px;display:grid;gap:10px;align-content:start">
+      <h2 style="font-size:17px">${b ? 'Tahrirlash: ' + esc(b.name.uz) : 'Yangi filial'}</h2>
+      <div class="grid2" style="gap:8px"><input class="fld" id="bNameUz" placeholder="Nomi (o'zbekcha)" value="${esc(b?.name.uz || '')}"><input class="fld" id="bNameRu" placeholder="Название (по-русски)" value="${esc(b?.name.ru || '')}"></div>
+      <div class="grid2" style="gap:8px"><input class="fld" id="bAddrUz" placeholder="Manzil (o'zbekcha)" value="${esc(b?.addr.uz || '')}"><input class="fld" id="bAddrRu" placeholder="Адрес (по-русски)" value="${esc(b?.addr.ru || '')}"></div>
+      <input class="fld" id="bHours" placeholder="Ish vaqti, masalan 09:00 — 03:00" value="${esc(b?.hours || '09:00 — 03:00')}">
+      <div class="hint">Xaritada filial joyini bosing yoki belgini suring</div>
+      <div id="bMap" style="height:300px;border-radius:14px;overflow:hidden;border:1px solid var(--ln)"></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="pill" id="bCoord">${b ? b.lat.toFixed(5) + ', ' + b.lng.toFixed(5) : 'Joy tanlanmagan'}</span><button type="button" class="btn ghost" id="bHere" style="height:36px">Mening joylashuvim</button></div>
+      <label style="display:flex;gap:8px;align-items:center;font-weight:700"><input type="checkbox" id="bActive" ${b?.active === false ? '' : 'checked'}> Ochiq (buyurtma qabul qiladi)</label>
+      <div class="err" id="bErr"></div>
+      <div style="display:flex;gap:8px"><button class="btn">${b ? 'Saqlash' : "Filial qo'shish"}</button>${b ? '<button type="button" class="btn ghost" data-brnew>Bekor</button>' : ''}</div>
+    </form></div>`;
+  let pt = b ? { lat: b.lat, lng: b.lng } : null;
+  brMk = null;
+  const setPt = p => {
+    pt = { lat: +(+p.lat).toFixed(6), lng: +(+p.lng).toFixed(6) };
+    $('#bCoord').textContent = pt.lat.toFixed(5) + ', ' + pt.lng.toFixed(5);
+    if (!brMap || !window.L) return;
+    if (brMk) brMk.setLatLng([pt.lat, pt.lng]);
+    else brMk = window.L.marker([pt.lat, pt.lng], { draggable: true, icon: U.pin(window.L, '🏪', 'shop') }).addTo(brMap).on('dragend', e => setPt(e.target.getLatLng()));
+  };
+  U.makeMap($('#bMap'), pt || U.CENTER, pt ? 16 : 12).then(m => { brMap = m; if (pt) setPt(pt); m.on('click', e => setPt(e.latlng)); }).catch(() => { $('#bMap').innerHTML = '<div class="hint" style="padding:16px">Xarita yuklanmadi</div>'; });
+  $('#bHere').onclick = () => navigator.geolocation && navigator.geolocation.getCurrentPosition(p => { const q = { lat: p.coords.latitude, lng: p.coords.longitude }; if (brMap) brMap.setView([q.lat, q.lng], 17); setPt(q); }, () => toast("Joylashuvni aniqlab bo'lmadi"));
+  $('#bf').onsubmit = async e => {
+    e.preventDefault();
+    if (!pt) return ($('#bErr').textContent = 'Xaritada filial joyini belgilang');
+    try {
+      const r = await api('staff/branch', { body: { i: editBr, name: { uz: $('#bNameUz').value, ru: $('#bNameRu').value }, addr: { uz: $('#bAddrUz').value, ru: $('#bAddrRu').value }, hours: $('#bHours').value, lat: pt.lat, lng: pt.lng, active: $('#bActive').checked } });
+      toast('Saqlandi'); editBr = null; setBR(r.branches); branchView();
+    } catch (x) { $('#bErr').textContent = x.message === 'name' ? 'Filial nomini yozing' : x.message === 'lastactive' ? "Kamida bitta filial ochiq bo'lishi kerak" : errMsg(x); }
+  };
 }
 
 function connect() {
@@ -138,8 +195,7 @@ function connect() {
   es.onmessage = e => {
     const d = JSON.parse(e.data);
     if (d.type === 'all') {
-      ORD = {}; d.orders.forEach(o => (ORD[o.id] = o)); BR = d.branches; STOP = new Set(d.stop);
-      const f = $('#brf'); if (f && f.options.length === 1) BR.forEach((n, i) => f.insertAdjacentHTML('beforeend', `<option value="${i}">${esc(n)}</option>`));
+      ORD = {}; d.orders.forEach(o => (ORD[o.id] = o)); setBR(d.branches); STOP = new Set(d.stop);
       if (!STAFF.length && ME.branch == null) api('staff/list').then(l => { STAFF = l; draw(); }).catch(() => {});
     }
     if (d.type === 'order') {
@@ -148,7 +204,7 @@ function connect() {
       if (isNew && d.order.status === 'new') { fresh.add(d.order.id); beep(); toast(`🔔 Yangi buyurtma #${d.order.no} — ${d.order.name}`); setTimeout(() => { fresh.delete(d.order.id); draw(); }, 15000); }
       if (d.order.status === 'cancelled' && d.order.cancelledBy === 'customer') toast(`✖️ Mijoz #${d.order.no} ni bekor qildi`);
     }
-    if (d.type === 'menu') { STOP = new Set(d.stop); if (view === 'menu') menuView(); }
+    if (d.type === 'menu') { STOP = new Set(d.stop); if (d.branches) setBR(d.branches); if (view === 'menu') menuView(); }
     draw();
   };
 }
@@ -317,6 +373,8 @@ async function staffView(edit) {
 
 document.addEventListener('click', async e => {
   const sn = e.target.closest('[data-seen]'); if (sn) { await api('staff/apps', { body: { id: sn.dataset.seen, seen: !!sn.dataset.v2 } }).catch(() => {}); return appsView(); }
+  const bn = e.target.closest('[data-brnew]'); if (bn) return branchView();
+  const be = e.target.closest('[data-bredit]'); if (be) return branchView(+be.dataset.bredit);
   const pr = e.target.closest('[data-print]'); if (pr) return printOrder(ORD[pr.dataset.print]);
   const ed = e.target.closest('[data-edit]'); if (ed) return staffView(ed.dataset.edit);
   const dd = e.target.closest('[data-days]'); if (dd) return stats(+dd.dataset.days);

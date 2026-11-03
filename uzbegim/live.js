@@ -245,7 +245,7 @@ function localQuote(b) {
 function openCheckout() {
   if (!ME) { $('#drawer').classList.remove('on'); return openAuth(openCheckout); }
   if (LIVE && MENU.open === false) { toast(t('eClosed').replace('{h}', MENU.hours || '')); return; }
-  const sel = { addr: '', lat: null, lng: null, branch: 0, label: '' };
+  const sel = { addr: '', lat: null, lng: null, branch: Math.max(0, UZ.BRANCHES.findIndex(b => b.active !== false)), label: '' };
   const saved = ME.addresses || [];
   if (saved[0]) Object.assign(sel, saved[0]);
   let pickMap = null, Q = null, qT = null, seq = 0;
@@ -304,7 +304,7 @@ function openCheckout() {
         <div class="lbl">2. ${t('stepAddr')}</div>
         <textarea id="fAddr" placeholder="${t('addrPh')}" style="height:70px">${esc(sel.addr)}</textarea>
         <label style="display:flex;gap:10px;align-items:center;font-weight:700;font-size:14px"><input type="checkbox" id="fSave" ${saved.some(a => a.addr === sel.addr) ? '' : 'checked'} style="width:20px;height:20px;accent-color:#ff7a00"> ${t('saveAddr')}</label>
-      ` : `<select id="fBranch">${UZ.BRANCHES.map((b, i) => `<option value="${i}" ${sel.branch === i ? 'selected' : ''}>${b[L]}</option>`).join('')}</select>`}
+      ` : `<select id="fBranch">${UZ.BRANCHES.map((b, i) => b.active === false ? '' : `<option value="${i}" ${sel.branch === i ? 'selected' : ''}>${b[L]}${b.addr && b.addr[L] ? ' — ' + esc(b.addr[L]) : ''}</option>`).join('')}</select>`}
       <textarea id="fNote" placeholder="${t('note')}"></textarea>
       <div class="hint">💳 ${t('pay')}</div>
       <div id="fSum"></div>
@@ -370,6 +370,12 @@ async function loadMenu() {
   if (!LIVE) return;
   try { MENU = await UZ.api('menu'); } catch (e) { return; }
   window.STOP = new Set(MENU.stop || []);
+  if (MENU.branches) {
+    UZ.setBranches(MENU.branches);
+    if (typeof BRANCHES !== 'undefined') BRANCHES.splice(0, BRANCHES.length, ...MENU.branches.filter(b => b.active !== false).map(b => ({ uz: [b.name.uz, b.addr.uz], ru: [b.name.ru || b.name.uz, b.addr.ru || b.addr.uz], h: b.hours })));
+    const bc = document.getElementById('brCount'); if (bc) bc.textContent = BRANCHES.length;
+    if (typeof renderInfo === 'function') renderInfo();
+  }
   renderMenu();
   const bar = document.getElementById('closedBar');
   if (bar) { bar.hidden = MENU.open !== false; bar.textContent = t('closedBar').replace('{h}', MENU.hours || ''); }

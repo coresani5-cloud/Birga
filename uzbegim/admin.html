@@ -49,6 +49,8 @@
 .items2 .sum{border-top:1px dashed var(--ln);padding-top:6px;font-size:13px;color:var(--mut);display:grid;gap:2px}
 .items2 .sum>div{display:flex;justify-content:space-between}.items2 .sum .tot{color:var(--ink);font-weight:800;font-size:15px}
 .acts2{display:grid;gap:8px}
+.pill .bi,.stabs .bi,.col h3 .bi,.where .bi{width:16px;height:16px;stroke-width:2.2}
+.bi{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}.acts2 .big2 .bi{width:22px;height:22px}
 .acts2 .big2{height:52px;font-size:16px;width:100%}
 .acts2 .sec{display:flex;gap:8px}.acts2 .sec .btn{flex:1;height:42px;font-size:13px}
 #ovMapW[hidden]{display:none}
@@ -74,8 +76,8 @@
 }
 .board{display:grid;grid-template-columns:repeat(5,minmax(250px,1fr));gap:12px;overflow-x:auto;padding-bottom:10px}
 .col{display:flex;flex-direction:column;gap:10px;min-width:0}
-.col>h3{font-size:14px;display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:14px;background:var(--glass);border:1px solid var(--ln)}
-.col>h3 .n{font-family:Manrope;font-size:12px;min-width:24px;height:24px;border-radius:99px;display:grid;place-items:center;background:var(--glass2)}
+.col>h3{font-size:14px;display:flex;justify-content:flex-start;gap:8px;align-items:center;padding:10px 12px;border-radius:14px;background:var(--glass);border:1px solid var(--ln)}
+.col>h3 .n{margin-left:auto;font-family:Manrope;font-size:12px;min-width:24px;height:24px;border-radius:99px;display:grid;place-items:center;background:var(--glass2)}
 .col.c-new>h3{border-color:rgba(255,122,0,.5)}
 .col.c-new>h3 .n{background:var(--grad);color:#120d09}
 .empty{padding:20px 10px;text-align:center;color:var(--mut);font-size:13px;border:1px dashed var(--ln);border-radius:16px}
@@ -153,12 +155,26 @@ function loginView(msg = '') {
   };
 }
 
+// Tugma belgilari (A variant: chiziqli)
+const BI = {
+  clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+  run: '<circle cx="14" cy="4.5" r="1.8"/><path d="M9 20l2.5-5.5L14 16v4M8 11l3-3 3.5 2.5 2.5 2M11.5 14.5L13 9"/>',
+  ok: '<path d="M5 12.5l4.2 4.2L19 7"/>',
+  no: '<path d="M6 6l12 12M18 6L6 18"/>',
+  chef: '<path d="M7 14.5V19h10v-4.5"/><path d="M7 14.5a4 4 0 0 1-.5-7.9A4.5 4.5 0 0 1 12 4a4.5 4.5 0 0 1 5.5 2.6 4 4 0 0 1-.5 7.9z"/><path d="M7 16.5h10"/>',
+  box: '<path d="M3.5 7.5L12 3l8.5 4.5v9L12 21l-8.5-4.5z"/><path d="M3.5 7.5L12 12l8.5-4.5M12 12v9"/>',
+  bag: '<path d="M5 8h14l-1 12H6z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/>',
+  moto: '<circle cx="6" cy="17" r="2.6"/><circle cx="18" cy="17" r="2.6"/><path d="M8.6 17h6.8M15 7h2.5l2 6.5M11 17l1.5-6H8M17.4 13.5h-5"/>',
+  flag: '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>',
+  chek: '<path d="M6 3h12v18l-2-1.4-2 1.4-2-1.4-2 1.4-2-1.4L6 21z"/><path d="M9 8h6M9 12h6M9 16h3"/>'
+};
+const bi = k => `<svg class="bi" viewBox="0 0 24 24" aria-hidden="true">${BI[k]}</svg>`;
 const COLS = [
-  ['c-new', '🕓 Yangi', o => o.status === 'new'],
-  ['c-cook', '👨‍🍳 Tayyorlanmoqda', o => o.status === 'accepted' || o.status === 'cooking'],
-  ['c-ready', '📦 Tayyor', o => o.status === 'ready'],
-  ['c-way', '🛵 Yo\'lda', o => o.status === 'onway'],
-  ['c-done', '✔ Yakunlangan', o => o.status === 'delivered' || o.status === 'cancelled'],
+  ['c-new', bi('clock') + 'Yangi', o => o.status === 'new'],
+  ['c-cook', bi('chef') + 'Tayyorlanmoqda', o => o.status === 'accepted' || o.status === 'cooking'],
+  ['c-ready', bi('box') + 'Tayyor', o => o.status === 'ready'],
+  ['c-way', bi('moto') + 'Yo\'lda', o => o.status === 'onway'],
+  ['c-done', bi('flag') + 'Yakunlangan', o => o.status === 'delivered' || o.status === 'cancelled'],
 ];
 
 const ICN = { bell: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>', mute: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 9.5-4.9M18 11v5l1.5 2H9"/><path d="M10 20a2 2 0 0 0 4 0M3 3l18 18"/></svg>', out: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l-5-5 5-5M5 12h11"/></svg>', map: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/></svg>' };
@@ -213,9 +229,9 @@ function itemInfo(i) {
 }
 // Buyurtma hozir qayerda
 function where(o) {
-  return ({ new: ['🕓', 'Oshxona tasdiqlashini kutmoqda', ''], accepted: ['👨‍🍳', 'Oshxonada · navbatda', ''], cooking: ['👨‍🍳', 'Oshxonada · tayyorlanmoqda', ''],
-    ready: o.mode === 'p' ? ['🛍', 'Filialda · mijoz olib ketadi', 'warn'] : ['📦', 'Oshxonada · kuryer kutilmoqda', 'warn'],
-    onway: ['🛵', 'Kuryerda' + (o.courier ? ': ' + o.courier.name : ''), 'warn'], delivered: ['✔', o.mode === 'p' ? 'Mijozga berildi' : 'Mijozda · yetkazildi', 'on'], cancelled: ['✖', 'Bekor qilingan', 'bad'] })[o.status] || ['', o.status, ''];
+  return ({ new: [bi('clock'), 'Oshxona tasdiqlashini kutmoqda', ''], accepted: [bi('chef'), 'Oshxonada · navbatda', ''], cooking: [bi('chef'), 'Oshxonada · tayyorlanmoqda', ''],
+    ready: o.mode === 'p' ? [bi('bag'), 'Filialda · mijoz olib ketadi', 'warn'] : [bi('box'), 'Oshxonada · kuryer kutilmoqda', 'warn'],
+    onway: [bi('moto'), 'Kuryerda' + (o.courier ? ': ' + o.courier.name : ''), 'warn'], delivered: [bi('flag'), o.mode === 'p' ? 'Mijozga berildi' : 'Mijozda · yetkazildi', 'on'], cancelled: [bi('no'), 'Bekor qilingan', 'bad'] })[o.status] || ['', o.status, ''];
 }
 
 let BRF = [], shopMk = [];
@@ -299,20 +315,20 @@ function connect() {
 function actions(o) {
   const b = (st, label, cls = '') => `<button class="btn ${cls}" data-st="${st}" data-id="${o.id}">${label}</button>`;
   const rej = `<div class="cform" id="rj-${o.id}" hidden><select id="rr-${o.id}"><option>Taom tugagan</option><option>Manzil hududdan tashqarida</option><option>Mijoz bilan bog'lanib bo'lmadi</option><option>Oshxona yopilmoqda</option><option value="">Boshqa sabab (pastga yozing)</option></select><input id="rt-${o.id}" placeholder="Izoh (ixtiyoriy)"></div>`;
-  const chek = `<button class="btn ghost" data-print="${o.id}" title="Chek chiqarish">🧾 Chek</button>`;
+  const chek = `<button class="btn ghost" data-print="${o.id}" title="Chek chiqarish">${bi('chek')}Chek</button>`;
   const row = (main, ...sec) => `<div class="acts2">${main}<div class="sec">${sec.join('')}${chek}</div></div>`;
   switch (o.status) {
-    case 'new': return row(b('accepted', '✅ Qabul qilish', 'ok big2'), b('cancelled', 'Rad etish', 'red')) + rej;
-    case 'accepted': return row(b('cooking', '👨‍🍳 Tayyorlashni boshlash', 'big2'), b('cancelled', 'Bekor', 'red')) + rej;
-    case 'cooking': return row(b('ready', '📦 Tayyor', 'big2'));
+    case 'new': return row(b('accepted', bi('ok') + 'Qabul qilish', 'ok big2'), b('cancelled', bi('no') + 'Rad etish', 'red')) + rej;
+    case 'accepted': return row(b('cooking', bi('chef') + 'Tayyorlashni boshlash', 'big2'), b('cancelled', bi('no') + 'Bekor', 'red')) + rej;
+    case 'cooking': return row(b('ready', bi('box') + 'Tayyor', 'big2'));
     case 'ready': {
-      if (o.mode === 'p') return row(b('delivered', '🛍 Mijozga berildi', 'ok big2'));
+      if (o.mode === 'p') return row(b('delivered', bi('bag') + 'Mijozga berildi', 'ok big2'));
       const cs = STAFF.filter(s => s.role === 'courier' && s.active && (s.branch == null || s.branch === o.branch));
       return `<div class="hint">Kuryer panelida ko'rinib turibdi — kuryer o'zi oladi. Yoki shu yerdan biriktiring:</div>
         <div class="cform"><select id="cs-${o.id}"><option value="">— kuryerni tanlang —</option>${cs.map(s => `<option value="${s.id}">${esc(s.name)} ${esc(s.phone)}</option>`).join('')}<option value="manual">Boshqa (qo'lda yozish)</option></select>
-        <input placeholder="Kuryer ismi" id="cn-${o.id}" hidden><input placeholder="Kuryer telefoni" id="cp-${o.id}" value="+998 " hidden></div>` + row(b('onway', '🛵 Kuryerga berish', 'big2'));
+        <input placeholder="Kuryer ismi" id="cn-${o.id}" hidden><input placeholder="Kuryer telefoni" id="cp-${o.id}" value="+998 " hidden></div>` + row(b('onway', bi('moto') + 'Kuryerga berish', 'big2'));
     }
-    case 'onway': return row(b('delivered', '🎉 Yetkazildi', 'ok big2'));
+    case 'onway': return row(b('delivered', bi('flag') + 'Yetkazildi', 'ok big2'));
     default: return `<div class="acts2"><div class="sec">${chek}</div></div>`;
   }
 }
@@ -325,7 +341,7 @@ function card(o) {
   }
   const w = where(o);
   return `<article class="card ${fresh.has(o.id) ? 'fresh' : ''}">
-    <div class="h"><span class="no">#${o.no}</span><span class="pill ${o.mode === 'd' ? 'warn' : ''}">${o.mode === 'd' ? '🛵 Yetkazish' : '🏃 Olib ketish'}</span></div>
+    <div class="h"><span class="no">#${o.no}</span><span class="pill ${o.mode === 'd' ? 'warn' : ''}">${o.mode === 'd' ? bi('moto') + 'Yetkazish' : bi('run') + 'Olib ketish'}</span></div>
     <div class="where ${w[2]}"><span>${w[0]}</span><b>Hozir:</b> ${esc(w[1])}</div>
     <div class="hint">${U.time(o.createdAt)} · ${ago} daq oldin · 🏪 ${esc(BR[o.branch] || '')}</div>
     ${o.status === 'cancelled' ? `<div class="note" style="border-color:rgba(255,90,78,.4)">✖️ ${o.cancelledBy === 'customer' ? 'Mijoz bekor qildi' : 'Rad etildi'}${o.cancelReason ? ': ' + esc(o.cancelReason) : ''}</div>` : ''}

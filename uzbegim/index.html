@@ -123,9 +123,13 @@ section.sec{margin-top:34px;scroll-margin-top:150px}
 .card{border-radius:var(--r);overflow:hidden;display:flex;flex-direction:column;transition:transform .25s,box-shadow .25s,border-color .25s;position:relative}
 .card:hover{transform:translateY(-6px);box-shadow:var(--shadow);border-color:rgba(255,140,40,.4)}
 .card .pic{aspect-ratio:1/1;display:grid;place-items:center;font-size:110px;position:relative;cursor:pointer;background:radial-gradient(circle at 50% 58%,rgba(255,140,40,.26),transparent 62%)}
+.card .pic{overflow:hidden}
+.pic img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .4s,transform .5s}
+.pic img.ok{opacity:1}
+.card:hover .pic img{transform:scale(1.07)}
 .card .pic span{transition:transform .35s;filter:drop-shadow(0 18px 18px rgba(0,0,0,.4))}
 .card:hover .pic span{transform:scale(1.1) rotate(-6deg)}
-.badge{position:absolute;left:12px;top:12px;font-size:11px;font-weight:800;padding:5px 10px;border-radius:999px;background:var(--red);color:#fff}
+.badge{position:absolute;z-index:1;left:12px;top:12px;font-size:11px;font-weight:800;padding:5px 10px;border-radius:999px;background:var(--red);color:#fff}
 .badge.new{background:#14b8a6}
 .badge.hit{background:var(--grad);color:#120d09}
 .fav{position:absolute;right:10px;top:10px;width:36px;height:36px;border-radius:99px;background:rgba(0,0,0,.35);backdrop-filter:blur(6px);display:grid;place-items:center;font-size:16px;color:#fff;z-index:2;transition:transform .2s}
@@ -227,7 +231,7 @@ footer a:hover{color:var(--or2)}
 .mbox{background:var(--bg2);border:1px solid var(--ln);border-radius:30px;width:min(500px,100%);max-height:92vh;overflow-y:auto;position:relative;transform:translateY(20px) scale(.97);transition:.3s;box-shadow:var(--shadow)}
 .modal.on .mbox{transform:none}
 .mbox>.x{position:absolute;right:14px;top:14px;z-index:2}
-.mpic{aspect-ratio:16/10;display:grid;place-items:center;font-size:150px;background:radial-gradient(circle at 50% 60%,rgba(255,140,40,.35),transparent 65%)}
+.mpic{position:relative;overflow:hidden;border-radius:30px 30px 0 0;aspect-ratio:16/10;display:grid;place-items:center;font-size:150px;background:radial-gradient(circle at 50% 60%,rgba(255,140,40,.35),transparent 65%)}
 .mbody{padding:24px}
 .mbody h3{font-size:23px}
 .form{display:grid;gap:10px;margin-top:16px}
@@ -581,13 +585,15 @@ function renderSlider(){
 function go(i){sI=(i+SL.length)%SL.length;document.querySelectorAll(".slide").forEach((e,j)=>e.classList.toggle("on",j===sI));document.querySelectorAll(".dots button").forEach((e,j)=>e.classList.toggle("on",j===sI));clearInterval(sTimer);sTimer=setInterval(()=>go(sI+1),5500)}
 
 const qtyOf=id=>cart[id]||0;
+/* Rasm: img/<id>.jpg bo'lsa chiqadi, bo'lmasa emoji qoladi */
+const IMG=p=>`<img src="img/${p.id}.jpg" alt="${p.n[L]}" loading="lazy" onload="this.classList.add('ok')" onerror="this.remove()">`;
 const PLUS='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
 function ctlHTML(p){const q=qtyOf(p.id);return `<div class="ctl">${q?`<div class="qty"><button data-dec="${p.id}">−</button><b>${q}</b><button data-inc="${p.id}">+</button></div>`:`<button class="add" data-add="${p.id}" aria-label="${t("add")}">${PLUS}</button>`}</div>`}
 function cardHTML(p){
   const badge=p.badge?`<span class="badge ${p.badge}">${p.badge==="hit"?"Hit":p.badge==="new"?(L==="uz"?"Yangi":"Новинка"):(L==="uz"?"🌶 Achchiq":"🌶 Острое")}</span>`:"";
   return `<article class="card glass" data-id="${p.id}">
     <button class="fav" data-fav="${p.id}">${favs.includes(p.id)?"❤️":"♡"}</button>
-    <div style="position:relative"><div class="pic" data-open="${p.id}">${badge}<span>${p.e}</span></div>${ctlHTML(p)}</div>
+    <div style="position:relative"><div class="pic" data-open="${p.id}"><span>${p.e}</span>${IMG(p)}${badge}</div>${ctlHTML(p)}</div>
     <div class="body"><div class="price">${p.price.toLocaleString("ru-RU").replace(/[\u00a0,]/g," ")} <small>${t("sum")}</small>${p.old?`<s>${p.old.toLocaleString("ru-RU").replace(/[\u00a0,]/g," ")}</s>`:""}</div>
     <h3>${p.n[L]}</h3><div class="meta"><b>★ ${p.rate}</b>${p.g?`<span>${p.g}</span>`:""}</div></div></article>`;
 }
@@ -687,7 +693,7 @@ function closeAll(){["#drawer","#ov","#modal"].forEach(s=>$(s).classList.remove(
 /* ===== Modallar ===== */
 function openProduct(id){
   const p=byId[id];
-  openModal(`<div class="mpic"><span style="filter:drop-shadow(0 20px 26px rgba(0,0,0,.45))">${p.e}</span></div>
+  openModal(`<div class="mpic"><span style="filter:drop-shadow(0 20px 26px rgba(0,0,0,.45))">${p.e}</span>${IMG(p)}</div>
     <div class="mbody"><div style="display:flex;justify-content:space-between;gap:10px;align-items:start"><h3>${p.n[L]}</h3><span class="price" style="font-size:22px">${fmt(p.price)}</span></div>
     <div class="rt" style="margin-top:6px"><b>★ ${p.rate}</b> (${p.votes})</div>
     <p style="color:var(--mut);margin:10px 0 20px">${p.d[L]}</p>

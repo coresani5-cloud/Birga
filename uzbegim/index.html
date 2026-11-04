@@ -124,7 +124,7 @@ nav.main a:hover,nav.main a.on{opacity:1;background:var(--glass2);color:var(--or
 .tile .k{font-family:Unbounded;font-size:44px;font-weight:900}
 
 /* categories: tabs + sliding indicator */
-.cats{position:sticky;top:92px;z-index:40;margin-top:34px;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--ln);display:flex;align-items:center;gap:6px}
+.cats{position:sticky;top:92px;z-index:40;margin-top:0;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--ln);display:flex;align-items:center;gap:6px}
 .cats .all{flex:none;width:44px;height:44px;border-radius:14px;display:grid;place-items:center}
 .cats .all:hover{background:var(--glass2);color:var(--or2)}
 .cats .all svg{width:22px}
@@ -369,6 +369,7 @@ a.crow{color:inherit}a.crow:hover i{border-color:var(--gold)}
 
 @media (max-width:1240px){.ph{display:none}}
 @media (max-width:1000px){
+  .cats{margin-left:calc(-1 * max(16px,env(safe-area-inset-left,0px)));margin-right:calc(-1 * max(16px,env(safe-area-inset-right,0px)));padding:0 max(6px,env(safe-area-inset-right,0px)) 0 max(6px,env(safe-area-inset-left,0px));border-radius:0}
   nav.main{display:none}
   .menuBtn{display:grid}
   .mnav{display:block;max-height:0;overflow:hidden;transition:max-height .3s}
@@ -421,6 +422,14 @@ a.crow{color:inherit}a.crow:hover i{border-color:var(--gold)}
   .toast{bottom:96px}
   .catGrid{grid-template-columns:repeat(2,1fr)}
 }
+/* Tor telefonlar (360 px va kichik): sarlavha ikonkalari ekranga sig'sin — sahifa yonga kengaymasin */
+@media (max-width:380px){
+  .hdr{gap:4px}
+  .icons{gap:0}
+  .ic{width:34px;height:34px}.ic svg{width:20px;height:20px}
+  .emb{width:34px;height:34px}.wm{font-size:16px}
+}
+@media (max-width:340px){.ic{width:31px;height:31px}.ic svg{width:19px;height:19px}.wm{font-size:14px}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -461,6 +470,7 @@ a.crow{color:inherit}a.crow:hover i{border-color:var(--gold)}
 </header>
 
 <main class="wrap" id="top">
+  <div class="cats" id="menu"><button class="all" id="allCats" aria-label="Categories"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></svg></button><div class="row" id="cats"></div></div>
   <div class="closed" id="closedBar" hidden></div>
   <div class="hero">
     <div class="slider" id="slider"></div>
@@ -470,7 +480,6 @@ a.crow{color:inherit}a.crow:hover i{border-color:var(--gold)}
     </div>
   </div>
 
-  <div class="cats" id="menu"><button class="all" id="allCats" aria-label="Categories"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></svg></button><div class="row" id="cats"></div></div>
   <div id="sections"></div>
 
 <div class="orn" aria-hidden="true"><svg viewBox="0 0 100 100"><polygon points="50.0,0.0 64.5,14.9 85.4,14.6 85.1,35.5 100.0,50.0 85.1,64.5 85.4,85.4 64.5,85.1 50.0,100.0 35.5,85.1 14.6,85.4 14.9,64.5 0.0,50.0 14.9,35.5 14.6,14.6 35.5,14.9" fill="currentColor"/><circle cx="50" cy="50" r="16" fill="#1fb6c1"/></svg></div>
@@ -750,7 +759,7 @@ function spy(){
     moveInd();
   }
   $("#toTop").classList.toggle("on",scrollY>900);
-  let nav=null;["menu","about","promos","vacancies","contacts"].forEach(id=>{const el=document.getElementById(id);if(el&&el.getBoundingClientRect().top<200)nav=id});
+  let nav=null;["menu","about","promos","vacancies","contacts"].forEach(id=>{const el=document.getElementById(id==="menu"?"sections":id);if(el&&el.getBoundingClientRect().top<200)nav=id});
   document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("on",a.getAttribute("href")==="#"+nav));
 }
 addEventListener("resize",fitCats);

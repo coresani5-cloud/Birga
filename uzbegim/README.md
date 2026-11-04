@@ -20,7 +20,8 @@ Qo'shimcha paket kerak emas (Node 18+).
 | `COURIER_PIN` | Ixtiyoriy: umumiy kuryer PIN (ism + telefon bilan kiriladi). `ADMIN_PIN` bilan bir xil bo'lmasin |
 | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `UZ_DB_SECRET` | Ma'lumotlar Supabase'da (maxfiy kalit bilan himoyalangan `uz_load`/`uz_upsert` funksiyalari orqali) |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` | Muqobil: to'g'ridan-to'g'ri jadvalga |
-| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Berilsa, har yangi buyurtma Telegram guruhga keladi |
+| `TELEGRAM_BOT_TOKEN` | Telegram bot (@BotFather'dan). Bot menyusida «Menyu» tugmasi saytni Telegram ichida ochadi, /start ga javob beradi, guruhda /chatid — guruh raqamini aytadi |
+| `TELEGRAM_CHAT_ID` | Oshxona guruhi raqami (/chatid bilan olinadi) — har yangi buyurtma shu guruhga keladi |
 | `OPEN_FROM`, `OPEN_TO` | Boshlang'ich ish vaqti (O'zbekiston vaqti, standart 9 va 3). Keyin panelning "Sozlamalar" bo'limida o'zgartiriladi |
 | `PUBLIC_URL` | Ixtiyoriy: saytning to'liq manzili (masalan `https://uzbegim.uz`) — havola ulashilganda rasm uchun |
 
@@ -38,7 +39,7 @@ alter table uz_store enable row level security;  -- to'g'ridan-to'g'ri kirish yo
 3. **Sozlamalar**: ish vaqti, yetkazish narxi va bepul yetkazish chegarasi.
 4. **Xodimlar**: har bir kuryer va oshxona xodimiga shaxsiy telefon + PIN bering (umumiy PIN o'rniga).
 5. **Oshxona planshet/kompyuteri**: `admin.html`ni oching, kirgach ekranga bir marta bosing (ovoz yoqiladi). "Sozlamalar → Shu qurilma"da takroriy signal, ekran o'chmasligi va avtomatik chekni yoqing. 80 mm termoprinter; Chrome `--kiosk-printing` bilan ochilsa chek oynasiz chiqadi.
-6. **Telegram** (tavsiya): bot yarating (@BotFather), guruhga qo'shing, `TELEGRAM_BOT_TOKEN` va `TELEGRAM_CHAT_ID`ni kiriting — panel yopiq bo'lsa ham buyurtma telefoningizga keladi.
+6. **Telegram** (tavsiya): @BotFather'da bot yarating va `TELEGRAM_BOT_TOKEN`ni kiriting — mijozlar t.me/<bot> orqali menyuni ochadi. Botni oshxona guruhiga qo'shib, guruhda /chatid yozing va chiqqan raqamni `TELEGRAM_CHAT_ID`ga kiriting — panel yopiq bo'lsa ham buyurtma telefoningizga keladi.
 7. Saytdagi telefon raqami, Instagram/Telegram va oferta rekvizitlarini haqiqiysiga almashtiring.
 
 ## Qoidalar

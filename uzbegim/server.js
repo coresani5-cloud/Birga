@@ -355,12 +355,36 @@ const opsPublic = () => ({
 });
 const broadcastMenu = () => { for (const s of staffSubs) send(s.res, { type: 'menu', stop: settings().stop, branches: branches(), menu: menuCfg(), ops: opsPublic() }); };
 
-/* ================= Telegram xabari ================= */
+/* ================= Telegram: oshxonaga xabar va mijozlar uchun bot ================= */
+// TELEGRAM_BOT_TOKEN berilsa: bot menyusida "Menyu" tugmasi saytni Telegram ichida ochadi, /start ga javob beradi,
+// /chatid — guruh raqamini aytadi (TELEGRAM_CHAT_ID uchun). TELEGRAM_CHAT_ID berilsa — yangi buyurtmalar o'sha chatga keladi.
+const TG = process.env.TELEGRAM_BOT_TOKEN || '';
+const TG_API = (process.env.TG_API || 'https://api.telegram.org').replace(/\/$/, '');
+const TG_SECRET = TG ? crypto.createHash('sha256').update('uzbegim-tg:' + TG).digest('hex').slice(0, 32) : '';
+const siteUrl = req => (process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || (req ? baseUrl(req) : '')).replace(/\/$/, '');
+async function tgCall(method, body) {
+  if (!TG) return null;
+  try {
+    const r = await fetch(`${TG_API}/bot${TG}/${method}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(15000) });
+    const j = await r.json().catch(() => null);
+    if (!j || !j.ok) console.error('Telegram xatosi', method, j && j.description);
+    return j;
+  } catch (e) { console.error('Telegram xatosi', method, e.message); return null; }
+}
 async function telegram(text) {
-  const tk = process.env.TELEGRAM_BOT_TOKEN, chat = process.env.TELEGRAM_CHAT_ID;
-  if (!tk || !chat) return;
-  try { await fetch(`https://api.telegram.org/bot${tk}/sendMessage`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat_id: chat, text, disable_web_page_preview: true }) }); }
-  catch (e) { console.error('Telegram xatosi', e.message); }
+  const chat = process.env.TELEGRAM_CHAT_ID;
+  if (!TG || !chat) return;
+  await tgCall('sendMessage', { chat_id: chat, text, disable_web_page_preview: true });
+}
+async function tgSetup() {
+  const base = siteUrl();
+  if (!TG || !base.startsWith('https://')) return;
+  await tgCall('setWebhook', { url: `${base}/api/tg/${TG_SECRET}`, secret_token: TG_SECRET, allowed_updates: ['message'] });
+  await tgCall('setChatMenuButton', { menu_button: { type: 'web_app', text: 'Menyu', web_app: { url: base } } });
+  await tgCall('setMyCommands', { commands: [{ command: 'start', description: 'Menyuni ochish' }, { command: 'chatid', description: 'Shu chat raqami (oshxona xabarlari uchun)' }] });
+  await tgCall('setMyShortDescription', { short_description: 'Uzbegim — Namangan fast food. Burger, lavash, pitsa va kombolar.' });
+  await tgCall('setMyDescription', { description: 'Uzbegim — Namangandagi fast food. «Menyu» tugmasini bosing: buyurtma bering va kuryerni xaritada kuzating.' });
+  console.log('Telegram bot ulandi: «Menyu» tugmasi va /start tayyor');
 }
 const money = n => (n || 0).toLocaleString('ru-RU').replace(/[ ,]/g, ' ');
 
@@ -377,8 +401,9 @@ function entryOf(key, buf, ext) {
   fcache.set(key, ent);
   return ent;
 }
-function reply(req, res, ent, type, cacheCtl, extra = {}) {
+function reply(req, res, ent, type, cacheCtl, extra = {}, omit = []) {
   const h = { ...SEC, 'Content-Type': type, 'Cache-Control': cacheCtl, ETag: ent.etag, Vary: 'Accept-Encoding', ...extra };
+  for (const k of omit) delete h[k];
   if ((req.headers['if-none-match'] || '').split(/\s*,\s*/).includes(ent.etag)) { res.writeHead(304, h); return res.end(); }
   const gz = ent.gz && /\bgzip\b/.test(req.headers['accept-encoding'] || '');
   if (gz) h['Content-Encoding'] = 'gzip';
@@ -412,7 +437,8 @@ function serveStatic(req, url, res) {
     const ext = path.extname(file), type = MIME[ext] || 'application/octet-stream';
     const html = ext === '.html', b = html || p === '/robots.txt' ? baseUrl(req) : '';
     const key = file + '|' + st.mtimeMs + '|' + b;
-    const done = ent => reply(req, res, ent, type, ext === '.webp' || ext === '.png' || ext === '.jpg' ? 'public, max-age=3600' : 'no-cache', html ? { 'Content-Security-Policy': CSP } : {});
+    const site = p === '/index.html'; // mijoz sayti Telegram (web.telegram.org) ichida ham ochiladi
+    const done = ent => reply(req, res, ent, type, ext === '.webp' || ext === '.png' || ext === '.jpg' ? 'public, max-age=3600' : 'no-cache', html ? { 'Content-Security-Policy': site ? CSP.replace("frame-ancestors 'none'", "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org") : CSP } : {}, site ? ['X-Frame-Options'] : []);
     const c = fcache.get(key);
     if (c) return done(c);
     fs.readFile(file, (e, buf) => {
@@ -434,6 +460,19 @@ const server = http.createServer(async (req, res) => {
   try {
     if (parts[0] !== 'api') return serveStatic(req, url, res);
     if (P === '/api/ping') return json(res, 200, { ok: true });
+
+    // ---- Telegram bot (webhook): /start — menyu tugmasi, /chatid — chat raqami
+    if (parts[1] === 'tg' && M === 'POST') {
+      if (!TG || parts[2] !== TG_SECRET || req.headers['x-telegram-bot-api-secret-token'] !== TG_SECRET) return json(res, 404, { error: 'notfound' });
+      const up = await body(req, 3e5), m = up && up.message;
+      json(res, 200, { ok: true }); // Telegram'ga darhol javob, keyin xabar yuboramiz
+      if (!m || !m.chat) return;
+      const text = String(m.text || '').trim();
+      if (/^\/chatid\b/.test(text)) return void tgCall('sendMessage', { chat_id: m.chat.id, text: `Bu chat raqami: ${m.chat.id}\nRender → Environment'da TELEGRAM_CHAT_ID ga shu raqamni yozing — yangi buyurtmalar shu yerga keladi.` });
+      if (m.chat.type !== 'private') return; // guruhlarda faqat /chatid
+      const nm = m.from && m.from.first_name ? ', ' + String(m.from.first_name).slice(0, 40) : '';
+      return void tgCall('sendMessage', { chat_id: m.chat.id, text: `Assalomu alaykum${nm}! 👋\nUzbegim — Namangandagi fast food.\nPastdagi tugmani bosing: menyudan tanlang, buyurtma bering va kuryerni xaritada kuzating.`, reply_markup: { inline_keyboard: [[{ text: '🍔 Menyuni ochish', web_app: { url: siteUrl(req) } }]] } });
+    }
 
     // ---- Menyu holati: ish vaqti va tugagan mahsulotlar
     if (P === '/api/menu' && M === 'GET') {
@@ -872,6 +911,7 @@ loadAll().then(() => {
     console.log(`Diqqat: ADMIN_PIN berilmagan. Bosh admin PIN: ${ADMIN_PIN} (Render → Environment'da ADMIN_PIN qo'yib o'zgartiring)`);
   }
   if (pinWarn() === 'samepin') console.log('Diqqat: ADMIN_PIN va COURIER_PIN bir xil — kuryer oshxona paneliga ham kira oladi. Ularni farqli qiling.');
+  setTimeout(tgSetup, 3000); // Telegram bot (token berilgan bo'lsa)
   server.listen(PORT, () => {
     console.log(`Uzbegim: http://localhost:${PORT}`);
     console.log(`Oshxona: /admin.html  ·  Kuryer: /courier.html  ·  Ish vaqti: ${ALWAYS_OPEN ? 'doim ochiq' : hoursText()}`);

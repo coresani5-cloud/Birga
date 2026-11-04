@@ -267,15 +267,17 @@ footer a:hover{color:var(--or2)}
 .prog{height:8px;border-radius:99px;background:var(--glass2);overflow:hidden;margin:6px 0 4px}
 .prog i{display:block;height:100%;background:var(--grad);transition:width .4s}
 .hint{font-size:12px;color:var(--mut)}
-.modal{position:fixed;inset:0;z-index:110;display:grid;place-items:center;padding:16px;pointer-events:none;opacity:0;transition:.25s}
+.modal{position:fixed;inset:0;z-index:110;display:grid;grid-template-columns:minmax(0,500px);justify-content:center;align-items:center;padding:16px;pointer-events:none;opacity:0;transition:.25s}
 .modal.on{opacity:1;pointer-events:auto}
-.mbox{background:var(--bg2);border:1px solid var(--ln);border-radius:30px;width:min(500px,100%);max-height:92vh;overflow-y:auto;position:relative;transform:translateY(20px) scale(.97);transition:.3s;box-shadow:var(--shadow)}
+.mbox{background:var(--bg2);border:1px solid var(--ln);border-radius:30px;width:100%;min-width:0;overflow-x:hidden;max-height:92vh;overflow-y:auto;position:relative;transform:translateY(20px) scale(.97);transition:.3s;box-shadow:var(--shadow)}
 .modal.on .mbox{transform:none}
 .mbox>.x{position:absolute;right:14px;top:14px;z-index:2}
 .mpic{position:relative;overflow:hidden;border-radius:30px 30px 0 0;aspect-ratio:16/10;display:grid;place-items:center;font-size:150px;background:radial-gradient(circle at 50% 60%,rgba(255,140,40,.35),transparent 65%)}
 .mbody{padding:24px}
 .mbody h3{font-size:23px}
-.form{display:grid;gap:10px;margin-top:16px}
+.form{display:grid;gap:10px;margin-top:16px;min-width:0}
+.form>*{min-width:0}
+.form select{width:100%;min-width:0;text-overflow:ellipsis}
 .form input,.form textarea,.form select{height:50px;border-radius:16px;border:1px solid var(--ln);background:var(--glass);padding:0 16px;outline:none}
 .form select option{background:var(--bg2)}
 .form textarea{height:84px;padding:12px 16px;resize:none}

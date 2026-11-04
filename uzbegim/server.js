@@ -438,7 +438,7 @@ function serveStatic(req, url, res) {
     const html = ext === '.html', b = html || p === '/robots.txt' ? baseUrl(req) : '';
     const key = file + '|' + st.mtimeMs + '|' + b;
     const site = p === '/index.html'; // mijoz sayti Telegram (web.telegram.org) ichida ham ochiladi
-    const done = ent => reply(req, res, ent, type, ext === '.webp' || ext === '.png' || ext === '.jpg' ? 'public, max-age=3600' : 'no-cache', html ? { 'Content-Security-Policy': site ? CSP.replace("frame-ancestors 'none'", "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org") : CSP } : {}, site ? ['X-Frame-Options'] : []);
+    const done = ent => reply(req, res, ent, type, ext === '.webp' || ext === '.png' || ext === '.jpg' ? 'public, max-age=86400' : 'no-cache', html ? { 'Content-Security-Policy': site ? CSP.replace("frame-ancestors 'none'", "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org") : CSP } : {}, site ? ['X-Frame-Options'] : []);
     const c = fcache.get(key);
     if (c) return done(c);
     fs.readFile(file, (e, buf) => {

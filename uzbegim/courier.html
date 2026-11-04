@@ -56,10 +56,10 @@ const LOGO = '<img src="logo.svg" alt="" style="width:40px;height:40px;border-ra
 function loginView(msg = '') {
   $('#app').innerHTML = `<form class="login glass" id="lf">
     <div class="brand">${LOGO}<div>Uzbegim<small>Kuryer</small></div></div>
-    <p class="hint">Telefon raqamingiz va oshxona bergan PIN bilan kiring. Ismingiz va telefoningiz mijozga ko'rinadi. Joylashuvingiz faqat buyurtma yo'lda bo'lganda yuboriladi.</p>
+    <p class="hint">Telefon raqamingiz va oshxona bergan kod bilan kiring. Ismingiz va telefoningiz mijozga ko'rinadi. Joylashuvingiz faqat buyurtma yo'lda bo'lganda yuboriladi.</p>
     <input id="cp" type="tel" placeholder="Telefon" value="${esc(ME?.phone || '+998 ')}" autocomplete="username">
-    <input id="pin" type="password" inputmode="numeric" placeholder="PIN kod" autocomplete="current-password">
-    <details><summary class="hint" style="cursor:pointer">Umumiy kuryer PIN bilan kirish</summary><input id="cn" placeholder="Ismingiz" style="margin-top:8px;width:100%" autocomplete="name"></details>
+    <input id="pin" type="password" placeholder="Kod (PIN)" autocomplete="current-password" autocapitalize="none" autocorrect="off" spellcheck="false">
+    <details><summary class="hint" style="cursor:pointer">Umumiy kuryer kodi bilan kirsangiz — ismingizni yozing</summary><input id="cn" placeholder="Ismingiz" style="margin-top:8px;width:100%" autocomplete="name"></details>
     <div class="err">${esc(msg)}</div>
     <button class="btn big">Kirish</button></form>`;
   $('#lf').onsubmit = async e => {
@@ -70,7 +70,7 @@ function loginView(msg = '') {
       const r = await U.api('staff/login', { body: { phone, pin, name, as: 'courier' } });
       if (r.staff.role !== 'courier') return loginView('Bu oshxona akkaunti. Oshxona admin.html sahifasidan kiradi.');
       ME = { ...r.staff, token: r.token }; ls.set('me', ME); start();
-    } catch (x) { loginView(x.status === 401 ? 'Telefon yoki PIN noto\'g\'ri' : x.status === 429 ? 'Ko\'p urinish, bir daqiqa kuting' : 'Server bilan aloqa yo\'q'); }
+    } catch (x) { loginView(x.status === 401 ? 'Telefon yoki kod noto\'g\'ri' : x.message === 'locked' ? 'Ko\'p noto\'g\'ri urinish. 15 daqiqadan keyin qayta urinib ko\'ring' : x.status === 429 ? 'Ko\'p urinish, bir daqiqa kuting' : 'Server bilan aloqa yo\'q'); }
   };
 }
 

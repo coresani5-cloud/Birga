@@ -75,19 +75,28 @@ async function loadAll() {
   }
 }
 const dirty = new Map(); // "coll\u0000id" -> true
-let flushT = null;
-function put(coll, id) { dirty.set(coll + '\u0000' + id, 1); clearTimeout(flushT); flushT = setTimeout(flush, 250); }
+// Yozish: o'zgarishdan keyin ko'pi bilan 0.3 s ichida (gavjum paytda ham kechikmaydi), bittadan ketma-ket
+// (eski nusxa yangisining ustiga yozilib qolmasligi uchun). Xato bo'lsa 5 s dan keyin qayta uriniladi.
+let flushT = null, flushing = null;
+function put(coll, id) { dirty.set(coll + '\u0000' + id, 1); if (!flushT) flushT = setTimeout(runFlush, 300); }
+async function runFlush() {
+  flushT = null;
+  if (flushing) { await flushing; if (!flushT && dirty.size) flushT = setTimeout(runFlush, 300); return; }
+  flushing = flush().catch(() => false);
+  const ok = await flushing; flushing = null;
+  if (dirty.size && !flushT) flushT = setTimeout(runFlush, ok === false ? 5000 : 300);
+}
 async function flush() {
   const keys = [...dirty.keys()]; dirty.clear();
-  if (!keys.length) return;
+  if (!keys.length) return true;
   if (SB) {
     const rows = keys.map(k => { const [coll, id] = k.split('\u0000'); return { coll, id, data: DB[coll][id] }; }).filter(r => r.data);
     try {
       const r = SB.rpc
-        ? await fetch(`${SB.url}/rest/v1/rpc/uz_upsert`, { method: 'POST', headers: sbHeaders(), body: JSON.stringify({ p_secret: SB.secret, p_rows: rows }) })
-        : await fetch(`${SB.url}/rest/v1/uz_store?on_conflict=coll,id`, { method: 'POST', headers: { ...sbHeaders(), Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(rows) });
-      if (!r.ok) { console.error('Supabase yozish xatosi', r.status, await r.text()); keys.forEach(k => dirty.set(k, 1)); setTimeout(flush, 5000); }
-    } catch (e) { console.error('Supabase yozish xatosi', e.message); keys.forEach(k => dirty.set(k, 1)); setTimeout(flush, 5000); }
+        ? await fetch(`${SB.url}/rest/v1/rpc/uz_upsert`, { method: 'POST', headers: sbHeaders(), body: JSON.stringify({ p_secret: SB.secret, p_rows: rows }), signal: AbortSignal.timeout(20000) })
+        : await fetch(`${SB.url}/rest/v1/uz_store?on_conflict=coll,id`, { method: 'POST', headers: { ...sbHeaders(), Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(rows), signal: AbortSignal.timeout(20000) });
+      if (!r.ok) { console.error('Supabase yozish xatosi', r.status, (await r.text()).slice(0, 300)); keys.forEach(k => dirty.set(k, 1)); return false; }
+    } catch (e) { console.error('Supabase yozish xatosi', e.message); keys.forEach(k => dirty.set(k, 1)); return false; }
   } else {
     fs.mkdirSync(DATA_DIR, { recursive: true });
     for (const c of new Set(keys.map(k => k.split('\u0000')[0]))) {
@@ -95,6 +104,7 @@ async function flush() {
       fs.writeFileSync(f + '.tmp', JSON.stringify(DB[c])); fs.renameSync(f + '.tmp', f);
     }
   }
+  return true;
 }
 const settings = () => (DB.settings.main = DB.settings.main || { stop: [] });
 // Avvalgi versiyadagi namunaviy (Toshkent) filiallar o'zgartirilmagan bo'lsa — Namangan standartiga almashtiriladi
@@ -142,8 +152,9 @@ const digits = v => String(v ?? '').replace(/\D/g, '');
 const str = (v, n = 200) => String(v ?? '').trim().slice(0, n);
 const num = v => (v === null || v === undefined || v === '' ? null : Number.isFinite(+v) ? +v : null);
 const rid = (n = 6) => crypto.randomBytes(n).toString('hex');
-const hashPw = (pw, salt) => crypto.scryptSync(String(pw), salt, 32).toString('hex');
-const pwOk = (pw, u) => u && u.hash && crypto.timingSafeEqual(Buffer.from(hashPw(pw || '', u.salt), 'hex'), Buffer.from(u.hash, 'hex'));
+// Parol xeshi asinxron: sinxron scrypt har kirishda butun serverni to'xtatib turardi (bepul serverda 0.5 s gacha)
+const hashPw = (pw, salt) => new Promise((ok, bad) => crypto.scrypt(String(pw), salt, 32, (e, k) => (e ? bad(e) : ok(k.toString('hex')))));
+const pwOk = async (pw, u) => !!(u && u.hash) && crypto.timingSafeEqual(Buffer.from(await hashPw(pw || '', u.salt), 'hex'), Buffer.from(u.hash, 'hex'));
 const km = (a, b) => { const R = 6371, r = x => (x * Math.PI) / 180, dLat = r(b.lat - a.lat), dLng = r(b.lng - a.lng); const h = Math.sin(dLat / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLng / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)); };
 function nearest(p) { let best = 0, d = Infinity; branches().forEach((b, i) => { if (!brOpen(i)) return; const x = km(p, b); if (x < d) { d = x; best = i; } }); return { branch: best, km: d }; }
 function tashkentHour(t = Date.now()) { return new Date(t + 5 * 3600e3).getUTCHours(); }
@@ -167,14 +178,16 @@ function body(req, max = 1e5) {
 const SEC = { 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'strict-origin-when-cross-origin', 'Permissions-Policy': 'geolocation=(self), camera=(), microphone=()', 'Strict-Transport-Security': 'max-age=31536000' };
 function json(res, code, data) { res.writeHead(code, { ...SEC, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(data)); }
 
-// Parolni taxmin qilishdan himoya: bir IP'dan daqiqasiga 12 ta urinish
+// Bir IP'dan daqiqasiga urinishlar. Mobil operatorlarda ko'p mijoz bitta umumiy IP'dan chiqadi (CGNAT),
+// shuning uchun cheklov yumshoq; asosiy himoya — pastdagi akkaunt bo'yicha bloklash.
+const PER_IP = { reg: 20, login: 30, staff: 20, vac: 10, gorder: 10 };
 const tries = new Map();
 setInterval(() => { const now = Date.now(); for (const [k, v] of tries) if (!v.some(t => now - t < 60000)) tries.delete(k); }, 120000);
 function limited(req, key) {
   const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
   const k = key + ip, now = Date.now(), list = (tries.get(k) || []).filter(t => now - t < 60000);
   list.push(now); tries.set(k, list);
-  return list.length > 12;
+  return list.length > (PER_IP[key] || 12);
 }
 // IP manzilni soxtalashtirib cheklovni aylanib o'tishdan himoya: noto'g'ri urinishlar akkaunt bo'yicha
 // (telefon) va umumiy hisoblanadi. Masalan, bitta telefonga 15 daqiqada 8 ta xato — 15 daqiqa blok.
@@ -182,7 +195,7 @@ const fails = new Map();
 setInterval(() => { const now = Date.now(); for (const [k, v] of fails) if (!v.some(t => now - t < 3600e3)) fails.delete(k); }, 600000);
 const failN = (k, win) => { const now = Date.now(), l = (fails.get(k) || []).filter(t => now - t < win); fails.set(k, l); return l.length; };
 const failAdd = (...keys) => keys.forEach(k => { const l = fails.get(k) || []; l.push(Date.now()); fails.set(k, l); });
-const LOCK = { acc: [8, 15 * 60e3], staffAll: [30, 10 * 60e3], master: [20, 10 * 60e3], reg: [100, 10 * 60e3] };
+const LOCK = { acc: [8, 15 * 60e3], staffAll: [30, 10 * 60e3], master: [20, 10 * 60e3], reg: [+process.env.REG_CAP || 100, 10 * 60e3], gorder: [+process.env.GUEST_CAP || 80, 10 * 60e3] };
 const locked = (k, kind) => failN(k, LOCK[kind][1]) >= LOCK[kind][0];
 
 /* ================= Menyu va narx (index.html dan) ================= */
@@ -200,7 +213,8 @@ function promoCheck(code, user) {
   const pr = CAT.PROMOS[code];
   if (!pr) return 'bad';
   if (!user) return null;
-  const mine = Object.values(DB.orders).filter(o => o.userId === user.id && o.status !== 'cancelled');
+  const ph = digits(user.phone);
+  const mine = Object.values(DB.orders).filter(o => (o.userId === user.id || (ph && digits(o.phone) === ph)) && o.status !== 'cancelled');
   if (code === 'UZBEGIM10' && mine.length) return 'first';
   if (code !== 'UZBEGIM10' && mine.some(o => o.promo === code)) return 'used';
   return null;
@@ -223,8 +237,10 @@ function priceOrder(b, user) {
   if (mode === 'p' && !brOpen(branch)) zone = 'branch';
   const lat = num(b.lat), lng = num(b.lng);
   if (mode === 'd') {
-    if (lat == null || lng == null) zone = 'nopoint';
-    else {
+    if (lat == null || lng == null) {
+      if (b.noPin) { const i = branches().findIndex((x, k) => brOpen(k)); if (i < 0) zone = 'paused'; else { branch = i; del = OPS.zones[0][1]; } }
+      else zone = 'nopoint';
+    } else {
       const n = nearest({ lat, lng }), Z = OPS.zones;
       if (!Number.isFinite(n.km)) zone = 'paused'; // ochiq filial qolmagan
       else {
@@ -258,10 +274,21 @@ function priceOrder(b, user) {
 
 /* ================= Akkauntlar ================= */
 const users = () => DB.users; // kalit: telefon raqam raqamlari
+const tokIdx = new Map(); // sessiya → mijoz (tez topish uchun; har safar sessiyalar ro'yxati bilan tekshiriladi)
 function userBy(req) {
   const t = (req.headers.authorization || '').replace(/^Bearer /, '');
   if (!t || t.startsWith('S.')) return null;
-  return Object.values(users()).find(u => u.sessions?.includes(t)) || null;
+  const k = tokIdx.get(t), hit = k && users()[k];
+  if (hit && hit.sessions?.includes(t)) return hit;
+  const u = Object.values(users()).find(x => x.sessions?.includes(t)) || null;
+  if (u) { if (tokIdx.size > 50000) tokIdx.clear(); tokIdx.set(t, digits(u.phone)); }
+  return u;
+}
+// Ro'yxatdan o'tmasdan buyurtma: ism va telefon bilan (parolsiz). Buyurtma tarixi akkauntga bog'lanmaydi.
+function guestUser(b) {
+  const ph = digits(b.phone), name = str(b.name, 60);
+  if (!name || ph.length !== 12 || !ph.startsWith('998')) return null;
+  return { id: 'g' + ph, name, phone: '+' + ph, guest: true };
 }
 const me = u => ({ id: u.id, name: u.name, phone: u.phone, addresses: u.addresses || [], pwTemp: !!u.pwTemp });
 function newSession(holder, coll, key) {
@@ -275,10 +302,17 @@ function newSession(holder, coll, key) {
 const MASTER = { id: 'master', name: 'Bosh admin', role: 'admin', branch: null, active: true };
 // Bosh admin va umumiy kuryer sessiyalari bazada saqlanadi (sahifa yangilansa yoki server qayta ishga tushsa ham chiqib ketmaydi)
 const SESS_TTL = 30 * 86400e3;
+// Kod belgisi (kodning o'zi saqlanmaydi): kod o'zgarsa belgi mos kelmaydi va eski sessiya bekor bo'ladi
+const pinTag = p => crypto.createHash('sha256').update('uzbegim-pin:' + p).digest('hex').slice(0, 20);
 const sessions = {
-  has: t => { const x = DB.sess[t]; if (x && Date.now() - x.at > SESS_TTL) { delete DB.sess[t]; return false; } return !!x; },
+  has: t => {
+    const x = DB.sess[t];
+    if (!x) return false;
+    if (Date.now() - x.at > SESS_TTL || x.pk !== pinTag(x.staff.id === 'master' ? ADMIN_PIN : COURIER_PIN)) { delete DB.sess[t]; return false; }
+    return true;
+  },
   get: t => (DB.sess[t].staff.id === 'master' ? MASTER : DB.sess[t].staff),
-  set: (t, staff) => { DB.sess[t] = { staff: staff.id === 'master' ? { id: 'master' } : staff, at: Date.now() }; put('sess', t); },
+  set: (t, staff) => { DB.sess[t] = { staff: staff.id === 'master' ? { id: 'master' } : staff, at: Date.now(), pk: pinTag(staff.id === 'master' ? ADMIN_PIN : COURIER_PIN) }; put('sess', t); },
 };
 function staffBy(req, url) {
   const t = (req.headers.authorization || '').replace(/^Bearer /, '') || (url && url.searchParams.get('st')) || '';
@@ -412,7 +446,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     // ---- Narxni oldindan hisoblash (savat va rasmiylashtirish oynasi uchun)
-    if (P === '/api/quote' && M === 'POST') { const b = await body(req); return json(res, 200, priceOrder(b, userBy(req))); }
+    if (P === '/api/quote' && M === 'POST') { const b = await body(req); return json(res, 200, priceOrder(b, userBy(req) || guestUser(b))); }
 
     // ---- Vakansiyaga ariza
     if (P === '/api/vacancy' && M === 'POST') {
@@ -437,7 +471,7 @@ const server = http.createServer(async (req, res) => {
       if (b.consent !== true) return json(res, 400, { error: 'consent' });
       if (users()[ph]) return json(res, 409, { error: 'exists' });
       const salt = rid(16);
-      const u = users()[ph] = { id: rid(), name, phone: '+' + ph, salt, hash: hashPw(pw, salt), addresses: [], sessions: [], createdAt: Date.now(), consentAt: Date.now() };
+      const u = users()[ph] = { id: rid(), name, phone: '+' + ph, salt, hash: await hashPw(pw, salt), addresses: [], sessions: [], createdAt: Date.now(), consentAt: Date.now() };
       failAdd('reg'); // umumiy hisob: 10 daqiqada 100 tadan ko'p yangi akkaunt — soxta ro'yxatdan himoya
       return json(res, 201, { token: newSession(u, 'users', ph), user: me(u) });
     }
@@ -445,7 +479,7 @@ const server = http.createServer(async (req, res) => {
       if (limited(req, 'login')) return json(res, 429, { error: 'slow' });
       const b = await body(req), key = digits(b.phone), u = users()[key];
       if (locked('u' + key, 'acc')) return json(res, 429, { error: 'locked' });
-      if (!pwOk(b.password, u)) { failAdd('u' + key); return json(res, 401, { error: 'login' }); }
+      if (!(await pwOk(b.password, u))) { failAdd('u' + key); return json(res, 401, { error: 'login' }); }
       fails.delete('u' + key);
       return json(res, 200, { token: newSession(u, 'users', key), user: me(u) });
     }
@@ -461,10 +495,10 @@ const server = http.createServer(async (req, res) => {
         const b = await body(req);
         if (b.newPassword !== undefined) { // parolni o'zgartirish: eski parol kerak
           if (locked('u' + digits(u.phone), 'acc')) return json(res, 429, { error: 'locked' });
-          if (!pwOk(b.password, u)) { failAdd('u' + digits(u.phone)); return json(res, 403, { error: 'oldpw' }); }
+          if (!(await pwOk(b.password, u))) { failAdd('u' + digits(u.phone)); return json(res, 403, { error: 'oldpw' }); }
           if (String(b.newPassword).length < 6) return json(res, 400, { error: 'password' });
           const t = (req.headers.authorization || '').slice(7);
-          u.salt = rid(16); u.hash = hashPw(String(b.newPassword), u.salt); u.sessions = [t]; u.pwTemp = false; // boshqa qurilmalar chiqariladi
+          u.salt = rid(16); u.hash = await hashPw(String(b.newPassword), u.salt); u.sessions = [t]; u.pwTemp = false; // boshqa qurilmalar chiqariladi
         }
         if (str(b.name)) u.name = str(b.name, 60);
         if (Array.isArray(b.addresses)) u.addresses = b.addresses.slice(0, 10).map(a => ({ label: str(a.label, 30), addr: str(a.addr, 200), lat: num(a.lat), lng: num(a.lng) })).filter(a => a.addr);
@@ -480,13 +514,19 @@ const server = http.createServer(async (req, res) => {
 
     // ---- Yangi buyurtma (faqat ro'yxatdan o'tgan mijoz)
     if (P === '/api/orders' && M === 'POST') {
-      const u = userBy(req);
-      if (!u) return json(res, 401, { error: 'auth' });
       const b = await body(req);
+      let u = userBy(req);
+      if (!u) {
+        // Mehmon buyurtmasi: ism va telefon majburiy; IP va umumiy cheklov soxta buyurtmalar oqimidan himoya qiladi
+        if (!str(b.name)) return json(res, 400, { error: 'name' });
+        u = guestUser(b);
+        if (!u) return json(res, 400, { error: 'phone' });
+        if (limited(req, 'gorder') || locked('gorder', 'gorder')) return json(res, 429, { error: 'slow' });
+      }
       const q = priceOrder(b, u);
       if (!q.open) return json(res, 409, { error: 'closed', hours: q.hours, paused: q.paused });
       // Soxta buyurtmalar bilan oshxonani to'ldirib yuborishdan himoya: bir mijozda bir vaqtda 3 tagacha faol buyurtma
-      const mine = Object.values(DB.orders).filter(o => o.userId === u.id);
+      const uph = digits(u.phone), mine = Object.values(DB.orders).filter(o => o.userId === u.id || digits(o.phone) === uph);
       if (mine.filter(o => !['delivered', 'cancelled'].includes(o.status)).length >= 3) return json(res, 429, { error: 'active_limit' });
       if (q.stopped.length) return json(res, 409, { error: 'stopped', ids: q.stopped });
       if (!q.items.length) return json(res, 400, { error: 'items' });
@@ -504,9 +544,11 @@ const server = http.createServer(async (req, res) => {
         items: q.items, sub: q.sub, disc: q.disc, del: q.del, total: q.total, promo: q.promo,
         courier: null, loc: null, createdAt: Date.now(),
         newCustomer: !mine.some(o => o.status === 'delivered'), // oshxona qo'ng'iroq qilib tasdiqlashi uchun belgi
+        guest: !!u.guest, noPin: q.mode === 'd' && q.lat == null,
       };
+      if (u.guest) failAdd('gorder');
       DB.orders[id] = o; put('orders', id); broadcast(o);
-      telegram(`🔔 Yangi buyurtma #${o.no} (${o.mode === 'd' ? 'yetkazish' : 'olib ketish'})${o.newCustomer ? '\n🆕 Yangi mijoz — qo\'ng\'iroq qilib tasdiqlang' : ''}\n👤 ${o.name} ${o.phone}\n📍 ${o.addr}${o.dist != null ? ` (${o.dist} km)` : ''}\n🏪 ${brName(o.branch)}\n` + o.items.map(i => `• ${i.n} × ${i.q}`).join('\n') + `\n💰 ${money(o.total)} so'm${o.note ? '\n💬 ' + o.note : ''}`);
+      telegram(`🔔 Yangi buyurtma #${o.no} (${o.mode === 'd' ? 'yetkazish' : 'olib ketish'})${o.newCustomer ? '\n🆕 Yangi mijoz — qo\'ng\'iroq qilib tasdiqlang' : ''}\n👤 ${o.name} ${o.phone}${o.guest ? ' (ro\'yxatdan o\'tmagan)' : ''}\n📍 ${o.addr}${o.dist != null ? ` (${o.dist} km)` : ''}${o.noPin ? ' — xaritada belgilanmagan, qo\'ng\'iroq qilib aniqlang' : ''}\n🏪 ${brName(o.branch)}\n` + o.items.map(i => `• ${i.n} × ${i.q}`).join('\n') + `\n💰 ${money(o.total)} so'm${o.note ? '\n💬 ' + o.note : ''}`);
       return json(res, 201, { id, token: o.token, no: o.no });
     }
 
@@ -556,7 +598,7 @@ const server = http.createServer(async (req, res) => {
       // 1) shaxsiy akkaunt: telefon + PIN
       if (ph) {
         const s = Object.values(DB.staff).find(x => digits(x.phone) === ph && x.active !== false);
-        if (s && pwOk(pin, s)) { fails.delete('s' + ph); return json(res, 200, { token: newSession(s, 'staff', s.id), staff: staffPublic(s) }); }
+        if (s && (await pwOk(pin, s))) { fails.delete('s' + ph); return json(res, 200, { token: newSession(s, 'staff', s.id), staff: staffPublic(s) }); }
       }
       // 2) bosh admin PIN
       if (eq(pin, ADMIN_PIN) && !b.as) { const t = 'S.' + rid(24); sessions.set(t, MASTER); return json(res, 200, { token: t, staff: { ...staffPublic(MASTER), warn: pinWarn() } }); }
@@ -598,7 +640,7 @@ const server = http.createServer(async (req, res) => {
       s.name = str(b.name, 40); s.phone = '+' + ph; s.role = b.role === 'admin' ? 'admin' : 'courier';
       s.branch = b.branch === '' || b.branch == null ? null : Math.max(0, Math.min(branches().length - 1, +b.branch | 0));
       s.active = b.active !== false;
-      if (b.pin) { if (!/^\d{6,}$/.test(String(b.pin))) return json(res, 400, { error: 'pin' }); s.salt = rid(16); s.hash = hashPw(b.pin, s.salt); s.sessions = []; }
+      if (b.pin) { if (!/^\d{6,}$/.test(String(b.pin))) return json(res, 400, { error: 'pin' }); s.salt = rid(16); s.hash = await hashPw(b.pin, s.salt); s.sessions = []; }
       if (!s.active) s.sessions = [];
       put('staff', s.id);
       return json(res, 200, staffPublic(s));
@@ -739,7 +781,7 @@ const server = http.createServer(async (req, res) => {
       const b = await body(req), ph = digits(b.phone), u = users()[ph];
       if (!u) return json(res, 404, { error: 'nouser' });
       const pw = String(crypto.randomInt(100000, 1000000));
-      u.salt = rid(16); u.hash = hashPw(pw, u.salt); u.sessions = []; u.pwTemp = true; u.resetBy = S.name; u.resetAt = Date.now();
+      u.salt = rid(16); u.hash = await hashPw(pw, u.salt); u.sessions = []; u.pwTemp = true; u.resetBy = S.name; u.resetAt = Date.now();
       fails.delete('u' + ph); put('users', ph);
       return json(res, 200, { name: u.name, phone: u.phone, password: pw });
     }
@@ -833,7 +875,12 @@ loadAll().then(() => {
     console.log(`Oshxona: /admin.html  ·  Kuryer: /courier.html  ·  Ish vaqti: ${ALWAYS_OPEN ? 'doim ochiq' : hoursText()}`);
   });
 }).catch(e => { console.error('Ma\'lumotlarni yuklab bo\'lmadi:', e.message); process.exit(1); });
-process.on('SIGTERM', async () => { await flush(); process.exit(0); });
-// Kutilmagan xato serverni to'xtatib qo'ymasin
-process.on('uncaughtException', e => console.error('Kutilmagan xato:', e));
-process.on('unhandledRejection', e => console.error('Kutilmagan xato (promise):', e));
+// To'xtatishdan oldin (deploy, uxlash) hamma o'zgarishlarni yozib qo'yamiz
+process.on('SIGTERM', async () => { clearTimeout(flushT); try { if (flushing) await flushing; for (let k = 0; k < 3 && dirty.size; k++) if (await flush()) break; } catch (e) {} process.exit(0); });
+// Kutilmagan xato serverni to'xtatib qo'ymasin. Log kanali yopilib qolsa (EPIPE), xatoni yana log qilishga
+// urinish cheksiz aylanishga olib kelardi (protsessor 100%) — shuning uchun bunday xatolar jim o'tkaziladi.
+process.stdout.on('error', () => {}); process.stderr.on('error', () => {});
+let logging = false;
+const logErr = (t, e) => { if (logging || (e && ['EPIPE', 'ERR_STREAM_DESTROYED', 'ERR_STREAM_WRITE_AFTER_END'].includes(e.code))) return; logging = true; try { console.error(t, e); } catch (x) {} finally { logging = false; } };
+process.on('uncaughtException', e => logErr('Kutilmagan xato:', e));
+process.on('unhandledRejection', e => logErr('Kutilmagan xato (promise):', e));

@@ -25,6 +25,7 @@
   U.setBranches = list => {
     if (!Array.isArray(list) || !list.length) return;
     U.BRANCHES = list.map(b => ({ uz: b.name.uz, ru: b.name.ru || b.name.uz, lat: b.lat, lng: b.lng, addr: b.addr || { uz: '', ru: '' }, hours: b.hours || '', active: b.active !== false && !b.paused }));
+    const a = list.find(b => b.active !== false); if (a) U.CENTER = { lat: a.lat, lng: a.lng }; // xarita filial atrofida ochiladi
   };
   U.CENTER = { lat: 40.9983, lng: 71.6726 }; // Namangan
 

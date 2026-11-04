@@ -556,7 +556,7 @@ uz:{
   copy:"Nusxalash",copied:"Promokod nusxalandi:",
   vacs:[["chef","Oshpaz","5 000 000 — 8 000 000 so'm","Tajriba 1 yildan. Bepul ovqat va forma."],["register","Kassir","4 000 000 — 5 500 000 so'm","Xushmuomala, rus tilini bilish afzallik."],["scooter","Kuryer","6 000 000 — 10 000 000 so'm","O'z transporti bilan. Kunlik to'lov."],["clipboard","Filial menejeri","9 000 000 — 12 000 000 so'm","Jamoani boshqarish tajribasi 2 yildan."]],
   apply:"Ariza qoldirish",vacH:"Vakansiyaga ariza",vacP:"Ma'lumotlaringizni qoldiring — HR bo'limi 1 kun ichida qo'ng'iroq qiladi.",age:"Yoshingiz",exp:"Tajribangiz haqida qisqacha",send:"Yuborish",vacOk:"Arizangiz qabul qilindi! Tez orada bog'lanamiz 🤝",
-  callC:"Call-markaz, bepul",hrsP:"Dam olish kunlarisiz",mailP:"Taklif va shikoyatlar uchun",tgP:"Telegram kanalimiz",igP:"Instagram sahifamiz",fAddr:"Namangan shahri, markaz",addrP:"Bosh ofis",open:"● Hozir ochiq",
+  callC:"Call-markaz, bepul",hrsP:"Dam olish kunlarisiz",mailP:"Taklif va shikoyatlar uchun",tgP:"Telegram kanalimiz",igP:"Instagram sahifamiz",fAddr:"Namangan, Xonobod, Navoiy 42",addrP:"Bosh ofis",open:"● Hozir ochiq",
   fAbout:"Uzbegim — o'zbekona mehmondo'stlik va zamonaviy fast food. Har bir taom sevgi bilan tayyorlanadi.",fCo:"Kompaniya",rights:"Barcha huquqlar himoyalangan.",madeIn:"🇺🇿 O'zbekistonda mehr bilan yaratilgan",
   cartEmpty:"Savat hozircha bo'sh",cartEmptyP:"Mazali narsalar sizni kutmoqda!",goMenu:"Menyuga o'tish",
   sub:"Mahsulotlar",del:"Yetkazib berish",free:"Bepul",disc:"Chegirma",total:"Jami",checkout:"Rasmiylashtirish",
@@ -583,7 +583,7 @@ ru:{
   copy:"Копировать",copied:"Промокод скопирован:",
   vacs:[["chef","Повар","5 000 000 — 8 000 000 сум","Опыт от 1 года. Бесплатное питание и форма."],["register","Кассир","4 000 000 — 5 500 000 сум","Вежливость, знание узбекского — плюс."],["scooter","Курьер","6 000 000 — 10 000 000 сум","Со своим транспортом. Ежедневная оплата."],["clipboard","Менеджер филиала","9 000 000 — 12 000 000 сум","Опыт управления командой от 2 лет."]],
   apply:"Откликнуться",vacH:"Отклик на вакансию",vacP:"Оставьте данные — HR позвонит в течение дня.",age:"Ваш возраст",exp:"Коротко о вашем опыте",send:"Отправить",vacOk:"Заявка принята! Скоро свяжемся 🤝",
-  callC:"Колл-центр, бесплатно",hrsP:"Без выходных",mailP:"Для предложений и жалоб",tgP:"Наш Telegram-канал",igP:"Наш Instagram",fAddr:"г. Наманган, центр",addrP:"Главный офис",open:"● Сейчас открыто",
+  callC:"Колл-центр, бесплатно",hrsP:"Без выходных",mailP:"Для предложений и жалоб",tgP:"Наш Telegram-канал",igP:"Наш Instagram",fAddr:"Наманган, Хонобод, Навои 42",addrP:"Главный офис",open:"● Сейчас открыто",
   fAbout:"Uzbegim — узбекское гостеприимство и современный фастфуд. Каждое блюдо готовится с любовью.",fCo:"Компания",rights:"Все права защищены.",madeIn:"🇺🇿 Сделано с душой в Узбекистане",
   cartEmpty:"Корзина пока пуста",cartEmptyP:"Вкусняшки уже ждут вас!",goMenu:"Перейти в меню",
   sub:"Товары",del:"Доставка",free:"Бесплатно",disc:"Скидка",total:"Итого",checkout:"Оформить",
@@ -702,6 +702,14 @@ function renderAll(){renderText();renderSlider();renderMenu();renderInfo();rende
 /* scroll-spy: faol bo'lim tugmasi belgilanadi */
 let curCat=null;
 const catsBottom=()=>$(".cats")?.getBoundingClientRect().height+$("header").getBoundingClientRect().height;
+/* "Menyu" va "Buyurtma berish" — ovqatlar ro'yxatining boshiga. Telefon menyusi ochiq bo'lsa, avval darhol yopiladi
+   (aks holda yopilish animatsiyasi paytida sahifa siljib, ro'yxat o'rtasiga tushib qolardi). */
+function goMenu(smooth=true){
+  const nav=$("#mnav");if(nav&&nav.classList.contains("on")){nav.style.transition="none";nav.classList.remove("on");void nav.offsetHeight;requestAnimationFrame(()=>nav.style.transition="")}
+  const first=document.querySelector("#sections .sec")||$("#sections");if(!first)return;
+  scrollTo({top:Math.max(0,first.getBoundingClientRect().top+scrollY-catsBottom()-8),behavior:smooth?"smooth":"auto"});
+}
+document.addEventListener("click",e=>{const a=e.target.closest('a[href="#menu"]');if(a){e.preventDefault();goMenu()}},true);
 function moveInd(){
   const ind=$("#ind"),b=document.querySelector(`.cat[data-cat="${curCat}"]`);
   if(!ind)return;
@@ -828,7 +836,7 @@ document.addEventListener("click",e=>{
   else if(x=g("sl"))go(sI+ +x.dataset.sl);
   else if(x=g("s"))go(+x.dataset.s);
   const cl=g("close");
-  if(cl){closeAll();if(cl.dataset.gomenu!==undefined)document.getElementById("menu").scrollIntoView({behavior:"smooth"})}
+  if(cl){closeAll();if(cl.dataset.gomenu!==undefined)goMenu()}
   if(e.target.closest("#mnav a"))$("#mnav").classList.remove("on");
 });
 $("#ov").onclick=closeAll;
@@ -844,10 +852,12 @@ $("#theme").onclick=toggleTheme;$("#mTheme").onclick=e=>{e.preventDefault();togg
 $("#menuBtn").onclick=()=>$("#mnav").classList.toggle("on");
 $("#sBtn").onclick=()=>{const s=$("#sbar");s.classList.toggle("on");if(s.classList.contains("on"))setTimeout(()=>$("#q").focus(),200)};
 $("#lang").onclick=()=>{L=L==="uz"?"ru":"uz";store.set("lang",L);renderAll()};
-let qT;$("#q").oninput=()=>{clearTimeout(qT);qT=setTimeout(()=>{renderMenu();document.getElementById("menu").scrollIntoView({behavior:"smooth"})},250)};
+let qT;$("#q").oninput=()=>{clearTimeout(qT);qT=setTimeout(()=>{renderMenu();goMenu()},250)};
 
 try{applyMenu(store.get("menuX",null))}catch(e){}
 renderAll();go(0);
+// Tashqi havola /#menu: brauzer sahifa yuklangach o'zi ham sakraydi — undan keyin to'g'rilaymiz
+if(location.hash==="#menu"){const fix=()=>goMenu(false);setTimeout(fix,60);addEventListener("load",()=>{setTimeout(fix,30);setTimeout(fix,600)})}
 </script>
 <script src="shared.js"></script>
 <script src="live.js"></script>

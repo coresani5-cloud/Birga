@@ -74,6 +74,23 @@
   .rc-sum .tot{font-size:17px;font-weight:900;border-top:1px solid #000;margin-top:4px;padding-top:4px}
   .rc-f{text-align:center;margin-top:10px;font-size:11px;color:#333}
 }
+/* Oddiy printer (A4 va boshqa keng qog'oz): chek katta va o'qishga qulay. 80 mm chek printerida yuqoridagi ixcham ko'rinish qoladi. */
+@media print and (min-width:110mm){
+  #print{font-size:18px}
+  .rc{width:min(180mm,100%)}
+  .rc-h{gap:16px;padding-bottom:10px;border-bottom-width:3px}
+  .rc-h img{width:72px;height:72px}.rc-h b{font-size:34px}.rc-h small{font-size:18px}
+  .rc-no{font-size:60px;margin:8px 0}
+  .rc-meta .r,.rc-sum .r{padding:3px 0;font-size:18px}
+  .rc-note{margin:8px 0;padding:8px 12px;font-size:18px;border-width:2px}
+  .rc-items{border-top-width:3px;border-bottom-width:3px;margin:10px 0;padding:10px 0;gap:8px}
+  .ri{grid-template-columns:68px 1fr auto;gap:14px}
+  .ri img,.ri .noimg{width:68px;height:68px}
+  .ri b{font-size:21px}.ri small{font-size:15px}.ri .s{font-size:21px}
+  .rc-sum .tot{font-size:32px;border-top-width:2px;margin-top:6px;padding-top:6px}
+  .rc-f{font-size:15px;margin-top:12px}
+}
+}
 .board{display:grid;grid-template-columns:repeat(5,minmax(250px,1fr));gap:12px;overflow-x:auto;padding-bottom:10px}
 .col{display:flex;flex-direction:column;gap:10px;min-width:0}
 .col>h3{font-size:14px;display:flex;justify-content:flex-start;gap:8px;align-items:center;padding:10px 12px;border-radius:14px;background:var(--glass);border:1px solid var(--ln)}
@@ -196,9 +213,9 @@ function beep() {
 function loginView(msg = '') {
   $('#app').innerHTML = `<form class="login glass" id="lf">
     <div class="brand">${LOGO}<div>Uzbegim<small>Oshxona paneli</small></div></div>
-    <p class="hint">Xodim telefoni va PIN kodi bilan kiring. Bosh admin faqat PIN kiritadi.</p>
+    <p class="hint">Xodim telefoni va kodi bilan kiring. Bosh admin telefonni bo'sh qoldirib, faqat kodni kiritadi.</p>
     <input id="ph" type="tel" placeholder="Telefon (bosh admin uchun bo'sh qoldiring)" autocomplete="username">
-    <input id="pin" type="password" inputmode="numeric" placeholder="PIN kod" autocomplete="current-password">
+    <input id="pin" type="password" placeholder="Kod (PIN)" autocomplete="current-password" autocapitalize="none" autocorrect="off" spellcheck="false">
     <div class="err">${esc(msg)}</div>
     <button class="btn big">Kirish</button></form>`;
   $('#lf').onsubmit = async e => {
@@ -207,7 +224,7 @@ function loginView(msg = '') {
       const r = await U.api('staff/login', { body: { phone: $('#ph').value, pin: $('#pin').value.trim() } });
       if (r.staff.role !== 'admin') return loginView('Bu kuryer akkaunti. Kuryerlar courier.html sahifasidan kiradi.');
       TOK = r.token; ss.set('uzb_staff', TOK); ME = r.staff; unlockAudio(); start();
-    } catch (x) { loginView(x.status === 401 ? 'Telefon yoki PIN noto\'g\'ri' : errMsg(x)); }
+    } catch (x) { loginView(x.status === 401 ? 'Telefon yoki kod noto\'g\'ri' : errMsg(x)); }
   };
 }
 
@@ -426,6 +443,7 @@ function card(o) {
     <div class="where ${w[2]}"><span>${w[0]}</span><b>Hozir:</b> ${esc(w[1])}</div>
     <div class="hint">${U.time(o.createdAt)} · <span class="${late ? 'lt' : ''}">${ago} daq oldin${late && o.status === 'new' ? ' — javob kutmoqda!' : ''}</span> · 🏪 ${esc(BR[o.branch] || '')}</div>
     ${o.newCustomer && ['new', 'accepted'].includes(o.status) ? '<span class="pill nc">Yangi mijoz — qo\'ng\'iroq qilib tasdiqlang</span>' : ''}
+    ${o.noPin && !['delivered', 'cancelled'].includes(o.status) ? '<span class="pill warn" style="justify-self:start;white-space:normal">📍 Xaritada belgilanmagan — qo\'ng\'iroq qilib manzilni aniqlang</span>' : ''}
     ${o.status === 'cancelled' ? `<div class="note" style="border-color:rgba(255,90,78,.4)">✖️ ${o.cancelledBy === 'customer' ? 'Mijoz bekor qildi' : 'Rad etildi'}${o.cancelReason ? ': ' + esc(o.cancelReason) : ''}</div>` : ''}
     <div class="who"><b>${esc(o.name)}</b><span class="tel">${esc(o.phone)}</span></div>
     <div style="font-size:13px">📍 ${esc(o.addr || '—')}${o.dist != null ? ` · ${o.dist} km` : ''} ${o.lat != null ? `· <a href="${U.navLink({ lat: o.lat, lng: o.lng })}" target="_blank" rel="noopener">xaritada</a>` : ''}</div>

@@ -530,7 +530,7 @@ const server = http.createServer(async (req, res) => {
       if (mine.filter(o => !['delivered', 'cancelled'].includes(o.status)).length >= 3) return json(res, 429, { error: 'active_limit' });
       if (q.stopped.length) return json(res, 409, { error: 'stopped', ids: q.stopped });
       if (!q.items.length) return json(res, 400, { error: 'items' });
-      if (q.promoError) return json(res, 400, { error: 'promo', reason: q.promoError });
+      // Promokod majburiy emas: ishlamasa (noto'g'ri, ishlatilgan) buyurtma chegirmasiz, oddiy narxda qabul qilinadi
       if (q.zone === 'branch') return json(res, 400, { error: 'branch' });
       if (q.mode === 'd') {
         if (!str(b.addr)) return json(res, 400, { error: 'addr' });

@@ -302,27 +302,31 @@ function where(o) {
 }
 
 let BRF = [], shopMk = [];
+// Ochiq filial yoki hozir tanlangani — ro'yxatlarda ko'rsatiladi (yopiqlari faqat "Filiallar" bo'limida)
+const brOk = (i, cur) => (BRF[i] && BRF[i].active !== false) || String(i) === String(cur ?? '');
 function setBR(list) {
   if (!Array.isArray(list)) return;
   BRF = list; U.setBranches(list);
   BR = list.map(b => b.name.uz + (b.active === false ? ' (yopiq)' : ''));
   const f = $('#brf');
-  if (f) { const v = f.value; f.innerHTML = '<option value="">Barcha filiallar</option>' + BR.map((n, i) => `<option value="${i}">${esc(n)}</option>`).join(''); f.value = v; }
-  if (map && window.L) { shopMk.forEach(m => map.removeLayer(m)); shopMk = list.map(b => window.L.marker([b.lat, b.lng], { icon: U.pin(window.L, '🏪', 'shop'), opacity: b.active === false ? 0.4 : 1 }).addTo(map).bindTooltip(b.name.uz)); }
+  if (f) { const v = f.value; f.innerHTML = '<option value="">Barcha filiallar</option>' + BR.map((n, i) => brOk(i, v) ? `<option value="${i}">${esc(n)}</option>` : '').join(''); f.value = v; }
+  if (map && window.L) { shopMk.forEach(m => map.removeLayer(m)); shopMk = list.filter(b => b.active !== false).map(b => window.L.marker([b.lat, b.lng], { icon: U.pin(window.L, '🏪', 'shop') }).addTo(map).bindTooltip(b.name.uz)); }
   if (view === 'branches' && !document.getElementById('bf')?.contains(document.activeElement)) branchView(editBr);
 }
 
 /* ---- Filiallar (faqat bosh admin) */
+const brRow = (x, k) => `<tr style="${x.active === false ? 'opacity:.55' : ''}"><td><b>${esc(x.name.uz)}</b>${x.active === false ? ' <span class="pill bad">yopiq</span>' : ''}<div class="hint">${x.lat.toFixed(4)}, ${x.lng.toFixed(4)}</div></td><td>${esc(x.addr.uz || '')}</td><td>${esc(x.hours || '')}</td><td><button class="btn ghost" style="height:34px" data-bredit="${k}">Tahrir</button></td></tr>`;
 let editBr = null, brMap = null, brMk = null;
 function branchView(i) {
   editBr = i === undefined || i === null ? null : i;
   const b = editBr != null ? BRF[editBr] : null;
   const el = $('#v-branches');
   el.innerHTML = `<div class="grid2">
-    <div class="glass" style="padding:18px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;flex-wrap:wrap"><h2 style="font-size:17px">Filiallar (${BRF.length})</h2><button class="btn" data-brnew>+ Yangi filial</button></div>
+    <div class="glass" style="padding:18px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;flex-wrap:wrap"><h2 style="font-size:17px">Filiallar (${BRF.filter(x => x.active !== false).length} ta ochiq)</h2><button class="btn" data-brnew>+ Yangi filial</button></div>
       <div class="tw"><table><tr><th>Nomi</th><th>Manzil</th><th>Ish vaqti</th><th></th></tr>
-      ${BRF.map((x, k) => `<tr style="${x.active === false ? 'opacity:.55' : ''}"><td><b>${esc(x.name.uz)}</b>${x.active === false ? ' <span class="pill bad">yopiq</span>' : ''}<div class="hint">${x.lat.toFixed(4)}, ${x.lng.toFixed(4)}</div></td><td>${esc(x.addr.uz || '')}</td><td>${esc(x.hours || '')}</td><td><button class="btn ghost" style="height:34px" data-bredit="${k}">Tahrir</button></td></tr>`).join('')}
+      ${BRF.map((x, k) => x.active === false ? '' : brRow(x, k)).join('')}
       </table></div>
+      ${BRF.some(x => x.active === false) ? `<details style="margin-top:10px"><summary class="hint" style="cursor:pointer">Yopiq filiallar (${BRF.filter(x => x.active === false).length})</summary><div class="tw"><table>${BRF.map((x, k) => x.active === false ? brRow(x, k) : '').join('')}</table></div></details>` : ''}
       <p class="hint" style="margin-top:10px">Yetkazish buyurtmasi mijozga eng yaqin <b>ochiq</b> filialga tushadi. Filialni o'chirib bo'lmaydi: "Ochiq" belgisini olib tashlang, eski buyurtmalar saqlanib qoladi.</p></div>
     <form class="glass" id="bf" style="padding:18px;display:grid;gap:10px;align-content:start">
       <h2 style="font-size:17px">${b ? 'Tahrirlash: ' + esc(b.name.uz) : 'Yangi filial'}</h2>
@@ -643,7 +647,7 @@ function settingsView() {
   el.innerHTML = `<div class="sets">
     <div class="glass"><h2>Buyurtma qabul qilish${ME.branch != null ? ' · ' + esc(BR[ME.branch] || '') : ''}</h2>
       <span class="pill ${p ? 'bad' : 'on'}" style="justify-self:start;white-space:normal">${pzTxt(p)}</span>
-      ${master ? `<label style="display:grid;gap:4px"><span class="lbl2">Qaysi filial</span><select class="fld" id="pzBr"><option value="">Hamma filiallar</option>${BR.map((n, i) => `<option value="${i}">${esc(n)}${(o.pauseBr || {})[i] ? ' — to\'xtatilgan' : ''}</option>`).join('')}</select></label>` : ''}
+      ${master ? `<label style="display:grid;gap:4px"><span class="lbl2">Qaysi filial</span><select class="fld" id="pzBr"><option value="">Hamma filiallar</option>${BR.map((n, i) => !brOk(i) ? '' : `<option value="${i}">${esc(n)}${(o.pauseBr || {})[i] ? ' — to\'xtatilgan' : ''}</option>`).join('')}</select></label>` : ''}
       <input class="fld" id="pzMsg" placeholder="Sabab, mijozga ko'rinadi (ixtiyoriy): masalan, svet o'chdi" maxlength="120">
       <div class="row"><button type="button" class="btn red sm" data-pz="30">30 daqiqaga to'xtatish</button><button type="button" class="btn red sm" data-pz="60">1 soatga</button><button type="button" class="btn red sm" data-pz="-1">Qo'lda yoqilguncha</button><button type="button" class="btn ok sm" data-pz="0">Qayta ochish</button></div>
       <p class="hint">Oshxona to'lib ketsa, svet yoki gaz o'chsa — buyurtma qabul qilishni to'xtating. Mijozlar saytda "vaqtincha to'xtatilgan" yozuvini ko'radi.${master ? ' Bitta filial to\'xtatilsa, yetkazish buyurtmalari keyingi eng yaqin filialga tushadi.' : ''}</p>
@@ -743,7 +747,7 @@ async function staffView(edit) {
       <input class="fld" id="sName" placeholder="Ism" value="${esc(s?.name || '')}">
       <input class="fld" id="sPhone" type="tel" placeholder="Telefon +998..." value="${esc(s?.phone || '+998 ')}">
       <select class="fld" id="sRole"><option value="courier" ${s?.role === 'courier' ? 'selected' : ''}>Kuryer</option><option value="admin" ${s?.role === 'admin' ? 'selected' : ''}>Oshxona xodimi</option></select>
-      <select class="fld" id="sBranch"><option value="">Barcha filiallar</option>${BR.map((n, i) => `<option value="${i}" ${s?.branch === i ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>
+      <select class="fld" id="sBranch"><option value="">Barcha filiallar</option>${BR.map((n, i) => brOk(i, s?.branch) ? `<option value="${i}" ${s?.branch === i ? 'selected' : ''}>${esc(n)}</option>` : '').join('')}</select>
       <input class="fld" id="sPin" type="password" inputmode="numeric" placeholder="${s ? 'Yangi PIN (o\'zgartirmasangiz bo\'sh qoldiring)' : 'PIN (kamida 6 raqam)'}">
       ${s ? `<label style="display:flex;gap:8px;align-items:center;font-weight:700"><input type="checkbox" id="sActive" ${s.active ? 'checked' : ''}> Faol (o'chirsangiz kira olmaydi)</label>` : ''}
       <div class="err" id="sErr"></div>

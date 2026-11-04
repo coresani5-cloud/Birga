@@ -545,6 +545,8 @@ const server = http.createServer(async (req, res) => {
         courier: null, loc: null, createdAt: Date.now(),
         newCustomer: !mine.some(o => o.status === 'delivered'), // oshxona qo'ng'iroq qilib tasdiqlashi uchun belgi
         guest: !!u.guest, noPin: q.mode === 'd' && q.lat == null,
+        // Joylashuv qanday ko'rsatilgan: GPS (aniqligi bilan) yoki xaritadan — oshxona va kuryer uchun
+        pin: q.mode === 'd' && q.lat != null ? { src: b.pinSrc === 'gps' ? 'gps' : 'map', acc: b.pinSrc === 'gps' && num(b.pinAcc) != null ? Math.min(99999, Math.max(1, Math.round(num(b.pinAcc)))) : null } : null,
       };
       if (u.guest) failAdd('gorder');
       DB.orders[id] = o; put('orders', id); broadcast(o);

@@ -138,6 +138,17 @@ nav.main a:hover,nav.main a.on{opacity:1;background:var(--glass2);color:var(--or
 .cat.on{color:var(--gold-l)}
 .ind{position:absolute;bottom:0;left:0;height:3px;border-radius:3px 3px 0 0;background:var(--grad);box-shadow:0 0 12px rgba(255,122,0,.7);transition:transform .35s cubic-bezier(.2,.8,.2,1),width .35s cubic-bezier(.2,.8,.2,1);pointer-events:none}
 .catGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}
+/* Tor ekran: nomlar sig'masa — faqat ikonkalar, tanlangan bo'lim ikonkasi yonida qisqa nomi (yonga surish yo'q) */
+.cats .cs{display:none}
+.cats.compact .all{display:none}
+.cats.compact .row{overflow:hidden;gap:0}
+.cats.compact .cat{flex:1 1 0;min-width:0;justify-content:center;padding:12px 0 11px;gap:0}
+.cats.compact .cat .cn{display:none}
+.cats.compact .cat i{width:28px;height:28px;flex:none}
+.cats.compact .cat i svg{width:19px;height:19px}
+.cats.compact .cat.on{flex:0 0 auto;padding:12px 10px 11px 4px;gap:6px}
+.cats.compact .cat.on .cs{display:inline;font-size:13px;font-weight:800;white-space:nowrap;animation:catIn .25s ease}
+@keyframes catIn{from{opacity:0;transform:translateX(-4px)}to{opacity:1;transform:none}}
 .catGrid button{padding:16px 8px;border-radius:18px;border:1px solid var(--ln);background:var(--glass);font-weight:700;font-size:13px;display:grid;gap:6px;justify-items:center}
 .catGrid button i{font-style:normal;display:grid;place-items:center}
 .catGrid button .gi{width:30px;height:30px}
@@ -601,6 +612,7 @@ ru:{
 /* Oltin ikonkalar (24x24, chiziqli) */
 const ICONS={"new": "<path d=\"M12 3.5l1.9 5.1 5.1 1.9-5.1 1.9L12 17.5l-1.9-5.1L5 10.5l5.1-1.9z\"/><path d=\"M18.5 15.5v4M16.5 17.5h4\"/>", "milliy": "<circle cx=\"12\" cy=\"12\" r=\"8.5\"/><circle cx=\"12\" cy=\"12\" r=\"3.6\"/><path d=\"M12 5.2v1.6M12 17.2v1.6M5.2 12h1.6M17.2 12h1.6M7.2 7.2l1.1 1.1M15.7 15.7l1.1 1.1M16.8 7.2l-1.1 1.1M8.3 15.7l-1.1 1.1\"/>", "combo": "<path d=\"M4.5 9h15l-1.2 11h-12.6z\"/><path d=\"M9 9V7a3 3 0 0 1 6 0v2\"/><path d=\"M8.5 13.5h7M9 16.5h6\"/>", "burger": "<path d=\"M4 11.5a8 6.5 0 0 1 16 0z\"/><path d=\"M3 14.5h18\"/><path d=\"M5 17.5h14a2 2 0 0 1-2 2.5H7a2 2 0 0 1-2-2.5z\"/><path d=\"M9 8.5h.01M12 7.5h.01M15 8.5h.01\"/>", "lavash": "<path d=\"M5.5 19.5 16 5a2.9 2.9 0 0 1 4.4 3.8L9.2 20.6a2.2 2.2 0 0 1-3.7-1.1z\"/><path d=\"M14.2 7.5l3.4 2.6M11.7 11l3.4 2.6M9.2 14.5l3.4 2.6\"/>", "hotdog": "<rect x=\"2.5\" y=\"8\" width=\"19\" height=\"8\" rx=\"4\"/><path d=\"M5 12h14\"/><path d=\"M6.5 10.3c1 .9 2 .9 3 0s2-.9 3 0 2 .9 3 0 2-.9 2.5 0\"/>", "pizza": "<path d=\"M12 3 21 19a15 15 0 0 1-18 0z\"/><path d=\"M5.8 15.4a11 11 0 0 0 12.4 0\"/><circle cx=\"12\" cy=\"10.5\" r=\"1.2\"/><circle cx=\"9.5\" cy=\"15\" r=\"1.2\"/><circle cx=\"14.6\" cy=\"15.2\" r=\"1.2\"/>", "chicken": "<path d=\"M14.5 3.5a6 6 0 0 1 4.2 10.2c-1.9 1.9-4.6 2.2-6.2 1.2l-3.3 3.3\"/><path d=\"M14.5 3.5c-3.3 0-6 2.7-6 6 0 1.1.3 2.1.8 3l-1.6 1.6\"/><circle cx=\"6.6\" cy=\"19.4\" r=\"1.6\"/><circle cx=\"4.6\" cy=\"17.4\" r=\"1.6\"/>", "fries": "<path d=\"M6 10.5h12l-1.6 10H7.6z\"/><path d=\"M8 10.5V5M10.7 10.5V3.5M13.3 10.5V4.5M16 10.5V6\"/><path d=\"M9 14.5c1 1 5 1 6 0\"/>", "drink": "<path d=\"M6.5 8.5h11l-1.3 12h-8.4z\"/><path d=\"M5.5 8.5h13\"/><path d=\"M12.5 8.5 14.5 3h3\"/><path d=\"M8 13h8\"/>", "dessert": "<circle cx=\"12\" cy=\"8.5\" r=\"4.5\"/><path d=\"M7.7 10.5 12 21l4.3-10.5\"/><path d=\"M10 14h4M11 17h2\"/>", "home": "<path d=\"M3.5 11 12 4l8.5 7\"/><path d=\"M5.5 9.5V20h13V9.5\"/><path d=\"M10 20v-5h4v5\"/>", "tag": "<path d=\"M3.5 12.5V4.5h8l9 9-8 8z\"/><circle cx=\"8\" cy=\"9\" r=\"1.5\"/>", "bag": "<path d=\"M5 8h14l-1 12H6z\"/><path d=\"M9 8V6.5a3 3 0 0 1 6 0V8\"/>", "heart": "<path d=\"M12 20s-7.5-4.6-9.3-9.3A5 5 0 0 1 12 6.2a5 5 0 0 1 9.3 4.5C19.5 15.4 12 20 12 20z\"/>", "user": "<circle cx=\"12\" cy=\"8\" r=\"4\"/><path d=\"M4 20.5a8 8 0 0 1 16 0\"/>", "phone": "<path d=\"M5 3.5h3.5l1.7 4.3-2.2 1.4a11 11 0 0 0 6.8 6.8l1.4-2.2 4.3 1.7V19a1.6 1.6 0 0 1-1.7 1.5A16.5 16.5 0 0 1 3.5 5.2 1.6 1.6 0 0 1 5 3.5z\"/>", "clock": "<circle cx=\"12\" cy=\"12\" r=\"8.5\"/><path d=\"M12 7.5V12l3 2\"/>", "mail": "<rect x=\"3.5\" y=\"5.5\" width=\"17\" height=\"13\" rx=\"2\"/><path d=\"m4 7 8 6 8-6\"/>", "send": "<path d=\"M20.5 3.5 3.5 10.5l6.5 2.5 2.5 6.5z\"/><path d=\"m10 13 4.5-4.5\"/>", "pin": "<path d=\"M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z\"/><circle cx=\"12\" cy=\"10\" r=\"2.4\"/>", "scooter": "<circle cx=\"6\" cy=\"17.5\" r=\"2.5\"/><circle cx=\"18\" cy=\"17.5\" r=\"2.5\"/><path d=\"M8.5 17.5h6l2.2-6.5h-5\"/><path d=\"M14.5 5.5h2.3l2.7 9.5\"/><path d=\"M3 14.5h6.5l1.5 3\"/><path d=\"M10 8h4\"/>", "walk": "<circle cx=\"13\" cy=\"4.5\" r=\"1.8\"/><path d=\"M10 21l2-6 3 3v3\"/><path d=\"M12 15l-1-5 4-1 2 4 3 1\"/><path d=\"M11 10l-3 2-1 3\"/>", "gift": "<rect x=\"4\" y=\"10.5\" width=\"16\" height=\"9.5\" rx=\"1\"/><rect x=\"3\" y=\"7\" width=\"18\" height=\"3.5\" rx=\"1\"/><path d=\"M12 7v13\"/><path d=\"M12 7c-.8-2.8-4.8-3.6-5.2-1.2C6.5 7.6 9.6 7.4 12 7zM12 7c.8-2.8 4.8-3.6 5.2-1.2.3 1.8-2.8 1.6-5.2 1.2z\"/>", "friends": "<circle cx=\"8.5\" cy=\"8\" r=\"3.2\"/><circle cx=\"16.5\" cy=\"9\" r=\"2.6\"/><path d=\"M2.5 19.5a6 6 0 0 1 12 0\"/><path d=\"M14.5 14.2a5 5 0 0 1 7 4.3\"/>", "cake": "<path d=\"M4 20.5h16v-7H4z\"/><path d=\"M4 16c2 1.2 4-1.2 6 0s4 1.2 6 0 3-1.2 4 0\"/><path d=\"M8 13.5v-3M12 13.5v-3M16 13.5v-3\"/><path d=\"M8 8.6c-.6-.7-.3-1.6 0-2.1.3.5.6 1.4 0 2.1zM12 8.6c-.6-.7-.3-1.6 0-2.1.3.5.6 1.4 0 2.1zM16 8.6c-.6-.7-.3-1.6 0-2.1.3.5.6 1.4 0 2.1z\"/>", "moon": "<path d=\"M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z\"/><path d=\"M16 4.5v2M15 5.5h2\"/>", "percent": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M8.5 15.5l7-7\"/><circle cx=\"9\" cy=\"9\" r=\"1.3\"/><circle cx=\"15\" cy=\"15\" r=\"1.3\"/>", "chef": "<path d=\"M7 13.5a4 4 0 0 1-.7-7.9A5 5 0 0 1 12 3a5 5 0 0 1 5.7 2.6 4 4 0 0 1-.7 7.9V20H7z\"/><path d=\"M7 17h10\"/>", "register": "<rect x=\"3.5\" y=\"11\" width=\"17\" height=\"9\" rx=\"1.5\"/><path d=\"M6 11V5h8v6\"/><path d=\"M8 8h4\"/><path d=\"M7 15h2M11 15h2M15 15h2\"/>", "clipboard": "<rect x=\"5\" y=\"4.5\" width=\"14\" height=\"16.5\" rx=\"2\"/><path d=\"M9 4.5V3h6v1.5\"/><path d=\"M8.5 10.5l1.5 1.5 3-3M8.5 16h7\"/>", "check": "<circle cx=\"12\" cy=\"12\" r=\"8.5\"/><path d=\"m8 12.2 2.6 2.6L16 9.5\"/>", "box": "<path d=\"M3.5 8 12 4l8.5 4v8.5L12 20.5 3.5 16.5z\"/><path d=\"M3.5 8 12 12l8.5-4M12 12v8.5\"/>", "party": "<path d=\"M4 20 8.5 8l7.5 7.5z\"/><path d=\"M14 4v2M19 9h2M17.5 5.5l-1.5 1.5M12.5 9.5c1-1.5 3-2 4.5-1\"/>", "x": "<circle cx=\"12\" cy=\"12\" r=\"8.5\"/><path d=\"m9 9 6 6M15 9l-6 6\"/>"};
 const ICO=(k,c="gi")=>`<svg class="${c}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[k]||""}</svg>`;
+const CAT_SHORT={new:{uz:"Yangi",ru:"Новинки"},lavash:{uz:"Lavash",ru:"Лаваш"},snack:{uz:"Fri",ru:"Фри"}};
 const CATS=[
  {id:"new",ic:"new",e:"✨",uz:"Yangiliklar",ru:"Новинки"},
  {id:"combo",ic:"combo",e:"🍱",uz:"Kombo",ru:"Комбо"},{id:"burger",ic:"burger",e:"🍔",uz:"Burger",ru:"Бургер"},{id:"lavash",ic:"lavash",e:"🌯",uz:"Lavash & sendvich",ru:"Лаваш & сэндвич"},{id:"hotdog",ic:"hotdog",e:"🌭",uz:"Hot-dog",ru:"Хот-дог"},{id:"pizza",ic:"pizza",e:"🍕",uz:"Pitsa",ru:"Пицца"},
@@ -682,7 +694,7 @@ function updatePart(id){
 }
 function renderMenu(){
   const q=$("#q").value.trim().toLowerCase();
-  $("#cats").innerHTML=CATS.map(c=>`<button class="cat" data-cat="${c.id}"><i>${ICO(c.ic)}</i>${c[L]}</button>`).join("")+`<span class="ind" id="ind"></span>`;curCat=null;
+  $("#cats").innerHTML=CATS.map(c=>`<button class="cat" data-cat="${c.id}" title="${c[L]}" aria-label="${c[L]}"><i>${ICO(c.ic)}</i><span class="cn">${c[L]}</span><span class="cs">${(CAT_SHORT[c.id]||c)[L]}</span></button>`).join("")+`<span class="ind" id="ind"></span>`;curCat=null;
   let html="";
   if(favs.length&&!q)html+=`<section class="sec" id="sec-fav"><div class="sh"><h2>${ICO("heart","gi gh")} ${t("favs")} <span class="pill">${favs.length}</span></h2></div><div class="grid">${favs.map(id=>cardHTML(byId[id])).join("")}</div></section>`;
   CATS.forEach(c=>{
@@ -692,6 +704,7 @@ function renderMenu(){
   $("#sections").innerHTML=html||`<div class="empty">${t("empty")}</div>`;
   $("#fcats").innerHTML=CATS.slice(1,7).map(c=>`<a href="#sec-${c.id}">${c[L]}</a>`).join("");
   $("#fcnt").textContent=favs.length||"";
+  fitCats();
   spy();
 }
 function renderInfo(){
@@ -712,6 +725,10 @@ function goMenu(smooth=true){
   scrollTo({top:Math.max(0,first.getBoundingClientRect().top+scrollY-catsBottom()-8),behavior:smooth?"smooth":"auto"});
 }
 document.addEventListener("click",e=>{const a=e.target.closest('a[href="#menu"]');if(a){e.preventDefault();goMenu()}},true);
+// Nomlar bilan qator sig'masa — ixcham (faqat ikonka) rejim
+function fitCats(){const c=$(".cats"),r=$("#cats");if(!c||!r)return;c.classList.remove("compact");c.classList.toggle("compact",r.scrollWidth>r.clientWidth+2);moveInd()}
+let spyLock=0;
+function setCat(id){curCat=id;document.querySelectorAll(".cat").forEach(b=>b.classList.toggle("on",b.dataset.cat===id));moveInd()}
 function moveInd(){
   const ind=$("#ind"),b=document.querySelector(`.cat[data-cat="${curCat}"]`);
   if(!ind)return;
@@ -725,7 +742,7 @@ function spy(){
   if(cur==="fav")cur=null;
   const last=[...document.querySelectorAll("#sections .sec")].pop();
   if(last&&last.getBoundingClientRect().bottom<top)cur=null;
-  if(cur!==curCat){
+  if(cur!==curCat&&Date.now()>spyLock){
     curCat=cur;
     document.querySelectorAll(".cat").forEach(b=>b.classList.toggle("on",b.dataset.cat===cur));
     const b=document.querySelector(`.cat[data-cat="${cur}"]`),row=$("#cats");
@@ -736,7 +753,8 @@ function spy(){
   let nav=null;["menu","about","promos","vacancies","contacts"].forEach(id=>{const el=document.getElementById(id);if(el&&el.getBoundingClientRect().top<200)nav=id});
   document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("on",a.getAttribute("href")==="#"+nav));
 }
-addEventListener("resize",moveInd);
+addEventListener("resize",fitCats);
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fitCats);
 addEventListener("scroll",spy,{passive:true});
 
 /* ===== Savat ===== */
@@ -831,7 +849,7 @@ document.addEventListener("click",e=>{
   else if(x=g("dec"))change(x.dataset.dec,-1);
   else if(x=g("open"))openProduct(x.dataset.open);
   else if(x=g("fav")){const id=x.dataset.fav;favs=favs.includes(id)?favs.filter(f=>f!==id):[...favs,id];save();const y=scrollY;renderMenu();scrollTo(0,y)}
-  else if(x=g("cat")){const el=document.getElementById("sec-"+x.dataset.cat);if(el){closeAll();scrollTo({top:el.getBoundingClientRect().top+scrollY-catsBottom()-8,behavior:"smooth"})}}
+  else if(x=g("cat")){const el=document.getElementById("sec-"+x.dataset.cat);if(el){closeAll();setCat(x.dataset.cat);spyLock=Date.now()+1100;scrollTo({top:el.getBoundingClientRect().top+scrollY-catsBottom()-8,behavior:"smooth"})}}
   else if(x=g("mode")){setMode(x.dataset.mode);if(x.dataset.reco!==undefined)openCheckout()}
   else if(x=g("code")){const c=x.dataset.code;navigator.clipboard?.writeText(c).catch(()=>{});promo=c;save();renderCart();toast(`${t("copied")} ${c} ✓`)}
   else if(x=g("vac"))openVac(+x.dataset.vac);

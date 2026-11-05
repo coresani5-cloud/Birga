@@ -90,3 +90,10 @@ montaj qil" desa — shu rejim. Skript: `tools/motion-video/scripts/make-talk.sh
    (yo'llar absolyut yoki joriy papkaga nisbatan).
 4. **Tekshirish:** har cue vaqtidan +0.3s kadr oling — emoji yuzni yopmayaptimi, subtitr o'qiladimi.
 5. mp4 ni `SendUserFile` bilan yuboring va qaysi so'zga qaysi emoji qo'yilganini qisqa ro'yxat qiling.
+
+## Fon musiqasi
+
+"Musiqa qo'y" desa: `bash tools/motion-video/scripts/add-music.sh <video.mp4> <out.mp4> [musiqa]`.
+Musiqa berilmasa `make-music.py` mualliflik huquqisiz trek sintez qiladi (`MOOD=upbeat|chill`, `BPM`).
+Internetdan musiqa yuklamang (litsenziya). Tekshirish: `ebur128` bilan gap paytida musiqa ovozdan
+~10–12 dB past bo'lsin; `showspectrumpic` bilan yuqori chastota haddan tashqari kuchli emasligini ko'ring.

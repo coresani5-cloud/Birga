@@ -85,3 +85,15 @@ Bosqichlar:
 `position`: `auto | top | topLeft | topRight | left | right | center | bottomLeft | bottomRight`
 (`auto` yuzni yopmaslik uchun tepa/yon burchaklarni almashtirib turadi). `sfx`: `pop | ding | click | whoosh | none`.
 Subtitrni o'chirish: `CAPTIONS=0`.
+
+## Fon musiqasi
+
+Mualliflik huquqisiz musiqa noldan sintez qilinadi (Am–F–C–G, bas, arpedjio, baraban) va videoga
+qo'shiladi; odam gapirganda musiqa avtomatik pasayadi (sidechain ducking):
+
+```bash
+bash scripts/add-music.sh out/natija.mp4 out/natija-musiqa.mp4
+```
+
+O'z musiqangiz bo'lsa — 3-argument qilib bering. Sozlash: `MUSIC_VOL=0.22` (balandlik),
+`MOOD=upbeat|chill`, `BPM=112`.

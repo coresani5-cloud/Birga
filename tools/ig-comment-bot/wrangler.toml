@@ -1,0 +1,26 @@
+name = "ig-comment-bot"
+main = "src/index.js"
+compatibility_date = "2025-10-01"
+
+# Tokenlar va secretlar BU YERGA YOZILMAYDI. Faqat:
+#   npx wrangler secret put IG_ACCESS_TOKEN
+#   npx wrangler secret put APP_SECRET
+#   npx wrangler secret put VERIFY_TOKEN
+#   npx wrangler secret put QOLLANMA_URL
+
+[vars]
+GRAPH_VERSION = "v23.0"
+PROFILE_URL = "https://instagram.com/sardorxoon"
+OWN_USERNAME = "sardorxoon"
+
+# `npx wrangler kv namespace create KV` chiqargan id ni shu yerga qo'ying
+[[kv_namespaces]]
+binding = "KV"
+id = "KV_NAMESPACE_ID_NI_SHU_YERGA_QOYING"
+
+# Long-lived tokenni har dushanba yangilash (60 kunlik muddat tugamasligi uchun)
+[triggers]
+crons = ["17 3 * * 1"]
+
+[observability]
+enabled = true

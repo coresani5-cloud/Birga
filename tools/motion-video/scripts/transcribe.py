@@ -15,13 +15,23 @@ p = argparse.ArgumentParser()
 p.add_argument("src")
 p.add_argument("out")
 p.add_argument("--lang", default=None, help="uz, ru, en ... (bo'lmasa avtomatik)")
-p.add_argument("--model", default="small", help="tiny/base/small/medium/large-v3")
+p.add_argument("--model", default="small", help="tiny/base/small/medium/large-v3 yoki model papkasi yo'li")
 a = p.parse_args()
 
+import subprocess  # noqa: E402
+
+import numpy as np  # noqa: E402
 from faster_whisper import WhisperModel  # noqa: E402
 
+# Audioni ffmpeg bilan o'qiymiz (PyAV versiya muammolarini chetlab o'tadi)
+raw = subprocess.run(
+    ["ffmpeg", "-nostdin", "-loglevel", "error", "-i", a.src, "-f", "f32le", "-ac", "1", "-ar", "16000", "-"],
+    check=True, capture_output=True,
+).stdout
+audio = np.frombuffer(raw, dtype=np.float32)
+
 model = WhisperModel(a.model, device="auto", compute_type="int8")
-segments, info = model.transcribe(a.src, language=a.lang, word_timestamps=True, vad_filter=True)
+segments, info = model.transcribe(audio, language=a.lang, word_timestamps=True, vad_filter=True)
 words = []
 for seg in segments:
     for w in seg.words or []:

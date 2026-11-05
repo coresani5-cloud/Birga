@@ -1,0 +1,27 @@
+{
+  "width": 1080,
+  "height": 1080,
+  "fps": 30,
+  "background": "#FFFFFF",
+  "color": "#111111",
+  "accent": "#0A84FF",
+  "audio": null,
+  "durationInSeconds": null,
+  "sceneStarts": null,
+  "fallbackSceneSeconds": 4,
+  "sfxVolume": 0.35,
+  "scenes": [
+    { "type": "emoji", "emoji": "🎬", "text": "Montaj qilish qiyinmi?" },
+    { "type": "compare", "left": { "emoji": "😩", "text": "Soatlab montaj" }, "right": { "emoji": "🤖", "text": "AI bilan 15 daqiqa" } },
+    { "type": "list", "title": "Sizga kerak:", "items": [
+      { "emoji": "📝", "text": "Skript" },
+      { "emoji": "🎙️", "text": "Ovoz (mp3)" },
+      { "emoji": "💬", "text": "Claude" }
+    ] },
+    { "type": "title", "emoji": "✨", "text": "Claude kod yozadi", "sub": "Remotion videoni yasaydi" },
+    { "type": "emoji", "emoji": "⚡", "text": "Montaj dasturi kerak emas" },
+    { "type": "counter", "to": 100, "suffix": "%", "emoji": "🚀", "text": "Video tayyor!" },
+    { "type": "title", "emoji": "📲", "text": "Instagram'ga joylang" },
+    { "type": "typing", "text": "MONTAJ", "emoji": "👇", "sub": "deb izohga yozing" }
+  ]
+}

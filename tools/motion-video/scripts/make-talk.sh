@@ -25,6 +25,7 @@ ffmpeg -hide_banner -loglevel error -y -i "$IN" -c:v libx264 -preset veryfast -c
 
 # 2) so'zlar
 if [ -z "$WORDS_IN" ]; then
+  python3 -c "import faster_whisper" 2>/dev/null || pip install -q faster-whisper || pip install -q --break-system-packages faster-whisper
   python3 scripts/transcribe.py public/input.mp4 "$WORK/words.json" --lang "${LANG_CODE:-uz}" --model "${WHISPER_MODEL:-small}"
 elif [[ "$WORDS_IN" == *.srt ]]; then
   node scripts/srt-to-words.mjs "$WORDS_IN" "$WORK/words.json"

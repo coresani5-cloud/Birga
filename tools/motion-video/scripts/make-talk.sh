@@ -56,9 +56,13 @@ const cfg = {
   video: "input.mp4",
   durationInSeconds: +(+p.format.duration).toFixed(2),
   words: JSON.parse(fs.readFileSync(`${work}/words.json`, "utf8")),
-  cues: JSON.parse(fs.readFileSync(`${work}/cues.json`, "utf8")),
-  captions: { enabled: process.env.CAPTIONS !== "0" },
+  ...(() => {
+    // cues.json: massiv yoki { cues, covers, captions }
+    const c = JSON.parse(fs.readFileSync(`${work}/cues.json`, "utf8"));
+    return Array.isArray(c) ? { cues: c } : c;
+  })(),
 };
+cfg.captions = { ...(cfg.captions || {}), enabled: process.env.CAPTIONS !== "0" };
 fs.writeFileSync("src/talk.json", JSON.stringify(cfg, null, 1));
 console.log(`video ${w}x${h} @${cfg.fps}fps, ${cfg.durationInSeconds}s, ${cfg.words.length} so'z, ${cfg.cues.length} emoji`);
 JS

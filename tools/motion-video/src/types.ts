@@ -56,6 +56,19 @@ export type Cue = {
   word?: string;
 };
 
+/** Videoning keraksiz joyini (masalan kamera burilishi) to'liq yopuvchi ekran. */
+export type Cover = {
+  start: number;
+  end: number;
+  emoji?: string;
+  text?: string;
+  sub?: string;
+  /** fon ranglari (gradient) */
+  colors?: [string, string];
+  accent?: string;
+  sfx?: Sfx;
+};
+
 export type TalkConfig = {
   width?: number;
   height?: number;
@@ -65,6 +78,7 @@ export type TalkConfig = {
   durationInSeconds?: number | null;
   words?: Word[];
   cues: Cue[];
+  covers?: Cover[];
   captions?: {
     enabled?: boolean;
     maxWords?: number;

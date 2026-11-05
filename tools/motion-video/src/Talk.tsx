@@ -11,7 +11,7 @@ import {
   useVideoConfig,
 } from "remotion";
 import { fontFamily } from "./fonts";
-import type { Cue, CuePosition, TalkConfig, Word } from "./types";
+import type { Cover, Cue, CuePosition, TalkConfig, Word } from "./types";
 
 const EMOJI_FONT =
   '"Apple Color Emoji", "Noto Color Emoji", "Segoe UI Emoji", sans-serif';
@@ -196,6 +196,65 @@ const Captions: React.FC<{ cfg: TalkConfig; base: number }> = ({ cfg, base }) =>
   );
 };
 
+/** To'liq ekranli yopuvchi: o'ngdan kirib, chapga chiqib ketadi. */
+const CoverView: React.FC<{ cover: Cover; dur: number; base: number }> = ({ cover, dur, base }) => {
+  const frame = useCurrentFrame();
+  const { fps, width } = useVideoConfig();
+  const IN = 5;
+  const OUT = 5;
+  const x =
+    frame < IN
+      ? interpolate(frame, [0, IN], [width, 0], { easing: (t) => 1 - Math.pow(1 - t, 3) })
+      : frame > dur - OUT
+        ? interpolate(frame, [dur - OUT, dur], [0, -width], { easing: (t) => t * t, extrapolateRight: "clamp" })
+        : 0;
+  const [c1, c2] = cover.colors ?? ["#1B1B1F", "#0B0B0D"];
+  const accent = cover.accent ?? "#FF8A00";
+  const pop = spring({ frame: frame - IN, fps, config: { damping: 9, stiffness: 170 } });
+  const glow = 0.5 + 0.5 * Math.sin(frame / 5);
+  return (
+    <AbsoluteFill
+      style={{
+        transform: `translateX(${x}px)`,
+        background: `radial-gradient(circle at 50% 40%, ${accent}${Math.round(40 + glow * 30).toString(16)} 0%, transparent 45%), linear-gradient(160deg, ${c1}, ${c2})`,
+        justifyContent: "center",
+        alignItems: "center",
+        flexDirection: "column",
+        textAlign: "center",
+        fontFamily,
+        padding: "8%",
+      }}
+    >
+      {/* chekka chiziq — siljish effekti */}
+      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: base * 0.25, background: accent }} />
+      {cover.emoji ? (
+        <div style={{ fontFamily: EMOJI_FONT, fontSize: base * 3.2, transform: `scale(${pop})`, lineHeight: 1.1 }}>
+          {cover.emoji}
+        </div>
+      ) : null}
+      {cover.text ? (
+        <div
+          style={{
+            marginTop: base * 0.3,
+            color: "#fff",
+            fontWeight: 800,
+            fontSize: base * 1.15,
+            lineHeight: 1.15,
+            textTransform: "uppercase",
+            opacity: interpolate(frame, [IN, IN + 6], [0, 1], { extrapolateRight: "clamp" }),
+            transform: `translateY(${interpolate(frame, [IN, IN + 8], [30, 0], { extrapolateRight: "clamp" })}px)`,
+          }}
+        >
+          {cover.text}
+        </div>
+      ) : null}
+      {cover.sub ? (
+        <div style={{ marginTop: base * 0.25, color: accent, fontWeight: 700, fontSize: base * 0.6 }}>{cover.sub}</div>
+      ) : null}
+    </AbsoluteFill>
+  );
+};
+
 export const Talk: React.FC<{ config: TalkConfig }> = ({ config }) => {
   const { fps, width, height } = useVideoConfig();
   const base = Math.min(width, height) / 13;
@@ -205,6 +264,16 @@ export const Talk: React.FC<{ config: TalkConfig }> = ({ config }) => {
       {config.video ? (
         <OffthreadVideo src={staticFile(config.video)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
       ) : null}
+      {(config.covers ?? []).map((cv, i) => {
+        const from = Math.round(cv.start * fps);
+        const dur = Math.max(2, Math.round((cv.end - cv.start) * fps));
+        return (
+          <Sequence key={`cv${i}`} from={from} durationInFrames={dur} layout="none">
+            <CoverView cover={cv} dur={dur} base={base} />
+            {cv.sfx !== "none" ? <Audio src={staticFile(`sfx/${cv.sfx ?? "whoosh"}.wav`)} volume={vol * 1.4} /> : null}
+          </Sequence>
+        );
+      })}
       {config.cues.map((cue, i) => {
         const from = Math.round(cue.at * fps);
         const dur = Math.round((cue.duration ?? 1.4) * fps);

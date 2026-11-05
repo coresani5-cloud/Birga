@@ -1,0 +1,19 @@
+{
+  "width": 1080,
+  "height": 1920,
+  "fps": 30,
+  "video": null,
+  "durationInSeconds": 4,
+  "words": [
+    { "word": "Salom", "start": 0.2, "end": 0.7 },
+    { "word": "do'stlar!", "start": 0.75, "end": 1.3 },
+    { "word": "Bugun", "start": 1.6, "end": 2.0 },
+    { "word": "pul", "start": 2.05, "end": 2.4 },
+    { "word": "haqida", "start": 2.45, "end": 2.9 },
+    { "word": "gaplashamiz", "start": 2.95, "end": 3.7 }
+  ],
+  "cues": [
+    { "at": 0.2, "emoji": "👋" },
+    { "at": 2.05, "emoji": "💰", "anim": "burst" }
+  ]
+}

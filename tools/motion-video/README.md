@@ -52,3 +52,36 @@ Barcha sahnalarda ixtiyoriy `emoji` bor (`list`/`compare` dan tashqari).
 | Animatsiya gapdan oldin/keyin chiqadi | `sceneStarts` ni qo'lda yozing yoki pauzalar aniqroq bo'lishi uchun gaplar orasida 0.3s+ to'xtang |
 | Video juda qisqa/uzun | audio yo'li to'g'riligini tekshiring |
 | Effekt ovozlari yo'q | `bash scripts/make-sfx.sh` |
+
+---
+
+# Odam gapirayotgan video + so'zlariga mos motion emoji
+
+Video ichidagi gapni so'zma-so'z vaqti bilan aniqlaydi va har mos so'z chiqqanda ustiga
+sakrab chiquvchi emoji (pop/shake/burst + ovoz effekti) hamda Reels uslubidagi subtitr
+(joriy so'z sariq bilan ajratiladi) qo'yadi.
+
+```bash
+bash scripts/make-talk.sh ~/Downloads/video.mp4 out/natija.mp4
+```
+
+Bosqichlar:
+1. **Transkripsiya** — `scripts/transcribe.py` (faster-whisper, so'z vaqtlari bilan).
+   Bir marta: `pip install faster-whisper`. Til: `LANG_CODE=uz` (standart), model: `WHISPER_MODEL=small`
+   (o'zbekcha uchun `medium` aniqroq). Internet yo'q bo'lsa — tayyor `.srt` yoki `words.json` bering:
+   `bash scripts/make-talk.sh video.mp4 out.mp4 subs.srt`
+2. **Emoji tanlash** — `scripts/auto-cues.mjs` (o'zbek/rus/ingliz lug'ati) yoki o'zingiz yozgan
+   `cues.json` (4-argument). Claude odatda transkriptni o'qib, cues'ni ma'noga qarab o'zi yozadi.
+3. **Render** — o'lcham, fps va uzunlik videodan olinadi.
+
+`cues.json` namunasi:
+```json
+[
+  { "at": 0.3, "emoji": "👋" },
+  { "at": 2.1, "emoji": "💰", "anim": "burst", "text": "PUL" },
+  { "at": 4.0, "emoji": "😱", "anim": "shake", "position": "topLeft", "duration": 1.8 }
+]
+```
+`position`: `auto | top | topLeft | topRight | left | right | center | bottomLeft | bottomRight`
+(`auto` yuzni yopmaslik uchun tepa/yon burchaklarni almashtirib turadi). `sfx`: `pop | ding | click | whoosh | none`.
+Subtitrni o'chirish: `CAPTIONS=0`.

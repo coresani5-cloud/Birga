@@ -32,3 +32,48 @@ export type VideoConfig = {
   sfxVolume?: number;
   scenes: Scene[];
 };
+
+// ---- Talk: odam gapirayotgan video + so'zlarga mos emoji ----
+
+export type Word = { word: string; start: number; end: number };
+
+export type CuePosition =
+  | "auto" | "top" | "topLeft" | "topRight" | "left" | "right" | "center" | "bottomLeft" | "bottomRight";
+
+export type Cue = {
+  /** soniya: emoji qachon chiqadi (odatda so'z boshlanishi) */
+  at: number;
+  emoji: string;
+  /** emoji ostidagi kichik yozuv (ixtiyoriy) */
+  text?: string;
+  /** qancha soniya turadi, standart 1.4 */
+  duration?: number;
+  position?: CuePosition;
+  anim?: "pop" | "shake" | "burst";
+  size?: number;
+  sfx?: Sfx;
+  /** qaysi so'z uchun (faqat ma'lumot uchun) */
+  word?: string;
+};
+
+export type TalkConfig = {
+  width?: number;
+  height?: number;
+  fps?: number;
+  /** public/ ichidagi video nomi */
+  video?: string | null;
+  durationInSeconds?: number | null;
+  words?: Word[];
+  cues: Cue[];
+  captions?: {
+    enabled?: boolean;
+    maxWords?: number;
+    color?: string;
+    highlight?: string;
+    /** 0..1, ekrandagi vertikal joy (standart 0.74) */
+    y?: number;
+    scale?: number;
+    uppercase?: boolean;
+  };
+  sfxVolume?: number;
+};

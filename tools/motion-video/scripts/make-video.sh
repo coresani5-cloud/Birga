@@ -56,4 +56,4 @@ else
   done
 fi
 npx remotion render Reels "$OUT" "${ARGS[@]}"
-echo "Tayyor: $(pwd)/$OUT"
+case "$OUT" in /*) echo "Tayyor: $OUT";; *) echo "Tayyor: $(pwd)/$OUT";; esac

@@ -1,4 +1,5 @@
 node_modules/
 out/
 public/audio.*
+public/input.mp4
 public/sfx/

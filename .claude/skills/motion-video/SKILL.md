@@ -1,6 +1,6 @@
 ---
 name: motion-video
-description: Skript (va ixtiyoriy audio mp3) dan Remotion orqali minimalist animatsiyali video (Reels/Instagram, 1:1 yoki 9:16) yasash. Foydalanuvchi "video qil", "reels", "motion video", "animatsiyali video", "montaj", skript yoki ovoz fayl bersa ishlating.
+description: Remotion orqali Reels/Instagram video yasash. (A) skript + audio dan oq fonli emoji animatsiya; (B) odam gapirayotgan videoga uning so'zlariga mos motion emoji va subtitr qo'yish. Foydalanuvchi "video qil", "reels", "motion video", "montaj", "emoji qo'y", skript, ovoz yoki video fayl bersa ishlating.
 ---
 
 # Motion video (skript → mp4)
@@ -56,3 +56,31 @@ To'liq sxema va sahna turlari: `tools/motion-video/README.md`, tiplar: `tools/mo
 - Linux'da emojilar Noto, Mac'da Apple uslubida chiqadi.
 - Bulut muhitida `/opt/pw-browsers` dagi Chromium avtomatik ishlatiladi; boshqa joyda Remotion o'zi yuklaydi
   (`BROWSER=<yo'l>` bilan o'zgartirish mumkin).
+
+---
+
+# B rejim: odam gapirayotgan video → so'zlarga mos motion emoji
+
+Foydalanuvchi o'zi (yoki boshqa odam) gapirayotgan video bersa va "so'zlariga qarab emoji bilan
+montaj qil" desa — shu rejim. Skript: `tools/motion-video/scripts/make-talk.sh`, komponent: `src/Talk.tsx`.
+
+1. **So'zlarni olish** (vaqti bilan, `words.json`: `[{word,start,end}]`). Tartib bo'yicha urinib ko'ring:
+   - `python3 tools/motion-video/scripts/transcribe.py <video> words.json --lang uz --model small`
+     (`pip install faster-whisper`; model HuggingFace'dan yuklanadi — bulut sessiyasida tarmoq
+     yopiq bo'lishi mumkin);
+   - foydalanuvchida `.srt` bo'lsa — `scripts/srt-to-words.mjs`;
+   - ulangan transkripsiya connector'i (ElevenLabs `creative_transcribe_audio`, Descript) — kredit
+     sarflaydi, avval foydalanuvchidan so'rang;
+   - hech biri bo'lmasa: foydalanuvchidan matnni so'rang, vaqtlarni ffmpeg `silencedetect` bilan
+     gaplarga bo'lib, so'zlarga harf soni bo'yicha taqsimlang.
+2. **Cues yozish (asosiy AI qadam).** Transkriptni o'qing va emoji'ni ma'noga qarab o'zingiz tanlang —
+   lug'at (`auto-cues.mjs`) faqat zaxira. Qoidalar:
+   - kalit so'z boshlanganda (`at` = o'sha so'zning `start`i) chiqsin;
+   - har 1.5–3 soniyada ko'pi bilan bitta emoji; har gapda 1–2 ta;
+   - his-tuyg'u (😱 hayrat, 😂 kulgi), narsa (💰 📱 🚗), harakat (🚀 💪), raqam/natija (📈 🏆) — eng kuchli joylar;
+   - urg'uli joyda `anim: "burst"` yoki `"shake"`, muhim so'zga `text` (1–2 so'z, KATTA HARF);
+   - yuzni yopmaslik uchun `position: "auto"` yoki tepa burchaklar.
+3. **Render:** `bash tools/motion-video/scripts/make-talk.sh <video> <out.mp4> <words.json> <cues.json>`
+   (yo'llar absolyut yoki joriy papkaga nisbatan).
+4. **Tekshirish:** har cue vaqtidan +0.3s kadr oling — emoji yuzni yopmayaptimi, subtitr o'qiladimi.
+5. mp4 ni `SendUserFile` bilan yuboring va qaysi so'zga qaysi emoji qo'yilganini qisqa ro'yxat qiling.

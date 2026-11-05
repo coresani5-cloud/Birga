@@ -223,6 +223,7 @@ const CoverView: React.FC<{ cover: Cover; dur: number; base: number }> = ({ cove
         textAlign: "center",
         fontFamily,
         padding: "8%",
+        paddingBottom: "34%", // matn subtitrdan yuqorida tursin
       }}
     >
       {/* chekka chiziq — siljish effekti */}

@@ -97,3 +97,13 @@ montaj qil" desa — shu rejim. Skript: `tools/motion-video/scripts/make-talk.sh
 Musiqa berilmasa `make-music.py` mualliflik huquqisiz trek sintez qiladi (`MOOD=upbeat|chill`, `BPM`).
 Internetdan musiqa yuklamang (litsenziya). Tekshirish: `ebur128` bilan gap paytida musiqa ovozdan
 ~10–12 dB past bo'lsin; `showspectrumpic` bilan yuqori chastota haddan tashqari kuchli emasligini ko'ring.
+
+## Tajribadan eslatmalar
+
+- Shovqinli yozuvda Whisper uzun matnni chalkashtiradi: audioni ~8s bo'laklarga (energiya eng past
+  nuqtalardan) bo'lib, har birini alohida tanitang; keyin `align-text.py ... --cuts 0,6.5,...`.
+  Avtomatik taqsimlash adashsa, matn fayliga `|` bilan bo'lak chegaralarini qo'ying (ASR matnini o'qib).
+- Foydalanuvchi ekran/telefonda nimanidir ko'rsatayotgan bo'lsa, emojilarni ekran ustiga emas,
+  klaviatura/bo'sh joyga qo'ying (`bottomLeft`/`bottomRight`), subtitrni pastga (`captions.y: 0.87`).
+- `covers` (to'liq ekranli yopuvchi) faqat foydalanuvchi kadrni yashirishni so'rasa — ko'rsatilayotgan
+  jarayonni yopib qo'ymang.

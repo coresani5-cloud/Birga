@@ -59,6 +59,7 @@ const EmojiCue: React.FC<{ cue: Cue; pos: [number, number]; dur: number; size: n
         textAlign: "center",
       }}
     >
+      <div style={{ position: "relative" }}>
       <div
         style={{
           fontFamily: EMOJI_FONT,
@@ -92,6 +93,7 @@ const EmojiCue: React.FC<{ cue: Cue; pos: [number, number]; dur: number; size: n
             );
           })
         : null}
+      </div>
       {cue.text ? (
         <div
           style={{
@@ -105,6 +107,8 @@ const EmojiCue: React.FC<{ cue: Cue; pos: [number, number]; dur: number; size: n
             padding: `${s * 0.04}px ${s * 0.14}px`,
             boxShadow: "0 6px 16px rgba(0,0,0,0.25)",
             whiteSpace: "nowrap",
+            position: "relative",
+            zIndex: 1,
           }}
         >
           {cue.text}

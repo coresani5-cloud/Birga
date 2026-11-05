@@ -6,7 +6,8 @@
 #
 #  - words.json/srt berilmasa: faster-whisper bilan avtomatik transkripsiya (internet kerak)
 #  - cues.json berilmasa: scripts/auto-cues.mjs lug'ati bilan avtomatik emoji tanlanadi
-# Muhit: LANG_CODE=uz (standart), WHISPER_MODEL=small, CAPTIONS=0 (subtitrni o'chirish)
+# Muhit: LANG_CODE=uz (standart), WHISPER_MODEL=small, CAPTIONS=0 (subtitrni o'chirish),
+#        OUT_HEIGHT=1920 (chiqish balandligi; kichik videoni kattalashtirish uchun)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 abs() { case "$1" in /*) echo "$1";; *) echo "$OLDPWD/$1";; esac; }
@@ -47,6 +48,9 @@ const [a, b] = s.r_frame_rate.split("/").map(Number);
 let w = s.width, h = s.height;
 const rot = Math.abs((s.side_data_list || []).find(d => d.rotation !== undefined)?.rotation || 0);
 if (rot === 90) [w, h] = [h, w];
+// OUT_HEIGHT=1920 -> sifat uchun kattalashtirib render qilish
+const target = Number(process.env.OUT_HEIGHT || 0);
+if (target && target !== h) { w = Math.round((w * target) / h / 2) * 2; h = target; }
 const cfg = {
   width: w, height: h, fps: Math.min(60, Math.round(a / b)) || 30,
   video: "input.mp4",

@@ -68,6 +68,11 @@ montaj qil" desa — shu rejim. Skript: `tools/motion-video/scripts/make-talk.sh
    - `python3 tools/motion-video/scripts/transcribe.py <video> words.json --lang uz --model small`
      (`pip install faster-whisper`; model HuggingFace'dan yuklanadi — bulut sessiyasida tarmoq
      yopiq bo'lishi mumkin);
+   - foydalanuvchi matnni o'zi yozib bersa (eng aniq yo'l, o'zbekcha uchun tavsiya): Whisper'ni
+     `initial_prompt` = shu matn bilan ishga tushiring, keyin
+     `python3 tools/motion-video/scripts/align-text.py matn.txt asr.json words.json` — imlo foydalanuvchiniki,
+     vaqt ovozdan. HuggingFace yopiq bo'lsa, model npm'dagi `@skillninja/shortmovie-telop-model-p0..p3`
+     (`npm pack`, bo'laklarni `cat` bilan birlashtirib, `model.sha256` ni tekshiring);
    - foydalanuvchida `.srt` bo'lsa — `scripts/srt-to-words.mjs`;
    - ulangan transkripsiya connector'i (ElevenLabs `creative_transcribe_audio`, Descript) — kredit
      sarflaydi, avval foydalanuvchidan so'rang;
@@ -80,7 +85,8 @@ montaj qil" desa — shu rejim. Skript: `tools/motion-video/scripts/make-talk.sh
    - his-tuyg'u (😱 hayrat, 😂 kulgi), narsa (💰 📱 🚗), harakat (🚀 💪), raqam/natija (📈 🏆) — eng kuchli joylar;
    - urg'uli joyda `anim: "burst"` yoki `"shake"`, muhim so'zga `text` (1–2 so'z, KATTA HARF);
    - yuzni yopmaslik uchun `position: "auto"` yoki tepa burchaklar.
-3. **Render:** `bash tools/motion-video/scripts/make-talk.sh <video> <out.mp4> <words.json> <cues.json>`
+3. **Render:** `OUT_HEIGHT=1920 bash tools/motion-video/scripts/make-talk.sh <video> <out.mp4> <words.json> <cues.json>`
+   (720p telefon videosini 1080x1920 ga kattalashtiradi; kadrdagi bo'sh joyni ko'rib, `position` ni tanlang)
    (yo'llar absolyut yoki joriy papkaga nisbatan).
 4. **Tekshirish:** har cue vaqtidan +0.3s kadr oling — emoji yuzni yopmayaptimi, subtitr o'qiladimi.
 5. mp4 ni `SendUserFile` bilan yuboring va qaysi so'zga qaysi emoji qo'yilganini qisqa ro'yxat qiling.

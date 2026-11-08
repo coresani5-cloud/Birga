@@ -168,6 +168,17 @@ async function main() {
   assert.match(x, new RegExp(`/t/${A.id}/twilio/voice</Redirect>`), x);
   assert.equal((await j('/api/phone/uz', { number: '+998 71 200 00 01' }, 'PUT', B.token)).status, 400); // virtual raqam band
 
+  // Bitta umumiy kotib raqami: biznes o'z eski raqamidan yo'naltiradi, kotib asl raqamga qarab biznesni topadi
+  await j('/api/admin/settings', { sharedNumber: '+998 71 299 99 99' }, 'PUT', ADM);
+  await j('/api/phone/uz', { number: '+998 93 444 55 66' }, 'PUT', B.token);
+  assert.equal((await j('/api/settings', null, 'GET', B.token)).data.forwardTo, '+998712999999');
+  x = await form('/sip/voice', { CallSid: 'SH1', From: '+998901112233', To: '+998712999999', ForwardedFrom: '+998934445566' });
+  assert.match(x, new RegExp(`/t/${B.id}/twilio/voice</Redirect>`), x);
+  x = await form('/sip/voice', { CallSid: 'SH2', From: 'sip:+998901112233@prov.uz', To: 'sip:998712999999@kotib.sip.twilio.com', 'SipHeader_Diversion': '<sip:+998934445566@prov.uz>;reason=no-answer' });
+  assert.match(x, new RegExp(`/t/${B.id}/twilio/voice</Redirect>`), x);
+  x = await form('/sip/voice', { CallSid: 'SH3', From: '+998901112233', To: '+998712999999' }); // asl raqam uzatilmagan
+  assert.match(x, /ulanmagan/);
+
   // Mijoz operator so'raydi: qo'ng'iroq egasiga SIM (shlyuz) orqali o'tadi — mahalliy tarif
   x = await form(`/t/${A.id}/twilio/voice/turn`, { CallSid: 'SIP1', From: 'sip:+998935551122@85.1.2.3:5060', To: 'sip:998905551122@kotib.sip.twilio.com', SpeechResult: 'Operator bilan gaplashmoqchiman' });
   assert.match(x, /<Dial timeout="25" action="\/t\/\w+\/twilio\/dial-done" method="POST"><Sip>sip:998901000001@85\.1\.2\.3:5060<\/Sip><\/Dial>/, x);

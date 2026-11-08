@@ -204,7 +204,7 @@ app.get('/api/settings', auth, (req, res) => {
   res.json({
     business, hours, services, products, faq, closedDays, ai: A.aiOn(), twilio: !!env("TWILIO_AUTH_TOKEN"), sms: C.smsOn(),
     telegram: C.tgOn(), tgToken: !!env("TG_BOT_TOKEN"), tgEnvChat: false, operator: !!operatorPhone(),
-    publicUrl: CFG.publicUrl(), tenantId: req.tenantId, chatUrl: `${CFG.publicUrl() || baseUrl(req)}/c/${req.tenantId}`, subscription: SA.status(), ownTwilio: CFG.ownTwilio(), voice: V.status(), kotibNumber: st().business.kotibNumber || '', uzNumber: st().business.uzNumber || '', kotibUz: store.platform().tenants[req.tenantId]?.kotibUz || '', sipDomain: store.platform().sipDomain || '', tgBot: st().meta?.tgBot || '', greetingAudio: !!st().media?.greeting, db: store.PG ? 'postgres' : 'file', tz: S.TZ, support: store.platform().support || '',
+    publicUrl: CFG.publicUrl(), tenantId: req.tenantId, chatUrl: `${CFG.publicUrl() || baseUrl(req)}/c/${req.tenantId}`, subscription: SA.status(), ownTwilio: CFG.ownTwilio(), voice: V.status(), kotibNumber: st().business.kotibNumber || '', uzNumber: st().business.uzNumber || '', kotibUz: store.platform().tenants[req.tenantId]?.kotibUz || '', forwardTo: store.platform().tenants[req.tenantId]?.kotibUz || store.platform().sharedNumber || '', sipDomain: store.platform().sipDomain || '', tgBot: st().meta?.tgBot || '', greetingAudio: !!st().media?.greeting, db: store.PG ? 'postgres' : 'file', tz: S.TZ, support: store.platform().support || '',
   });
 });
 app.put('/api/settings', auth, (req, res) => {
@@ -499,12 +499,31 @@ tw.post('/twilio/status', twilioCheck, callStatus);
 // ---------- O'zbek raqamlari (SIP): GSM shlyuz yoki mahalliy SIP provayder → Twilio SIP Domain → shu yer ----------
 // Chaqirilgan raqam (To) qaysi biznesning "ishxona raqami" ekaniga qarab qo'ng'iroq o'sha biznes kotibiga yo'naltiriladi.
 const digits9 = (v) => String(v || '').replace(/\D/g, '').slice(-9);
+// Yo'naltirilgan qo'ng'iroqda asl chaqirilgan raqam (biznesning o'z raqami): Twilio ForwardedFrom
+// yoki SIP Diversion sarlavhasi (provayder uzatsa). Shunda bitta umumiy kotib raqami barcha bizneslarga xizmat qiladi.
+function forwardedFrom(req) {
+  const b = req.body || {};
+  const cands = [b.ForwardedFrom, b['SipHeader_Diversion'], b['SipHeader_X-Diversion'], b['SipHeader_X-Original-To'], b['SipHeader_X-Forwarded-From'], b.CalledVia];
+  for (const c of cands) {
+    if (!c) continue;
+    const m = /(?:sips?:|tel:)?\+?(\d{9,15})/.exec(String(c));
+    if (m) return m[1];
+  }
+  return '';
+}
 function tenantBySip(req) {
+  const tenants = Object.values(store.platform().tenants).filter((x) => !x.blocked && store.has(x.id));
+  // 1) Asl raqam bo'yicha: mijoz biznesning o'z (eski) raqamiga qo'ng'iroq qilgan, operator yo'naltirgan
+  const orig = digits9(forwardedFrom(req));
+  if (orig.length === 9) {
+    const t = tenants.find((x) => digits9(x.uzNumber) === orig);
+    if (t) return t.id;
+  }
+  // 2) Chaqirilgan raqam bo'yicha: biznesga alohida biriktirilgan kotib raqami yoki shlyuzdagi o'z raqami
   const called = digits9(phoneOf(req.body.To));
   if (called.length < 9) return null;
-  // Ishxona raqami (shlyuz) yoki platforma bergan virtual raqam (yo'naltirish orqali)
-  const t = Object.values(store.platform().tenants).find((x) => !x.blocked && (digits9(x.uzNumber) === called || digits9(x.kotibUz) === called));
-  return t && store.has(t.id) ? t.id : null;
+  const t = tenants.find((x) => digits9(x.uzNumber) === called || digits9(x.kotibUz) === called);
+  return t ? t.id : null;
 }
 app.post('/sip/voice', twilioCheck, (req, res) => {
   const tid = tenantBySip(req);

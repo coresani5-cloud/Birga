@@ -510,7 +510,7 @@ function renderStatus() {
   const it = (ok, t, hint) => `<div>${ok ? '✅' : '⚠️'} ${t}${!ok && hint ? `<div class="muted small">${hint}</div>` : ''}</div>`;
   $('#s-status').innerHTML = [
     it(settings.ai, "Sun'iy intellekt (erkin suhbat)", "Kalit yo'q — kotib faqat oddiy savollarga javob beradi. Erkin suhbat uchun \"Ulanishlar\"ga Gemini AI kalitini kiriting (bepul: aistudio.google.com/apikey)."),
-    it(!!(settings.kotibUz || settings.kotibNumber), "Kotib raqami", settings.uzNumber ? "Tez orada biriktiriladi." : "Yuqorida ishxona raqamingizni kiriting."),
+    it(!!(settings.forwardTo || settings.kotibNumber), "Kotib raqami", settings.uzNumber ? "Tez orada biriktiriladi." : "Yuqorida ishxona raqamingizni kiriting."),
     it(settings.sms, 'SMS eslatmalar', 'Kotib raqami biriktirilgach o‘zi yoqiladi.'),
     it(settings.operator, 'Operatorga yo‘naltirish', 'Yuqorida "Operator raqami"ni kiriting — aks holda kotib vazifa yaratadi.'),
     it(settings.telegram, 'Telegram', settings.tgToken ? 'Chat ID kiriting.' : "Ulanishlar bo'limiga Telegram bot tokenini kiriting."),
@@ -689,14 +689,14 @@ $('#g-del').onclick = async () => { if (!confirm("Salomlashish yozuvini o'chiras
 function renderPhone() {
   $('#uz-number').value = settings.uzNumber || '';
   const sip = settings.sipDomain;
-  const kz = settings.kotibUz;
+  const kz = settings.forwardTo;
   const fw = [['Javob bermasam', '**61*'], ['Band bo‘lsam', '**67*'], ['Telefon o‘chiq bo‘lsa', '**62*'], ['Hamma qo‘ng‘iroqlar', '**21*']];
   $('#uz-howto').innerHTML = kz
     ? `<b>✅ Kotib raqamingiz: ${esc(kz)}</b><br>Qurilma kerak emas. Ishxona telefonida (SIM-karta turgan telefonda) tugmani bosing — kod o'zi teriladi. Shundan keyin qo'ng'iroqqa siz javob bermasangiz, kotib javob beradi; telefondan odatdagidek foydalanaverasiz.
       <div class="list" style="margin-top:8px">${fw.map(([t, c]) => `<div class="row" style="cursor:default"><div class="info"><b>${t}</b><div class="muted small">${c}${esc(kz)}#</div></div><a class="btn small" href="tel:${encodeURIComponent(c + kz + '#')}">Yoqish</a></div>`).join('')}</div>
       <div class="muted small">O'chirish: <a href="tel:${encodeURIComponent('##002#')}">##002#</a>. Yo'naltirish operatorda (Beeline, Ucell, Uzmobile) mahalliy tarifda hisoblanadi.</div>`
     : settings.uzNumber
-    ? `⏳ Kotib raqami tez orada biriktiriladi — sizga Telegram orqali xabar keladi. Shundan keyin shu yerda bir tugma bilan yo'naltirishni yoqasiz, qurilma kerak bo'lmaydi.`
+    ? `⏳ Kotib raqami tez orada sozlanadi — sizga Telegram orqali xabar keladi. Shundan keyin shu yerda bir tugma bilan yo'naltirishni yoqasiz, qurilma kerak bo'lmaydi.`
     : "Raqamingizni kiriting — kotib raqami biriktirilgach, ulash tugmalari shu yerda chiqadi.";
   const n = settings.kotibNumber;
   $('#ph-current').innerHTML = n

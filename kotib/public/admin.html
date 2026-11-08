@@ -60,7 +60,7 @@
       <div class="view hidden" id="v-numbers">
         <div class="card">
           <h3>O'zbek raqamlari (SIP)</h3>
-          <p class="muted small" style="margin-top:-6px"><b>Qurilmasiz yo'l (tavsiya):</b> mahalliy provayderdan (masalan, Uztelecom IP-telefoniya) har bir biznes uchun O'zbekiston virtual raqamini oling va provayderda kiruvchi qo'ng'iroqlarni Twilio SIP domeningizga yo'naltiring (<code>sip:998XXXXXXXXX@domen</code>). So'ng "Bizneslar" bo'limida shu raqamni biznesga "Biriktirish" qiling — biznes ishxona telefonida bitta tugma bilan yo'naltirishni yoqadi. <b>Muqobil:</b> biznesning SIM-kartasi GSM shlyuzga solinadi.</p>
+          <p class="muted small" style="margin-top:-6px"><b>Eng oddiy yo'l — bitta umumiy raqam:</b> bitta O'zbekiston virtual raqamini oling, uning kiruvchi qo'ng'iroqlarini <code>…/sip/voice</code> ga ulang (SIP orqali yoki Twilio raqami bo'lsa — "A call comes in" webhook) va "Sozlamalar → Umumiy kotib raqami"ga yozing. Bizneslar o'z eski raqamidan shu raqamga yo'naltiradi; kotib asl raqamga qarab biznesni aniqlaydi (provayder asl raqamni — Diversion/ForwardedFrom — uzatishi kerak, birinchi biznes bilan sinang). Uzatmasa — har biznesga alohida raqam bering:<br><b>Har biznesga alohida raqam:</b> mahalliy provayderdan (masalan, Uztelecom IP-telefoniya) har bir biznes uchun O'zbekiston virtual raqamini oling va provayderda kiruvchi qo'ng'iroqlarni Twilio SIP domeningizga yo'naltiring (<code>sip:998XXXXXXXXX@domen</code>). So'ng "Bizneslar" bo'limida shu raqamni biznesga "Biriktirish" qiling — biznes ishxona telefonida bitta tugma bilan yo'naltirishni yoqadi. <b>Muqobil:</b> biznesning SIM-kartasi GSM shlyuzga solinadi.</p>
           <ol class="steps small">
             <li>Twilio → Voice → <b>SIP Domains</b> → yangi domen (masalan <code>kotib.sip.twilio.com</code>) va uni "Sozlamalar"dagi <b>SIP domeni</b> maydoniga yozing.</li>
             <li>Domen sozlamasi: <b>A call comes in</b> → POST <code id="sip-voice"></code>, <b>Call status changes</b> → <code id="sip-status"></code>.</li>
@@ -81,6 +81,7 @@
           <button class="btn small ghost" id="add-plan">+ Tarif qo'shish</button>
           <label style="margin-top:14px">Bepul sinov davri (kun)<input id="trial" type="number" min="0" max="90"></label>
           <label>To'lov yo'riqnomasi (bizneslar ko'radi)<textarea id="payinfo" rows="4"></textarea></label>
+          <label>Umumiy kotib raqami (barcha bizneslar shu raqamga yo'naltiradi)<input id="sharednum" placeholder="+998 71 200 00 00"></label>
           <label>SIP domeni (O'zbek raqamlari uchun)<input id="sipdomain" placeholder="kotib.sip.twilio.com"></label>
           <label>Yordam aloqasi (kirish sahifasida ko'rinadi: parolni unutganlar uchun)<input id="support" placeholder="Telegram: @kotib_yordam yoki +998 90 000 00 00"></label>
         </div>

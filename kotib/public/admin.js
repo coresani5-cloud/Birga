@@ -146,6 +146,7 @@ async function loadSettings() {
   $('#payinfo').value = cfg.payInfo;
   $('#support').value = cfg.support || '';
   $('#sipdomain').value = cfg.sipDomain || '';
+  $('#sharednum').value = cfg.sharedNumber || '';
   $('#admin-pass-card').classList.toggle('hidden', cfg.adminEnv);
   $('#keys').innerHTML = cfg.keys.map((k) => `<label>${esc(KEYS[k.key] || k.key)} ${k.set ? '<span class="tag ok">bor</span>' : ''}${k.env ? ' <span class="tag">server</span>' : ''}
     <input data-key="${k.key}" ${k.secret ? 'type="password" autocomplete="off"' : ''} value="${esc(k.value)}" ${k.env ? 'disabled placeholder="Server sozlamasida berilgan"' : ''}></label>`).join('');
@@ -161,7 +162,7 @@ $('#add-plan').onclick = () => { collectPlans(); cfg.plans.push({ name: '', pric
 $('#save').onclick = async () => {
   collectPlans();
   const keys = {}; $$('#keys input:not([disabled])').forEach((i) => keys[i.dataset.key] = i.value);
-  try { await api('/api/admin/settings', { method: 'PUT', body: { plans: cfg.plans, trialDays: Number($('#trial').value), payInfo: $('#payinfo').value, support: $('#support').value, sipDomain: $('#sipdomain').value, keys } }); toast('Saqlandi ✅'); loadSettings(); } catch (e) { toast(e.message); }
+  try { await api('/api/admin/settings', { method: 'PUT', body: { plans: cfg.plans, trialDays: Number($('#trial').value), payInfo: $('#payinfo').value, support: $('#support').value, sipDomain: $('#sipdomain').value, sharedNumber: $('#sharednum').value, keys } }); toast('Saqlandi ✅'); loadSettings(); } catch (e) { toast(e.message); }
 };
 
 $('#admin-pass-btn').onclick = async () => {

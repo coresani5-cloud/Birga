@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Qaydla</title>
+<meta name="description" content="Qaydla — ovozli yon daftarcha: o'zbek va rus tilida aytganingizni matnga aylantirib, sana va vaqt bilan saqlaydi.">
+<meta name="theme-color" content="#070b18">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="bg-glow"></div>
+
+<div class="shell">
+  <!-- Sidebar -->
+  <nav class="sidebar" aria-label="Menyu">
+    <div class="nav-top">
+      <img class="logo" src="icon.svg" alt="Qaydla" width="40" height="40">
+      <button class="nav-btn active" data-go="home" title="Bosh sahifa" aria-label="Bosh sahifa">
+        <svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>
+      </button>
+      <button class="nav-btn" data-go="notes" title="Qaydlar" aria-label="Qaydlar">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2"/></svg>
+      </button>
+      <button class="nav-btn" data-go="stats" title="Statistika" aria-label="Statistika">
+        <svg viewBox="0 0 24 24" class="stroke"><path d="M3 3v18h18"/><path d="m7 15 4-5 3 3 6-7"/></svg>
+      </button>
+      <button class="nav-btn" data-go="calendar" title="Kalendar" aria-label="Kalendar">
+        <svg viewBox="0 0 24 24"><path d="M7 2h2v2h6V2h2v2h2a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2zm-2 7v10h14V9zm2 2h3v3H7z"/></svg>
+      </button>
+      <button class="nav-btn" data-go="settings" title="Sozlamalar" aria-label="Sozlamalar">
+        <svg viewBox="0 0 24 24"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.4-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3.3h-4l-.4 2.7a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.4L4.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.4 2.5-1a7.4 7.4 0 0 0 1.7 1l.4 2.7h4l.4-2.7a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.4zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg>
+      </button>
+    </div>
+    <div class="nav-bottom">
+      <button class="nav-theme" id="themeBtn" aria-label="Mavzuni almashtirish">
+        <svg viewBox="0 0 24 24" class="stroke"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <span id="themeLabel">Yorug'</span>
+      </button>
+      <button class="nav-user" data-go="settings" aria-label="Profil">
+        <span class="avatar" id="avatar">Q</span>
+        <span class="uname" id="sideName">Qaydla</span>
+      </button>
+    </div>
+  </nav>
+
+  <main class="main">
+    <!-- ============ HOME ============ -->
+    <section class="page active" id="page-home">
+      <div class="grid">
+        <article class="card hero span-2l">
+          <div class="hero-top">
+            <div>
+              <div class="muted" id="greet">Xayrli kech,</div>
+              <h1 class="hero-name" id="heroName">Qaydla</h1>
+              <p class="hero-sub">Ayting — men yozib boraman.</p>
+            </div>
+            <div class="pill time-pill" id="clock">--:--</div>
+          </div>
+          <svg class="hero-wave" viewBox="0 0 300 70" preserveAspectRatio="none" aria-hidden="true">
+            <defs>
+              <linearGradient id="wg" x1="0" x2="1"><stop offset="0" stop-color="#3b6cff" stop-opacity=".2"/><stop offset=".5" stop-color="#5b8cff"/><stop offset="1" stop-color="#7aa2ff" stop-opacity=".4"/></linearGradient>
+              <linearGradient id="wf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3b6cff" stop-opacity=".28"/><stop offset="1" stop-color="#3b6cff" stop-opacity="0"/></linearGradient>
+            </defs>
+            <path id="heroFill" fill="url(#wf)"/>
+            <path id="heroLine" fill="none" stroke="url(#wg)" stroke-width="2"/>
+            <g id="heroDots"></g>
+          </svg>
+        </article>
+
+        <article class="card date-card">
+          <div class="date-big" id="dateBig">—</div>
+          <div class="muted" id="weekday">—</div>
+          <div class="date-mid">
+            <svg viewBox="0 0 24 24" class="doc-ico" aria-hidden="true"><path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" fill="#5b8cff" opacity=".25"/><path d="M14 2v6h6" fill="none" stroke="#7aa2ff" stroke-width="1.6"/><path d="M8 13h8M8 17h5" stroke="#f59e3b" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <div><div class="big-num" id="todayNotes">0</div><div class="muted sm">bugungi qayd</div></div>
+          </div>
+          <div class="muted sm" id="dateFoot">Jami: 0 · So'z: 0</div>
+        </article>
+
+        <article class="card prod-card">
+          <div class="card-head"><h3>Bugungi natija</h3><span class="muted sm">Bugun ⌄</span></div>
+          <div class="prod-body">
+            <div>
+              <div class="pct"><span id="goalPct">0</span><small>%</small></div>
+              <div class="muted sm" id="goalMsg">Boshlaymizmi?</div>
+              <div class="prod-nums">
+                <div><div class="muted xs">Aytilgan so'zlar</div><div class="num" id="todayWords">0</div></div>
+                <div><div class="muted xs">Kunlik maqsad</div><div class="num" id="goalNum">300</div></div>
+              </div>
+            </div>
+            <svg class="ring" viewBox="0 0 120 120" aria-hidden="true">
+              <defs><linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#38bdf8"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs>
+              <circle cx="60" cy="60" r="46" class="ring-bg"/>
+              <circle cx="60" cy="60" r="46" class="ring-fg" id="goalRing" stroke="url(#rg)"/>
+            </svg>
+          </div>
+        </article>
+
+        <article class="card rec-card">
+          <div class="card-head"><h3>Ovozli qayd</h3><button class="lang-chip" id="langChip" title="Tilni almashtirish">UZ</button></div>
+          <div class="rec-ring-wrap">
+            <svg class="rec-ring" viewBox="0 0 160 160" aria-hidden="true">
+              <defs><linearGradient id="og" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fbbf24"/><stop offset="1" stop-color="#f97316"/></linearGradient></defs>
+              <circle cx="80" cy="80" r="68" class="ring-bg"/>
+              <circle cx="80" cy="80" r="68" class="ring-fg rec-prog" id="recRing" stroke="url(#og)"/>
+            </svg>
+            <div class="rec-center">
+              <div class="rec-time" id="recTime">00:00</div>
+              <div class="muted sm" id="recState">Tayyor</div>
+            </div>
+          </div>
+          <button class="start-btn" id="homeMic"><span class="tri"></span><span id="homeMicLbl">Yozish</span></button>
+        </article>
+
+        <article class="card live-card">
+          <div class="card-head"><h3>Jonli matn</h3><span class="muted sm" id="liveLang">O'zbekcha</span></div>
+          <div class="live-text" id="liveText"><span class="placeholder">Mikrofonni bosing va gapiring. Aytganlaringiz shu yerda paydo bo'ladi va avtomatik qayd sifatida saqlanadi.</span></div>
+          <svg class="mood-wave" viewBox="0 0 300 60" preserveAspectRatio="none" aria-hidden="true"><path id="moodWave" fill="none" stroke="url(#wg)" stroke-width="2"/><path id="moodWave2" fill="none" stroke="#8b5cf6" stroke-opacity=".5" stroke-width="1.5"/></svg>
+          <div class="live-foot"><span class="muted xs">Holat</span><span class="ok-text" id="liveStatus">Kutmoqda</span></div>
+        </article>
+
+        <article class="card tasks-card">
+          <div class="card-head"><h3>So'nggi qaydlar</h3><button class="icon-btn" id="newNoteBtn" title="Yangi qayd" aria-label="Yangi qayd">+</button></div>
+          <ul class="recent" id="recentList"></ul>
+        </article>
+
+        <article class="card short-card">
+          <div class="card-head"><h3>Tezkor</h3></div>
+          <div class="shortcuts">
+            <button class="sc" data-act="uz"><span class="sc-ico">UZ</span><span>O'zbek</span></button>
+            <button class="sc" data-act="ru"><span class="sc-ico">RU</span><span>Русский</span></button>
+            <button class="sc" data-act="new"><span class="sc-ico"><svg viewBox="0 0 24 24"><path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm7 1.5V8h4.5z"/></svg></span><span>Yangi</span></button>
+            <button class="sc" data-act="search"><span class="sc-ico"><svg viewBox="0 0 24 24" class="stroke"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></span><span>Qidiruv</span></button>
+            <button class="sc" data-act="calendar"><span class="sc-ico"><svg viewBox="0 0 24 24"><path d="M7 2h2v2h6V2h2v2h2a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2zm-2 7v10h14V9z"/></svg></span><span>Kalendar</span></button>
+            <button class="sc" data-act="export"><span class="sc-ico"><svg viewBox="0 0 24 24" class="stroke"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg></span><span>Eksport</span></button>
+          </div>
+        </article>
+
+        <article class="card week-card span-2l">
+          <div class="card-head"><h3>Haftalik faollik</h3><span class="muted sm">Shu hafta</span></div>
+          <div class="bars" id="weekBars"></div>
+        </article>
+
+        <article class="card events-card">
+          <div class="card-head"><h3>Mixlangan qaydlar</h3><button class="link" data-go="notes">Barchasi</button></div>
+          <ul class="events" id="pinnedList"></ul>
+        </article>
+
+        <article class="card sys-card">
+          <div class="card-head"><h3>Tizim holati</h3></div>
+          <div class="sys-ring">
+            <svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="44" class="ring-bg"/><circle cx="60" cy="60" r="44" class="ring-fg" id="sysRing" stroke="#5b8cff"/></svg>
+            <div class="sys-center"><div class="num-lg" id="sysPct">—</div><div class="muted xs" id="sysLbl">Tanish</div></div>
+          </div>
+          <div class="sys-rows">
+            <div class="sys-row"><span>Xotira</span><i><b id="barStore"></b></i><em id="valStore">—</em></div>
+            <div class="sys-row"><span>Mikrofon</span><i><b id="barMic"></b></i><em id="valMic">—</em></div>
+            <div class="sys-row"><span>Internet</span><i><b id="barNet"></b></i><em id="valNet">—</em></div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ============ NOTES LIST ============ -->
+    <section class="page" id="page-notes">
+      <header class="page-head">
+        <h2>Qaydlar</h2>
+        <button class="btn primary" id="notesNew">+ Yangi qayd</button>
+      </header>
+      <div class="search-row">
+        <svg viewBox="0 0 24 24" class="stroke"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="searchInput" type="search" placeholder="Qaydlardan qidirish… / Поиск…" autocomplete="off">
+      </div>
+      <div class="filter-row">
+        <button class="chip active" data-filter="all">Barchasi</button>
+        <button class="chip" data-filter="today">Bugun</button>
+        <button class="chip" data-filter="pinned">Mixlangan</button>
+        <button class="chip" data-filter="uz">O'zbekcha</button>
+        <button class="chip" data-filter="ru">Ruscha</button>
+      </div>
+      <div class="notes-grid" id="notesGrid"></div>
+    </section>
+
+    <!-- ============ EDITOR ============ -->
+    <section class="page" id="page-editor">
+      <header class="page-head ed-head">
+        <button class="icon-btn" id="edBack" aria-label="Orqaga">
+          <svg viewBox="0 0 24 24" class="stroke"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <div class="ed-meta">
+          <div class="ed-date" id="edDate">—</div>
+          <div class="muted xs" id="edUpdated">—</div>
+        </div>
+        <div class="ed-actions">
+          <button class="icon-btn" id="edPin" title="Mixlash" aria-label="Mixlash"><svg viewBox="0 0 24 24"><path d="M16 3l5 5-3 1-4 4 1 5-2 2-4-4-5 5-1-1 5-5-4-4 2-2 5 1 4-4z"/></svg></button>
+          <button class="icon-btn" id="edStamp" title="Hozirgi vaqtni qo'yish" aria-label="Vaqt belgisi"><svg viewBox="0 0 24 24" class="stroke"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></button>
+          <button class="icon-btn" id="edCopy" title="Nusxa olish" aria-label="Nusxa olish"><svg viewBox="0 0 24 24" class="stroke"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg></button>
+          <button class="icon-btn" id="edShare" title="Ulashish" aria-label="Ulashish"><svg viewBox="0 0 24 24" class="stroke"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg></button>
+          <button class="icon-btn danger" id="edDelete" title="O'chirish" aria-label="O'chirish"><svg viewBox="0 0 24 24" class="stroke"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
+        </div>
+      </header>
+      <div class="sheet card">
+        <input class="ed-title" id="edTitle" placeholder="Sarlavha (ixtiyoriy)" maxlength="120">
+        <textarea class="ed-body" id="edBody" placeholder="Bu yerga yozing yoki pastdagi mikrofonni bosib gapiring…"></textarea>
+        <div class="interim" id="edInterim"></div>
+        <div class="audios" id="edAudios"></div>
+      </div>
+      <div class="ed-dock">
+        <button class="lang-chip big" id="edLang">UZ</button>
+        <button class="mic-fab" id="edMic" aria-label="Mikrofon">
+          <svg viewBox="0 0 24 24"><path d="M12 15a3.5 3.5 0 0 0 3.5-3.5v-6a3.5 3.5 0 0 0-7 0v6A3.5 3.5 0 0 0 12 15zm6-3.5a6 6 0 0 1-12 0H4.2a7.8 7.8 0 0 0 6.9 7.7V22h1.8v-2.8a7.8 7.8 0 0 0 6.9-7.7z"/></svg>
+          <span class="pulse"></span>
+        </button>
+        <div class="dock-info"><div class="rec-time sm" id="edTime">00:00</div><div class="muted xs" id="edState">Tayyor</div></div>
+      </div>
+    </section>
+
+    <!-- ============ STATS ============ -->
+    <section class="page" id="page-stats">
+      <header class="page-head"><h2>Statistika</h2></header>
+      <div class="grid">
+        <article class="card"><div class="muted sm">Jami qaydlar</div><div class="num-xl" id="stTotal">0</div></article>
+        <article class="card"><div class="muted sm">Jami so'zlar</div><div class="num-xl" id="stWords">0</div></article>
+        <article class="card"><div class="muted sm">O'zbekcha / Ruscha</div><div class="num-xl" id="stLangs">0 / 0</div></article>
+        <article class="card"><div class="muted sm">Ovozli yozuvlar</div><div class="num-xl" id="stAudio">0</div></article>
+        <article class="card span-all">
+          <div class="card-head"><h3>So'nggi 30 kun</h3><span class="muted sm">aytilgan so'zlar</span></div>
+          <div class="bars month" id="monthBars"></div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ============ CALENDAR ============ -->
+    <section class="page" id="page-calendar">
+      <header class="page-head">
+        <button class="icon-btn" id="calPrev" aria-label="Oldingi oy"><svg viewBox="0 0 24 24" class="stroke"><path d="M15 18l-6-6 6-6"/></svg></button>
+        <h2 id="calTitle">—</h2>
+        <button class="icon-btn" id="calNext" aria-label="Keyingi oy"><svg viewBox="0 0 24 24" class="stroke"><path d="M9 6l6 6-6 6"/></svg></button>
+      </header>
+      <div class="card cal-card">
+        <div class="cal-week"><span>Du</span><span>Se</span><span>Ch</span><span>Pa</span><span>Ju</span><span>Sh</span><span>Ya</span></div>
+        <div class="cal-grid" id="calGrid"></div>
+      </div>
+      <h3 class="cal-day-title" id="calDayTitle"></h3>
+      <div class="notes-grid" id="calNotes"></div>
+    </section>
+
+    <!-- ============ SETTINGS ============ -->
+    <section class="page" id="page-settings">
+      <header class="page-head"><h2>Sozlamalar</h2></header>
+      <div class="card set-card">
+        <label class="set-row"><span>Ismingiz</span><input id="setName" maxlength="24" placeholder="Masalan: Aziz"></label>
+        <label class="set-row"><span>Nutq tili</span>
+          <select id="setLang"><option value="uz">O'zbekcha (uz-UZ)</option><option value="ru">Русский (ru-RU)</option></select></label>
+        <label class="set-row"><span>Kunlik maqsad (so'z)</span><input id="setGoal" type="number" min="50" max="10000" step="50"></label>
+        <label class="set-row"><span>Har bir yozuv oldiga vaqt qo'yish <small>[14:32]</small></span><input type="checkbox" id="setStamp" class="tgl"></label>
+        <label class="set-row"><span>Avtomatik tinish belgilari va bosh harf</span><input type="checkbox" id="setPunct" class="tgl"></label>
+        <label class="set-row"><span>Ovoz yozuvini ham saqlash <small>(qayta eshitish uchun)</small></span><input type="checkbox" id="setAudio" class="tgl"></label>
+        <label class="set-row"><span>O'zbekcha harflar: oʻ, gʻ (rasmiy imlo)</span><input type="checkbox" id="setApos" class="tgl"></label>
+      </div>
+      <div class="card set-card">
+        <h3>Ovozli buyruqlar</h3>
+        <p class="muted sm">Gapirayotganda shu so'zlarni aytsangiz, belgiga aylanadi:</p>
+        <div class="cmd-table">
+          <div><b>nuqta</b> / <b>точка</b></div><div>.</div>
+          <div><b>vergul</b> / <b>запятая</b></div><div>,</div>
+          <div><b>so'roq belgisi</b> / <b>вопросительный знак</b></div><div>?</div>
+          <div><b>undov belgisi</b> / <b>восклицательный знак</b></div><div>!</div>
+          <div><b>ikki nuqta</b> / <b>двоеточие</b></div><div>:</div>
+          <div><b>yangi qator</b> / <b>новая строка</b></div><div>↵</div>
+          <div><b>yangi xatboshi</b> / <b>новый абзац</b></div><div>↵↵</div>
+          <div><b>tire</b> / <b>тире</b></div><div>—</div>
+        </div>
+      </div>
+      <div class="card set-card">
+        <h3>Ma'lumotlar</h3>
+        <div class="btn-row">
+          <button class="btn" id="expTxt">TXT eksport</button>
+          <button class="btn" id="expJson">Zaxira (JSON)</button>
+          <label class="btn">Zaxirani tiklash<input type="file" id="impJson" accept="application/json" hidden></label>
+          <button class="btn danger" id="wipe">Hammasini o'chirish</button>
+        </div>
+        <p class="muted xs">Qaydlar faqat shu qurilmada (brauzer xotirasida) saqlanadi.</p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>

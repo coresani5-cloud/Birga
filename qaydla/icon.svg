@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1440"/><stop offset=".55" stop-color="#040820"/><stop offset="1" stop-color="#0d0a35"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2f8bff"/><stop offset=".5" stop-color="#2a4dff"/><stop offset="1" stop-color="#9b5cff"/>
+    </linearGradient>
+    <linearGradient id="blu" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4aa8ff"/><stop offset=".6" stop-color="#3f6bff"/><stop offset="1" stop-color="#9a5cff"/>
+    </linearGradient>
+    <linearGradient id="doc" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1c3bb8" stop-opacity=".7"/><stop offset="1" stop-color="#0d1460" stop-opacity=".85"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#bg)"/>
+  <rect x="22" y="22" width="468" height="468" rx="106" fill="none" stroke="url(#rim)" stroke-width="12" filter="url(#glow)"/>
+  <!-- document -->
+  <path d="M206 128h134l58 58v178a30 30 0 0 1-30 30H206a30 30 0 0 1-30-30V158a30 30 0 0 1 30-30z" fill="url(#doc)" stroke="#4f7cff" stroke-opacity=".7" stroke-width="3" filter="url(#glow)"/>
+  <path d="M340 128v42a16 16 0 0 0 16 16h42z" fill="#6f8dff"/>
+  <g stroke="#4f6fff" stroke-width="12" stroke-linecap="round" filter="url(#glow)">
+    <path d="M284 200h80M302 228h62M302 256h62M302 284h62"/>
+  </g>
+  <!-- microphone -->
+  <g filter="url(#glow)">
+    <rect x="174" y="152" width="86" height="136" rx="43" fill="url(#blu)"/>
+    <path d="M152 236v12a65 65 0 0 0 130 0v-12" fill="none" stroke="url(#blu)" stroke-width="16" stroke-linecap="round"/>
+    <path d="M217 313v28M178 348h78" fill="none" stroke="url(#blu)" stroke-width="16" stroke-linecap="round"/>
+  </g>
+  <g stroke="#0b1440" stroke-width="9" stroke-linecap="round"><path d="M201 189h32M201 207h32M201 225h32"/></g>
+  <!-- waves -->
+  <g stroke="url(#blu)" stroke-width="9" stroke-linecap="round" filter="url(#glow)">
+    <path d="M84 238v24M101 226v48M118 210v80M135 196v108"/>
+    <path d="M428 238v24M411 226v48M394 210v80"/>
+  </g>
+</svg>

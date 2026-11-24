@@ -1,0 +1,16 @@
+{
+  "name": "Qaydla — ovozli yon daftarcha",
+  "short_name": "Qaydla",
+  "description": "Aytganingizni o'zbek va rus tilida matnga aylantirib, sana va vaqt bilan saqlaydi.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#060a16",
+  "theme_color": "#070b18",
+  "lang": "uz",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

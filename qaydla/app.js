@@ -5,7 +5,7 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
 /* ---------------- Settings ---------------- */
-const DEF = { name: '', lang: 'uz', maxMin: 10, goal: 300, stamp: true, punct: true, audio: false, apos: true, theme: 'dark', lockAfter: 0 };
+const DEF = { name: '', lang: 'uz', engine: 'auto', keepMonths: 0, lastBackup: 0, maxMin: 10, goal: 300, stamp: true, punct: true, audio: false, apos: true, theme: 'dark', lockAfter: 0 };
 let S = { ...DEF };
 try { S = { ...DEF, ...JSON.parse(localStorage.getItem('qaydla.settings') || '{}') }; } catch {}
 const saveS = () => { try { localStorage.setItem('qaydla.settings', JSON.stringify(S)); } catch {} };
@@ -106,6 +106,48 @@ function joinText(before, chunk) {
   return before + ' ' + chunk;
 }
 
+/* ---------------- Cloud speech-to-text ---------------- */
+let CLOUD;  // undefined = tekshirilmoqda, false = sozlanmagan, 'elevenlabs' | 'openai'
+async function checkCloud() {
+  try { const r = await fetch('/api/transcribe', { cache: 'no-store' }); const j = await r.json(); CLOUD = j.provider || false; }
+  catch { CLOUD = false; }
+  if (page === 'settings') renderSettings();
+}
+async function transcribe(blob, lang, tries = 2) {
+  let r;
+  try { r = await fetch('/api/transcribe?lang=' + lang, { method: 'POST', headers: { 'content-type': blob.type || 'audio/webm' }, body: blob }); }
+  catch { if (tries > 1) { await new Promise(x => setTimeout(x, 1500)); return transcribe(blob, lang, tries - 1); } throw new Error('Internet yoʻq — bu boʻlak matnga aylanmadi'); }
+  const j = await r.json().catch(() => ({}));
+  if (r.status >= 500 && j.error !== 'no_key' && tries > 1) { await new Promise(x => setTimeout(x, 1500)); return transcribe(blob, lang, tries - 1); }
+  if (!r.ok) throw new Error(j.error === 'no_key' ? 'Bulutli tanish hali sozlanmagan' : r.status === 429 ? 'Juda koʻp soʻrov — biroz kuting' : 'Matnga aylantirib boʻlmadi');
+  return (j.text || '').trim();
+}
+
+/* ---------------- Long-term storage ---------------- */
+let PERSIST = null;
+async function ensurePersist() {
+  try {
+    if (navigator.storage?.persisted) {
+      PERSIST = await navigator.storage.persisted();
+      if (!PERSIST && navigator.storage.persist) PERSIST = await navigator.storage.persist();
+    }
+  } catch {}
+  if (page === 'settings') renderSettings();
+}
+async function applyRetention() {
+  const m = +S.keepMonths || 0; if (!m) return;
+  const cut = Date.now() - m * 30.44 * 864e5; let k = 0;
+  for (const n of [...NOTES]) if (!n.pinned && (n.updatedAt || n.createdAt) < cut) { await del(n.id); k++; }
+  if (k) { NOTES = NOTES.filter(n => n.pinned || (n.updatedAt || n.createdAt) >= cut); toast(`${m} oydan eski ${k} ta qayd oʻchirildi`); }
+}
+function backupReminder() {
+  if (NOTES.length < 5) return;
+  const first = Math.min(...NOTES.map(n => n.createdAt));
+  if (Date.now() - Math.max(S.lastBackup || 0, first) > 30 * 864e5) setTimeout(() => toast('Oxirgi zaxiradan 30 kun oʻtdi — Sozlamalar → “Toʻliq zaxira”'), 2500);
+}
+const blobToData = b => new Promise((res, rej) => { const f = new FileReader(); f.onload = () => res(f.result); f.onerror = rej; f.readAsDataURL(b); });
+const dataToBlob = async d => (await fetch(d)).blob();
+
 /* ---------------- Speech engine ---------------- */
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 const isAndroid = /Android/i.test(navigator.userAgent);
@@ -115,9 +157,72 @@ const Rec = {
   lastFinal: '',
   running: false, endedAt: 0, pending: '', wake: null, endWaiters: [], warned: false,
   maxSec() { return Math.max(1, +S.maxMin || 10) * 60; },
+  /* ---------- Bulutli tanish (iPhone'da o'zbekcha uchun) ---------- */
+  mode: 'browser', cmr: null, queue: null, pendingN: 0,
+  useCloud() { const e = S.engine || 'auto'; return e === 'cloud' || (e === 'auto' && (isIOS || !SR)); },
+  async cloudStart(target) {
+    try { this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); }
+    catch { toast('Mikrofonga ruxsat bering (Sozlamalar → Safari → Mikrofon).'); return; }
+    this.mode = 'cloud'; this.target = target; this.on = true; this.started = Date.now(); this.warned = false;
+    this.cmime = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus'].find(t => window.MediaRecorder && MediaRecorder.isTypeSupported?.(t)) || '';
+    this.queue = Promise.resolve(); this.pendingN = 0;
+    try {
+      this.actx = new (window.AudioContext || window.webkitAudioContext)();
+      this.analyser = this.actx.createAnalyser(); this.analyser.fftSize = 512;
+      this.actx.createMediaStreamSource(this.stream).connect(this.analyser);
+    } catch {}
+    target.onStart?.();
+    this.cloudSeg();
+    this.tick(); this.timer = setInterval(() => this.tick(), 500);
+    this.splitTimer = setInterval(() => this.cloudSplitCheck(), 100);
+    setUiRec(true); this.keepAwake();
+  },
+  level() {
+    if (!this.analyser) return 1;
+    const a = new Uint8Array(this.analyser.fftSize); this.analyser.getByteTimeDomainData(a);
+    let s = 0; for (const v of a) { const x = (v - 128) / 128; s += x * x; } return Math.sqrt(s / a.length);
+  },
+  cloudSeg() {
+    const mr = new MediaRecorder(this.stream, this.cmime ? { mimeType: this.cmime } : undefined), chunks = [];
+    mr.ondataavailable = e => e.data && e.data.size && chunks.push(e.data);
+    mr.onstop = () => { const blob = new Blob(chunks, { type: mr.mimeType || this.cmime || 'audio/webm' }); if (blob.size > 1500) this.cloudSend(blob); };
+    mr.start(1000); this.cmr = mr; this.segStart = Date.now(); this.quietMs = 0;
+  },
+  /* Bo'lakni jimlik paytida kesamiz — so'z o'rtasidan bo'linmasin; yangi yozuv eskisi to'xtashidan OLDIN boshlanadi (uzilish yo'q) */
+  cloudSplitCheck() {
+    if (!this.on || !this.cmr) return;
+    const age = Date.now() - this.segStart;
+    if (this.level() < 0.012) this.quietMs += 100; else this.quietMs = 0;
+    if ((age > 12000 && this.quietMs >= 400) || age > 28000) { const old = this.cmr; this.cloudSeg(); try { old.stop(); } catch {} }
+  },
+  cloudSend(blob) {
+    this.pendingN++; const target = this.target, lang = this.lang;
+    target.onInterim('⏳ matnga aylantirilmoqda…');
+    this.queue = this.queue.then(() => transcribe(blob, lang)).then(t => { if (t) return target.onFinal(t, lang); })
+      .catch(e => toast(e.message || 'Matnga aylantirib boʻlmadi'))
+      .finally(() => { if (--this.pendingN <= 0) target.onInterim(''); });
+  },
+  async cloudStop(reason) {
+    this.on = false; clearInterval(this.timer); clearInterval(this.splitTimer);
+    const mr = this.cmr; this.cmr = null;
+    if (mr && mr.state !== 'inactive') await new Promise(r => { const prev = mr.onstop; mr.onstop = () => { prev(); r(); }; try { mr.stop(); } catch { r(); } });
+    this.stream?.getTracks().forEach(t => t.stop()); this.stream = null;
+    try { this.actx?.close(); } catch {} this.actx = null; this.analyser = null;
+    this.releaseAwake(); setUiRec(false);
+    if (this.pendingN > 0) $('#liveStatus').textContent = 'Matnga aylantirilmoqda…';
+    await this.queue;
+    this.mode = 'browser';
+    await this.target.onStop?.(null, Math.round((Date.now() - this.started) / 1000));
+    setUiRec(false);
+    if (reason) toast(reason);
+  },
   async start(target) {
-    if (!SR) { toast('Bu brauzer ovozni tanimaydi. Chrome yoki Edge’da oching.'); return; }
     if (this.on) return;
+    if (this.useCloud()) {
+      if (CLOUD !== false) return this.cloudStart(target);
+      if (!SR || isIOS) { toast('Bulutli tanish hali sozlanmagan (Sozlamalar → Ovozni tanish).'); return; }
+    }
+    if (!SR) { toast('Bu brauzer ovozni tanimaydi. Chrome yoki Edge’da oching.'); return; }
     this.target = target; this.on = true; this.started = Date.now(); this.lastFinal = ''; this.pending = ''; this.warned = false;
     target.onStart?.();
     this.makeRec();                     // darhol tinglay boshlaymiz
@@ -183,6 +288,7 @@ const Rec = {
   },
   async stop(reason) {
     if (!this.on) return;
+    if (this.mode === 'cloud') return this.cloudStop(reason);
     this.on = false; clearInterval(this.timer);
     const r = this.rec;
     if (r) {
@@ -575,6 +681,11 @@ function renderSettings() {
   $('#pinOff').hidden = !has;
   $('#setLockAfter').value = String(S.lockAfter);
   $('#setMax').value = String(S.maxMin);
+  $('#setEngine').value = S.engine || 'auto';
+  $('#engineInfo').textContent = CLOUD === undefined ? '(bulut: tekshirilmoqda…)' : CLOUD ? '(bulut: ulangan ✓)' : '(bulut: sozlanmagan)';
+  $('#setKeep').value = String(S.keepMonths || 0);
+  $('#persistInfo').textContent = PERSIST ? 'Yoqilgan ✓' : PERSIST === false ? (isIOS ? 'Ilovani ekranga oʻrnating' : 'Brauzer ruxsat bermadi') : '—';
+  $('#lastBackupInfo').textContent = S.lastBackup ? shortDate(new Date(S.lastBackup)) : 'hali olinmagan';
   $('#setName').value = S.name; $('#setLang').value = Rec.lang; $('#setGoal').value = S.goal;
   $('#setStamp').checked = S.stamp; $('#setPunct').checked = S.punct; $('#setAudio').checked = S.audio; $('#setApos').checked = S.apos;
 }
@@ -587,14 +698,27 @@ function exportTxt() {
   const t = sorted().map(n => `=== ${stampFull(new Date(n.createdAt))} ===\n${n.title ? n.title + '\n' : ''}${n.text}\n`).join('\n');
   download(`qaydla-${dayKey(new Date())}.txt`, t, 'text/plain;charset=utf-8');
 }
-function exportJson() {
-  const data = NOTES.map(({ audios, ...n }) => ({ ...n, audios: (audios || []).length }));
-  download(`qaydla-zaxira-${dayKey(new Date())}.json`, JSON.stringify({ app: 'qaydla', v: 1, notes: data }, null, 1), 'application/json');
+async function exportJson() {
+  if (!NOTES.length) return toast('Zaxira uchun qayd yoʻq');
+  toast('Zaxira tayyorlanmoqda…');
+  const data = [];
+  for (const n of NOTES) {
+    const audios = [];
+    for (const a of n.audios || []) { try { audios.push({ id: a.id, at: a.at, dur: a.dur, data: await blobToData(a.blob) }); } catch {} }
+    data.push({ ...n, audios });
+  }
+  download(`qaydla-zaxira-${dayKey(new Date())}.json`, JSON.stringify({ app: 'qaydla', v: 2, at: Date.now(), notes: data }), 'application/json');
+  S.lastBackup = Date.now(); saveS();
 }
 async function importJson(file) {
   try {
     const j = JSON.parse(await file.text()); const arr = Array.isArray(j) ? j : j.notes; let k = 0;
-    for (const n of arr || []) { if (!n.id || typeof n.text !== 'string') continue; n.audios = []; await put(n); k++; }
+    for (const n of arr || []) {
+      if (!n.id || typeof n.text !== 'string') continue;
+      const au = [];
+      for (const a of Array.isArray(n.audios) ? n.audios : []) { if (a && a.data) { try { au.push({ id: a.id || uid(), at: a.at, dur: a.dur, blob: await dataToBlob(a.data) }); } catch {} } }
+      n.audios = au; await put(n); k++;
+    }
     await loadAll(); toast(`${k} ta qayd tiklandi`); renderHome();
   } catch { toast('Fayl notoʻgʻri'); }
 }
@@ -638,6 +762,8 @@ function bind() {
   $('#calNext').onclick = () => { calM.setMonth(calM.getMonth() + 1); renderCal(); };
   $('#setName').oninput = e => { S.name = e.target.value; saveS(); renderHome(); };
   $('#setLang').onchange = e => Rec.setLang(e.target.value);
+  $('#setEngine').onchange = e => { S.engine = e.target.value; saveS(); };
+  $('#setKeep').onchange = async e => { const m = +e.target.value; if (m && !confirm(`${m} oydan eski (mixlanmagan) qaydlar avtomatik oʻchiriladi. Rozimisiz?`)) { e.target.value = String(S.keepMonths || 0); return; } S.keepMonths = m; saveS(); await applyRetention(); };
   $('#setMax').onchange = e => { S.maxMin = +e.target.value || 10; saveS(); setTimeText('00:00'); };
   $('#setGoal').onchange = e => { S.goal = Math.max(50, +e.target.value || 300); saveS(); };
   ['Stamp', 'Punct', 'Audio', 'Apos'].forEach(k => $('#set' + k).onchange = e => { S[k.toLowerCase()] = e.target.checked; saveS(); });
@@ -848,7 +974,8 @@ function bindInstall() {
 (async function boot() {
   applyTheme(); renderLang(); bind(); bindLock(); bindInstall();
   if (Lock.has()) Lock.open('unlock'); else document.documentElement.classList.remove('locked');
-  try { dbReady = openDB(); db = await dbReady; await loadAll(); } catch (e) { toast('Xotira ochilmadi: ' + e.message); }
+  checkCloud(); ensurePersist();
+  try { dbReady = openDB(); db = await dbReady; await loadAll(); await applyRetention(); backupReminder(); } catch (e) { toast('Xotira ochilmadi: ' + e.message); }
   history.replaceState({ p: 'home' }, '', location.pathname + location.search);
   renderHome(); animWave();
   setInterval(renderClock, 15000);

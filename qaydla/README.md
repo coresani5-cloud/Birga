@@ -26,3 +26,15 @@ so'ng Chrome'da `http://localhost:8080` ni oching.
 ## Muhim
 Ovozni tanish brauzerning Web Speech API'si orqali ishlaydi: **Chrome, Edge, Samsung Internet** (Android/kompyuter).
 Firefox qo'llamaydi. Tanish uchun internet kerak. Qaydlar faqat qurilmada (IndexedDB) saqlanadi.
+
+## iPhone'da o'zbekcha (bulutli tanish)
+iPhone'ning o'z nutq xizmati o'zbek tilini bilmaydi, shuning uchun iPhone'da ovoz bo'laklarga bo'linib
+`api/transcribe.js` (Vercel Function) orqali nutq xizmatiga yuboriladi. Vercel → Settings → Environment Variables:
+
+- `ELEVENLABS_API_KEY` — ElevenLabs Scribe (tavsiya), yoki
+- `OPENAI_API_KEY` — OpenAI gpt-4o-transcribe
+
+## Uzoq saqlash
+- Doimiy xotira so'raladi (`navigator.storage.persist`), iPhone'da ilovani ekranga o'rnatish kerak
+- Saqlash muddati: cheksiz (standart), 12 yoki 24 oy; mixlangan qaydlar o'chirilmaydi
+- To'liq zaxira (ovozlar bilan) JSON fayl, har 30 kunda eslatma

@@ -273,6 +273,8 @@
         <label class="set-row"><span>Ismingiz</span><input id="setName" maxlength="24" placeholder="Masalan: Aziz"></label>
         <label class="set-row"><span>Nutq tili</span>
           <select id="setLang"><option value="uz">O'zbekcha (uz-UZ)</option><option value="ru">Русский (ru-RU)</option></select></label>
+        <label class="set-row"><span>Ovozni tanish <small id="engineInfo"></small></span>
+          <select id="setEngine"><option value="auto">Avtomatik</option><option value="browser">Brauzer (bepul)</option><option value="cloud">Bulut (aniqroq)</option></select></label>
         <label class="set-row"><span>Bir yozuvning eng uzun vaqti</span>
           <select id="setMax"><option value="5">5 daqiqa</option><option value="10">10 daqiqa</option><option value="15">15 daqiqa</option><option value="30">30 daqiqa</option></select></label>
         <label class="set-row"><span>Kunlik maqsad (so'z)</span><input id="setGoal" type="number" min="50" max="10000" step="50"></label>
@@ -309,9 +311,13 @@
       </div>
       <div class="card set-card">
         <h3>Ma'lumotlar</h3>
+        <label class="set-row"><span>Qaydlarni saqlash muddati</span>
+          <select id="setKeep"><option value="0">Cheksiz (oʻchirilmaydi)</option><option value="12">12 oy</option><option value="24">24 oy</option></select></label>
+        <div class="set-row"><span>Doimiy xotira <small>(brauzer tozalamasin)</small></span><em class="set-val" id="persistInfo">—</em></div>
+        <div class="set-row"><span>Oxirgi toʻliq zaxira</span><em class="set-val" id="lastBackupInfo">—</em></div>
         <div class="btn-row">
           <button class="btn" id="expTxt">TXT eksport</button>
-          <button class="btn" id="expJson">Zaxira (JSON)</button>
+          <button class="btn primary" id="expJson">Toʻliq zaxira (ovozlar bilan)</button>
           <label class="btn">Zaxirani tiklash<input type="file" id="impJson" accept="application/json" hidden></label>
           <button class="btn danger" id="wipe">Hammasini o'chirish</button>
         </div>

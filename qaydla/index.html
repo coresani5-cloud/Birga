@@ -8,7 +8,12 @@
 <meta name="theme-color" content="#070b18">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Qaydla">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="format-detection" content="telephone=no">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -54,6 +59,12 @@
   <main class="main">
     <!-- ============ HOME ============ -->
     <section class="page active" id="page-home">
+      <div class="install-bar" id="installBar" hidden>
+        <img src="icon.svg" alt="" width="40" height="40">
+        <div class="ib-text"><b>Qaydla’ni ekranga o‘rnating</b><span class="muted xs">Ilova kabi bir bosishda ochiladi</span></div>
+        <button class="btn primary" data-install>O‘rnatish</button>
+        <button class="icon-btn" id="installClose" aria-label="Yopish">×</button>
+      </div>
       <div class="grid">
         <article class="card hero span-2l">
           <div class="hero-top">
@@ -284,6 +295,10 @@
           <div><b>tire</b> / <b>тире</b></div><div>—</div>
         </div>
       </div>
+      <div class="card set-card" id="installSet">
+        <h3>Ilovani o‘rnatish</h3>
+        <div class="set-row"><span id="installSetTxt">Qaydla’ni telefon ekraniga ilova sifatida qo‘shish</span><button class="btn primary" data-install>📲 Ekranga o‘rnatish</button></div>
+      </div>
       <div class="card set-card">
         <h3>Xavfsizlik</h3>
         <div class="set-row"><span>Kirish kodi (PIN) <small id="pinStatus">o'rnatilmagan</small></span>
@@ -317,6 +332,20 @@
       <button class="kp-alt" data-k="cancel" id="kpCancel">Bekor</button><button>0</button><button class="kp-alt" data-k="del" aria-label="O'chirish">⌫</button>
     </div>
     <button class="link lock-forgot" id="lockForgot">Kodni unutdim</button>
+  </div>
+</div>
+<div class="sheet-modal" id="iosSheet" hidden>
+  <div class="sm-box card">
+    <button class="icon-btn sm-close" id="iosClose" aria-label="Yopish">×</button>
+    <img src="icon.svg" alt="" width="56" height="56" class="sm-logo">
+    <h3 id="iosTitle">iPhone ekraniga o‘rnatish</h3>
+    <ol class="ios-steps" id="iosSteps">
+      <li><span class="n">1</span><span id="iosStep1">Pastdagi <b>Ulashish</b> <svg viewBox="0 0 24 24" class="stroke ios-ico"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg> tugmasini bosing</span></li>
+      <li><span class="n">2</span><span>Roʻyxatdan <b>“На экран «Домой»”</b> / <b>“Add to Home Screen”</b> <svg viewBox="0 0 24 24" class="stroke ios-ico"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8v8M8 12h8"/></svg> ni tanlang</span></li>
+      <li><span class="n">3</span><span>Yuqori oʻngdagi <b>“Добавить” / “Add”</b> ni bosing</span></li>
+    </ol>
+    <p class="muted xs" id="iosNote">Faqat <b>Safari</b> brauzerida ishlaydi. Boshqa brauzerda boʻlsangiz, havolani Safari’da oching.</p>
+    <div class="ios-arrow" id="iosArrow">⬇</div>
   </div>
 </div>
 <div class="toast" id="toast"></div>

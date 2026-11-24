@@ -763,9 +763,53 @@ function bindLock() {
   });
 }
 
+/* ---------------- Install (Android + iPhone) ---------------- */
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+let installEvt = null;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; renderInstall(); });
+window.addEventListener('appinstalled', () => { installEvt = null; toast('Qaydla ekranga oʻrnatildi ✓'); renderInstall(); });
+function renderInstall() {
+  const inst = isStandalone();
+  let dismissed = false; try { dismissed = localStorage.getItem('qaydla.installHide') === '1'; } catch {}
+  $('#installBar').hidden = inst || dismissed;
+  $('#installSet').hidden = inst;
+}
+async function doInstall() {
+  if (installEvt) {
+    installEvt.prompt();
+    try { const r = await installEvt.userChoice; if (r.outcome === 'accepted') installEvt = null; } catch {}
+    renderInstall(); return;
+  }
+  const sheet = $('#iosSheet');
+  if (isIOS) {
+    const safari = !/CriOS|FxiOS|EdgiOS|OPiOS|YaBrowser/.test(navigator.userAgent);
+    const ipad = /iPad/.test(navigator.userAgent) || navigator.maxTouchPoints > 1 && !/iPhone/.test(navigator.userAgent);
+    $('#iosTitle').textContent = ipad ? 'iPad ekraniga oʻrnatish' : 'iPhone ekraniga oʻrnatish';
+    $('#iosStep1').innerHTML = (ipad ? 'Yuqoridagi' : safari ? 'Pastdagi' : 'Manzil satridagi') + ' <b>Ulashish</b> ' + $('.ios-ico').outerHTML + ' tugmasini bosing';
+    $('#iosNote').innerHTML = safari ? 'Oʻrnatilgach, Qaydla ekranda alohida ilova boʻlib ochiladi.' : 'Agar bu tugma boʻlmasa, havolani <b>Safari</b>’da oching va qaytadan urinib koʻring.';
+    $('#iosArrow').hidden = !(safari && !ipad);
+  } else {
+    $('#iosTitle').textContent = 'Ekranga oʻrnatish';
+    $('#iosSteps').innerHTML = '<li><span class="n">1</span><span>Brauzer menyusini <b>⋮</b> oching</span></li><li><span class="n">2</span><span><b>“Ilovani oʻrnatish”</b> yoki <b>“Bosh ekranga qoʻshish”</b> ni tanlang</span></li>';
+    $('#iosNote').textContent = 'Chrome, Edge yoki Samsung Internet’da ishlaydi.';
+    $('#iosArrow').hidden = true;
+  }
+  sheet.hidden = false;
+}
+function bindInstall() {
+  document.addEventListener('click', e => { if (e.target.closest('[data-install]')) doInstall(); });
+  $('#installClose').onclick = () => { try { localStorage.setItem('qaydla.installHide', '1'); } catch {} renderInstall(); };
+  $('#iosClose').onclick = () => { $('#iosSheet').hidden = true; };
+  $('#iosSheet').addEventListener('click', e => { if (e.target.id === 'iosSheet') $('#iosSheet').hidden = true; });
+  if (isIOS) document.documentElement.classList.add('ios');
+  if (isStandalone()) document.documentElement.classList.add('standalone');
+  renderInstall();
+}
+
 /* ---------------- Boot ---------------- */
 (async function boot() {
-  applyTheme(); renderLang(); bind(); bindLock();
+  applyTheme(); renderLang(); bind(); bindLock(); bindInstall();
   if (Lock.has()) Lock.open('unlock'); else document.documentElement.classList.remove('locked');
   try { dbReady = openDB(); db = await dbReady; await loadAll(); } catch (e) { toast('Xotira ochilmadi: ' + e.message); }
   history.replaceState({ p: 'home' }, '', location.pathname + location.search);

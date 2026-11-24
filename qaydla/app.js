@@ -775,6 +775,42 @@ function renderInstall() {
   $('#installBar').hidden = inst || dismissed;
   $('#installSet').hidden = inst;
 }
+const ICO = {
+  share: '<svg viewBox="0 0 24 24" class="stroke ios-ico"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" class="stroke ios-ico"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8v8M8 12h8"/></svg>',
+  dots: '<span class="ios-dots">•••</span>',
+};
+const stepsHTML = arr => arr.map((t, i) => `<li><span class="n">${i + 1}</span><span>${t}</span></li>`).join('');
+const ADD = `<b>“На экран «Домой»”</b> (<b>“Add to Home Screen”</b>) ${ICO.plus}`;
+function iosPlan() {
+  const ua = navigator.userAgent;
+  const ipad = /iPad/.test(ua) || (navigator.maxTouchPoints > 1 && !/iPhone/.test(ua));
+  const inApp = !/Safari\//.test(ua) || /Instagram|FBAN|FBAV|Telegram|Line\/|MicroMessenger|GSA\//.test(ua);
+  const chrome = /CriOS/.test(ua), other = /FxiOS|EdgiOS|OPiOS|YaBrowser/.test(ua);
+  const ver = +((ua.match(/Version\/(\d+)/) || [])[1] || (ua.match(/OS (\d+)_/) || [])[1] || 0);
+  const dev = ipad ? 'iPad' : 'iPhone';
+  if (inApp) return { title: 'Avval Safari’da oching', inApp: true, steps: [
+    'Siz havolani <b>Telegram / Instagram</b> kabi ilova ichida ochgansiz — u yerda ekranga qoʻshib boʻlmaydi',
+    'Pastdagi <b>“Havolani nusxalash”</b> tugmasini bosing',
+    '<b>Safari</b>’ni oching, manzil satriga joylang va ochilgan sahifada yana <b>“Oʻrnatish”</b> ni bosing',
+    'Yoki: yuqori oʻngdagi <b>•••</b> / ' + ICO.share + ' → <b>“Открыть в Safari”</b> (<b>“Open in Safari”</b>)'] };
+  if (chrome || other) return { title: `${dev} ekraniga oʻrnatish`, steps: [
+    'Manzil satrining oʻng tomonidagi <b>Ulashish</b> ' + ICO.share + ' tugmasini bosing',
+    'Roʻyxatni pastga suring va ' + ADD + ' ni tanlang',
+    '<b>“Добавить”</b> (<b>“Add”</b>) ni bosing'],
+    note: 'Bu tugma boʻlmasa — havolani <b>Safari</b>’da oching.' };
+  if (ver >= 26) return { title: `${dev} ekraniga oʻrnatish`, steps: [
+    'Pastki oʻng burchakdagi ' + ICO.dots + ' (<b>uch nuqta</b>) tugmasini bosing',
+    '<b>“Поделиться”</b> (<b>“Share”</b>) ' + ICO.share + ' ni tanlang',
+    'Ochilgan oynani yuqoriga suring, kerak boʻlsa <b>“Ещё”</b> (<b>“View More”</b>) ni bosing va ' + ADD + ' ni tanlang',
+    '<b>“Открыть как веб-приложение”</b> yoqilgan boʻlsin, soʻng <b>“Добавить”</b> (<b>“Add”</b>) ni bosing'],
+    note: 'Agar manzil satri tepada boʻlsa, ' + ICO.dots + ' tugmasi ham tepada, manzil yonida boʻladi.' };
+  return { title: `${dev} ekraniga oʻrnatish`, steps: [
+    (ipad ? 'Yuqori oʻngdagi' : 'Pastki panel oʻrtasidagi') + ' <b>Ulashish</b> ' + ICO.share + ' tugmasini bosing (koʻrinmasa — sahifani biroz yuqoriga suring)',
+    'Ochilgan roʻyxatni <b>pastga suring</b> va ' + ADD + ' ni tanlang',
+    'Yuqori oʻngdagi <b>“Добавить”</b> (<b>“Add”</b>) ni bosing'],
+    note: 'Roʻyxatda boʻlmasa: eng pastdagi <b>“Редактировать действия”</b> (<b>“Edit Actions”</b>) orqali qoʻshing.' };
+}
 async function doInstall() {
   if (installEvt) {
     installEvt.prompt();
@@ -782,25 +818,26 @@ async function doInstall() {
     renderInstall(); return;
   }
   const sheet = $('#iosSheet');
+  $('#iosCopyLink').hidden = true;
   if (isIOS) {
-    const safari = !/CriOS|FxiOS|EdgiOS|OPiOS|YaBrowser/.test(navigator.userAgent);
-    const ipad = /iPad/.test(navigator.userAgent) || navigator.maxTouchPoints > 1 && !/iPhone/.test(navigator.userAgent);
-    $('#iosTitle').textContent = ipad ? 'iPad ekraniga oʻrnatish' : 'iPhone ekraniga oʻrnatish';
-    $('#iosStep1').innerHTML = (ipad ? 'Yuqoridagi' : safari ? 'Pastdagi' : 'Manzil satridagi') + ' <b>Ulashish</b> ' + $('.ios-ico').outerHTML + ' tugmasini bosing';
-    $('#iosNote').innerHTML = safari ? 'Oʻrnatilgach, Qaydla ekranda alohida ilova boʻlib ochiladi.' : 'Agar bu tugma boʻlmasa, havolani <b>Safari</b>’da oching va qaytadan urinib koʻring.';
-    $('#iosArrow').hidden = !(safari && !ipad);
+    const plan = iosPlan();
+    $('#iosTitle').textContent = plan.title;
+    $('#iosSteps').innerHTML = stepsHTML(plan.steps);
+    $('#iosNote').innerHTML = plan.note || 'Oʻrnatilgach, Qaydla ekranda alohida ilova boʻlib ochiladi.';
+    $('#iosCopyLink').hidden = !plan.inApp;
   } else {
     $('#iosTitle').textContent = 'Ekranga oʻrnatish';
-    $('#iosSteps').innerHTML = '<li><span class="n">1</span><span>Brauzer menyusini <b>⋮</b> oching</span></li><li><span class="n">2</span><span><b>“Ilovani oʻrnatish”</b> yoki <b>“Bosh ekranga qoʻshish”</b> ni tanlang</span></li>';
+    $('#iosSteps').innerHTML = stepsHTML(['Brauzer menyusini <b>⋮</b> oching', '<b>“Ilovani oʻrnatish”</b> yoki <b>“Bosh ekranga qoʻshish”</b> ni tanlang']);
     $('#iosNote').textContent = 'Chrome, Edge yoki Samsung Internet’da ishlaydi.';
-    $('#iosArrow').hidden = true;
   }
+  $('#iosArrow').hidden = true;
   sheet.hidden = false;
 }
 function bindInstall() {
   document.addEventListener('click', e => { if (e.target.closest('[data-install]')) doInstall(); });
   $('#installClose').onclick = () => { try { localStorage.setItem('qaydla.installHide', '1'); } catch {} renderInstall(); };
   $('#iosClose').onclick = () => { $('#iosSheet').hidden = true; };
+  $('#iosCopyLink').onclick = e => copyText(location.origin + '/', e.currentTarget);
   $('#iosSheet').addEventListener('click', e => { if (e.target.id === 'iosSheet') $('#iosSheet').hidden = true; });
   if (isIOS) document.documentElement.classList.add('ios');
   if (isStandalone()) document.documentElement.classList.add('standalone');

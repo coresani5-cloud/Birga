@@ -409,3 +409,7 @@ html.locked .shell{visibility:hidden}
 .ios-arrow[hidden]{display:none}
 @keyframes bob{50%{transform:translateY(6px)}}
 html.standalone .install-bar,html.standalone #installSet{display:none!important}
+
+.ios-dots{display:inline-block;padding:0 6px;border-radius:8px;background:rgba(122,162,255,.18);color:var(--blue2);font-weight:800;letter-spacing:1px;font-size:12px;line-height:20px;vertical-align:1px}
+.copy-link{width:100%;justify-content:center;margin:0 0 10px}
+.copy-link[hidden],.btn[hidden]{display:none}

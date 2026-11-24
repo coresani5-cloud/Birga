@@ -115,6 +115,7 @@
             <div class="rec-center">
               <div class="rec-time" id="recTime">00:00</div>
               <div class="muted sm" id="recState">Tayyor</div>
+              <div class="muted xs" id="recLimit">10 daq gacha</div>
             </div>
           </div>
           <button class="start-btn" id="homeMic"><span class="tri"></span><span id="homeMicLbl">Yozish</span></button>
@@ -124,7 +125,7 @@
           <div class="card-head"><h3>Jonli matn</h3><span class="muted sm" id="liveLang">O'zbekcha</span></div>
           <div class="live-text" id="liveText"><span class="placeholder">Mikrofonni bosing va gapiring. Aytganlaringiz shu yerda paydo bo'ladi va avtomatik qayd sifatida saqlanadi.</span></div>
           <svg class="mood-wave" viewBox="0 0 300 60" preserveAspectRatio="none" aria-hidden="true"><path id="moodWave" fill="none" stroke="url(#wg)" stroke-width="2"/><path id="moodWave2" fill="none" stroke="#8b5cf6" stroke-opacity=".5" stroke-width="1.5"/></svg>
-          <div class="live-foot"><span class="muted xs">Holat</span><span class="ok-text" id="liveStatus">Kutmoqda</span></div>
+          <div class="live-foot"><div><span class="muted xs">Holat</span><span class="ok-text" id="liveStatus">Kutmoqda</span></div><button class="copy-btn" id="liveCopy" title="Matnni nusxalash"><svg viewBox="0 0 24 24" class="stroke"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg><span>Nusxa</span></button></div>
         </article>
 
         <article class="card tasks-card">
@@ -212,6 +213,7 @@
         <textarea class="ed-body" id="edBody" placeholder="Bu yerga yozing yoki pastdagi mikrofonni bosib gapiring…"></textarea>
         <div class="interim" id="edInterim"></div>
         <div class="audios" id="edAudios"></div>
+        <div class="sheet-foot"><button class="copy-btn" id="edCopyBottom"><svg viewBox="0 0 24 24" class="stroke"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg><span>Matnni nusxalash</span></button></div>
       </div>
       <div class="ed-dock">
         <button class="lang-chip big" id="edLang">UZ</button>
@@ -219,7 +221,7 @@
           <svg viewBox="0 0 24 24"><path d="M12 15a3.5 3.5 0 0 0 3.5-3.5v-6a3.5 3.5 0 0 0-7 0v6A3.5 3.5 0 0 0 12 15zm6-3.5a6 6 0 0 1-12 0H4.2a7.8 7.8 0 0 0 6.9 7.7V22h1.8v-2.8a7.8 7.8 0 0 0 6.9-7.7z"/></svg>
           <span class="pulse"></span>
         </button>
-        <div class="dock-info"><div class="rec-time sm" id="edTime">00:00</div><div class="muted xs" id="edState">Tayyor</div></div>
+        <div class="dock-info"><div class="rec-time sm" id="edTime">00:00</div><div class="muted xs" id="edState">Tayyor</div><div class="muted xs" id="edLimit"></div></div>
       </div>
     </section>
 
@@ -260,6 +262,8 @@
         <label class="set-row"><span>Ismingiz</span><input id="setName" maxlength="24" placeholder="Masalan: Aziz"></label>
         <label class="set-row"><span>Nutq tili</span>
           <select id="setLang"><option value="uz">O'zbekcha (uz-UZ)</option><option value="ru">Русский (ru-RU)</option></select></label>
+        <label class="set-row"><span>Bir yozuvning eng uzun vaqti</span>
+          <select id="setMax"><option value="5">5 daqiqa</option><option value="10">10 daqiqa</option><option value="15">15 daqiqa</option><option value="30">30 daqiqa</option></select></label>
         <label class="set-row"><span>Kunlik maqsad (so'z)</span><input id="setGoal" type="number" min="50" max="10000" step="50"></label>
         <label class="set-row"><span>Har bir yozuv oldiga vaqt qo'yish <small>[14:32]</small></span><input type="checkbox" id="setStamp" class="tgl"></label>
         <label class="set-row"><span>Avtomatik tinish belgilari va bosh harf</span><input type="checkbox" id="setPunct" class="tgl"></label>

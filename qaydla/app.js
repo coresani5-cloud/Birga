@@ -5,7 +5,7 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
 /* ---------------- Settings ---------------- */
-const DEF = { name: '', lang: 'uz', goal: 300, stamp: true, punct: true, audio: false, apos: true, theme: 'dark', lockAfter: 0 };
+const DEF = { name: '', lang: 'uz', maxMin: 10, goal: 300, stamp: true, punct: true, audio: false, apos: true, theme: 'dark', lockAfter: 0 };
 let S = { ...DEF };
 try { S = { ...DEF, ...JSON.parse(localStorage.getItem('qaydla.settings') || '{}') }; } catch {}
 const saveS = () => { try { localStorage.setItem('qaydla.settings', JSON.stringify(S)); } catch {} };
@@ -112,59 +112,107 @@ const isAndroid = /Android/i.test(navigator.userAgent);
 const Rec = {
   on: false, rec: null, lang: S.lang, started: 0, timer: null, target: null,
   stream: null, mr: null, chunks: [], analyser: null, actx: null, raf: 0,
-  sessionText: '', lastFinal: '',
+  lastFinal: '',
+  running: false, endedAt: 0, pending: '', wake: null, endWaiters: [], warned: false,
+  maxSec() { return Math.max(1, +S.maxMin || 10) * 60; },
   async start(target) {
     if (!SR) { toast('Bu brauzer ovozni tanimaydi. Chrome yoki Edge’da oching.'); return; }
     if (this.on) return;
-    this.target = target; this.on = true; this.started = Date.now(); this.sessionText = ''; this.lastFinal = '';
+    this.target = target; this.on = true; this.started = Date.now(); this.lastFinal = ''; this.pending = ''; this.warned = false;
     target.onStart?.();
-    if (S.audio) await this.startAudio();
-    this.makeRec(); this.tick();
-    this.timer = setInterval(() => this.tick(), 500);
+    this.makeRec();                     // darhol tinglay boshlaymiz
+    this.tick(); this.timer = setInterval(() => this.tick(), 500);
     setUiRec(true);
+    this.keepAwake();
+    if (S.audio) this.startAudio();
+  },
+  /* Ekran o'chib qolmasin — aks holda telefon yozishni to'xtatadi */
+  async keepAwake() {
+    try { if ('wakeLock' in navigator && !this.wake) { this.wake = await navigator.wakeLock.request('screen'); this.wake.addEventListener?.('release', () => { this.wake = null; }); } } catch {}
+  },
+  releaseAwake() { try { this.wake?.release(); } catch {} this.wake = null; },
+  /* Tugallanmagan (interim) so'zlarni yo'qotmaslik uchun matnga o'tkazamiz */
+  flushPending() {
+    const t = this.pending.trim(); this.pending = '';
+    if (t && this.target) { this.lastFinal = t; this.target.onFinal(t, this.lang); }
+    this.target?.onInterim('');
   },
   makeRec() {
     const r = new SR();
     r.lang = this.lang === 'ru' ? 'ru-RU' : 'uz-UZ';
     r.interimResults = true; r.maxAlternatives = 1;
-    r.continuous = !isAndroid; // Android: qayta ishga tushirish barqarorroq
+    r.continuous = !isAndroid; // Android'da continuous rejimi so'zlarni takrorlaydi — tez qayta ishga tushiramiz
+    r.onstart = () => { this.running = true; };
     r.onresult = e => {
+      if (this.rec !== r) return;
       let interim = '';
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const res = e.results[i], txt = res[0].transcript;
         if (res.isFinal) {
-          if (isAndroid && txt.trim() === this.lastFinal) continue; // Android takrorlanishi
+          let t = txt.trim();
+          if (isAndroid && this.lastFinal) {
+            if (t === this.lastFinal) continue;                              // takror
+            if (t.startsWith(this.lastFinal + ' ')) t = t.slice(this.lastFinal.length).trim(); // jamlangan natija
+          }
+          if (!t) continue;
           this.lastFinal = txt.trim();
-          this.target.onFinal(txt, this.lang);
+          this.target.onFinal(t, this.lang);
         } else interim += txt;
       }
+      this.pending = interim;
       this.target.onInterim(interim);
     };
     r.onerror = e => {
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { toast('Mikrofonga ruxsat bering (brauzer sozlamalarida).'); this.stop(); }
       else if (e.error === 'language-not-supported') { toast('Bu brauzer tanlangan tilni qo‘llamaydi. Chrome’ni yangilang.'); this.stop(); }
       else if (e.error === 'audio-capture' && this.stream) { toast('Mikrofon band — ovoz saqlash o‘chirildi.'); this.stopAudio(); }
-      else if (e.error === 'network') toast('Ovozni tanish uchun internet kerak.');
+      else if (e.error === 'network') toast('Internet uzildi — qayta ulanmoqda…');
+      // 'no-speech', 'aborted' — jimlik; onend da darhol davom ettiramiz
     };
-    r.onend = () => { if (this.on) { try { r.start(); } catch { setTimeout(() => this.on && this.makeRec(), 250); } } };
+    r.onend = () => {
+      if (this.rec !== r) return;
+      this.running = false; this.endedAt = Date.now();
+      this.flushPending();
+      if (this.on) {
+        try { r.start(); }                                   // eng tez qayta ishga tushirish
+        catch { this.rec = null; setTimeout(() => this.on && !this.rec && this.makeRec(), 150); }
+      } else { this.endWaiters.splice(0).forEach(f => f()); }
+    };
     this.rec = r;
     try { r.start(); } catch (err) { console.warn(err); }
   },
-  async stop() {
+  async stop(reason) {
     if (!this.on) return;
     this.on = false; clearInterval(this.timer);
-    try { this.rec && this.rec.stop(); } catch {}
-    this.rec = null;
+    const r = this.rec;
+    if (r) {
+      // oxirgi so'zlar yetib kelishini kutamiz (ko'pi bilan 1.5 s)
+      await new Promise(res => { this.endWaiters.push(res); try { r.stop(); } catch { res(); } setTimeout(res, 1500); });
+    }
+    this.endWaiters = [];
+    if (this.rec === r) this.flushPending();
+    this.rec = null; this.running = false;
+    this.releaseAwake();
     const blob = await this.stopAudio();
     this.target.onInterim('');
     await this.target.onStop?.(blob, Math.round((Date.now() - this.started) / 1000));
     setUiRec(false);
+    if (reason) toast(reason);
   },
   setLang(l) {
     this.lang = l; S.lang = l; saveS(); renderLang();
-    if (this.on && this.rec) { const r = this.rec; this.rec = null; r.onend = null; try { r.abort(); } catch {} this.makeRec(); }
+    if (this.on && this.rec) { const r = this.rec; this.flushPending(); this.rec = null; try { r.abort(); } catch {} this.makeRec(); }
   },
-  tick() { const s = Math.floor((Date.now() - this.started) / 1000); setTimeText(this.on ? `${p2(Math.floor(s / 60))}:${p2(s % 60)}` : '00:00'); },
+  tick() {
+    const el = Math.floor((Date.now() - this.started) / 1000), max = this.maxSec();
+    const f = n => `${p2(Math.floor(n / 60))}:${p2(n % 60)}`;
+    if (!this.on) { setTimeText('00:00', 0); return; }
+    setTimeText(f(el), el / max, f(max));
+    // nazoratchi: tanish xizmati o'z-o'zidan to'xtab qolgan bo'lsa — qayta ishga tushiramiz
+    if (!this.running && this.endedAt && Date.now() - this.endedAt > 1200) { this.endedAt = 0; const r = this.rec; this.rec = null; try { r?.abort(); } catch {} this.makeRec(); }
+    if (!this.warned && max - el <= 30 && max > 60) { this.warned = true; toast('Yozish tugashiga 30 soniya qoldi'); }
+    if (el >= max) this.stop(`${Math.round(max / 60)} daqiqalik yozuv saqlandi ✓`);
+  },
   async startAudio() {
     try {
       this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
@@ -293,7 +341,13 @@ function setUiRec(on) {
   const ls = $('#liveStatus'); ls.textContent = on ? 'Yozilmoqda' : 'Kutmoqda'; ls.classList.toggle('rec', on);
   if (!on) setTimeText('00:00');
 }
-function setTimeText(t) { $('#recTime').textContent = t; $('#edTime').textContent = t; }
+function setTimeText(t, frac = 0, max = '') {
+  $('#recTime').textContent = t; $('#edTime').textContent = t;
+  const lim = max ? `/ ${max}` : `${Math.max(1, +S.maxMin || 10)} daq gacha`;
+  $('#recLimit').textContent = lim; $('#edLimit').textContent = lim;
+  const C = 2 * Math.PI * 68, ring = $('#recRing');
+  ring.style.strokeDasharray = C; ring.style.strokeDashoffset = Rec.on ? C * (1 - Math.min(1, Math.max(.01, frac))) : C * .28;
+}
 function renderLang() {
   const l = Rec.lang;
   $$('#langChip,#edLang').forEach(c => { c.textContent = l.toUpperCase(); c.classList.toggle('ru', l === 'ru'); });
@@ -358,7 +412,7 @@ function renderHome() {
   const rec = sorted().slice(0, 4);
   $('#recentList').innerHTML = rec.length ? rec.map(n => {
     const done = dayKey(new Date(n.createdAt)) !== today;
-    return `<li data-id="${n.id}"><span class="chk ${done ? 'done' : ''}"></span><span class="t">${esc(titleOf(n))}</span><span class="s ${n.lang}">${shortDate(new Date(n.createdAt)).replace(/^Bugun, /, '')}</span></li>`;
+    return `<li data-id="${n.id}"><span class="chk ${done ? 'done' : ''}"></span><span class="t">${esc(titleOf(n))}</span><span class="s ${n.lang}">${shortDate(new Date(n.createdAt)).replace(/^Bugun, /, '')}</span><button class="copy-mini" data-copy="${n.id}" title="Nusxalash" aria-label="Nusxalash">${COPY_ICO}</button></li>`;
   }).join('') : '<li class="empty">Hali qayd yo‘q. Mikrofonni bosing!</li>';
 
   // bars
@@ -370,7 +424,7 @@ function renderHome() {
   let pin = sorted().filter(n => n.pinned).slice(0, 3);
   if (!pin.length) pin = sorted().slice(0, 3);
   $('#pinnedList').innerHTML = pin.length ? pin.map(n => { const d = new Date(n.createdAt);
-    return `<li data-id="${n.id}"><div class="ev-date"><b>${d.getDate()}</b><span>${MON_S[d.getMonth()]}</span></div><div class="ev-body"><div class="t">${esc(titleOf(n))}</div><div class="s">${hm(d)} · ${words(n.text)} so‘z</div></div><span class="dot ${n.mixed ? 'mix' : n.lang}"></span></li>`; }).join('')
+    return `<li data-id="${n.id}"><div class="ev-date"><b>${d.getDate()}</b><span>${MON_S[d.getMonth()]}</span></div><div class="ev-body"><div class="t">${esc(titleOf(n))}</div><div class="s">${hm(d)} · ${words(n.text)} so‘z</div></div><button class="copy-mini" data-copy="${n.id}" title="Nusxalash" aria-label="Nusxalash">${COPY_ICO}</button></li>`; }).join('')
     : '<li class="empty">Qaydni ⭐ mixlasangiz shu yerda turadi.</li>';
   renderSys();
 }
@@ -425,9 +479,19 @@ function noteCard(n, q = '') {
     <div class="note-top"><span class="note-date">${stampShort(d)}</span>${n.pinned ? '<span class="pin-mark">★</span>' : ''}</div>
     <div class="note-title">${highlight(titleOf(n), q)}</div>
     <div class="note-body">${highlight(body.slice(0, 400), q) || '<i>Boʻsh</i>'}</div>
-    <div class="note-foot"><span class="tag ${n.lang}">${n.mixed ? 'UZ+RU' : n.lang.toUpperCase()}</span><span>${words(n.text)} so‘z</span>${n.audios?.length ? `<span>🎙 ${n.audios.length}</span>` : ''}</div>
+    <div class="note-foot"><span class="tag ${n.lang}">${n.mixed ? 'UZ+RU' : n.lang.toUpperCase()}</span><span>${words(n.text)} so‘z</span>${n.audios?.length ? `<span>🎙 ${n.audios.length}</span>` : ''}<button class="copy-btn" data-copy="${n.id}" title="Matnni nusxalash" aria-label="Matnni nusxalash">${COPY_ICO}<span>Nusxa</span></button></div>
   </article>`;
 }
+const COPY_ICO = '<svg viewBox="0 0 24 24" class="stroke"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>';
+async function copyText(text, btn) {
+  let ok = false;
+  try { await navigator.clipboard.writeText(text); ok = true; } catch {
+    try { const ta = document.createElement('textarea'); ta.value = text; ta.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(ta); ta.select(); ok = document.execCommand('copy'); ta.remove(); } catch {}
+  }
+  toast(ok ? 'Matn nusxalandi ✓' : 'Nusxa olib boʻlmadi');
+  if (ok && btn) { btn.classList.add('done'); setTimeout(() => btn.classList.remove('done'), 1400); }
+}
+const noteText = n => (n.title?.trim() ? n.title.trim() + '\n' : '') + n.text;
 const stampShort = d => `${d.getDate()} ${MON_S[d.getMonth()]} ${d.getFullYear()} · ${hm(d)}`;
 function renderNotes() {
   const q = $('#searchInput').value.trim();
@@ -510,6 +574,7 @@ function renderSettings() {
   $('#pinSet').textContent = has ? 'Kodni oʻzgartirish' : 'Kod oʻrnatish';
   $('#pinOff').hidden = !has;
   $('#setLockAfter').value = String(S.lockAfter);
+  $('#setMax').value = String(S.maxMin);
   $('#setName').value = S.name; $('#setLang').value = Rec.lang; $('#setGoal').value = S.goal;
   $('#setStamp').checked = S.stamp; $('#setPunct').checked = S.punct; $('#setAudio').checked = S.audio; $('#setApos').checked = S.apos;
 }
@@ -538,6 +603,8 @@ async function importJson(file) {
 function bind() {
   document.addEventListener('click', async e => {
     const g = e.target.closest('[data-go]'); if (g) { if (page === 'editor') await closeEditor(); go(g.dataset.go); return; }
+    const cp = e.target.closest('[data-copy]'); if (cp) { e.stopPropagation(); const n = NOTES.find(x => x.id === cp.dataset.copy); if (n) copyText(noteText(n), cp); return; }
+    const lc = e.target.closest('#liveCopy'); if (lc) { const t = homeNote ? homeNote.text : homeTarget.text; if (t.trim()) copyText(t, lc); else toast('Hali matn yoʻq'); return; }
     const card = e.target.closest('[data-id]'); if (card) { const n = NOTES.find(x => x.id === card.dataset.id); if (n) { if (Rec.on) await Rec.stop(); openNote(n); } return; }
     const day = e.target.closest('[data-day]'); if (day) { calSel = day.dataset.day; const [y, m] = calSel.split('-').map(Number); calM = new Date(y, m - 1, 1); renderCal(); return; }
     const da = e.target.closest('[data-del-audio]'); if (da && cur) { cur.audios.splice(+da.dataset.delAudio, 1); await saveNote(cur); renderAudios(); return; }
@@ -563,20 +630,22 @@ function bind() {
   $('#edPin').onclick = async () => { cur.pinned = !cur.pinned; await saveNote(cur); renderEditorMeta(); toast(cur.pinned ? 'Mixlandi ★' : 'Mixdan olindi'); };
   $('#edStamp').onclick = () => { const b = $('#edBody'); const s = `[${stampFull(new Date())}] `; const p = b.selectionStart ?? b.value.length;
     const pre = b.value.slice(0, p); const add = (pre && !pre.endsWith('\n') ? '\n' : '') + s; b.value = pre + add + b.value.slice(p); b.focus(); b.selectionStart = b.selectionEnd = p + add.length; edChanged(); };
-  $('#edCopy').onclick = async () => { try { await navigator.clipboard.writeText(($('#edTitle').value ? $('#edTitle').value + '\n' : '') + $('#edBody').value); toast('Nusxa olindi'); } catch { toast('Nusxa olib boʻlmadi'); } };
+  $('#edCopy').onclick = () => copyText(($('#edTitle').value ? $('#edTitle').value + '\n' : '') + $('#edBody').value);
+  $('#edCopyBottom').onclick = e => copyText(($('#edTitle').value ? $('#edTitle').value + '\n' : '') + $('#edBody').value, e.currentTarget);
   $('#edShare').onclick = async () => { const text = $('#edBody').value; if (navigator.share) { try { await navigator.share({ title: titleOf(cur), text }); } catch {} } else { await navigator.clipboard?.writeText(text); toast('Matn nusxalandi'); } };
   $('#edDelete').onclick = async () => { if (!confirm('Bu qaydni oʻchirasizmi?')) return; if (Rec.on) await Rec.stop(); await del(cur.id); NOTES = NOTES.filter(x => x.id !== cur.id); cur = null; toast('Oʻchirildi'); go('notes'); };
   $('#calPrev').onclick = () => { calM.setMonth(calM.getMonth() - 1); renderCal(); };
   $('#calNext').onclick = () => { calM.setMonth(calM.getMonth() + 1); renderCal(); };
   $('#setName').oninput = e => { S.name = e.target.value; saveS(); renderHome(); };
   $('#setLang').onchange = e => Rec.setLang(e.target.value);
+  $('#setMax').onchange = e => { S.maxMin = +e.target.value || 10; saveS(); setTimeText('00:00'); };
   $('#setGoal').onchange = e => { S.goal = Math.max(50, +e.target.value || 300); saveS(); };
   ['Stamp', 'Punct', 'Audio', 'Apos'].forEach(k => $('#set' + k).onchange = e => { S[k.toLowerCase()] = e.target.checked; saveS(); });
   $('#expTxt').onclick = exportTxt; $('#expJson').onclick = exportJson;
   $('#impJson').onchange = e => e.target.files[0] && importJson(e.target.files[0]);
   $('#wipe').onclick = async () => { if (!confirm('Barcha qaydlar butunlay oʻchiriladi. Davom etasizmi?')) return; for (const n of NOTES) await del(n.id); NOTES = []; toast('Hammasi oʻchirildi'); renderHome(); };
   window.addEventListener('online', renderSys); window.addEventListener('offline', renderSys);
-  document.addEventListener('visibilitychange', () => { if (document.hidden && Rec.on) Rec.stop(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden && Rec.on) Rec.stop('Ilovadan chiqildi — yozuv saqlandi'); });
   document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'm') { e.preventDefault(); const t = page === 'editor' ? edTarget : homeTarget; Rec.on ? Rec.stop() : Rec.start(t); } });
 }
 async function newAndOpen() { if (Rec.on) await Rec.stop(); const n = newNote(Rec.lang); await saveNote(n); openNote(n); setTimeout(() => $('#edBody').focus(), 60); }

@@ -13,6 +13,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
+<script>try{if(localStorage.getItem("qaydla.pin"))document.documentElement.classList.add("locked")}catch(e){}</script>
 </head>
 <body>
 <div class="bg-glow"></div>
@@ -280,6 +281,14 @@
         </div>
       </div>
       <div class="card set-card">
+        <h3>Xavfsizlik</h3>
+        <div class="set-row"><span>Kirish kodi (PIN) <small id="pinStatus">o'rnatilmagan</small></span>
+          <div class="btn-row tight"><button class="btn primary" id="pinSet">Kod o'rnatish</button><button class="btn danger" id="pinOff" hidden>Olib tashlash</button></div></div>
+        <label class="set-row"><span>Avtomatik qulflash</span>
+          <select id="setLockAfter"><option value="0">Ilovadan chiqishi bilan</option><option value="60">1 daqiqadan keyin</option><option value="300">5 daqiqadan keyin</option><option value="-1">Faqat ilova ochilganda</option></select></label>
+        <div class="set-row"><span>Hozir qulflash</span><button class="btn" id="lockNow">🔒 Qulflash</button></div>
+      </div>
+      <div class="card set-card">
         <h3>Ma'lumotlar</h3>
         <div class="btn-row">
           <button class="btn" id="expTxt">TXT eksport</button>
@@ -293,6 +302,19 @@
   </main>
 </div>
 
+<div class="lock" id="lock" hidden>
+  <div class="lock-box">
+    <img src="icon.svg" alt="" class="lock-logo" width="72" height="72">
+    <h2 class="lock-title" id="lockTitle">Kodni kiriting</h2>
+    <p class="muted sm lock-sub" id="lockSub">Qaydla himoyalangan</p>
+    <div class="pin-dots" id="pinDots"><i></i><i></i><i></i><i></i></div>
+    <div class="keypad" id="keypad">
+      <button>1</button><button>2</button><button>3</button><button>4</button><button>5</button><button>6</button><button>7</button><button>8</button><button>9</button>
+      <button class="kp-alt" data-k="cancel" id="kpCancel">Bekor</button><button>0</button><button class="kp-alt" data-k="del" aria-label="O'chirish">⌫</button>
+    </div>
+    <button class="link lock-forgot" id="lockForgot">Kodni unutdim</button>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 <script src="app.js"></script>
 </body>

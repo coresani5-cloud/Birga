@@ -335,3 +335,30 @@ mark{background:rgba(251,191,36,.35);color:inherit;border-radius:3px;padding:0 1
   .time-pill{position:absolute;top:-4px;right:-4px;font-size:11px;padding:4px 8px}
   #greet{padding-right:52px}
 }
+/* ---------- Lock ---------- */
+html.locked .shell{visibility:hidden}
+.lock{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:20px;
+  background:radial-gradient(60% 45% at 90% 0%,var(--glow1),transparent 70%),radial-gradient(40% 35% at 100% 60%,var(--glow2),transparent 70%),var(--bg)}
+.lock[hidden]{display:none}
+.lock-box{width:100%;max-width:320px;display:flex;flex-direction:column;align-items:center;text-align:center}
+.lock-logo{width:72px;height:72px;filter:drop-shadow(0 8px 24px rgba(59,108,255,.5));margin-bottom:14px}
+.lock-title{font-size:20px;font-weight:700}
+.lock-sub{margin:6px 0 20px;min-height:18px}
+.lock-sub.err{color:var(--red)}
+.pin-dots{display:flex;gap:16px;margin-bottom:28px}
+.pin-dots i{width:14px;height:14px;border-radius:50%;border:2px solid var(--faint);transition:.15s}
+.pin-dots i.on{background:var(--blue2);border-color:var(--blue2);box-shadow:0 0 12px rgba(122,162,255,.6)}
+.pin-dots.shake{animation:shake .4s}
+@keyframes shake{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+.keypad{display:grid;grid-template-columns:repeat(3,72px);gap:14px 22px}
+.keypad button{width:72px;height:72px;border-radius:50%;font-size:26px;font-weight:500;background:var(--card);border:1px solid var(--card-b);
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);transition:.12s}
+.keypad button:active{background:rgba(79,124,255,.35);transform:scale(.94)}
+.keypad .kp-alt{font-size:14px;background:none;border-color:transparent;color:var(--muted)}
+.keypad .kp-alt[data-k="del"]{font-size:22px}
+.keypad .kp-alt.hide{visibility:hidden}
+.keypad[aria-disabled="true"]{opacity:.4;pointer-events:none}
+.lock-forgot{margin-top:22px;font-size:13px}
+.btn-row.tight{margin:0;flex-wrap:nowrap}
+.set-row .btn{padding:7px 12px;font-size:12.5px}
+@media (max-width:360px){.keypad{grid-template-columns:repeat(3,64px);gap:12px 18px}.keypad button{width:64px;height:64px}}

@@ -5,7 +5,7 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
 /* ---------------- Settings ---------------- */
-const DEF = { name: '', lang: 'uz', goal: 300, stamp: true, punct: true, audio: false, apos: true, theme: 'dark' };
+const DEF = { name: '', lang: 'uz', goal: 300, stamp: true, punct: true, audio: false, apos: true, theme: 'dark', lockAfter: 0 };
 let S = { ...DEF };
 try { S = { ...DEF, ...JSON.parse(localStorage.getItem('qaydla.settings') || '{}') }; } catch {}
 const saveS = () => { try { localStorage.setItem('qaydla.settings', JSON.stringify(S)); } catch {} };
@@ -505,6 +505,11 @@ function renderCal() {
 
 /* ---------------- Settings ---------------- */
 function renderSettings() {
+  const has = Lock.has();
+  $('#pinStatus').textContent = has ? 'oʻrnatilgan ✓' : 'oʻrnatilmagan';
+  $('#pinSet').textContent = has ? 'Kodni oʻzgartirish' : 'Kod oʻrnatish';
+  $('#pinOff').hidden = !has;
+  $('#setLockAfter').value = String(S.lockAfter);
   $('#setName').value = S.name; $('#setLang').value = Rec.lang; $('#setGoal').value = S.goal;
   $('#setStamp').checked = S.stamp; $('#setPunct').checked = S.punct; $('#setAudio').checked = S.audio; $('#setApos').checked = S.apos;
 }
@@ -576,10 +581,124 @@ function bind() {
 }
 async function newAndOpen() { if (Rec.on) await Rec.stop(); const n = newNote(Rec.lang); await saveNote(n); openNote(n); setTimeout(() => $('#edBody').focus(), 60); }
 
+/* ---------------- PIN lock ---------------- */
+const PIN_KEY = 'qaydla.pin', FAIL_KEY = 'qaydla.pinFails';
+let dbReady;
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+  drop(k) { try { localStorage.removeItem(k); } catch {} },
+};
+const Lock = {
+  mode: 'unlock', buf: '', first: '', onDone: null, hiddenAt: 0, timer: 0,
+  has() { return !!store.get(PIN_KEY); },
+  async hash(pin, salt) {
+    const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(salt + ':' + pin));
+    return [...new Uint8Array(h)].map(b => b.toString(16).padStart(2, '0')).join('');
+  },
+  async check(pin) { try { const r = JSON.parse(store.get(PIN_KEY)); return (await this.hash(pin, r.salt)) === r.hash; } catch { return false; } },
+  async save(pin) {
+    const salt = [...crypto.getRandomValues(new Uint8Array(16))].map(b => b.toString(16).padStart(2, '0')).join('');
+    store.set(PIN_KEY, JSON.stringify({ salt, hash: await this.hash(pin, salt) }));
+  },
+  fails() { try { return JSON.parse(store.get(FAIL_KEY) || '{"n":0,"until":0}'); } catch { return { n: 0, until: 0 }; } },
+  setFails(f) { store.set(FAIL_KEY, JSON.stringify(f)); },
+  isOpen() { return !$('#lock').hidden; },
+  open(mode, onDone) {
+    if (Rec.on) Rec.stop();
+    this.mode = mode; this.buf = ''; this.first = ''; this.onDone = onDone || null;
+    $('#lock').hidden = false;
+    if (mode === 'unlock') document.documentElement.classList.add('locked');
+    $('#kpCancel').classList.toggle('hide', mode === 'unlock');
+    $('#lockForgot').hidden = !(mode === 'unlock' || mode === 'verify');
+    this.text(); this.dots(); this.cooldown();
+  },
+  close() {
+    $('#lock').hidden = true; document.documentElement.classList.remove('locked');
+    clearInterval(this.timer);
+  },
+  text(err) {
+    const T = { unlock: 'Kodni kiriting', verify: 'Joriy kodni kiriting', new: 'Yangi kod oʻylab toping', confirm: 'Kodni qayta kiriting' };
+    const D = { unlock: 'Qaydla himoyalangan', verify: 'Davom etish uchun', new: '4 ta raqam', confirm: 'Tasdiqlash uchun' };
+    $('#lockTitle').textContent = T[this.mode];
+    const sub = $('#lockSub'); sub.textContent = err || D[this.mode]; sub.classList.toggle('err', !!err);
+  },
+  dots() { $$('#pinDots i').forEach((d, i) => d.classList.toggle('on', i < this.buf.length)); },
+  shake(msg) {
+    const d = $('#pinDots'); d.classList.remove('shake'); void d.offsetWidth; d.classList.add('shake');
+    navigator.vibrate?.(120); this.buf = ''; this.dots(); this.text(msg);
+  },
+  cooldown() {
+    clearInterval(this.timer);
+    const kp = $('#keypad');
+    const tick = () => {
+      const left = Math.ceil((this.fails().until - Date.now()) / 1000);
+      if (left > 0 && (this.mode === 'unlock' || this.mode === 'verify')) { kp.setAttribute('aria-disabled', 'true'); this.text(`Juda koʻp urinish. ${left} soniya kuting`); return true; }
+      if (kp.getAttribute('aria-disabled') === 'true') { kp.removeAttribute('aria-disabled'); this.text(); }
+      clearInterval(this.timer); return false;
+    };
+    if (tick()) this.timer = setInterval(tick, 500);
+  },
+  async key(k) {
+    if ($('#keypad').getAttribute('aria-disabled') === 'true') return;
+    if (k === 'cancel') { if (this.mode !== 'unlock') this.close(); return; }
+    if (k === 'del') { this.buf = this.buf.slice(0, -1); this.dots(); return; }
+    if (!/^\d$/.test(k) || this.buf.length >= 4) return;
+    this.buf += k; this.dots();
+    if (this.buf.length < 4) return;
+    const pin = this.buf;
+    await new Promise(r => setTimeout(r, 120));
+    if (this.mode === 'unlock' || this.mode === 'verify') {
+      if (await this.check(pin)) {
+        this.setFails({ n: 0, until: 0 });
+        const done = this.onDone; this.close(); done?.();
+      } else {
+        const f = this.fails(); f.n++;
+        if (f.n >= 5) f.until = Date.now() + 30000 * Math.min(f.n - 4, 10);
+        this.setFails(f); this.shake('Kod notoʻgʻri'); this.cooldown();
+      }
+    } else if (this.mode === 'new') {
+      this.first = pin; this.mode = 'confirm'; this.buf = ''; this.dots(); this.text();
+    } else if (this.mode === 'confirm') {
+      if (pin !== this.first) { this.mode = 'new'; this.first = ''; this.shake('Kodlar mos kelmadi, qaytadan'); return; }
+      await this.save(pin); this.setFails({ n: 0, until: 0 }); this.close();
+      toast('Kirish kodi oʻrnatildi 🔒'); renderSettings();
+    }
+  },
+  async forgot() {
+    if (!confirm('Kodni tiklashning yagona yoʻli — ilovadagi BARCHA qaydlarni oʻchirish. Davom etasizmi?')) return;
+    if (!confirm('Haqiqatan ham hammasi oʻchirilsinmi? Bu qaytarilmaydi.')) return;
+    try { await dbReady; for (const n of NOTES) await del(n.id); NOTES = []; } catch {}
+    store.drop(PIN_KEY); store.drop(FAIL_KEY);
+    this.close(); toast('Kod va qaydlar oʻchirildi'); go('home');
+  },
+};
+function bindLock() {
+  $('#keypad').addEventListener('click', e => { const b = e.target.closest('button'); if (b) Lock.key(b.dataset.k || b.textContent.trim()); });
+  $('#lockForgot').onclick = () => Lock.forgot();
+  document.addEventListener('keydown', e => {
+    if (!Lock.isOpen()) return;
+    if (/^\d$/.test(e.key)) Lock.key(e.key);
+    else if (e.key === 'Backspace') Lock.key('del');
+    else if (e.key === 'Escape') Lock.key('cancel');
+    e.stopPropagation();
+  }, true);
+  $('#pinSet').onclick = () => Lock.has() ? Lock.open('verify', () => Lock.open('new')) : Lock.open('new');
+  $('#pinOff').onclick = () => Lock.open('verify', () => { store.drop(PIN_KEY); toast('Kirish kodi olib tashlandi'); renderSettings(); });
+  $('#lockNow').onclick = () => Lock.has() ? Lock.open('unlock') : toast('Avval kirish kodini oʻrnating');
+  $('#setLockAfter').onchange = e => { S.lockAfter = +e.target.value; saveS(); };
+  document.addEventListener('visibilitychange', () => {
+    if (!Lock.has() || S.lockAfter < 0) return;
+    if (document.hidden) { Lock.hiddenAt = Date.now(); if (S.lockAfter === 0 && !Lock.isOpen()) Lock.open('unlock'); }
+    else if (!Lock.isOpen() && Lock.hiddenAt && Date.now() - Lock.hiddenAt >= S.lockAfter * 1000) Lock.open('unlock');
+  });
+}
+
 /* ---------------- Boot ---------------- */
 (async function boot() {
-  applyTheme(); renderLang(); bind();
-  try { db = await openDB(); await loadAll(); } catch (e) { toast('Xotira ochilmadi: ' + e.message); }
+  applyTheme(); renderLang(); bind(); bindLock();
+  if (Lock.has()) Lock.open('unlock'); else document.documentElement.classList.remove('locked');
+  try { dbReady = openDB(); db = await dbReady; await loadAll(); } catch (e) { toast('Xotira ochilmadi: ' + e.message); }
   history.replaceState({ p: 'home' }, '', location.pathname + location.search);
   renderHome(); animWave();
   setInterval(renderClock, 15000);

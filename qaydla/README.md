@@ -11,6 +11,7 @@ Aytganingizni **o'zbek** va **rus** tilida matnga aylantirib, **sana va vaqt** b
 - Ovoz yozuvini ham saqlab, keyin qayta eshitish (ixtiyoriy)
 - Qidiruv, mixlash, kalendar, haftalik/oylik statistika, TXT/JSON eksport
 - Qorong'i / yorug' mavzu, telefonga o'rnatiladi (PWA), internetsiz ochiladi
+- 🔒 Kirish kodi (4 xonali PIN): ilovani ochishda va undan chiqqanda qulflanadi, 5 marta xato kiritilsa kutish vaqti qoʻyiladi
 
 ## Ishga tushirish
 Papkani istalgan statik hostingga qo'ying (GitHub Pages, Netlify, Render static) — HTTPS shart (mikrofon uchun).

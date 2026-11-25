@@ -1,0 +1,85 @@
+# AI_SARDORXOON video zavodi — sozlamalar
+# Maxfiy kalitlar BU YERDA EMAS, faqat .env faylida saqlanadi.
+
+paths:
+  # %USERPROFILE% Windows'da avtomatik ochiladi (masalan C:\Users\User)
+  base_dir: "%USERPROFILE%\\Videos\\AI_SARDORXOON"
+  downloads_dir: "%USERPROFILE%\\Downloads"
+  # ffmpeg PATH'da bo'lsa shunchaki "ffmpeg" qoldiring
+  ffmpeg: "ffmpeg"
+  ffprobe: "ffprobe"
+
+watcher:
+  # Downloads'ga tushgan qaysi fayllar ko'chiriladi (glob)
+  patterns: ["*.mp4"]
+  # Fayl yozilib bo'lganini bilish uchun hajmi necha soniya o'zgarmasligi kerak
+  stable_seconds: 3
+
+video:
+  width: 1080
+  height: 1920
+  fps: 30
+  # "blur"  — gorizontal klip bo'lsa, orqa fonda xira kattalashtirilgan nusxa
+  # "crop"  — ekranni to'liq to'ldirib, chetlarini kesadi
+  fit_mode: "blur"
+  crf: 20
+  audio_bitrate: "192k"
+
+subtitles:
+  enabled: true
+  font: "fonts/DejaVuSans-Bold.ttf"   # loyiha papkasiga nisbatan
+  font_size: 78
+  # Har qahramonning matn rangi (qolganlari default_color)
+  default_color: "#FFFFFF"
+  speaker_colors:
+    "Sobir aka": "#FFD400"
+  outline_color: "#000000"
+  outline_width: 6
+  # Ekran balandligiga nisbatan (0.0 tepa, 1.0 past)
+  position_y: 0.72
+  max_width_ratio: 0.88
+  show_speaker_name: false
+
+watermark:
+  enabled: true
+  text: "@ai_sardorxoon"
+  font_size: 44
+  opacity: 0.75
+  corner: "top-right"   # top-left | top-right | bottom-left | bottom-right
+  margin: 40
+
+voice:
+  # true bo'lsa ElevenLabs orqali har satr uchun ovoz yaratiladi
+  enabled: false
+  model_id: "eleven_v3"
+  # Klipning o'z ovozi qancha qoladi (0.0 — o'chadi, 1.0 — to'liq)
+  original_volume: 0.25
+  voice_volume: 1.0
+  # Har qahramon uchun ElevenLabs voice_id (ElevenLabs → Voices bo'limidan oling)
+  voices:
+    "Sobir aka": ""
+    "Xotini": ""
+    "Mezbon": ""
+    "Odam": ""
+  default_voice_id: ""
+
+instagram:
+  api_base: "https://graph.instagram.com/v23.0"
+  share_to_feed: true
+  # Graph API'da "AI bilan yaratilgan" degan alohida maydon yo'q,
+  # shuning uchun ochiq belgi sifatida caption oxiriga qo'shiladi.
+  ai_disclosure_text: "🤖 AI bilan yaratilgan"
+  publish_timeout_seconds: 600
+
+storage:
+  # Instagram videoni ochiq URL'dan yuklab oladi. Cloudflare R2 ishlatiladi.
+  # Joylangandan keyin R2'dagi nusxani o'chirish
+  delete_after_publish: true
+  presigned_url_seconds: 3600
+
+telegram:
+  # Rejalashtirilgan postlar navbatini necha soniyada tekshirish
+  queue_check_seconds: 30
+  # "Rejalashtirish" bosilganda ko'rsatiladigan tayyor vaqtlar (soat)
+  quick_times: ["12:00", "18:00", "20:00", "21:30"]
+  timezone: "Asia/Tashkent"

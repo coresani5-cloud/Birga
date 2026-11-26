@@ -2,12 +2,12 @@
 // Natija actors.js dagi animate() bilan ishlaydi: hips, torso, head, armL/R {sh, el}, legL/R {hp, kn, ft}.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { ASSET_BASE } from './tex.js';
+import { ASSET_BASE, mext } from './tex.js';
 const T = THREE;
 
 const cache = new Map();
 export function loadRigSource(name) {
-  if (!cache.has(name)) cache.set(name, new GLTFLoader().loadAsync(ASSET_BASE + 'chars/' + name + '.glb').then((g) => prepare(g.scene)).catch(() => null));
+  if (!cache.has(name)) cache.set(name, new GLTFLoader().loadAsync(ASSET_BASE + 'chars/' + name + mext('.glb')).then((g) => prepare(g.scene)).catch(() => null));
   return cache.get(name);
 }
 
@@ -102,7 +102,7 @@ export function makeRigged(src) {
 // Manba: yon tomondan yaratilgan statik model. Uzunlik o'qi aniqlanadi, bosh tomoni +z ga buriladi.
 const acache = new Map();
 export function loadAnimalSource(name, height = 1.65) {
-  if (!acache.has(name)) acache.set(name, new GLTFLoader().loadAsync(ASSET_BASE + 'chars/' + name + '.glb').then((g) => prepareAnimal(g.scene, height)).catch(() => null));
+  if (!acache.has(name)) acache.set(name, new GLTFLoader().loadAsync(ASSET_BASE + 'chars/' + name + mext('.glb')).then((g) => prepareAnimal(g.scene, height)).catch(() => null));
   return acache.get(name);
 }
 export function prepareAnimal(scene, height = 1.65) {

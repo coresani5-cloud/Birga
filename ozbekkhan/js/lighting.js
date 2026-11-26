@@ -2,7 +2,7 @@
 // Kun: fotografik HDRI osmon (Poly Haven). Shom/tong: quyosh botishi HDRI. Tun: oy nuri, gradient osmon, yulduzlar, fonus chiroqlari.
 import * as THREE from 'three';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
-import { ASSET_BASE } from './tex.js';
+import { ASSET_BASE, DIST } from './tex.js';
 const T = THREE;
 
 function nightSky() {
@@ -35,7 +35,7 @@ export function createLighting(renderer, scene, { quality = 1 } = {}) {
   const glowTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,230,180,1)'); gr.addColorStop(0.25, 'rgba(255,180,90,.55)'); gr.addColorStop(1, 'rgba(255,140,40,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace; return t; })();
   const glowMat = new T.SpriteMaterial({ map: glowTex, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0 });
   let glows = [];
-  const envs = {}; const load = (n) => envs[n] || (envs[n] = new RGBELoader().loadAsync(ASSET_BASE + 'hdri/' + n + '.hdr').then((t) => { t.mapping = T.EquirectangularReflectionMapping; return { bg: t, env: pm.fromEquirectangular(t).texture }; }).catch(() => null));
+  const envs = {}; const load = (n) => envs[n] || (envs[n] = (DIST ? fetch(ASSET_BASE + 'hdri/' + n + '.hdr.txt').then((r) => r.text()).then((b) => { const bin = Uint8Array.from(atob(b.trim()), (c) => c.charCodeAt(0)); const L = new RGBELoader(); const d = L.parse(bin.buffer); const t = new T.DataTexture(d.data, d.width, d.height, T.RGBAFormat, d.type); t.flipY = true; t.magFilter = t.minFilter = T.LinearFilter; t.generateMipmaps = false; t.needsUpdate = true; return t; }) : new RGBELoader().loadAsync(ASSET_BASE + 'hdri/' + n + '.hdr')).then((t) => { t.mapping = T.EquirectangularReflectionMapping; return { bg: t, env: pm.fromEquirectangular(t).texture }; }).catch(() => null));
   const night = nightSky(); const nightEnv = pm.fromEquirectangular(night).texture;
   let cur = null;
   // ob-havo zarrachalari

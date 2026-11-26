@@ -1,12 +1,12 @@
 // Realistik buyumlar (Poly Haven, CC0): GLTF modellar, har bir tur uchun InstancedMesh.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { ASSET_BASE } from './tex.js';
+import { ASSET_BASE, mext } from './tex.js';
 
 const loader = new GLTFLoader();
 const cache = new Map();
 function loadModel(id) {
-  if (!cache.has(id)) cache.set(id, loader.loadAsync(ASSET_BASE + 'models/' + id + '/' + id + '.gltf').then((g) => {
+  if (!cache.has(id)) cache.set(id, loader.loadAsync(ASSET_BASE + 'models/' + id + '/' + id + mext('.gltf')).then((g) => {
     const parts = []; g.scene.updateMatrixWorld(true);
     g.scene.traverse((o) => { if (o.isMesh) { const m = o.material; if (m.map) m.map.anisotropy = 4; parts.push({ geo: o.geometry, mat: m, local: o.matrixWorld.clone() }); } });
     const box = new THREE.Box3().setFromObject(g.scene); return { parts, box };

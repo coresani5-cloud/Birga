@@ -220,6 +220,9 @@ export const glowTex = () => memo('glow', () => { const S = 64, [c, g] = cv(S); 
 const TL = new THREE.TextureLoader(); const PENDING = [];
 export const texReady = () => Promise.all(PENDING);
 export const ASSET_BASE = (typeof window !== 'undefined' && window.OZ_ASSETS) || 'assets/';
+// Nashr (artifact) versiyasida 3D fayllar JSON ko'rinishida: .gltf/.glb -> .json, .hdr -> .hdr.txt (base64)
+export const DIST = typeof window !== 'undefined' && !!window.OZ_DIST;
+export const mext = (e) => (DIST ? '.json' : e);
 export function pbr(name, o = {}) {
   return memo('pbr' + name, () => {
     const ld = (suf, srgb) => { let ok; PENDING.push(new Promise((r) => (ok = r))); const t = TL.load(ASSET_BASE + 'tex/' + name + '_' + suf + '.jpg', ok, undefined, ok); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; if (srgb) t.colorSpace = THREE.SRGBColorSpace; return t; };

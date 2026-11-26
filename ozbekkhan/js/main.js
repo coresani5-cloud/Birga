@@ -48,12 +48,12 @@ const waterMat = new T.MeshStandardMaterial({ color: '#3c7f86', roughness: 0.06,
 
 /* ================= AI personaj modellari ================= */
 const RIG = {}; // rol -> manba
-const RIG_NAMES = ['hero', 'hero_beqasam_yashil', 'hero_adras', 'hero_zardozi', 'oqsoqol', 'ayol', 'ayol2', 'savdogar', 'ishchi', 'posbon', 'sarboz', 'navkar', 'chavandoz', 'qishki', 'darvesh', 'ayol3', 'ayol4', 'ayol5', 'ayol6', 'ayol7', 'olim', 'munajjim', 'kotib', 'savdogar2', 'chopon', 'bola', 'bola_oq', 'bola_kok', 'bola_beqasam', 'bola_dutor', 'xitoy_qiz', 'xitoy_bola'];
+const RIG_NAMES = ['hero', 'hero_beqasam_yashil', 'hero_adras', 'hero_zardozi', 'oqsoqol', 'ayol', 'ayol2', 'savdogar', 'ishchi', 'posbon', 'sarboz', 'navkar', 'chavandoz', 'qishki', 'darvesh', 'ayol3', 'ayol4', 'ayol5', 'ayol6', 'ayol7', 'olim', 'munajjim', 'kotib', 'savdogar2', 'chopon', 'boyoqchi', 'arab', 'yigit_beqasam', 'qiz_atlas', 'bola', 'bola_oq', 'bola_kok', 'bola_beqasam', 'bola_dutor', 'xitoy_qiz', 'xitoy_bola'];
 const ANI = {}; const ANI_NAMES = { ot: 1.6, ot_yuk: 1.7, tuya: 2.2, tuya_yuk: 2.3, eshak_yuk: 1.35 };
 async function loadRigs() { await Promise.all(RIG_NAMES.map(async (n) => { const s = await loadRigSource(n); if (s) RIG[n] = s; }).concat(Object.entries(ANI_NAMES).map(async ([n, h]) => { const s = await loadAnimalSource(n, h); if (s) ANI[n] = s; }))); }
-const USED = {}; const ADULT = () => Object.keys(RIG).filter((k) => !k.startsWith('ayol') && !k.startsWith('bola') && !k.startsWith('xitoy') && !k.startsWith('hero'));
+const USED = {}; const ADULT = () => Object.keys(RIG).filter((k) => !k.startsWith('ayol') && k !== 'qiz_atlas' && !k.startsWith('bola') && !k.startsWith('xitoy') && !k.startsWith('hero'));
 const leastUsed = (list) => list.filter((k) => RIG[k]).sort((a, b) => (USED[a] || 0) - (USED[b] || 0) || rnd() - 0.5)[0];
-const pickRole = (r) => { const alt = { posbon: ['sarboz', 'navkar', 'posbon'], ayol: ['ayol', 'ayol2', 'ayol3', 'ayol4', 'ayol5', 'ayol6', 'ayol7'], ishchi: ['ishchi', 'kotib', 'chavandoz', 'savdogar2', 'qishki'], oqsoqol: ['oqsoqol', 'olim', 'darvesh', 'munajjim'], savdogar: ['savdogar', 'savdogar2'], olim: ['olim', 'munajjim', 'kotib'], bola: ['bola', 'bola_oq', 'bola_kok', 'bola_beqasam'] }[r]; if (!alt) return r; return leastUsed(alt) || r; };
+const pickRole = (r) => { const alt = { posbon: ['sarboz', 'navkar', 'posbon'], ayol: ['ayol', 'ayol2', 'ayol3', 'ayol4', 'ayol5', 'ayol6', 'ayol7', 'qiz_atlas'], ishchi: ['ishchi', 'kotib', 'chavandoz', 'savdogar2', 'qishki', 'boyoqchi', 'yigit_beqasam'], oqsoqol: ['oqsoqol', 'olim', 'darvesh', 'munajjim'], savdogar: ['savdogar', 'savdogar2', 'arab'], olim: ['olim', 'munajjim', 'kotib'], bola: ['bola', 'bola_oq', 'bola_kok', 'bola_beqasam'] }[r]; if (!alt) return r; return leastUsed(alt) || r; };
 function makePerson(role, look = {}, o = {}) {
   const key = role === 'hero' ? (S?.outfit || 'hero') : pickRole(role);
   const fb = !RIG[key] && role !== 'hero' && role !== 'bola' && role !== 'ayol' ? leastUsed(ADULT()) : null;

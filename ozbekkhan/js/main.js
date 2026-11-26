@@ -1,4 +1,4 @@
-// O'zbekkhan — asosiy o'yin dvigateli.
+// BEK — asosiy o'yin dvigateli.
 import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
@@ -19,12 +19,13 @@ const $ = (id) => document.getElementById(id);
 const isTouch = matchMedia('(pointer:coarse)').matches;
 if (isTouch) document.body.classList.add('is-touch');
 const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const rnd = Math.random, clamp = (v, a, b) => Math.max(a, Math.min(b, v)), lerp = (a, b, t) => a + (b - a) * t;
 const angDiff = (a, b) => { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; };
 
 /* ================= sozlamalar va saqlash ================= */
 let Q = +(store.get('oz_q') ?? (isTouch ? 0 : 1)); const QN = ['Past', 'O\'rta', 'Yuqori'];
-const SAVE = 'ozbekkhan_v1';
+const SAVE = 'bek_v1';
 const OUTFITS = { hero: 'Ko\'k-oltin chopon (asosiy)' };
 const defSave = () => ({ region: 'buxoro', money: 40, obro: 0, outfit: 'hero', done: {}, unlock: {}, time: 9.5, hp: 100 });
 let S = (() => { try { const j = JSON.parse(store.get(SAVE)); if (j?.region) return { ...defSave(), ...j }; } catch {} return null; })();
@@ -399,7 +400,6 @@ function setCarry(k) {
 
 /* ================= UI ================= */
 let dlgOpen = false, qteOn = false;
-const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 function fade(on) { $('fade').classList.toggle('on', on); }
 let toastT = 0; function toast(s) { const t = $('hud-toast'); t.textContent = s; t.hidden = false; toastT = 2.4; }
 function banner(a, b) { const el = $('hud-banner'); $('banner-1').textContent = a; $('banner-2').textContent = b || ''; el.hidden = true; void el.offsetWidth; el.hidden = false; clearTimeout(banner.t); banner.t = setTimeout(() => (el.hidden = true), 4000); }
@@ -574,7 +574,7 @@ async function startGame(fresh) {
   $('title').hidden = true; $('hud').hidden = false; if (isTouch) $('touch').hidden = false;
   if (S.region !== R.id || fresh) await loadRegion(S.region, fresh ? 'gate' : 'save'); else if (S.pos) P.pos.set(...S.pos);
   P.hp = S.hp || 100; scene.add(hero.root); playing = true; AU.setStation(AU.REGION_STATION[R.id] ?? 0);
-  if (fresh) { await say('Ovozsiz ichki ovoz', 'Ismim — O\'zbekkhan. Yoshman, yo\'lim uzoq: o\'n ikki viloyatni kezib, har birining hunarini, odatini o\'rganmoqchiman.\n\nTilla rang ◆ — viloyat topshirig\'i, feruza ◆ — mahalla ishlari. Xohlasangiz — shunchaki yuring, bozorni aylaning, choyxonada dam oling.', ['Yo\'lga!']); }
+  if (fresh) { await say('Ovozsiz ichki ovoz', 'Meni Bek deyishadi. Yoshman, yo\'lim uzoq: o\'n ikki viloyatni kezib, har birining hunarini, odatini o\'rganmoqchiman.\n\nTilla rang ◆ — viloyat topshirig\'i, feruza ◆ — mahalla ishlari. Xohlasangiz — shunchaki yuring, bozorni aylaning, choyxonada dam oling.', ['Yo\'lga!']); }
   if (!isTouch) canvas.requestPointerLock?.();
 }
 $('btn-new').onclick = () => startGame(true);

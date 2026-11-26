@@ -1,4 +1,4 @@
-# O'zbekkhan
+# BEK
 
 O'n ikki viloyatdan iborat tarixiy (XIX asr) O'zbekistonda erkin harakatlanadigan 3D o'yin. Brauzerda ishlaydi va build talab qilmaydi.
 

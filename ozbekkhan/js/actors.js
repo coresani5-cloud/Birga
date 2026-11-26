@@ -194,17 +194,20 @@ export function animate(R, dt, st) {
 
 /* --------- hayvonlar --------- */
 export function makeAnimal(kind = 'ot', o = {}) {
-  const P = { ot: { body: [0.42, 1.25], col: o.col || '#7a4426', leg: 0.85, neck: 0.75, headL: 0.55, sc: 1 }, eshak: { body: [0.3, 0.9], col: o.col || '#8a8278', leg: 0.6, neck: 0.5, headL: 0.45, sc: 1, ears: 1 }, tuya: { body: [0.48, 1.3], col: o.col || '#b08a5a', leg: 1.25, neck: 1.1, headL: 0.5, sc: 1, hump: 1 } }[kind];
+  const P = { qoy: { body: [0.3, 0.5], col: o.col || '#ece6d6', leg: 0.36, neck: 0.22, headL: 0.24, wool: 1 }, echki: { body: [0.22, 0.46], col: o.col || '#5a4a3a', leg: 0.42, neck: 0.3, headL: 0.24, ears: 0 }, it: { body: [0.18, 0.5], col: o.col || '#9a7448', leg: 0.4, neck: 0.25, headL: 0.26 },
+    ot: { body: [0.42, 1.25], col: o.col || '#7a4426', leg: 0.85, neck: 0.75, headL: 0.55, sc: 1 }, eshak: { body: [0.3, 0.9], col: o.col || '#8a8278', leg: 0.6, neck: 0.5, headL: 0.45, sc: 1, ears: 1 }, tuya: { body: [0.48, 1.3], col: o.col || '#b08a5a', leg: 1.25, neck: 1.1, headL: 0.5, sc: 1, hump: 1 } }[kind];
   const root = new T.Group(); const m = std(P.col, { roughness: 0.75 }), dk = std(kind === 'ot' ? '#1d120a' : '#5a5048');
   const body = new T.Group(); body.position.y = P.leg + P.body[0]; root.add(body);
   const torso = new T.Mesh(capsule(P.body[0], P.body[1], 12), m); torso.rotation.x = Math.PI / 2; body.add(torso);
+  if (P.wool) { for (let k = 0; k < 7; k++) { const w = new T.Mesh(new T.SphereGeometry(P.body[0] * 0.75, 8, 6), m); w.position.set((Math.random() - 0.5) * 0.2, (Math.random() - 0.3) * 0.15, -0.3 + k * 0.1); body.add(w); } }
   if (P.hump) for (const z of [-0.35, 0.35]) { const h = new T.Mesh(new T.SphereGeometry(0.32, 12, 8), m); h.scale.set(1, 1.1, 1.1); h.position.set(0, 0.42, z); body.add(h); }
   const neckG = new T.Group(); neckG.position.set(0, 0.15, P.body[1] / 2 + 0.15); body.add(neckG);
   const neck = new T.Mesh(capsule(P.body[0] * 0.48, P.neck, 8), m); neck.position.set(0, P.neck * 0.45, 0.12); neck.rotation.x = kind === 'tuya' ? 0.3 : 0.55; neckG.add(neck);
   const headG = new T.Group(); headG.position.set(0, P.neck * 0.95, P.neck * 0.35 + (kind === 'tuya' ? 0.2 : 0)); neckG.add(headG);
   const head = new T.Mesh(capsule(P.body[0] * 0.38, P.headL, 8), m); head.rotation.x = Math.PI / 2 + 0.5; head.position.set(0, -0.1, 0.18); headG.add(head);
   for (const s of [-1, 1]) { const ear = new T.Mesh(new T.ConeGeometry(0.045, P.ears ? 0.32 : 0.14, 6), m); ear.position.set(s * 0.08, 0.12, -0.02); ear.rotation.z = -s * 0.25; headG.add(ear); const eye = new T.Mesh(new T.SphereGeometry(0.025, 6, 4), std('#0a0a0a')); eye.position.set(s * 0.12, 0, 0.1); headG.add(eye); }
-  if (kind !== 'tuya') { const mane = new T.Mesh(new T.BoxGeometry(0.06, P.neck * 1.05, 0.16), dk); mane.position.set(0, P.neck * 0.5, 0.0); mane.rotation.x = 0.55; neckG.add(mane); }
+  if (o.saddle === undefined && (kind === 'qoy' || kind === 'echki' || kind === 'it')) o.saddle = false;
+  if (kind !== 'tuya' && !P.wool && kind !== 'it' && kind !== 'echki') { const mane = new T.Mesh(new T.BoxGeometry(0.06, P.neck * 1.05, 0.16), dk); mane.position.set(0, P.neck * 0.5, 0.0); mane.rotation.x = 0.55; neckG.add(mane); }
   const tail = new T.Mesh(capsule(0.05, kind === 'ot' ? 0.6 : 0.4, 6), dk); tail.position.set(0, 0.1, -P.body[1] / 2 - 0.35); tail.rotation.x = 0.4; body.add(tail);
   const legs = [];
   for (const [sx, sz] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) {

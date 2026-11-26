@@ -114,6 +114,7 @@ export function buildRegion(R, opt = {}) {
     clay: P('plaster', 1, { color: '#c99a78' }),
     metal: new T.MeshStandardMaterial({ color: '#2a2724', roughness: 0.45, metalness: 0.7, vertexColors: true }),
     gold: new T.MeshStandardMaterial({ color: '#d9a640', roughness: 0.3, metalness: 1 }),
+    flower: new T.MeshStandardMaterial({ map: TX.flowerCard(), alphaTest: 0.4, side: T.DoubleSide, vertexColors: true, roughness: 0.8 }),
     leaf: new T.MeshStandardMaterial({ map: TX.leafCard(0), alphaTest: 0.45, side: T.DoubleSide, vertexColors: true, roughness: 0.8 }),
     blob: new T.MeshStandardMaterial({ map: TX.leafTex(), vertexColors: true, roughness: 0.85 }),
     stone: P('cobble'), sandstone: P('stone'), earth: P(R.land === 'desert' ? 'sand' : 'ground'),
@@ -247,6 +248,7 @@ export function buildRegion(R, opt = {}) {
         if (r() < 0.5) { const pp = at(u + 1.5, 0, 0.55); pot(pp[0], pp[2], 1.1); }
       }
       for (let u = -len / 2 + 0.8; u < len / 2 - 0.8; u += 2.2 + r() * 3) if (r() < 0.35) { const pp = at(u, 0, 0.25 + r() * 0.2); prop(r() < 0.6 ? 'grass_medium_01' : 'shrub_03', pp[0], 0, pp[2], r() * 6, 0.5 + r() * 0.5); }
+      if (r() < 0.08 && len > 3) { const u0 = (r() - 0.5) * (len - 3), wv = 2 + r() * 2.5; for (let k = 0; k < 5; k++) { const [px, py, pz] = at(u0 + (r() - 0.5) * wv, h - 0.4 - r() * 1.4, 0.14 + k * 0.03); W0.add('flower', new T.PlaneGeometry(1.4 + r(), 1.2 + r()), px, py, pz, { ry }); } }
       if (r() < 0.22 && len > 3) { const u0 = (r() - 0.5) * (len - 3), wv = 1.5 + r() * 2.5, hv = 1.2 + r() * (h * 0.5); for (let k = 0; k < 4; k++) { const [px, py, pz] = at(u0 + (r() - 0.5) * wv, h - hv / 2 + 0.1, 0.12 + k * 0.03); W0.add('leaf', new T.PlaneGeometry(wv * (0.5 + r() * 0.5), hv * (0.6 + r() * 0.5)), px, py, pz, { ry, col: tint(new T.Color('#a8bd78'), 0.15) }); } }
       const nWin = Math.floor(len / 4.5);
       for (let i = 0; i < nWin; i++) { if (r() < 0.4) continue; const u = -len / 2 + (i + 0.5) * len / nWin; const [px, py, pz] = at(u, h - 1.4, 0.04); W0.add(r() < 0.45 ? 'win' : 'dark', box(0.7, 0.9, 0.1), px, py, pz, { ry }); const [qx, qy, qz] = at(u, h - 1.4, 0.1); for (let j = -1; j <= 1; j++) W0.add('wood', box(0.05, 0.9, 0.05), qx + tx * j * 0.22, qy, qz + tz * j * 0.22, { col: '#5d3f26' }); }
@@ -479,6 +481,7 @@ export function buildRegion(R, opt = {}) {
   for (const [i, j] of [[-1, -1], [0, -1], [-1, 0], [0, 0]]) reserved.set(key(i, j), 'plaza');
   reserved.set(key(0, 1), 'choyxona');
   reserved.set(key(-2, 2), 'hashar');
+  if (!reserved.has(key(-3, 0))) reserved.set(key(-3, 0), 'bog');
   const BIG = ['ark', 'kirkkiz', 'bibixonim', 'shohizinda', 'hazratimom'];
   const secondary = R.landmarks.slice(1).filter((k) => !['walls_high', 'kopkari', 'temurdarvoza', 'ariq', 'gulbog', 'observatoriya', 'ayozqala', 'toqi', 'chorsu'].includes(k));
   const secCells = [[-3, -3], [1, -3], [1, 1]];
@@ -517,6 +520,16 @@ export function buildRegion(R, opt = {}) {
       for (const b of A.benches.slice(-3)) { npcs.push({ x: b.x - 0.4, z: b.z, ry: b.ry, role: 'mehmon', pose: 'sit', y: 0.66 }); if (r() < 0.6) npcs.push({ x: b.x + 0.5, z: b.z, ry: b.ry + Math.PI, role: 'mehmon', pose: 'sit', y: 0.66 }); }
       poi({ x: cx - 1, y: 0, z: cz + 6.6, r: 2.0, kind: 'choyxona', label: 'Choyxona: choy ichish va dam olish (saqlash)' });
       A.choyxona = { x: cx - 1, z: cz + 6.4 };
+      continue;
+    }
+    if (k === 'bog') { // bog'li hovli: favvorali hovuz, sarvlar, gulzorlar, past devor
+      for (const [a, b, w, d] of [[0, -9.2, 19, 0.5], [0, 9.2, 19, 0.5], [-9.2, 0, 0.5, 19]]) { W0.add('wall', box(w, 1.2, d), cx + a, 0.6, cz + b, { uv: 0.33, col: wallCol }); C.add(cx + a - w / 2, cz + b - d / 2, cx + a + w / 2, cz + b + d / 2, 1.2); }
+      W0.add('sandstone', new T.CylinderGeometry(3.4, 3.5, 0.5, 24), cx, 0.25, cz, { uv: 0.4, col: '#ffffff' }); const wg = new T.CircleGeometry(3.1, 24); tf(wg, 0, 0, 0, 0, -Math.PI / 2); tf(wg, cx, 0.42, cz); const wm = new T.Mesh(wg, opt.waterMat); group.add(wm); fx.water.push(wm);
+      W0.add('sandstone', new T.CylinderGeometry(0.25, 0.4, 1.4, 12), cx, 0.9, cz, { uv: 0.5, col: '#ffffff' }); W0.add('sandstone', new T.CylinderGeometry(0.8, 0.5, 0.25, 16), cx, 1.6, cz, { uv: 0.5, col: '#ffffff' }); C.add(cx - 3.5, cz - 3.5, cx + 3.5, cz + 3.5, 0.5, -1); fx.smoke.push({ x: cx, y: 1.8, z: cz, thin: 1, water: 1 });
+      for (let i = -3; i <= 3; i += 2) for (const sz of [-1, 1]) tree(cx + i * 2.4, cz + sz * 7.4, 0.7, 'terak');
+      for (const [a, b] of [[-6, -3.5], [6, -3.5], [-6, 3.5], [6, 3.5]]) { W0.add('earth', box(3, 0.35, 2.2), cx + a, 0.17, cz + b, { uv: 0.3 }); for (let k = 0; k < 6; k++) W0.add('flower', new T.PlaneGeometry(0.9, 0.7), cx + a + (r() - 0.5) * 2.4, 0.6, cz + b + (r() - 0.5) * 1.6, { ry: r() * 3 }); }
+      tapchan(cx + 6.5, cz, -Math.PI / 2); A.extras.bog = { x: cx, z: cz };
+      npcs.push({ x: cx + 6.2, z: cz - 0.4, ry: -Math.PI / 2, role: 'kitobxon', pose: 'sit', y: 0.66 });
       continue;
     }
     if (k === 'hashar') {

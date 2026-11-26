@@ -240,3 +240,9 @@ export const leafCard = (hue = 0) => memo('leafcard' + hue, () => {
   g.strokeStyle = 'rgba(70,55,35,.9)'; g.lineWidth = 3; for (let i = 0; i < 6; i++) { g.beginPath(); g.moveTo(S / 2, S / 2); g.lineTo(S / 2 + (r() - 0.5) * S * 0.7, S / 2 + (r() - 0.5) * S * 0.7); g.stroke(); }
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
 });
+
+export const flowerCard = () => memo('flowercard', () => {
+  const S = 256, [c, g] = cv(S), r = rng(91);
+  for (let i = 0; i < 260; i++) { const a = r() * Math.PI * 2, d = Math.pow(r(), 0.6) * S * 0.45, x = S / 2 + Math.cos(a) * d, y = S / 2 + Math.sin(a) * d * 0.9; const green = r() < 0.35; g.fillStyle = green ? `rgb(${60 + r() * 40 | 0},${100 + r() * 40 | 0},${40 + r() * 20 | 0})` : ['#c23b8a', '#d65aa8', '#a83aa0', '#e07ab8', '#8e3fb0'][r() * 5 | 0]; g.beginPath(); g.ellipse(x, y, green ? 7 : 5, green ? 3.5 : 5, r() * 6, 0, 7); g.fill(); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+});

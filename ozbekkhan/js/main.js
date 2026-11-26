@@ -48,23 +48,27 @@ const waterMat = new T.MeshStandardMaterial({ color: '#3c7f86', roughness: 0.06,
 
 /* ================= AI personaj modellari ================= */
 const RIG = {}; // rol -> manba
-const RIG_NAMES = ['hero', 'oqsoqol', 'ayol', 'ayol2', 'savdogar', 'ishchi', 'posbon', 'sarboz', 'navkar', 'chavandoz', 'qishki', 'darvesh', 'bola'];
+const RIG_NAMES = ['hero', 'oqsoqol', 'ayol', 'ayol2', 'savdogar', 'ishchi', 'posbon', 'sarboz', 'navkar', 'chavandoz', 'qishki', 'darvesh', 'olim', 'munajjim', 'kotib', 'savdogar2', 'chopon', 'bola'];
 const ANI = {}; const ANI_NAMES = { ot: 1.6, ot_yuk: 1.7, tuya: 2.2, tuya_yuk: 2.3, eshak_yuk: 1.35 };
 async function loadRigs() { await Promise.all(RIG_NAMES.map(async (n) => { const s = await loadRigSource(n); if (s) RIG[n] = s; }).concat(Object.entries(ANI_NAMES).map(async ([n, h]) => { const s = await loadAnimalSource(n, h); if (s) ANI[n] = s; }))); }
-const pickRole = (r) => { const alt = { posbon: ['sarboz', 'navkar', 'posbon'], ayol: ['ayol', 'ayol2'], ishchi: ['ishchi', 'chavandoz', 'qishki'] }[r]; if (!alt) return r; const ok = alt.filter((k) => RIG[k]); return ok.length ? ok[rnd() * ok.length | 0] : r; };
+const USED = {}; const ADULT = () => Object.keys(RIG).filter((k) => !['hero', 'bola', 'ayol', 'ayol2'].includes(k));
+const leastUsed = (list) => list.filter((k) => RIG[k]).sort((a, b) => (USED[a] || 0) - (USED[b] || 0) || rnd() - 0.5)[0];
+const pickRole = (r) => { const alt = { posbon: ['sarboz', 'navkar', 'posbon'], ayol: ['ayol', 'ayol2'], ishchi: ['ishchi', 'kotib', 'chavandoz', 'savdogar2', 'qishki'], oqsoqol: ['oqsoqol', 'olim', 'darvesh', 'munajjim'], savdogar: ['savdogar', 'savdogar2'], olim: ['olim', 'munajjim', 'kotib'] }[r]; if (!alt) return r; return leastUsed(alt) || r; };
 function makePerson(role, look = {}, o = {}) {
   const key = role === 'hero' ? (S?.outfit || 'hero') : pickRole(role);
-  const src = RIG[key] || RIG[role] || (role !== 'hero' && role !== 'bola' && role !== 'ayol' && Object.keys(RIG).length > 1 ? RIG[Object.keys(RIG).filter((k) => k !== 'hero' && k !== 'ayol' && k !== 'ayol2' && k !== 'bola')[rnd() * (Object.keys(RIG).length - 1) | 0]] : null);
+  const fb = !RIG[key] && role !== 'hero' && role !== 'bola' && role !== 'ayol' ? leastUsed(ADULT()) : null;
+  const usedKey = RIG[key] ? key : fb; if (usedKey && role !== 'hero') USED[usedKey] = (USED[usedKey] || 0) + 1;
+  const src = RIG[key] || (fb ? RIG[fb] : null);
   if (src) { const R = makeRigged(src); if (role === 'bola') R.root.scale.setScalar(0.72); return R; }
   return makeHuman(look, o);
 }
-const roleOf = (n) => ({ sotuvchi: 'savdogar', oshpaz: 'oqsoqol', choyxonachi: 'savdogar', mehmon: rnd() < 0.5 ? 'oqsoqol' : 'savdogar', usta: 'ishchi', kulol: 'oqsoqol' }[n] || 'ishchi');
+const roleOf = (n) => ({ kitobxon: 'olim', sotuvchi: 'savdogar', oshpaz: 'oqsoqol', choyxonachi: 'savdogar', mehmon: rnd() < 0.5 ? 'oqsoqol' : 'savdogar', usta: 'ishchi', kulol: 'oqsoqol' }[n] || 'ishchi');
 
 /* ================= holat ================= */
 let RES = null, R = null, C = null, A = null, heightAt = () => 0, mapImg = null;
 const P = { pos: new V3(0, 0, 100), vy: 0, yaw: Math.PI, speed: 0, mode: 'foot', mount: null, hp: 100, st: 100, onGround: true, fallFrom: 0, punchT: 0, hitCd: 0, carry: null, carryObj: null, para: null, pose: null, poseT: 0 };
 let hero = null, camYaw = Math.PI, camPitch = 0.25, camDist = 4.6;
-let npcs = [], mounts = [], guards = [], givers = [], fxSmoke = [], props = [], markers = [];
+let critters = [], npcs = [], mounts = [], guards = [], givers = [], fxSmoke = [], props = [], markers = [];
 let heat = 0, heatCool = 0, playing = false, paused = false, underground = false;
 const inp = { f: 0, s: 0, run: false, jump: false, use: false, steal: false, mount: false, punch: false, wave: false };
 
@@ -73,7 +77,7 @@ async function loadRegion(id, from = 'gate') {
   fade(true); await wait(350);
   if (RES) { scene.remove(RES.group); RES.group.traverse((o) => { if (o.geometry) o.geometry.dispose(); }); }
   for (const n of npcs) scene.remove(n.R.root); for (const m of mounts) scene.remove(m.root); for (const g of guards) scene.remove(g.R.root); for (const g of givers) scene.remove(g.mark);
-  npcs = []; mounts = []; guards = []; givers = []; heat = 0; endMission(null, true);
+  npcs = []; mounts = []; guards = []; givers = []; heat = 0; endMission(null, true); for (const k in USED) delete USED[k]; for (const c of critters) scene.remove(c.root); critters = [];
   R = regionById(id); S.region = id;
   RES = buildRegion(R, { quality: Q, shadows: Q > 0, waterMat }); scene.add(RES.group);
   C = RES.C; A = RES.A; heightAt = RES.heightAt; mapImg = drawMapImage(RES, R);
@@ -108,6 +112,10 @@ function spawnWorld() {
   if (R.id === 'navoiy' || R.id === 'xorazm') for (let i = 0; i < 3; i++) addMount('tuya', 18 + i * 3, 130, rnd() * 6, { tied: true });
   // karvonchilar: yuk hayvonini yetaklab yuruvchi odamlar (o'z ishi bilan band)
   const nc = Q > 0 ? 3 : 1; for (let i = 0; i < nc; i++) { const nd = NODES[rnd() * NODES.length | 0]; const n = addNpc({ x: nd[0], z: nd[1], role: 'ishchi', walk: true, pose: 'walk' }); n.speed = 1.0; const kind = R.land === 'desert' || R.id === 'navoiy' ? (i % 2 ? 'tuya' : 'eshak') : ['eshak', 'ot', 'eshak'][i % 3]; const m = addMount(kind, nd[0], nd[1] - 2.5, 0, { pack: true, led: n }); m.tied = true; n.leads = m; }
+  { const nd = NODES[rnd() * NODES.length | 0]; const m = addMount('ot', nd[0], nd[1], 0, { rider: true, riderRole: 'posbon' }); m.target = nd; } // otliq qo'riqchi
+  const herd = (x, z, n, kind = 'qoy') => { const sh = addNpc({ x, z, role: 'chopon', walk: true, pose: 'walk' }); sh.speed = 0.7; for (let i = 0; i < n; i++) addCritter(kind === 'mix' ? (rnd() < 0.7 ? 'qoy' : 'echki') : kind, x + (rnd() - 0.5) * 6, z + (rnd() - 0.5) * 6, sh); };
+  herd(25, 135, Q > 0 ? 12 : 6, 'mix'); if (rnd() < 0.6) { const nd = NODES[rnd() * NODES.length | 0]; herd(nd[0], nd[1], Q > 0 ? 6 : 3); }
+  for (let i = 0; i < (Q > 0 ? 4 : 2); i++) { const d = A.doors[rnd() * A.doors.length | 0]; addCritter(rnd() < 0.5 ? 'echki' : 'it', d.x, d.z, null); }
   // sarboz patrullari (juft bo'lib yuradi)
   { const nd = NODES[rnd() * NODES.length | 0]; const a = addNpc({ x: nd[0], z: nd[1], role: 'posbon', walk: true, pose: 'walk' }); const b = addNpc({ x: nd[0] + 1.2, z: nd[1], role: 'posbon', walk: true, pose: 'walk' }); a.speed = b.speed = 1.2; b.follow = a; }
   // hammollar (yuk ko'targan) va supuruvchilar
@@ -119,6 +127,18 @@ function spawnWorld() {
   for (const id of list) { const M = MISSIONS[id]; if (!M) continue; let g; try { g = M.giver.at(A); } catch { g = null; } if (!g) continue; const p = freeSpot(g.x, g.z); const n = addNpc({ x: p.x, z: p.z, ry: rnd() * 6, role: id === 'mehmon' ? 'ayol' : id === 'kurash' || id === 'kopkari' ? 'posbon' : 'oqsoqol', pose: 'idle', name: M.giver.name, mission: id });
     const mk = new T.Mesh(new T.OctahedronGeometry(0.22), new T.MeshBasicMaterial({ color: M.job ? '#5ad16a' : M.side ? '#19b3ad' : '#e6b84c' })); mk.position.set(p.x, 2.35, p.z); scene.add(mk); givers.push({ id, n, mark: mk }); n.giver = true; }
 }
+function addCritter(kind, x, z, leader) { const A2 = makeAnimal(kind); A2.root.position.set(x, 0, z); scene.add(A2.root); const c = { A: A2, root: A2.root, pos: A2.root.position, yaw: rnd() * 6.28, leader, kind, t: rnd() * 5, tx: x, tz: z }; critters.push(c); return c; }
+function updateCritters(dt) {
+  for (const c of critters) {
+    const d2 = c.pos.distanceToSquared(P.pos); c.root.visible = d2 < 90 * 90; if (d2 > 70 * 70) continue;
+    c.t -= dt; let sp = 0;
+    if (c.leader) { const L = c.leader; const d = Math.hypot(L.pos.x - c.pos.x, L.pos.z - c.pos.z); if (d > 6 || c.t <= 0) { c.tx = L.pos.x - Math.sin(L.yaw) * 3 + (rnd() - 0.5) * 6; c.tz = L.pos.z - Math.cos(L.yaw) * 3 + (rnd() - 0.5) * 6; c.t = 2 + rnd() * 3; } }
+    else if (c.t <= 0) { c.tx = c.pos.x + (rnd() - 0.5) * 10; c.tz = c.pos.z + (rnd() - 0.5) * 10; c.t = 3 + rnd() * 5; }
+    if (d2 < 5 && c.kind !== 'it') { c.tx = c.pos.x + (c.pos.x - P.pos.x) * 3; c.tz = c.pos.z + (c.pos.z - P.pos.z) * 3; }
+    const dd = Math.hypot(c.tx - c.pos.x, c.tz - c.pos.z); if (dd > 0.6) { sp = c.kind === 'it' ? 2.2 : dd > 4 ? 1.6 : 0.7; stepToward(c, c.tx, c.tz, sp, dt, 0.3); }
+    c.root.rotation.y = c.yaw; animateAnimal(c.A, dt, sp); if (sp === 0) c.A.neckG.rotation.x = 0.6 + Math.sin(c.t * 2) * 0.1;
+  }
+}
 function spawnTrader() { const p = freeSpot(-3.2, 103); const n = addNpc({ x: p.x, z: p.z, ry: Math.PI, role: 'savdogar', pose: 'idle', name: 'Ipak yo\'li savdogari' }); n.trader = true; const mk = new T.Mesh(new T.OctahedronGeometry(0.22), new T.MeshBasicMaterial({ color: '#ffffff' })); mk.position.set(p.x, 2.35, p.z); scene.add(mk); givers.push({ id: null, n, mark: mk }); }
 function freeSpot(x, z) { for (let r = 0; r < 12; r += 1) for (let a = 0; a < 6.28; a += 0.8) { const px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r; if (C.ground(px, pz, 0.2, 0.4) < 0.7) { let ok = true; for (const i of C.near(px, pz)) { const b = C.b[i]; if (px > b.x0 - 0.4 && px < b.x1 + 0.4 && pz > b.z0 - 0.4 && pz < b.z1 + 0.4 && b.top > 0.7) ok = false; } if (ok) return { x: px, z: pz }; } } return { x, z }; }
 function addMount(kind, x, z, ry, o = {}) {
@@ -127,7 +147,7 @@ function addMount(kind, x, z, ry, o = {}) {
   let cart = null; if (kind === 'arava') { cart = makeCart(); cart.position.z = -2.2; root.add(cart); }
   root.position.set(x, 0, z); root.rotation.y = ry; scene.add(root);
   const m = { kind, A: an, root, cart, pos: root.position, yaw: ry, speed: 0, ...o, riderR: null, owned: false };
-  if (o.rider) { m.riderR = makePerson(rnd() < 0.5 ? 'savdogar' : 'ishchi', npcLook('ishchi')); m.riderR.root.position.set(0, kind === 'arava' ? 1.05 : an.seatY - (an.rigged ? 0.55 : 0.95), kind === 'arava' ? -2.0 : 0); root.add(m.riderR.root); }
+  if (o.rider) { m.riderR = makePerson(o.riderRole || (rnd() < 0.5 ? 'savdogar' : 'ishchi'), npcLook('ishchi')); m.riderR.root.position.set(0, kind === 'arava' ? 1.05 : an.seatY - (an.rigged ? 0.55 : 0.95), kind === 'arava' ? -2.0 : 0); root.add(m.riderR.root); }
   mounts.push(m); return m;
 }
 function stepToward(o, tx, tz, sp, dt, r = 0.35) {
@@ -199,6 +219,7 @@ function updatePlayer(dt) {
   let mx = fx * iz + rx * ix, mz = fz * iz + rz * ix; const ml = Math.hypot(mx, mz); if (ml > 0) { mx /= ml; mz /= ml; }
   if (P.mode === 'ride') return updateRide(dt, mx, mz, mag);
   if (P.mode === 'para') return updatePara(dt, ix, iz);
+  if (P.mode === 'carpet') return updateCarpet(dt);
   const running = inp.run && P.st > 2 && mag > 0.3 && !P.carry;
   const target = mag * (running ? 5.8 : P.carry === 'lagan' ? 1.6 : 2.4);
   P.speed = lerp(P.speed, target, Math.min(1, dt * 8));
@@ -252,6 +273,26 @@ function dismount(silent) {
   P.pos.set(m.pos.x + Math.cos(m.yaw) * 1.4, m.pos.y, m.pos.z - Math.sin(m.yaw) * 1.4); C.push(P.pos, 0.4, 0);
   if (m.mission && !silent) {}
 }
+let carpet = null;
+function toggleCarpet() {
+  if (!S.unlock.gilam) return toast('Uchar gilam yo\'q — bozordagi gilamfurushdan so\'rang');
+  if (P.mode === 'carpet') { hero.root.remove(carpet); P.mode = 'foot'; P.onGround = false; P.fallFrom = P.pos.y; return; }
+  if (P.mode !== 'foot') return;
+  if (!carpet) { carpet = new T.Group(); const c = new T.Mesh(new T.PlaneGeometry(1.5, 2.3, 8, 8), new T.MeshStandardMaterial({ map: TX.carpetTex(0), side: T.DoubleSide, roughness: 0.9 })); c.rotation.x = -Math.PI / 2; carpet.add(c); for (const sz of [-1, 1]) for (let i = 0; i < 12; i++) { const f = new T.Mesh(new T.BoxGeometry(0.03, 0.01, 0.14), new T.MeshStandardMaterial({ color: '#e8d3a2' })); f.position.set(-0.7 + i * 0.127, 0, sz * 1.21); carpet.add(f); } carpet.userData.cloth = c; }
+  carpet.position.set(0, 0.25, 0); hero.root.add(carpet); P.mode = 'carpet'; P.vy = 0; P.pos.y += 0.6; toast('Gilam ko\'tarildi!');
+}
+function updateCarpet(dt) {
+  const fx = Math.sin(camYaw), fz = Math.cos(camYaw), rx = -Math.cos(camYaw), rz = Math.sin(camYaw); let mx = fx * inp.f + rx * inp.s, mz = fz * inp.f + rz * inp.s; const ml = Math.hypot(mx, mz); if (ml > 1) { mx /= ml; mz /= ml; }
+  const max = inp.run ? 22 : 12; P.speed = lerp(P.speed, Math.min(1, ml) * max, dt * 2);
+  if (ml > 0.05) P.yaw += angDiff(P.yaw, Math.atan2(mx, mz)) * Math.min(1, dt * 3);
+  P.pos.x += Math.sin(P.yaw) * P.speed * dt; P.pos.z += Math.cos(P.yaw) * P.speed * dt;
+  const up = (keys.has('Space') || inp.up ? 1 : 0) - (keys.has('KeyX') || inp.down ? 1 : 0); P.vy = lerp(P.vy, up * 6, dt * 3); P.pos.y += P.vy * dt;
+  const g = Math.max(C.ground(P.pos.x, P.pos.z, P.pos.y + 50, 0.6), heightAt(P.pos.x, P.pos.z)); if (P.pos.y < g + 0.6) P.pos.y = g + 0.6; P.pos.y = Math.min(P.pos.y, 120);
+  C.push(P.pos, 0.8, P.pos.y); P.pos.x = clamp(P.pos.x, -300, 300); P.pos.z = clamp(P.pos.z, -300, 300);
+  const t = performance.now() / 1000, cl = carpet.userData.cloth.geometry.attributes.position; for (let i = 0; i < cl.count; i++) cl.setZ(i, Math.sin(cl.getY(i) * 3 + t * 6) * 0.04 * (0.3 + P.speed / max)); cl.needsUpdate = true;
+  carpet.rotation.z = -angDiff(P.yaw, Math.atan2(mx || Math.sin(P.yaw), mz || Math.cos(P.yaw))) * 0.4; carpet.rotation.x = -P.vy * 0.03;
+  hero.root.position.copy(P.pos); hero.root.position.y += Math.sin(t * 2) * 0.08; hero.root.rotation.y = P.yaw; animate(hero, dt, { pose: 'sit', speed: 0 });
+}
 function openPara() { P.mode = 'para'; P.para = makeParachute(); hero.root.add(P.para); toast('Atlas qanot ochildi!'); }
 function updatePara(dt, ix, iz) {
   P.yaw -= ix * dt * 1.4; const fwd = 6 + iz * 2.5; P.pos.x += Math.sin(P.yaw) * fwd * dt; P.pos.z += Math.cos(P.yaw) * fwd * dt; P.vy = lerp(P.vy, -2.4, dt * 3); P.pos.y += P.vy * dt;
@@ -303,7 +344,7 @@ function poiAction(p) {
 async function climb(top) { fade(true); await wait(400); P.pos.set(top.x, top.y, top.z); P.vy = 0; P.onGround = true; P.fallFrom = top.y; fade(false); }
 async function talk(n) { const lines = R.greet.concat(R.customs.map((c) => 'Bilasizmi? ' + c)); n.yaw = Math.atan2(P.pos.x - n.pos.x, P.pos.z - n.pos.z); await say(n.name || ({ oqsoqol: 'Mo\'ysafid', savdogar: 'Savdogar', ayol: 'Opa', ishchi: 'Yigit', bola: 'Bola', posbon: 'Posbon' }[n.role] || 'O\'tkinchi'), lines[rnd() * lines.length | 0], ['Rahmat']); }
 function greet(n) { n.waveT = 1.6; n.yaw = Math.atan2(P.pos.x - n.pos.x, P.pos.z - n.pos.z); P.pose = 'wave'; P.poseT = 1.2; if (!n.greeted) { n.greeted = true; S.obro += 1; toast('Vaalaykum assalom! (+1 obro\')'); } else toast('Vaalaykum assalom!'); }
-async function shopTalk(g) { const t = { doppi: 'Do\'ppilarimiz — Chust, Iroqi, Zardo\'zi! Hammasi qo\'l mehnati.', kiyim: 'Beqasam, adras, movut — to\'nlarning eng zo\'ri shu yerda.', mahsi: 'Mahsi-kalish, charm etik — oyog\'ingiz rohat qiladi.', lagan: 'Rishton laganlari — ishqor rangi yuz yilga ham o\'chmaydi!', atlas: 'Marg\'ilon atlasi — abr naqshi qo\'lda bog\'langan.', gilam: 'Qashqadaryo gilami — qizning sepi, uyning ko\'rki.' }[g] || 'Xush kelibsiz!'; await say('Sotuvchi', t + '\n\n(Kiyim do\'koni keyingi yangilanishda: har xil to\'n va do\'ppili realistik qahramon modellari tayyorlanmoqda.)', ['Rahmat']); }
+async function shopTalk(g) { if (g === 'gilam' && !S.unlock.gilam) { const c = await say('Gilamfurush', 'Bu oddiy gilam emas, bolam... Bobomdan qolgan uchar gilam! Afsonalarda aytilgan. 150 tanga — sizga arzon beraman.', ['Sotib olaman (150)', 'Yo\'q, rahmat']); if (c === 0) { if (S.money < 150) return toast('Tanga yetmaydi'); S.money -= 150; S.unlock.gilam = true; AU.sfx('good'); save(); await say('Gilamfurush', 'C tugmasi (telefonda "Gilam") — gilamga o\'tirish. Probel — yuqoriga, X — pastga. Ehtiyot bo\'ling, minoralarga urilmang!', ['Rahmat']); } return; } const t = { doppi: 'Do\'ppilarimiz — Chust, Iroqi, Zardo\'zi! Hammasi qo\'l mehnati.', kiyim: 'Beqasam, adras, movut — to\'nlarning eng zo\'ri shu yerda.', mahsi: 'Mahsi-kalish, charm etik — oyog\'ingiz rohat qiladi.', lagan: 'Rishton laganlari — ishqor rangi yuz yilga ham o\'chmaydi!', atlas: 'Marg\'ilon atlasi — abr naqshi qo\'lda bog\'langan.', gilam: 'Qashqadaryo gilami — qizning sepi, uyning ko\'rki.' }[g] || 'Xush kelibsiz!'; await say('Sotuvchi', t + '\n\n(Kiyim do\'koni keyingi yangilanishda: har xil to\'n va do\'ppili realistik qahramon modellari tayyorlanmoqda.)', ['Rahmat']); }
 async function choyxona() { if (S.money < 1) return toast('Choyga ham tanga kerak!'); S.money -= 1; P.hp = 100; P.st = 100; save(); AU.sfx('coin'); const c = await say('Choyxonachi', `Marhamat, ko'k choy! ${R.customs[rnd() * R.customs.length | 0]}.\n\nO'yin saqlandi.`, ['Rahmat', 'Kechgacha dam olish', 'Tonggacha dam olish']); if (c === 1) S.time = 19; if (c === 2) S.time = 6.5; }
 async function hashar() { const s = await qte('meter', { rounds: 5, title: 'G\'ishtni to\'g\'ri qo\'ying — oltin zonada bosing', zone: 0.24 }); const k = Math.round(s * 5); S.money += k * 3; S.obro += k; AU.sfx('good'); toast(`Hashar: ${k}/5 g'isht · +${k * 3} tanga, +${k} obro'`); }
 
@@ -492,6 +533,7 @@ addEventListener('keydown', (e) => {
   if (k === 'KeyF') { if (P.mode === 'ride') dismount(); else if (curAct?.key === 'F') curAct.run(); else { const m = mounts.find((m) => m.owned && m !== P.mount && m.pos.distanceTo(P.pos) < 3); if (m) mountUp(m); } }
   if (k === 'KeyG') curAct?.steal?.();
   if (k === 'KeyQ') curAct?.wave ? curAct.wave() : (P.pose = 'wave', P.poseT = 1.2);
+  if (k === 'KeyC') toggleCarpet();
   if (k === 'KeyM') openMap(false); if (k === 'KeyR') toggleRadio(); if (k === 'Escape') setPause(true);
 });
 addEventListener('keyup', (e) => keys.delete(e.code));
@@ -510,7 +552,7 @@ if (isTouch) {
   canvas.addEventListener('pointermove', (e) => { if (e.pointerId !== lid) return; camYaw -= (e.clientX - lp[0]) * 0.006; camPitch = clamp(camPitch + (e.clientY - lp[1]) * 0.004, -0.5, 1.2); lp = [e.clientX, e.clientY]; });
   canvas.addEventListener('pointerup', (e) => { if (e.pointerId === lid) lid = null; });
   document.querySelectorAll('#touch button').forEach((b) => b.addEventListener('pointerdown', (e) => { e.preventDefault(); const k = b.dataset.k; if (qteState) { qteInput('hit'); return; }
-    if (k === 'jump') { if (!P.onGround) inp.para = true; else inp.jump = true; } else if (k === 'use') { eDown = true; curAct?.run?.(); } else if (k === 'mount') { if (P.mode === 'ride') dismount(); else if (curAct?.key === 'F') curAct.run(); else { const m = mounts.find((m) => m.owned && m.pos.distanceTo(P.pos) < 3); if (m) mountUp(m); } } else if (k === 'steal') curAct?.steal?.(); else if (k === 'punch') punch(); else if (k === 'map') openMap(false); else if (k === 'wear') curAct?.wave ? curAct.wave() : null; else if (k === 'radio') toggleRadio(); else if (k === 'run') { inp.run = !inp.run; b.classList.toggle('act', inp.run); } }));
+    if (k === 'jump') { if (P.mode === 'carpet') { inp.up = true; setTimeout(() => (inp.up = false), 600); } else if (!P.onGround) inp.para = true; else inp.jump = true; } else if (k === 'use') { eDown = true; curAct?.run?.(); } else if (k === 'mount') { if (P.mode === 'ride') dismount(); else if (curAct?.key === 'F') curAct.run(); else { const m = mounts.find((m) => m.owned && m.pos.distanceTo(P.pos) < 3); if (m) mountUp(m); } } else if (k === 'steal') curAct?.steal?.(); else if (k === 'punch') punch(); else if (k === 'map') openMap(false); else if (k === 'wear') curAct?.wave ? curAct.wave() : null; else if (k === 'radio') toggleRadio(); else if (k === 'gilam') toggleCarpet(); else if (k === 'run') { inp.run = !inp.run; b.classList.toggle('act', inp.run); } }));
 }
 
 /* ================= radio ================= */
@@ -585,7 +627,7 @@ async function frame() {
   if (playing && !paused) {
     readKeys(); { const nt = S.time + dt / 30; if (nt >= 24) S.day = (S.day || 0) + 1; S.time = nt % 24; }
     if (P.pose && (P.poseT -= dt) <= 0 && !qteOn) P.pose = null;
-    updatePlayer(dt); updateNpcs(dt); updateHeat(dt); updateMission(dt); updateQte(dt);
+    updatePlayer(dt); updateNpcs(dt); updateCritters(dt); updateHeat(dt); updateMission(dt); updateQte(dt);
     curAct = dlgOpen || qteOn ? null : findAction();
     updateHud(dt); updateCamera(dt); updateFx(dt);
     saveT += dt; if (saveT > 30) { saveT = 0; S.pos = [P.pos.x, P.pos.y, P.pos.z]; S.hp = P.hp; save(); }
@@ -630,4 +672,5 @@ $('btn-continue').onclick = () => startGame(false);
   await loadRegion(S.region, 'save');
   $('loading').textContent = Object.keys(RIG).length ? '' : 'Eslatma: realistik personaj modellari topilmadi — sodda modellar ishlatilmoqda.';
   last = performance.now(); frame();
+  window.__bek = { P, S, get npcs() { return npcs; }, get critters() { return critters; }, cam(y, p, d) { camYaw = y; camPitch = p; if (d) camDist = d; }, start: startGame, load: loadRegion };
 })();

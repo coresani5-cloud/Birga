@@ -668,9 +668,9 @@ async function frame() {
     birdT -= dt; if (birdT <= 0 && S.time > 6 && S.time < 19) { AU.sfx('bird'); birdT = 2 + rnd() * 6; }
   } else if (playing && !$('wardrobe').hidden) { updateCamera(dt); animate(hero, dt, { pose: 'idle', speed: 0 });
   } else if (!playing) { // bosh ekran: shahar ustida sekin aylanuvchi kamera
-    const t = now / 1000 * 0.05; camera.position.set(Math.sin(t) * 60, 22, Math.cos(t) * 60 + 20); camera.lookAt(0, 12, 0); updateNpcs(dt); updateFx(dt);
+    const t = now / 1000 * 0.035; const kx = A?.minaretTop?.x ?? 0, kz = A?.minaretTop?.z ?? 0; camera.position.set(kx + Math.sin(t) * 46, 14 + Math.sin(t * 0.7) * 3, kz + Math.cos(t) * 46); camera.lookAt(kx, 22, kz); updateNpcs(dt); updateFx(dt);
   }
-  envT -= dt; if (envT <= 0) { envT = 0.25; const r = await LG.update(playing ? S.time : 18.2, playing ? P.pos : new V3(0, 0, 0), 0.25); if (underground) { scene.fog.color.set('#0a0806'); scene.fog.near = 1; scene.fog.far = 18; } }
+  envT -= dt; if (envT <= 0) { envT = 0.25; const r = await LG.update(playing ? S.time : 17.6, playing ? P.pos : new V3(0, 0, 0), 0.25); if (underground) { scene.fog.color.set('#0a0806'); scene.fog.near = 1; scene.fog.far = 18; } }
   if (underground && M_) { const kz = M_.props.find((p) => p.userData?.lamp); if (kz) kz.userData.lamp.position.set(P.pos.x, P.pos.y + 2, P.pos.z); }
   composer ? composer.render() : renderer.render(scene, camera);
 }
@@ -696,6 +696,8 @@ async function startGame(fresh) {
   if (!isTouch) canvas.requestPointerLock?.();
 }
 $('btn-new').onclick = () => startGame(true);
+const titleMusic = () => { if (playing) return; AU.initAudio(); AU.playTitle(); const h = $('tap-music'); if (h) h.hidden = true; removeEventListener('pointerdown', titleMusic); removeEventListener('keydown', titleMusic); };
+addEventListener('pointerdown', titleMusic); addEventListener('keydown', titleMusic);
 $('btn-continue').onclick = () => startGame(false);
 
 /* ================= ishga tushirish ================= */
@@ -704,7 +706,7 @@ $('btn-continue').onclick = () => startGame(false);
   await loadRigs();
   hero = makePerson('hero', {}, {}); if (hero.rigged && S?.hat) setRiggedHat(hero, S.hat);
   if (!S) S = defSave(); else $('btn-continue').hidden = false;
-  await loadRegion(S.region, 'save');
+  await loadRegion($('btn-continue').hidden ? 'buxoro' : S.region, 'save');
   $('loading').textContent = Object.keys(RIG).length ? '' : 'Eslatma: realistik personaj modellari topilmadi — sodda modellar ishlatilmoqda.';
   last = performance.now(); frame();
   window.__bek = { P, S, get npcs() { return npcs; }, get critters() { return critters; }, cam(y, p, d) { camYaw = y; camPitch = p; if (d) camDist = d; }, start: startGame, load: loadRegion };

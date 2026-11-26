@@ -225,7 +225,7 @@ export function makeAnimal(kind = 'ot', o = {}) {
 export function animateAnimal(A, dt, sp) {
   A.t += dt; const g = Math.min(1, sp / (A.kind === 'ot' ? 9 : 5)), ph = A.t * (4 + g * 7);
   A.legs.forEach((l, i) => { const off = [0, Math.PI, Math.PI * 0.5, Math.PI * 1.5][i]; const s = Math.sin(ph + off); l.hp.rotation.x = s * (0.15 + g * 0.55) * Math.min(1, sp * 2); l.kn.rotation.x = Math.max(0, Math.sin(ph + off + (l.sz > 0 ? -0.8 : 0.8))) * (0.4 + g * 0.6) * Math.min(1, sp * 2) * (l.sz > 0 ? -1 : 1) * -1; });
-  A.body.position.y = A.P.leg + A.P.body[0] + Math.abs(Math.sin(ph)) * 0.06 * g;
+  A.body.position.y = (A.rigged ? A.restY : A.P.leg + A.P.body[0]) + Math.abs(Math.sin(ph)) * 0.06 * g;
   A.body.rotation.x = Math.sin(ph) * 0.04 * g;
   A.neckG.rotation.x = Math.sin(ph) * 0.08 * g + (sp < 0.1 ? Math.sin(A.t * 0.5) * 0.08 + 0.1 : 0);
   A.tail.rotation.z = Math.sin(A.t * 2) * 0.2;

@@ -96,3 +96,59 @@ export function makeRigged(src) {
   R.hatSlot = new T.Group(); B.neck.add(R.hatSlot);
   return R;
 }
+
+/* ===================== To'rt oyoqli hayvonlar (ot, tuya, eshak) ===================== */
+// Manba: yon tomondan yaratilgan statik model. Uzunlik o'qi aniqlanadi, bosh tomoni +z ga buriladi.
+const acache = new Map();
+export function loadAnimalSource(name, height = 1.65) {
+  if (!acache.has(name)) acache.set(name, new GLTFLoader().loadAsync(ASSET_BASE + 'chars/' + name + '.glb').then((g) => prepareAnimal(g.scene, height)).catch(() => null));
+  return acache.get(name);
+}
+export function prepareAnimal(scene, height = 1.65) {
+  scene.updateMatrixWorld(true);
+  let mesh = null; scene.traverse((o) => { if (o.isMesh && (!mesh || o.geometry.attributes.position.count > mesh.geometry.attributes.position.count)) mesh = o; });
+  if (!mesh) return null;
+  const geo = mesh.geometry.clone(); geo.applyMatrix4(mesh.matrixWorld); geo.computeBoundingBox();
+  let bb = geo.boundingBox; if (bb.max.x - bb.min.x > bb.max.z - bb.min.z) geo.rotateY(-Math.PI / 2); // uzunlik z bo'ylab
+  geo.computeBoundingBox(); bb = geo.boundingBox; const s = height / (bb.max.y - bb.min.y);
+  geo.translate(-(bb.min.x + bb.max.x) / 2, -bb.min.y, -(bb.min.z + bb.max.z) / 2); geo.scale(s, s, s);
+  const P = geo.attributes.position, n = P.count;
+  geo.computeBoundingBox(); bb = geo.boundingBox; const L = bb.max.z - bb.min.z, H = bb.max.y;
+  // bosh qaysi tomonda: oldingi va orqa uchdan biridagi eng baland nuqta
+  let fr = 0, bk = 0; for (let i = 0; i < n; i++) { const z = P.getZ(i), y = P.getY(i); if (z > L / 6) fr = Math.max(fr, y); if (z < -L / 6) bk = Math.max(bk, y); }
+  if (bk > fr) { geo.rotateY(Math.PI); }
+  if (!geo.attributes.normal) geo.computeVertexNormals();
+  // qorin balandligi: tananing o'rta qismidagi eng past nuqta
+  let belly = H; for (let i = 0; i < n; i++) { const z = P.getZ(i); if (Math.abs(z) < L * 0.12) belly = Math.min(belly, P.getY(i)); }
+  belly = Math.max(belly, H * 0.3);
+  // oyoqlar joylashuvi: qorindan pastdagi nuqtalar, to'rt chorak bo'yicha o'rtacha
+  const q = { FL: [], FR: [], BL: [], BR: [] };
+  for (let i = 0; i < n; i++) { const y = P.getY(i); if (y > belly * 0.9) continue; const x = P.getX(i), z = P.getZ(i); q[(z > 0 ? 'F' : 'B') + (x > 0 ? 'L' : 'R')].push([x, z]); }
+  const avg = (a, d) => a.length ? [a.reduce((s, p) => s + p[0], 0) / a.length, a.reduce((s, p) => s + p[1], 0) / a.length] : d;
+  const legs = { FL: avg(q.FL, [0.15, L * 0.3]), FR: avg(q.FR, [-0.15, L * 0.3]), BL: avg(q.BL, [0.15, -L * 0.3]), BR: avg(q.BR, [-0.15, -L * 0.3]) };
+  const J = { body: new T.Vector3(0, belly + (H - belly) * 0.3, 0), neck: new T.Vector3(0, belly + (H - belly) * 0.55, L * 0.3) };
+  for (const k in legs) { const [x, z] = legs[k]; J['hp' + k] = new T.Vector3(x, belly + 0.05, z); J['kn' + k] = new T.Vector3(x, belly * 0.48, z); }
+  const order = ['body', 'neck', 'hpFL', 'knFL', 'hpFR', 'knFR', 'hpBL', 'knBL', 'hpBR', 'knBR'], idx = Object.fromEntries(order.map((k, i) => [k, i]));
+  const si = new Uint16Array(n * 4), sw = new Float32Array(n * 4);
+  const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  for (let i = 0; i < n; i++) {
+    const x = P.getX(i), y = P.getY(i), z = P.getZ(i); const w = {}; const add = (k, a) => { if (a > 0) w[k] = (w[k] || 0) + a; };
+    if (y < belly + 0.08 * H) { // oyoq
+      const k = (z > 0 ? 'F' : 'B') + (x > 0 ? 'L' : 'R'); const top = sm(belly + 0.08 * H, belly - 0.04 * H, y); const kn = sm(J['kn' + k].y + 0.05, J['kn' + k].y - 0.05, y);
+      add('body', 1 - top); add('hp' + k, top * (1 - kn)); add('kn' + k, top * kn);
+    } else { const kn = sm(L * 0.22, L * 0.34, z) * sm(belly, belly + (H - belly) * 0.4, y); add('neck', kn); add('body', 1 - kn); }
+    const e = Object.entries(w).sort((a, b) => b[1] - a[1]).slice(0, 4), tot = e.reduce((a, v) => a + v[1], 0) || 1;
+    e.forEach(([k, a], j) => { si[i * 4 + j] = idx[k]; sw[i * 4 + j] = a / tot; }); if (!e.length) { si[i * 4] = 0; sw[i * 4] = 1; }
+  }
+  geo.setAttribute('skinIndex', new T.Uint16BufferAttribute(si, 4)); geo.setAttribute('skinWeight', new T.Float32BufferAttribute(sw, 4));
+  const mat = mesh.material.clone(); mat.roughness = 0.85; mat.metalness = 0;
+  return { geo, mat, J, order, seatY: H * 0.62 + 0.15, belly, L };
+}
+export function makeRiggedAnimal(src, kind) {
+  const { geo, mat, J, order } = src; const root = new T.Group(); const B = {};
+  const par = { body: null, neck: 'body', hpFL: 'body', knFL: 'hpFL', hpFR: 'body', knFR: 'hpFR', hpBL: 'body', knBL: 'hpBL', hpBR: 'body', knBR: 'hpBR' };
+  for (const k of order) { const b = new T.Bone(); B[k] = b; const p = par[k]; b.position.copy(J[k]).sub(p ? J[p] : new T.Vector3()); if (p) B[p].add(b); }
+  const mesh = new T.SkinnedMesh(geo, mat); mesh.castShadow = true; mesh.frustumCulled = false; root.add(B.body); root.add(mesh); root.updateMatrixWorld(true); mesh.bind(new T.Skeleton(order.map((k) => B[k])));
+  const legs = ['FL', 'FR', 'BL', 'BR'].map((k) => ({ hp: B['hp' + k], kn: B['kn' + k], sz: k[0] === 'F' ? 1 : -1 }));
+  return { root, body: B.body, neckG: B.neck, headG: B.neck, legs, tail: new T.Object3D(), kind, rigged: true, restY: J.body.y, t: 0, seatY: src.seatY, P: { leg: src.belly, body: [J.body.y - src.belly, 1] } };
+}

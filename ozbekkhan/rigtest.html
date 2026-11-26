@@ -1,0 +1,16 @@
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:#9ab}canvas{display:block}</style>
+<script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js", "three/addons/": "./vendor/addons/" } }</script></head><body>
+<script type="module">
+import * as THREE from 'three'; import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { makeAnimal, animateAnimal } from './js/actors.js'; import { prepareAnimal, makeRiggedAnimal } from './js/rig.js';
+const r = new THREE.WebGLRenderer({ antialias: true }); r.setSize(innerWidth, innerHeight); document.body.appendChild(r.domElement);
+const s = new THREE.Scene(); s.add(new THREE.HemisphereLight('#fff', '#664', 2)); const d = new THREE.DirectionalLight('#fff', 2); d.position.set(3, 5, 4); s.add(d);
+// sodda otni statik bitta mesh qilib birlashtiramiz va yon tomonga (x o'qiga) buramiz — AI modelini taqlid qiladi
+const src = makeAnimal(new URLSearchParams(location.search).get('k') || 'ot'); src.root.rotation.y = -Math.PI / 2; src.root.updateMatrixWorld(true);
+const geos = []; src.root.traverse((o) => { if (o.isMesh) { let g = o.geometry.clone().applyMatrix4(o.matrixWorld); g = g.index ? g.toNonIndexed() : g; for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(k)) g.deleteAttribute(k); geos.push(g); } });
+const mesh = new THREE.Mesh(mergeGeometries(geos), new THREE.MeshStandardMaterial({ color: '#8a5a3a' })); const sc = new THREE.Scene(); sc.add(mesh);
+const prep = prepareAnimal(sc, 1.7); const shots = [0, 0.15, 0.3];
+const A = [0, 1, 2].map((i) => { const a = makeRiggedAnimal(prep, 'ot'); a.root.position.x = (i - 1) * 3; s.add(a.root); a.t = shots[i]; animateAnimal(a, 0.0001, 9); return a; });
+const cam = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 100); cam.position.set(9, 2.5, 4); cam.lookAt(0, 1, 0); r.render(s, cam); window.__ready = true;
+console.log('seatY', prep.seatY.toFixed(2), 'belly', prep.belly.toFixed(2), 'L', prep.L.toFixed(2));
+</script></body></html>

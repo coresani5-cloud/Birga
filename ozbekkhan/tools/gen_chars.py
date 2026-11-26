@@ -22,7 +22,20 @@ P = {
   'qishki': "Full body photograph of an Uzbek man in winter clothes, 40, black beard, fur hat, thick long sheepskin-lined brown coat with fur collar, wool sash, felt boots",
   'ayol2': "Full body photograph of a middle-aged Uzbek woman, 45, long dark green velvet dress with gold embroidery, colorful patterned headscarf, long robe over shoulders, leather shoes",
   'bola': "Full body photograph of an Uzbek boy, 10, small striped blue chapan robe, red sash, black doppi skullcap, small leather boots",
+  'navkar': "Full body photograph of a Timurid era Central Asian warrior, 30, short black beard, white turban wrapped around a pointed gilded helmet, polished bronze lamellar breastplate with crossed leather straps, blue long coat with gold trim, brown cloak, wide baggy trousers, bronze greaves over leather boots, empty hands",
+  'sarboz': "Full body photograph of a 19th century Bukhara emirate soldier, 35, full brown beard, white turban with a turquoise jewel, dark navy knee-length robe with gold embroidered borders, wide red and brown leather sash belt, leather bracers, dark trousers, tall brown leather boots, empty hands",
 }
+# hayvonlar: yon tomondan, butun tana ko'rinadi (to'rt oyoqli avtomatik skelet uchun)
+ATAIL = ", side view profile facing left, standing on all four legs, entire animal visible, plain pure white studio background, soft even lighting, photorealistic, high detail"
+A = {
+  'ot': "Photograph of a chestnut Akhal-Teke horse with a traditional Central Asian saddle, red and gold embroidered saddle cloth, leather bridle with brass ornaments",
+  'ot_yuk': "Photograph of a dark brown pack horse carrying two large woven wicker baskets and a rolled carpet, green cloth cover, rope harness, a small bronze bell on the neck",
+  'tuya_yuk': "Photograph of a Bactrian two-humped camel with long woolly fur carrying wooden cargo boxes and sacks, colorful woven bridle with red tassels, a row of bronze bells on the neck",
+  'eshak_yuk': "Photograph of a grey donkey carrying a large wicker basket and a bundled sack tied with ropes, colorful woven halter",
+  'tuya': "Photograph of a Bactrian two-humped camel with a colorful Central Asian carpet saddle and red woven bridle",
+}
+for k, v in A.items(): P[k] = v
+ANIMALS = set(A)
 
 def run(names):
     flux = Client("https://mcp-tools-flux-1-krea-dev.hf.space/", headers=H, verbose=False)
@@ -31,7 +44,7 @@ def run(names):
         png, glb = os.path.join(ROOT, 'refs', k + '.png'), os.path.join(ROOT, 'chars', k + '.glb')
         try:
             if not os.path.exists(png):
-                r = flux.predict(prompt=P[k] + TAIL, width=768, height=1152, guidance_scale=4.5, num_inference_steps=28, randomize_seed=True, api_name="/infer")
+                r = flux.predict(prompt=P[k] + (ATAIL if k in ANIMALS else TAIL), width=1152 if k in ANIMALS else 768, height=768 if k in ANIMALS else 1152, guidance_scale=4.5, num_inference_steps=28, randomize_seed=True, api_name="/infer")
                 shutil.copy(r[0]['path'] if isinstance(r[0], dict) else r[0], png); print(k, 'rasm', flush=True)
             if os.path.exists(glb): continue
             try: tr.predict(api_name="/start_session")

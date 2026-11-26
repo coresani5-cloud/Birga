@@ -9,7 +9,7 @@ import { buildRegion, drawMapImage, CELL } from './build.js';
 import { makeHuman, animate, makeAnimal, animateAnimal, makeCart, makePigeon, makeParachute, WEAR } from './actors.js';
 import { placeProps } from './props.js';
 import { createLighting, regionWeather, WEATHER, makeGradePass } from './lighting.js';
-import { loadRigSource, makeRigged } from './rig.js';
+import { loadRigSource, makeRigged, loadAnimalSource, makeRiggedAnimal } from './rig.js';
 import * as TX from './tex.js';
 import { MISSIONS, SIDE } from './missions.js';
 import * as AU from './audio.js';
@@ -47,11 +47,13 @@ const waterMat = new T.MeshStandardMaterial({ color: '#3c7f86', roughness: 0.06,
 
 /* ================= AI personaj modellari ================= */
 const RIG = {}; // rol -> manba
-const RIG_NAMES = ['hero', 'oqsoqol', 'ayol', 'savdogar', 'ishchi', 'posbon', 'bola'];
-async function loadRigs() { await Promise.all(RIG_NAMES.map(async (n) => { const s = await loadRigSource(n); if (s) RIG[n] = s; })); }
+const RIG_NAMES = ['hero', 'oqsoqol', 'ayol', 'ayol2', 'savdogar', 'ishchi', 'posbon', 'sarboz', 'navkar', 'chavandoz', 'qishki', 'bola'];
+const ANI = {}; const ANI_NAMES = { ot: 1.6, ot_yuk: 1.7, tuya: 2.2, tuya_yuk: 2.3, eshak_yuk: 1.35 };
+async function loadRigs() { await Promise.all(RIG_NAMES.map(async (n) => { const s = await loadRigSource(n); if (s) RIG[n] = s; }).concat(Object.entries(ANI_NAMES).map(async ([n, h]) => { const s = await loadAnimalSource(n, h); if (s) ANI[n] = s; }))); }
+const pickRole = (r) => { const alt = { posbon: ['sarboz', 'navkar', 'posbon'], ayol: ['ayol', 'ayol2'], ishchi: ['ishchi', 'chavandoz', 'qishki'] }[r]; if (!alt) return r; const ok = alt.filter((k) => RIG[k]); return ok.length ? ok[rnd() * ok.length | 0] : r; };
 function makePerson(role, look = {}, o = {}) {
-  const key = role === 'hero' ? (S?.outfit || 'hero') : role;
-  const src = RIG[key] || RIG[role];
+  const key = role === 'hero' ? (S?.outfit || 'hero') : pickRole(role);
+  const src = RIG[key] || RIG[role] || (role !== 'hero' && role !== 'bola' && role !== 'ayol' && Object.keys(RIG).length > 1 ? RIG[Object.keys(RIG).filter((k) => k !== 'hero' && k !== 'ayol' && k !== 'ayol2' && k !== 'bola')[rnd() * (Object.keys(RIG).length - 1) | 0]] : null);
   if (src) { const R = makeRigged(src); if (role === 'bola') R.root.scale.setScalar(0.72); return R; }
   return makeHuman(look, o);
 }
@@ -103,6 +105,13 @@ function spawnWorld() {
   for (const h of A.horses) addMount('ot', h.x, h.z, h.ry, { tied: true });
   const nr = Q > 0 ? 4 : 2; for (let i = 0; i < nr; i++) { const nd = NODES[rnd() * NODES.length | 0]; const kind = ['ot', 'eshak', 'arava', R.land === 'desert' ? 'tuya' : 'eshak'][i % 4]; const m = addMount(kind, nd[0], nd[1], 0, { rider: true }); m.target = nd; }
   if (R.id === 'navoiy' || R.id === 'xorazm') for (let i = 0; i < 3; i++) addMount('tuya', 18 + i * 3, 130, rnd() * 6, { tied: true });
+  // karvonchilar: yuk hayvonini yetaklab yuruvchi odamlar (o'z ishi bilan band)
+  const nc = Q > 0 ? 3 : 1; for (let i = 0; i < nc; i++) { const nd = NODES[rnd() * NODES.length | 0]; const n = addNpc({ x: nd[0], z: nd[1], role: 'ishchi', walk: true, pose: 'walk' }); n.speed = 1.0; const kind = R.land === 'desert' || R.id === 'navoiy' ? (i % 2 ? 'tuya' : 'eshak') : ['eshak', 'ot', 'eshak'][i % 3]; const m = addMount(kind, nd[0], nd[1] - 2.5, 0, { pack: true, led: n }); m.tied = true; n.leads = m; }
+  // sarboz patrullari (juft bo'lib yuradi)
+  { const nd = NODES[rnd() * NODES.length | 0]; const a = addNpc({ x: nd[0], z: nd[1], role: 'posbon', walk: true, pose: 'walk' }); const b = addNpc({ x: nd[0] + 1.2, z: nd[1], role: 'posbon', walk: true, pose: 'walk' }); a.speed = b.speed = 1.2; b.follow = a; }
+  // hammollar (yuk ko'targan) va supuruvchilar
+  for (let i = 0; i < (Q > 0 ? 3 : 1); i++) { const nd = NODES[rnd() * NODES.length | 0]; const n = addNpc({ x: nd[0], z: nd[1], role: 'ishchi', walk: true, pose: 'carry' }); n.carryPose = true; n.speed = 0.9; const sack = new T.Mesh(new T.SphereGeometry(0.3, 10, 8), new T.MeshStandardMaterial({ color: '#c9a873', roughness: 0.9 })); sack.scale.set(1.2, 0.8, 0.9); sack.position.set(0, 1.75, -0.05); n.R.root.add(sack); }
+  for (const d of A.doors.slice(0, Q > 0 ? 4 : 2)) addNpc({ x: d.x, z: d.z, ry: d.ry, role: 'ishchi', pose: 'work', job: 'supuruvchi' });
   // topshiriq beruvchilar
   const list = (R.mission ? [R.mission] : []).concat(SIDE);
   for (const id of list) { const M = MISSIONS[id]; if (!M) continue; let g; try { g = M.giver.at(A); } catch { g = null; } if (!g) continue; const p = freeSpot(g.x, g.z); const n = addNpc({ x: p.x, z: p.z, ry: rnd() * 6, role: id === 'mehmon' ? 'ayol' : id === 'kurash' || id === 'kopkari' ? 'posbon' : 'oqsoqol', pose: 'idle', name: M.giver.name, mission: id });
@@ -110,11 +119,12 @@ function spawnWorld() {
 }
 function freeSpot(x, z) { for (let r = 0; r < 12; r += 1) for (let a = 0; a < 6.28; a += 0.8) { const px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r; if (C.ground(px, pz, 0.2, 0.4) < 0.7) { let ok = true; for (const i of C.near(px, pz)) { const b = C.b[i]; if (px > b.x0 - 0.4 && px < b.x1 + 0.4 && pz > b.z0 - 0.4 && pz < b.z1 + 0.4 && b.top > 0.7) ok = false; } if (ok) return { x: px, z: pz }; } } return { x, z }; }
 function addMount(kind, x, z, ry, o = {}) {
-  const an = makeAnimal(kind === 'arava' ? 'eshak' : kind); const root = new T.Group(); root.add(an.root);
+  const aKey = o.pack ? { ot: 'ot_yuk', tuya: 'tuya_yuk', eshak: 'eshak_yuk' }[kind] : { ot: 'ot', tuya: 'tuya', eshak: 'eshak_yuk', arava: 'eshak_yuk' }[kind];
+  const an = ANI[aKey] ? makeRiggedAnimal(ANI[aKey], kind) : makeAnimal(kind === 'arava' ? 'eshak' : kind); const root = new T.Group(); root.add(an.root);
   let cart = null; if (kind === 'arava') { cart = makeCart(); cart.position.z = -2.2; root.add(cart); }
   root.position.set(x, 0, z); root.rotation.y = ry; scene.add(root);
   const m = { kind, A: an, root, cart, pos: root.position, yaw: ry, speed: 0, ...o, riderR: null, owned: false };
-  if (o.rider) { m.riderR = makePerson(rnd() < 0.5 ? 'savdogar' : 'ishchi', npcLook('ishchi')); m.riderR.root.position.set(0, kind === 'arava' ? 1.05 : an.seatY - 0.95, kind === 'arava' ? -2.0 : 0); root.add(m.riderR.root); }
+  if (o.rider) { m.riderR = makePerson(rnd() < 0.5 ? 'savdogar' : 'ishchi', npcLook('ishchi')); m.riderR.root.position.set(0, kind === 'arava' ? 1.05 : an.seatY - (an.rigged ? 0.55 : 0.95), kind === 'arava' ? -2.0 : 0); root.add(m.riderR.root); }
   mounts.push(m); return m;
 }
 function stepToward(o, tx, tz, sp, dt, r = 0.35) {
@@ -134,7 +144,8 @@ function updateNpcs(dt) {
     else if (n.walk) {
       if (!n.target || Math.hypot(n.target[0] + n.lane - n.pos.x, n.target[1] + n.lane - n.pos.z) < 1) { const cur = nodeAt(n.pos.x, n.pos.z); const nb = NODES.filter((q) => Math.abs(q[0] - cur[0]) + Math.abs(q[1] - cur[1]) === CELL && (!n.prev || q[0] !== n.prev[0] || q[1] !== n.prev[1])); n.prev = cur; n.target = nb[rnd() * nb.length | 0] || cur; if (rnd() < 0.15) { n.state = 'idle'; n.idleT = 2 + rnd() * 4; } }
       if (n.state === 'idle') { n.idleT -= dt; if (n.idleT <= 0) n.state = 'walk'; }
-      else { sp = n.play ? 2.6 : n.speed; stepToward(n, n.target[0] + n.lane, n.target[1] + n.lane, sp, dt); pose = 'walk'; }
+      else if (n.follow) { const f = n.follow; const d = Math.hypot(f.pos.x - n.pos.x, f.pos.z - n.pos.z); sp = d > 1.6 ? f.speed * 1.1 : 0; if (sp) stepToward(n, f.pos.x - Math.cos(f.yaw) * 1.2, f.pos.z + Math.sin(f.yaw) * 1.2, sp, dt); pose = 'walk'; }
+      else { sp = n.play ? 2.6 : n.speed; stepToward(n, n.target[0] + n.lane, n.target[1] + n.lane, sp, dt); pose = n.carryPose ? 'carry' : 'walk'; }
       // o'yinchiga yo'l berish
       if (d2 < 1.2) { const ax = n.pos.x - pp.x, az = n.pos.z - pp.z, l = Math.hypot(ax, az) || 1; n.pos.x += ax / l * dt * 2; n.pos.z += az / l * dt * 2; }
     } else { // joyida ish: sotuvchi qo'l harakati, oshpaz kavlaydi, mehmon o'tiradi
@@ -148,7 +159,8 @@ function updateNpcs(dt) {
   for (const m of mounts) {
     if (m === P.mount) continue;
     let sp = 0;
-    if (m.riderR && m.target && !m.tied) { const d = stepToward(m, m.target[0] + 1.6, m.target[1] + 1.6, m.kind === 'ot' ? 3.2 : 1.8, dt, 0.9); sp = m.kind === 'ot' ? 3.2 : 1.8; if (d < 1.5) { const cur = nodeAt(m.pos.x, m.pos.z); const nb = NODES.filter((q) => Math.abs(q[0] - cur[0]) + Math.abs(q[1] - cur[1]) === CELL && (!m.prev || q[0] !== m.prev[0] || q[1] !== m.prev[1])); m.prev = cur; m.target = nb[rnd() * nb.length | 0] || cur; } }
+    if (m.led && m.led.state !== 'down') { const L = m.led; const d = Math.hypot(L.pos.x - m.pos.x, L.pos.z - m.pos.z); if (d > 2.4) { stepToward(m, L.pos.x, L.pos.z, L.speed * 1.15, dt, 0.8); sp = L.speed * 1.15; } }
+    else if (m.riderR && m.target && !m.tied) { const d = stepToward(m, m.target[0] + 1.6, m.target[1] + 1.6, m.kind === 'ot' ? 3.2 : 1.8, dt, 0.9); sp = m.kind === 'ot' ? 3.2 : 1.8; if (d < 1.5) { const cur = nodeAt(m.pos.x, m.pos.z); const nb = NODES.filter((q) => Math.abs(q[0] - cur[0]) + Math.abs(q[1] - cur[1]) === CELL && (!m.prev || q[0] !== m.prev[0] || q[1] !== m.prev[1])); m.prev = cur; m.target = nb[rnd() * nb.length | 0] || cur; } }
     m.root.rotation.y = m.yaw; if (m.pos.distanceToSquared(P.pos) < 80 * 80) { animateAnimal(m.A, dt, sp); if (m.riderR) animate(m.riderR, dt, { pose: m.kind === 'arava' ? 'sit' : 'ride', speed: sp }); if (m.cart) spinWheels(m, sp, dt); }
   }
 }
@@ -228,8 +240,9 @@ function mountUp(m, how = 'own') {
     const rr = m.riderR; m.root.remove(rr.root); const n = addNpc({ x: m.pos.x + 1.4, z: m.pos.z, role: 'ishchi', walk: true }); scene.remove(n.R.root); n.R = rr; scene.add(rr.root); rr.root.position.copy(n.pos); n.state = 'down'; n.downT = 3; n.angry = rnd() < 0.5;
     m.riderR = null; addHeat(1.6, true); toast(m.kind === 'arava' ? 'Aravani tortib oldingiz!' : 'Ulovni tortib oldingiz!');
   } else if (how === 'steal') { addHeat(1.4, true); toast('Ot o\'g\'irlandi!'); }
+  if (m.led) { const L = m.led; L.state = 'fight'; L.angry = 1; L.leads = null; m.led = null; addHeat(1.2, true); toast('Karvonchi: "Hoy, yukimni qayoqqa?!"'); }
   m.tied = false; m.owned = true; P.mount = m; P.mode = 'ride';
-  hero.root.position.set(0, m.kind === 'arava' ? 1.05 : m.A.seatY - 0.95, m.kind === 'arava' ? -2.0 : 0); hero.root.rotation.set(0, 0, 0); m.root.add(hero.root);
+  hero.root.position.set(0, m.kind === 'arava' ? 1.05 : m.A.seatY - (m.A.rigged ? 0.55 : 0.95), m.kind === 'arava' ? -2.0 : 0); hero.root.rotation.set(0, 0, 0); m.root.add(hero.root);
 }
 function dismount(silent) {
   const m = P.mount; if (!m) return; m.root.remove(hero.root); scene.add(hero.root); P.mode = 'foot'; P.mount = null; m.speed = 0;

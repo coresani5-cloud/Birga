@@ -53,6 +53,10 @@ A = {
   'ot_yuk': "Photograph of a dark brown pack horse carrying two large woven wicker baskets and a rolled carpet, green cloth cover, rope harness, a small bronze bell on the neck",
   'tuya_yuk': "Photograph of a Bactrian two-humped camel with long woolly fur carrying wooden cargo boxes and sacks, colorful woven bridle with red tassels, a row of bronze bells on the neck",
   'eshak_yuk': "Photograph of a grey donkey carrying a large wicker basket and a bundled sack tied with ropes, colorful woven halter",
+  'eshak': "Photograph of a grey donkey with a brown leather riding saddle on a light grey saddle pad",
+  'tuya_gilam': "Photograph of a tan dromedary camel with a red Persian carpet saddle blanket with long red tassels and a wooden saddle horn, rope halter",
+  'echki': "Photograph of a white goat with curved dark horns and a small beard",
+  'qoy': "Photograph of a Central Asian fat-tailed sheep with thick cream-colored wool and a brown face",
   'tuya': "Photograph of a Bactrian two-humped camel with a colorful Central Asian carpet saddle and red woven bridle",
 }
 for k, v in A.items(): P[k] = v

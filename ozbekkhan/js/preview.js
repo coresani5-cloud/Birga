@@ -26,7 +26,7 @@ const LG = createLighting(renderer, scene, { quality: 2 }); LG.mats = res.mats; 
 const people = [], rr = TX.rng(5);
 const hats = ['chust', 'iroqi', 'zardozi', 'salla', 'oddiy', 'samarqand', 'toshkent'], coats = ['beqasam_0', 'beqasam_1', 'beqasam_3', 'adras_0', 'movut_0', 'adras_2'];
 const osrc = await loadRigSource('oqsoqol');
-for (const n of res.npcs) { const old = rr() < 0.4; const h = osrc ? makeRigged(osrc) : makeHuman({ skin: (rr() * 5) | 0, beard: old ? 3 : (rr() * 3) | 0, hat: old ? 'salla' : hats[(rr() * hats.length) | 0], coat: coats[(rr() * coats.length) | 0], belt: ['qizil', 'oq', 'yashil'][(rr() * 3) | 0] }); h.root.position.set(n.x, n.y || 0, n.z); h.root.rotation.y = n.ry; scene.add(h.root); if (n.tool) attachTool(h, n.tool); people.push([h, ['sit', 'work', 'stir', 'cut', 'rake', 'pitch', 'dutor', 'xdance'].includes(n.pose) ? n.pose : 'idle', 0]); }
+for (const n of res.npcs) { const old = rr() < 0.4; const h = osrc ? makeRigged(osrc) : makeHuman({ skin: (rr() * 5) | 0, beard: old ? 3 : (rr() * 3) | 0, hat: old ? 'salla' : hats[(rr() * hats.length) | 0], coat: coats[(rr() * coats.length) | 0], belt: ['qizil', 'oq', 'yashil'][(rr() * 3) | 0] }); h.root.position.set(n.x, n.y || 0, n.z); h.root.rotation.y = n.ry; scene.add(h.root); if (n.tool) attachTool(h, n.tool); people.push([h, ['sit', 'work', 'stir', 'cut', 'rake', 'pitch', 'dutor', 'xdance', 'hoe', 'reap'].includes(n.pose) ? n.pose : 'idle', 0]); }
 for (const t of res.A.tools) { const m = makeTool(t.kind); m.position.set(t.x, t.y, t.z); m.rotation.set(t.rx || 0, t.ry || 0, 0, 'YXZ'); m.scale.setScalar(t.s || 1); scene.add(m); }
 for (let i = 0; i < (osrc ? 0 : 14); i++) { const fem = rr() < 0.3; const h = makeHuman({ skin: (rr() * 5) | 0, beard: (rr() * 4) | 0, hat: hats[(rr() * hats.length) | 0], coat: coats[(rr() * coats.length) | 0] }, { female: fem }); h.root.position.set((rr() - 0.5) * 5, 0, 30 + rr() * 70); h.root.rotation.y = rr() < 0.5 ? 0 : Math.PI; scene.add(h.root); people.push([h, 'walk', 1.3]); }
 const rsrc = await loadRigSource('hero'); const hero = rsrc ? makeRigged(rsrc) : makeHuman({ skin: 1, beard: 1, hat: 'chust', coat: 'beqasam_1', belt: 'qizil', shoes: 'mahsi' });
@@ -34,7 +34,7 @@ const hp = (q.get('p') || '0,0,62').split(',').map(Number); hero.root.position.s
 people.push([hero, q.get('pose') || 'walk', +(q.get('sp') || 1.6)]);
 if (osrc) for (let i = 0; i < 4; i++) { const h = makeRigged(osrc); h.root.position.set(hp[0] + (rr() - 0.5) * 8, 0, hp[2] - 4 - rr() * 14); h.root.rotation.y = rr() * 6; scene.add(h.root); people.push([h, 'walk', 1.0]); }
 const horse = makeAnimal('ot'); horse.root.position.set(-16.5, 0, 27.5); scene.add(horse.root);
-for (let i = 0; i < 60; i++) for (const [h, pose, sp] of people) animate(h, 0.016, { pose, speed: sp }); animateAnimal(horse, 0.5, 0);
+for (const [h] of people) h.t = Math.random() * 10; for (let i = 0; i < 60; i++) for (const [h, pose, sp] of people) animate(h, 0.016, { pose, speed: sp }); animateAnimal(horse, 0.5, 0);
 const c = (q.get('cam') || `${hp[0] + 1.2},2.6,${hp[2] + 4.6},${hp[0]},1.5,${hp[2] - 6}`).split(',').map(Number);
 camera.position.set(c[0], c[1], c[2]); camera.lookAt(c[3], c[4], c[5]);
 await LG.update(H, new THREE.Vector3(c[0], 0, c[2] - 20), 0.5);

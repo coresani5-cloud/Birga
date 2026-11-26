@@ -41,6 +41,10 @@ Har bir personaj `tools/gen_chars.py <nom>` bilan yaratiladi (qahramon to'nlari 
 | `ot_yuk` | Karvon | kutilmoqda |
 | `tuya_yuk` | Karvon | kutilmoqda |
 | `eshak_yuk` | Karvon, arava | kutilmoqda |
+| `eshak` | Qahramon kiyimi | kutilmoqda |
+| `tuya_gilam` | Qahramon kiyimi | kutilmoqda |
+| `echki` | Qahramon kiyimi | kutilmoqda |
+| `qoy` | Qahramon kiyimi | kutilmoqda |
 | `tuya` | Minish | kutilmoqda |
 | `hero_beqasam_yashil` | Qahramon kiyimi | kutilmoqda |
 | `hero_adras` | Qahramon kiyimi | kutilmoqda |

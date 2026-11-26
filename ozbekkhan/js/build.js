@@ -114,6 +114,7 @@ export function buildRegion(R, opt = {}) {
     clay: P('plaster', 1, { color: '#c99a78' }),
     metal: new T.MeshStandardMaterial({ color: '#2a2724', roughness: 0.45, metalness: 0.7, vertexColors: true }),
     gold: new T.MeshStandardMaterial({ color: '#d9a640', roughness: 0.3, metalness: 1 }),
+    wheat: new T.MeshStandardMaterial({ map: TX.wheatCard(), alphaTest: 0.35, side: T.DoubleSide, vertexColors: true, roughness: 0.9 }),
     flower: new T.MeshStandardMaterial({ map: TX.flowerCard(), alphaTest: 0.4, side: T.DoubleSide, vertexColors: true, roughness: 0.8 }),
     leaf: new T.MeshStandardMaterial({ map: TX.leafCard(0), alphaTest: 0.45, side: T.DoubleSide, vertexColors: true, roughness: 0.8 }),
     blob: new T.MeshStandardMaterial({ map: TX.leafTex(), vertexColors: true, roughness: 0.85 }),
@@ -246,6 +247,7 @@ export function buildRegion(R, opt = {}) {
         const dp = at(u, 0, 1.4); A.doors.push({ x: dp[0], z: dp[2], ry, h });
         if (r() < 0.45) { const lp = at(u + 1.15, 2.3, 0.15); lantern(lp[0], lp[1], lp[2], ry); }
         if (r() < 0.4) { const pp = at(u - 1.4, 0, 0.5); pot(pp[0], pp[2], 0.9); }
+        if (r() < 0.08) { const pp = at(u - 2.4, 0, 0.25); A.tools.push({ kind: pick(['ketmon', 'xaskash', 'vila']), x: pp[0], y: 0, z: pp[2], rx: 0.18, ry: ry, s: 1 }); }
         if (r() < 0.12) { const pp = at(u - 1.3, 0, 0.6); prop(pick(['wooden_stool_01', 'WoodenTable_01', 'wooden_bucket_02']), pp[0], 0, pp[2], r() * 6, 1); }
         if (r() < 0.1) { const pp = at(u + 2.2, 0, 0.3); prop('brass_diya_lantern', pp[0], 0, pp[2], ry, 1.2); }
         if (r() < 0.2) { const pp = at(u + 1.0, 0, 0.35); prop('wooden_broom', pp[0], 0, pp[2], ry + 0.2, 1, { rx: 0.2 }); }
@@ -607,6 +609,12 @@ export function buildRegion(R, opt = {}) {
   if (R.land === 'desert') { for (let i = 0; i < 30; i++) { const a = r() * 6.28, d = 135 + r() * 100, x = Math.cos(a) * d, z = Math.sin(a) * d; W0.add('plain', jitterIco(0.7, 0, i, 0.5), x, heightAt(x, z) + 0.3, z, { col: '#8a8a5a' }); } } // saksovul
   // xirmon: pichan g'aramlari va ayri bilan ishlayotgan dehqonlar
   for (let i = 0; i < 3; i++) { const x = -40 + i * 9, z = 128 + (i % 2) * 6; haystack(x, z); W0.add('earth', tf(jitterIco(1.4, 3, i + 3, 0.12), 0, 0, 0, 0, 0, 0, 1.3, 1.1, 1.3), x, 1.0, z, { uv: 1.2, col: '#f0d488' }); C.add(x - 1.6, z - 1.6, x + 1.6, z + 1.6, 2.2, -1); npcs.push({ x: x + 2, z: z + 0.5, ry: -Math.PI / 2, role: 'ishchi', pose: 'pitch', tool: 'vila', name: 'Dehqon' }); }
+  // ekin dalasi: egatlar, ketmon bilan yer chopayotgan va o'roq bilan bug'doy o'rayotgan dehqonlar
+  { const fx0 = 30, fz0 = 132; W0.add('earth', new T.PlaneGeometry(15, 12.5), fx0 + 7, 0.02, fz0 + 5.5, { rx: -Math.PI / 2, uv: 0.4, col: '#8a6a4c' }); for (let i = 0; i < 9; i++) { const g = new T.CylinderGeometry(0.4, 0.4, 14, 10, 1, false, 0, Math.PI); g.scale(1, 1, 0.3); W0.add('earth', g, fx0 + 7, 0.0, fz0 + i * 1.3, { rz: Math.PI / 2, rx: -Math.PI / 2, uv: 0.5, col: '#9a7656' }); }
+    for (let i = 0; i < 70; i++) { const x = fx0 + 16 + r() * 12, z = fz0 + r() * 11; for (let k = 0; k < 2; k++) W0.add('wheat', new T.PlaneGeometry(1.6, 1.1), x, 0.55, z, { ry: r() * 3.14, col: '#ffffff' }); }
+    npcs.push({ x: fx0 + 4, z: fz0 + 3.2, ry: Math.PI / 2, role: 'ishchi', pose: 'hoe', tool: 'ketmon', name: 'Dehqon' }); npcs.push({ x: fx0 + 9, z: fz0 + 7, ry: Math.PI / 2, role: 'ishchi', pose: 'hoe', tool: 'ketmon', name: 'Dehqon' });
+    npcs.push({ x: fx0 + 17, z: fz0 + 4, ry: Math.PI / 2, role: 'ishchi', pose: 'reap', tool: 'oroq', name: 'O\'roqchi' }); npcs.push({ x: fx0 + 19, z: fz0 + 8, ry: Math.PI / 2, role: 'ishchi', pose: 'reap', tool: 'oroq', name: 'O\'roqchi' });
+    A.tools.push({ kind: 'ketmon', x: fx0 - 1, y: 0, z: fz0 - 1, rx: 0.2, ry: 0.5, s: 1 }); }
   A.tools.push({ kind: 'vila', x: -45, y: 0, z: 127, rx: 0.25, ry: 1, s: 1 }); A.tools.push({ kind: 'xaskash', x: -44.5, y: 0, z: 127.3, rx: 0.22, ry: 1.2, s: 1 });
   // tashqaridagi qishloq hovlilari
   for (let i = 0; i < 10; i++) { const a = r() * 6.28, d = 140 + r() * 60, x = Math.cos(a) * d, z = Math.sin(a) * d; if (Math.abs(x) < 12 && z > 0) continue; if (A.extras.paxta && x > -95 && x < -25 && z > 130 && z < 190) continue; const y = heightAt(x, z); if (y > 3) continue; house(x - 4, z - 4, x + 4, z + 4, { n: true, s: true, e: true, w: true }); }

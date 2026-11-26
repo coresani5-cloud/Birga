@@ -50,7 +50,7 @@ const waterMat = new T.MeshStandardMaterial({ color: '#3c7f86', roughness: 0.06,
 const RIG = {}; // rol -> manba
 let TREES_OK = false; fetch('assets/trees/tree_small_02.json').then((r) => (TREES_OK = r.ok)).catch(() => {});
 const RIG_NAMES = ['hero', 'hero_beqasam_yashil', 'hero_adras', 'hero_zardozi', 'oqsoqol', 'ayol', 'ayol2', 'savdogar', 'ishchi', 'posbon', 'sarboz', 'navkar', 'chavandoz', 'qishki', 'darvesh', 'ayol3', 'ayol4', 'ayol5', 'ayol6', 'ayol7', 'olim', 'munajjim', 'kotib', 'savdogar2', 'chopon', 'boyoqchi', 'arab', 'yigit_beqasam', 'qiz_atlas', 'bola', 'bola_oq', 'bola_kok', 'bola_beqasam', 'bola_dutor', 'xitoy_qiz', 'xitoy_bola'];
-const ANI = {}; const ANI_NAMES = { ot: 1.6, ot_yuk: 1.7, tuya: 2.2, tuya_yuk: 2.3, eshak_yuk: 1.35 };
+const ANI = {}; const ANI_NAMES = { ot: 1.65, ot_yuk: 1.7, tuya: 2.15, tuya_yuk: 2.3, tuya_gilam: 2.2, eshak: 1.25, eshak_yuk: 1.35, echki: 0.8, qoy: 0.85 };
 async function loadRigs() { await Promise.all(RIG_NAMES.map(async (n) => { const s = await loadRigSource(n); if (s) RIG[n] = s; }).concat(Object.entries(ANI_NAMES).map(async ([n, h]) => { const s = await loadAnimalSource(n, h); if (s) ANI[n] = s; }))); }
 const USED = {}; const ADULT = () => Object.keys(RIG).filter((k) => !k.startsWith('ayol') && k !== 'qiz_atlas' && !k.startsWith('bola') && !k.startsWith('xitoy') && !k.startsWith('hero'));
 const leastUsed = (list) => list.filter((k) => RIG[k]).sort((a, b) => (USED[a] || 0) - (USED[b] || 0) || rnd() - 0.5)[0];
@@ -136,7 +136,7 @@ function spawnWorld() {
   for (const id of list) { const M = MISSIONS[id]; if (!M) continue; let g; try { g = M.giver.at(A); } catch { g = null; } if (!g) continue; const p = freeSpot(g.x, g.z); const n = addNpc({ x: p.x, z: p.z, ry: rnd() * 6, role: id === 'mehmon' ? 'ayol' : id === 'kurash' || id === 'kopkari' ? 'posbon' : 'oqsoqol', pose: 'idle', name: M.giver.name, mission: id });
     const mk = new T.Mesh(new T.OctahedronGeometry(0.22), new T.MeshBasicMaterial({ color: M.job ? '#5ad16a' : M.side ? '#19b3ad' : '#e6b84c' })); mk.position.set(p.x, 2.35, p.z); scene.add(mk); givers.push({ id, n, mark: mk }); n.giver = true; }
 }
-function addCritter(kind, x, z, leader) { const A2 = makeAnimal(kind); A2.root.position.set(x, 0, z); scene.add(A2.root); const c = { A: A2, root: A2.root, pos: A2.root.position, yaw: rnd() * 6.28, leader, kind, t: rnd() * 5, tx: x, tz: z }; critters.push(c); return c; }
+function addCritter(kind, x, z, leader) { const A2 = ANI[kind] ? makeRiggedAnimal(ANI[kind], kind) : makeAnimal(kind); A2.root.position.set(x, 0, z); scene.add(A2.root); const c = { A: A2, root: A2.root, pos: A2.root.position, yaw: rnd() * 6.28, leader, kind, t: rnd() * 5, tx: x, tz: z }; critters.push(c); return c; }
 function updateCritters(dt) {
   for (const c of critters) {
     const d2 = c.pos.distanceToSquared(P.pos); c.root.visible = d2 < 90 * 90; if (d2 > 70 * 70) continue;
@@ -151,7 +151,7 @@ function updateCritters(dt) {
 function spawnTrader() { const p = freeSpot(-3.2, 103); const n = addNpc({ x: p.x, z: p.z, ry: Math.PI, role: 'savdogar', pose: 'idle', name: 'Ipak yo\'li savdogari' }); n.trader = true; const mk = new T.Mesh(new T.OctahedronGeometry(0.22), new T.MeshBasicMaterial({ color: '#ffffff' })); mk.position.set(p.x, 2.35, p.z); scene.add(mk); givers.push({ id: null, n, mark: mk }); }
 function freeSpot(x, z) { for (let r = 0; r < 12; r += 1) for (let a = 0; a < 6.28; a += 0.8) { const px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r; if (C.ground(px, pz, 0.2, 0.4) < 0.7) { let ok = true; for (const i of C.near(px, pz)) { const b = C.b[i]; if (px > b.x0 - 0.4 && px < b.x1 + 0.4 && pz > b.z0 - 0.4 && pz < b.z1 + 0.4 && b.top > 0.7) ok = false; } if (ok) return { x: px, z: pz }; } } return { x, z }; }
 function addMount(kind, x, z, ry, o = {}) {
-  const aKey = o.pack ? { ot: 'ot_yuk', tuya: 'tuya_yuk', eshak: 'eshak_yuk' }[kind] : { ot: 'ot', tuya: 'tuya', eshak: 'eshak_yuk', arava: 'eshak_yuk' }[kind];
+  const aKey = o.pack ? { ot: 'ot_yuk', tuya: 'tuya_yuk', eshak: 'eshak_yuk' }[kind] : { ot: 'ot', tuya: ANI.tuya_gilam && rnd() < 0.5 ? 'tuya_gilam' : 'tuya', eshak: ANI.eshak ? 'eshak' : 'eshak_yuk', arava: 'eshak_yuk' }[kind];
   const an = ANI[aKey] ? makeRiggedAnimal(ANI[aKey], kind) : makeAnimal(kind === 'arava' ? 'eshak' : kind); const root = new T.Group(); root.add(an.root);
   let cart = null; if (kind === 'arava') { cart = makeCart(); cart.position.z = -2.2; root.add(cart); }
   root.position.set(x, 0, z); root.rotation.y = ry; scene.add(root);
@@ -235,7 +235,7 @@ function updatePlayer(dt) {
   if (P.mode === 'para') return updatePara(dt, ix, iz);
   if (P.mode === 'carpet') return updateCarpet(dt);
   const running = inp.run && P.st > 2 && mag > 0.3 && !P.carry;
-  const target = mag * (running ? 5.8 : P.carry === 'lagan' ? 1.6 : 2.4);
+  const target = mag * (running ? 5.4 : P.carry === 'lagan' ? 1.1 : P.carry ? 1.4 : 1.7);
   P.speed = lerp(P.speed, target, Math.min(1, dt * 8));
   if (running) P.st = Math.max(0, P.st - dt * 14); else P.st = Math.min(100, P.st + dt * 10);
   if (mag > 0.05) P.yaw += angDiff(P.yaw, Math.atan2(mx, mz)) * Math.min(1, dt * 10);
@@ -244,9 +244,9 @@ function updatePlayer(dt) {
   C.push(P.pos, 0.32, P.pos.y);
   // yer va tortishish
   const g0 = C.ground(P.pos.x, P.pos.z, P.pos.y, 0.15), tr = heightAt(P.pos.x, P.pos.z), ground = underground ? g0 : Math.max(g0, tr);
-  if (inp.jump && P.onGround && !P.carry) { P.vy = 5.2; P.onGround = false; P.fallFrom = P.pos.y; }
+  if (inp.jump && P.onGround && !P.carry) { P.vy = 4.6; P.onGround = false; P.fallFrom = P.pos.y; }
   inp.jump = false;
-  P.vy -= 18 * dt; P.pos.y += P.vy * dt;
+  P.vy -= 14 * dt; P.pos.y += P.vy * dt;
   if (P.pos.y <= ground) { if (!P.onGround) { const fall = P.fallFrom - ground; if (fall > 5) hurt((fall - 5) * 9, 'Qattiq yiqildingiz!'); } P.pos.y = ground; P.vy = 0; P.onGround = true; P.fallFrom = ground; }
   else { if (P.onGround && P.pos.y - ground > 0.6) { P.onGround = false; P.fallFrom = P.pos.y; } else if (P.onGround) P.pos.y = ground; }
   if (!P.onGround && P.vy < -4 && S.unlock.qanot && inp.para) openPara();

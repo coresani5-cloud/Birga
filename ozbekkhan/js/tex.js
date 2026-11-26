@@ -276,3 +276,12 @@ export const doppiReal = (id) => memo('doppiR' + id, () => {
   }
   const t = tex(c); t.wrapT = THREE.ClampToEdgeWrapping; return t;
 });
+// Bug'doy poyalari (alfa): tilla rang, boshoqli
+export const wheatCard = () => memo('wheat', () => {
+  const W = 256, H = 256, [c, g] = cv(W, H), r = rng(55); g.clearRect(0, 0, W, H);
+  for (let i = 0; i < 70; i++) { const x = 8 + r() * (W - 16), lean = (r() - 0.5) * 30, top = 20 + r() * 50, col = `rgb(${200 + r() * 40 | 0},${160 + r() * 40 | 0},${70 + r() * 30 | 0})`;
+    g.strokeStyle = col; g.lineWidth = 1.6; g.beginPath(); g.moveTo(x, H); g.quadraticCurveTo(x + lean * 0.3, H * 0.5, x + lean, top + 28); g.stroke();
+    g.fillStyle = col; for (let k = 0; k < 7; k++) { g.beginPath(); g.ellipse(x + lean + (k % 2 ? 2.5 : -2.5), top + k * 4.5, 2.6, 4, k % 2 ? 0.4 : -0.4, 0, 7); g.fill(); }
+    g.strokeStyle = 'rgba(230,200,120,.7)'; g.lineWidth = 0.6; g.beginPath(); g.moveTo(x + lean, top); g.lineTo(x + lean + (r() - 0.5) * 6, top - 14); g.stroke(); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+});

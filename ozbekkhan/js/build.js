@@ -125,7 +125,7 @@ export function buildRegion(R, opt = {}) {
     cloth: new T.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, side: T.DoubleSide }),
   };
   for (let i = 0; i < 4; i++) mats['awn' + i] = new T.MeshStandardMaterial({ map: TX.awningTex(i), roughness: 0.95, side: T.DoubleSide, vertexColors: true });
-  for (let i = 0; i < 3; i++) mats['carpet' + i] = new T.MeshStandardMaterial({ map: TX.carpetTex(i), roughness: 0.95, side: T.DoubleSide, vertexColors: true });
+  for (let i = 0; i < 3; i++) mats['carpet' + i] = new T.MeshStandardMaterial({ map: i === 0 ? TX.realCarpet() : TX.carpetTex(i), roughness: 0.95, side: T.DoubleSide, vertexColors: true });
   for (let i = 0; i < 3; i++) mats['plate' + i] = new T.MeshStandardMaterial({ map: plateTexture(i), roughness: 0.25, metalness: 0.05, vertexColors: true });
   for (const [i, f] of ['atlas', 'adras', 'atlas'].entries()) mats['fab' + i] = new T.MeshStandardMaterial({ map: TX.fabricTex(f, i), roughness: 0.6, side: T.DoubleSide, vertexColors: true });
   const B = new Batch(mats);

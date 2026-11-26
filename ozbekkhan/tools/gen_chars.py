@@ -56,11 +56,14 @@ A = {
   'eshak': "Photograph of a grey donkey with a brown leather riding saddle on a light grey saddle pad",
   'tuya_gilam': "Photograph of a tan dromedary camel with a red Persian carpet saddle blanket with long red tassels and a wooden saddle horn, rope halter",
   'echki': "Photograph of a white goat with curved dark horns and a small beard",
+  'qoy2': "Photograph of a grey-brown sheep with a black face and black legs",
+  'tovuq': "Photograph of a golden-brown hen with a red comb",
   'qoy': "Photograph of a Central Asian fat-tailed sheep with thick cream-colored wool and a brown face",
   'tuya': "Photograph of a Bactrian two-humped camel with a colorful Central Asian carpet saddle and red woven bridle",
 }
 for k, v in A.items(): P[k] = v
 ANIMALS = set(A)
+# Eslatma: assets/refs/<nom>.png allaqachon bo'lsa (foydalanuvchi yuborgan realistik rasm), FLUX o'tkazib yuboriladi va rasm to'g'ridan-to'g'ri 3D ga aylantiriladi.
 
 def run(names):
     flux = Client("https://mcp-tools-flux-1-krea-dev.hf.space/", headers=H, verbose=False)

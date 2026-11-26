@@ -50,7 +50,7 @@ const waterMat = new T.MeshStandardMaterial({ color: '#3c7f86', roughness: 0.06,
 const RIG = {}; // rol -> manba
 let TREES_OK = false; fetch('assets/trees/tree_small_02.json').then((r) => (TREES_OK = r.ok)).catch(() => {});
 const RIG_NAMES = ['hero', 'hero_beqasam_yashil', 'hero_adras', 'hero_zardozi', 'oqsoqol', 'ayol', 'ayol2', 'savdogar', 'ishchi', 'posbon', 'sarboz', 'navkar', 'chavandoz', 'qishki', 'darvesh', 'ayol3', 'ayol4', 'ayol5', 'ayol6', 'ayol7', 'olim', 'munajjim', 'kotib', 'savdogar2', 'chopon', 'boyoqchi', 'arab', 'yigit_beqasam', 'qiz_atlas', 'bola', 'bola_oq', 'bola_kok', 'bola_beqasam', 'bola_dutor', 'xitoy_qiz', 'xitoy_bola'];
-const ANI = {}; const ANI_NAMES = { ot: 1.65, ot_yuk: 1.7, tuya: 2.15, tuya_yuk: 2.3, tuya_gilam: 2.2, eshak: 1.25, eshak_yuk: 1.35, echki: 0.8, qoy: 0.85 };
+const ANI = {}; const ANI_NAMES = { qoy2: 0.8, tovuq: 0.45, ot: 1.65, ot_yuk: 1.7, tuya: 2.15, tuya_yuk: 2.3, tuya_gilam: 2.2, eshak: 1.25, eshak_yuk: 1.35, echki: 0.8, qoy: 0.85 };
 async function loadRigs() { await Promise.all(RIG_NAMES.map(async (n) => { const s = await loadRigSource(n); if (s) RIG[n] = s; }).concat(Object.entries(ANI_NAMES).map(async ([n, h]) => { const s = await loadAnimalSource(n, h); if (s) ANI[n] = s; }))); }
 const USED = {}; const ADULT = () => Object.keys(RIG).filter((k) => !k.startsWith('ayol') && k !== 'qiz_atlas' && !k.startsWith('bola') && !k.startsWith('xitoy') && !k.startsWith('hero'));
 const leastUsed = (list) => list.filter((k) => RIG[k]).sort((a, b) => (USED[a] || 0) - (USED[b] || 0) || rnd() - 0.5)[0];
@@ -118,9 +118,10 @@ function spawnWorld() {
   // karvonchilar: yuk hayvonini yetaklab yuruvchi odamlar (o'z ishi bilan band)
   const nc = Q > 0 ? 3 : 1; for (let i = 0; i < nc; i++) { const nd = NODES[rnd() * NODES.length | 0]; const n = addNpc({ x: nd[0], z: nd[1], role: 'ishchi', walk: true, pose: 'walk' }); n.speed = 1.0; const kind = R.land === 'desert' || R.id === 'navoiy' ? (i % 2 ? 'tuya' : 'eshak') : ['eshak', 'ot', 'eshak'][i % 3]; const m = addMount(kind, nd[0], nd[1] - 2.5, 0, { pack: true, led: n }); m.tied = true; n.leads = m; }
   { const nd = NODES[rnd() * NODES.length | 0]; const m = addMount('ot', nd[0], nd[1], 0, { rider: true, riderRole: 'posbon' }); m.target = nd; } // otliq qo'riqchi
-  const herd = (x, z, n, kind = 'qoy') => { const sh = addNpc({ x, z, role: 'chopon', walk: true, pose: 'walk' }); sh.speed = 0.7; for (let i = 0; i < n; i++) addCritter(kind === 'mix' ? (rnd() < 0.7 ? 'qoy' : 'echki') : kind, x + (rnd() - 0.5) * 6, z + (rnd() - 0.5) * 6, sh); };
+  const herd = (x, z, n, kind = 'qoy') => { const sh = addNpc({ x, z, role: 'chopon', walk: true, pose: 'walk' }); sh.speed = 0.7; for (let i = 0; i < n; i++) addCritter(kind === 'mix' ? (rnd() < 0.7 ? (ANI.qoy2 && rnd() < 0.4 ? 'qoy2' : 'qoy') : 'echki') : kind, x + (rnd() - 0.5) * 6, z + (rnd() - 0.5) * 6, sh); };
   herd(25, 135, Q > 0 ? 12 : 6, 'mix'); if (rnd() < 0.6) { const nd = NODES[rnd() * NODES.length | 0]; herd(nd[0], nd[1], Q > 0 ? 6 : 3); }
-  for (let i = 0; i < (Q > 0 ? 8 : 3); i++) { const d = A.doors[rnd() * A.doors.length | 0]; const k = ['echki', 'it', 'mushuk', 'mushuk', 'it'][i % 5]; addCritter(k, d.x, d.z, null).col = k; }
+  for (let i = 0; i < (Q > 0 ? 8 : 3); i++) { const d = A.doors[rnd() * A.doors.length | 0]; const k = ['echki', 'it', 'mushuk', 'mushuk', 'it'][i % 5]; addCritter(k, d.x, d.z, null); }
+  if (ANI.tovuq) for (let i = 0; i < (Q > 0 ? 10 : 4); i++) { const d = A.doors[rnd() * A.doors.length | 0]; addCritter('tovuq', d.x + (rnd() - 0.5) * 2, d.z + (rnd() - 0.5) * 2, null); }
   // bolalar: guruh bo'lib quvlashmachoq o'ynashadi
   for (let gI = 0; gI < (Q > 0 ? 3 : 1); gI++) { const nd = gI === 0 ? [-12, 8] : NODES[rnd() * NODES.length | 0]; const gc = { x: nd[0], z: nd[1] }; for (let i = 0; i < 3 + (rnd() * 2 | 0); i++) { const n = addNpc({ x: gc.x + (rnd() - 0.5) * 4, z: gc.z + (rnd() - 0.5) * 4, role: 'bola', pose: 'walk' }); n.kid = gc; n.speed = 3.2; } }
   { const p = freeSpot(14, 14); const n = addNpc({ x: p.x, z: p.z, ry: -2.4, role: 'bola_dutor', pose: 'dutor', name: 'Dutorchi bola' }); n.musician = true; const dt2 = new T.Group(); const body = new T.Mesh(new T.SphereGeometry(0.11, 12, 8), new T.MeshStandardMaterial({ color: '#b07a3a', roughness: 0.6 })); body.scale.set(1, 1.35, 0.55); dt2.add(body); const neck = new T.Mesh(new T.BoxGeometry(0.03, 0.62, 0.02), new T.MeshStandardMaterial({ color: '#6b4220' })); neck.position.y = 0.42; dt2.add(neck); dt2.position.set(0.05, 1.0, 0.2); dt2.rotation.z = 0.9; n.R.root.add(dt2); }
@@ -292,7 +293,7 @@ function toggleCarpet() {
   if (!S.unlock.gilam) return toast('Uchar gilam yo\'q — bozordagi gilamfurushdan so\'rang');
   if (P.mode === 'carpet') { hero.root.remove(carpet); P.mode = 'foot'; P.onGround = false; P.fallFrom = P.pos.y; return; }
   if (P.mode !== 'foot') return;
-  if (!carpet) { carpet = new T.Group(); const c = new T.Mesh(new T.PlaneGeometry(1.5, 2.3, 8, 8), new T.MeshStandardMaterial({ map: TX.carpetTex(0), side: T.DoubleSide, roughness: 0.9 })); c.rotation.x = -Math.PI / 2; carpet.add(c); for (const sz of [-1, 1]) for (let i = 0; i < 12; i++) { const f = new T.Mesh(new T.BoxGeometry(0.03, 0.01, 0.14), new T.MeshStandardMaterial({ color: '#e8d3a2' })); f.position.set(-0.7 + i * 0.127, 0, sz * 1.21); carpet.add(f); } carpet.userData.cloth = c; }
+  if (!carpet) { carpet = new T.Group(); const c = new T.Mesh(new T.PlaneGeometry(1.5, 2.3, 8, 8), new T.MeshStandardMaterial({ map: TX.realCarpet(), side: T.DoubleSide, roughness: 0.9 })); c.rotation.x = -Math.PI / 2; c.rotation.z = Math.PI / 2; carpet.add(c); for (const sz of [-1, 1]) for (let i = 0; i < 12; i++) { const f = new T.Mesh(new T.BoxGeometry(0.03, 0.01, 0.14), new T.MeshStandardMaterial({ color: '#e8d3a2' })); f.position.set(-0.7 + i * 0.127, 0, sz * 1.21); carpet.add(f); } carpet.userData.cloth = c; }
   carpet.position.set(0, 0.25, 0); hero.root.add(carpet); P.mode = 'carpet'; P.vy = 0; P.pos.y += 0.6; toast('Gilam ko\'tarildi!');
 }
 function updateCarpet(dt) {

@@ -285,3 +285,6 @@ export const wheatCard = () => memo('wheat', () => {
     g.strokeStyle = 'rgba(230,200,120,.7)'; g.lineWidth = 0.6; g.beginPath(); g.moveTo(x + lean, top); g.lineTo(x + lean + (r() - 0.5) * 6, top - 14); g.stroke(); }
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 });
+
+// Haqiqiy gilam rasmi (foydalanuvchi namunasi)
+export const realCarpet = () => memo('gilamR', () => { const t = new THREE.TextureLoader().load(ASSET_BASE + 'tex/gilam.jpg'); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t; });

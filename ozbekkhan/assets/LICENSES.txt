@@ -1,0 +1,3 @@
+Teksturalar (assets/tex), osmon (assets/hdri) va buyum modellari (assets/models):
+Poly Haven — https://polyhaven.com — CC0 (jamoat mulki). Rang ohanglari o'yin uchun o'zgartirilgan.
+Three.js (vendor/) — MIT litsenziyasi, vendor/THREE-LICENSE.txt

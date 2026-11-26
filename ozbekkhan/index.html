@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>O'zbekkhan</title>
+<meta name="theme-color" content="#1a0f08">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Rubik:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.min.js", "three/addons/": "./vendor/addons/" } }
+</script>
+</head>
+<body>
+<canvas id="gl"></canvas>
+
+<!-- Boshlanish ekrani -->
+<section id="title" class="screen">
+  <div class="title-inner">
+    <div class="logo">
+      <svg class="logo-orn" viewBox="0 0 400 60" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M0 30H150M250 30H400"/><path d="M200 6l24 24-24 24-24-24z"/><path d="M200 16l14 14-14 14-14-14z"/><circle cx="160" cy="30" r="4"/><circle cx="240" cy="30" r="4"/></g></svg>
+      <h1 class="logo-main">O'zbekkhan</h1>
+      <div class="logo-sub">O'n ikki viloyat · o'n ikki rivoyat</div>
+    </div>
+    <nav class="menu" id="menu">
+      <button id="btn-continue" hidden>Davom etish</button>
+      <button id="btn-new">Yangi o'yin</button>
+      <button id="btn-help">Boshqaruv</button>
+      <button id="btn-settings">Grafika: <span id="q-label">O'rta</span></button>
+    </nav>
+    <div class="loading" id="loading">Dunyo yaratilmoqda…</div>
+  </div>
+</section>
+
+<!-- Personaj / kiyim do'koni -->
+<section id="wardrobe" class="screen" hidden>
+  <div class="wd-panel">
+    <div class="wd-head">
+      <h2 id="wd-title">Personaj</h2>
+      <div class="wd-money"><span class="coin"></span><b id="wd-money">0</b> tanga</div>
+    </div>
+    <div class="wd-tabs" id="wd-tabs"></div>
+    <div class="wd-list" id="wd-list"></div>
+    <div class="wd-desc" id="wd-desc"></div>
+    <div class="wd-foot">
+      <button class="ghost" id="wd-rot">↻ Aylantirish</button>
+      <button class="primary" id="wd-done">Tayyor</button>
+    </div>
+  </div>
+</section>
+
+<!-- Xarita -->
+<section id="map" class="screen" hidden>
+  <div class="map-wrap">
+    <div class="map-head"><h2>O'zbekiston · XIX asr</h2><button class="ghost" id="map-close">✕</button></div>
+    <div class="map-body">
+      <canvas id="map-cv"></canvas>
+      <aside class="map-info" id="map-info"></aside>
+    </div>
+  </div>
+</section>
+
+<!-- Yordam -->
+<section id="help" class="screen" hidden>
+  <div class="card">
+    <h2>Boshqaruv</h2>
+    <div class="help-grid">
+      <div><b>W A S D</b> yurish</div><div><b>Sichqoncha</b> qarash</div>
+      <div><b>Shift</b> yugurish</div><div><b>Probel</b> sakrash / atlas qanot</div>
+      <div><b>E</b> harakat (sotib olish, minish, gaplashish)</div><div><b>G</b> o'g'irlash</div>
+      <div><b>F</b> otga minish / tushish</div><div><b>Q</b> salom berish</div>
+      <div><b>M</b> xarita</div><div><b>I</b> kiyimlar</div>
+      <div><b>R</b> radio (Shashmaqom)</div><div><b>Esc</b> pauza</div>
+    </div>
+    <p class="muted">Telefonda: chapda joystik, o'ngda ekranni suring — kamera, tugmalar — harakatlar.</p>
+    <button class="primary" id="help-close">Tushunarli</button>
+  </div>
+</section>
+
+<!-- Pauza -->
+<section id="pause" class="screen" hidden>
+  <div class="card">
+    <h2>Pauza</h2>
+    <nav class="menu">
+      <button id="p-resume">Davom etish</button>
+      <button id="p-map">Xarita</button>
+      <button id="p-wardrobe">Kiyimlar</button>
+      <button id="p-help">Boshqaruv</button>
+      <button id="p-quality">Grafika: <span id="q-label2">O'rta</span></button>
+      <button id="p-title">Bosh menyu</button>
+    </nav>
+  </div>
+</section>
+
+<!-- Dialog -->
+<section id="dialog" class="screen" hidden>
+  <div class="dlg">
+    <div class="dlg-who" id="dlg-who"></div>
+    <div class="dlg-text" id="dlg-text"></div>
+    <div class="dlg-btns" id="dlg-btns"></div>
+  </div>
+</section>
+
+<!-- HUD -->
+<div id="hud" hidden>
+  <div class="hud-tl">
+    <div class="bars">
+      <div class="bar hp"><i id="hp-bar"></i></div>
+      <div class="bar st"><i id="st-bar"></i></div>
+    </div>
+    <div class="region" id="hud-region"></div>
+  </div>
+  <div class="hud-tr">
+    <div class="money"><span class="coin"></span><b id="hud-money">0</b> tanga</div>
+    <div class="stars" id="hud-stars"></div>
+    <div class="clock" id="hud-clock"></div>
+    <div class="radio" id="hud-radio" hidden></div>
+  </div>
+  <div class="objective" id="hud-obj" hidden></div>
+  <div class="timer" id="hud-timer" hidden></div>
+  <div class="prompt" id="hud-prompt" hidden></div>
+  <div class="toast" id="hud-toast" hidden></div>
+  <div class="banner" id="hud-banner" hidden><div class="b1" id="banner-1"></div><div class="b2" id="banner-2"></div></div>
+  <div class="minimap"><canvas id="minimap" width="200" height="200"></canvas><div class="mm-n">Sh</div></div>
+  <div class="qte" id="qte" hidden></div>
+  <button class="pause-btn" id="pause-btn" aria-label="Pauza">❚❚</button>
+</div>
+
+<!-- Telefon boshqaruvi -->
+<div id="touch" hidden>
+  <div class="stick" id="stick"><div class="knob" id="knob"></div></div>
+  <div class="tbtns">
+    <button data-k="jump">⤒</button>
+    <button data-k="use">E</button>
+    <button data-k="mount">Ot</button>
+    <button data-k="run" class="hold">»</button>
+    <button data-k="steal">G</button>
+  </div>
+  <div class="tbtns2">
+    <button data-k="map">Xarita</button>
+    <button data-k="wear">Kiyim</button>
+    <button data-k="radio">♫</button>
+  </div>
+</div>
+
+<div id="fade"></div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

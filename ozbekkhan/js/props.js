@@ -14,11 +14,13 @@ function loadModel(id) {
   return cache.get(id);
 }
 // list: [{ id, x, y, z, ry, s }]
-export async function placeProps(group, list, { shadows = true } = {}) {
+export async function placeProps(group, list, { shadows = true, C = null } = {}) {
   const by = new Map(); for (const p of list) { if (!by.has(p.id)) by.set(p.id, []); by.get(p.id).push(p); }
   const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), E = new THREE.Euler(), V = new THREE.Vector3(), S = new THREE.Vector3();
   await Promise.all([...by.entries()].map(async ([id, ps]) => {
     const mdl = await loadModel(id); if (!mdl) return;
+    const NOCOL = ['grass_medium_01', 'shrub_01', 'shrub_02', 'shrub_03', 'shrub_04', 'Lantern_01', 'brass_diya_lantern', 'namaqualand_cliff_02', 'food_pomegranate_01', 'food_apple_01', 'lemon', 'yellow_onion', 'tea_set_01', 'carved_wooden_plate', 'brass_goblets', 'vintage_oil_lamp', 'wooden_spoon', 'wooden_bowl_02'];
+    if (C && !NOCOL.includes(id)) { const sz = mdl.box.getSize(new THREE.Vector3()); for (const p of ps) { const s = p.s || 1, hx = Math.max(0.15, sz.x * s / 2), hz = Math.max(0.15, sz.z * s / 2), h = sz.y * s * (p.sy || 1); if ((p.y || 0) > 0.5 || h < 0.25) continue; const r = Math.max(hx, hz) * 0.85; C.add(p.x - r, p.z - r, p.x + r, p.z + r, (p.y || 0) + h, (p.y || 0) - 1); } }
     for (const part of mdl.parts) {
       const im = new THREE.InstancedMesh(part.geo, part.mat, ps.length);
       ps.forEach((p, i) => { E.set(p.rx || 0, p.ry || 0, 0); Q.setFromEuler(E); const s = p.s || 1; M.compose(V.set(p.x, p.y || 0, p.z), Q, S.set(s, s * (p.sy || 1), s)); M.multiply(part.local); im.setMatrixAt(i, M); if (p.col) im.setColorAt(i, new THREE.Color(p.col)); });

@@ -72,6 +72,8 @@ const roleOf = (n) => ({ kitobxon: 'olim', sotuvchi: 'savdogar', oshpaz: 'oqsoqo
 let RES = null, R = null, C = null, A = null, heightAt = () => 0, mapImg = null;
 const P = { pos: new V3(0, 0, 100), vy: 0, yaw: Math.PI, speed: 0, mode: 'foot', mount: null, hp: 100, st: 100, onGround: true, fallFrom: 0, punchT: 0, hitCd: 0, carry: null, carryObj: null, para: null, pose: null, poseT: 0 };
 let hero = null, camYaw = Math.PI, camPitch = 0.25, camDist = 4.6;
+let shake = 0, foeT = 0, foe = null;
+function showFoeHp(n) { foe = n; foeT = 3; }
 let critters = [], npcs = [], mounts = [], guards = [], givers = [], fxSmoke = [], props = [], markers = [];
 let heat = 0, heatCool = 0, playing = false, paused = false, underground = false;
 const inp = { f: 0, s: 0, run: false, jump: false, use: false, steal: false, mount: false, punch: false, wave: false };
@@ -104,7 +106,7 @@ function npcLook(role) { const old = role === 'oqsoqol'; const hats = ['chust', 
 function addNpc(o) {
   const Rr = makePerson(o.role, npcLook(o.role), { female: o.role === 'ayol', child: o.role === 'bola' });
   Rr.root.position.set(o.x, o.y || 0, o.z); Rr.root.rotation.y = o.ry || 0; scene.add(Rr.root); if (o.tool) attachTool(Rr, o.tool);
-  const n = { R: Rr, pos: Rr.root.position, yaw: o.ry || 0, ...o, hp: 3, state: o.walk ? 'walk' : 'idle', t: rnd() * 5, target: null, prev: null, lane: (rnd() - 0.5) * 3, speed: o.role === 'bola' ? 2.4 : 1.1 + rnd() * 0.5, angry: 0, talkT: 0, greeted: false };
+  const n = { R: Rr, pos: Rr.root.position, yaw: o.ry || 0, ...o, hp: o.role === 'posbon' ? 6 : 4, maxHp: o.role === 'posbon' ? 6 : 4, state: o.walk ? 'walk' : 'idle', t: rnd() * 5, target: null, prev: null, lane: (rnd() - 0.5) * 3, speed: o.role === 'bola' ? 2.4 : 1.1 + rnd() * 0.5, angry: 0, talkT: 0, greeted: false };
   npcs.push(n); return n;
 }
 function spawnWorld() {
@@ -133,7 +135,7 @@ function spawnWorld() {
   for (const d of A.doors.slice(0, Q > 0 ? 4 : 2)) addNpc({ x: d.x, z: d.z, ry: d.ry, role: 'ishchi', pose: 'work', job: 'supuruvchi' });
   // topshiriq beruvchilar
   const list = (R.mission ? [R.mission] : []).concat(SIDE);
-  spawnTrader();
+  spawnTrader(); spawnCarts();
   for (const id of list) { const M = MISSIONS[id]; if (!M) continue; let g; try { g = M.giver.at(A); } catch { g = null; } if (!g) continue; const p = freeSpot(g.x, g.z); const n = addNpc({ x: p.x, z: p.z, ry: rnd() * 6, role: id === 'mehmon' ? 'ayol' : id === 'kurash' || id === 'kopkari' ? 'posbon' : 'oqsoqol', pose: 'idle', name: M.giver.name, mission: id });
     const mk = new T.Mesh(new T.OctahedronGeometry(0.22), new T.MeshBasicMaterial({ color: M.job ? '#5ad16a' : M.side ? '#19b3ad' : '#e6b84c' })); mk.position.set(p.x, 2.35, p.z); scene.add(mk); givers.push({ id, n, mark: mk }); n.giver = true; }
 }
@@ -149,6 +151,10 @@ function updateCritters(dt) {
     c.root.rotation.y = c.yaw; animateAnimal(c.A, dt, sp); if (sp === 0) c.A.neckG.rotation.x = 0.6 + Math.sin(c.t * 2) * 0.1;
   }
 }
+let freeCarts = [];
+function spawnCarts() { for (const c of freeCarts) scene.remove(c.obj); freeCarts = []; for (const c of A.carts) { const obj = makeCart(); obj.position.set(c.x, 0, c.z); obj.rotation.y = c.ry; scene.add(obj); C.add(c.x - 1.1, c.z - 1.1, c.x + 1.1, c.z + 1.1, 1.4, -1); freeCarts.push({ obj, x: c.x, z: c.z, col: C.b[C.b.length - 1] }); } }
+function hitchCart(fc) { const m = P.mount; scene.remove(fc.obj); fc.col.top = -999; freeCarts = freeCarts.filter((x) => x !== fc); const cart = makeCart(); cart.position.z = -2.2 - (m.kind === 'ot' ? 0.3 : 0); m.root.add(cart); m.cart = cart; m.hitched = true; hero.root.position.set(0, 1.05, -2.0 - (m.kind === 'ot' ? 0.3 : 0)); toast('Arava ulandi! Endi ko\'proq yuk sig\'adi.'); AU.sfx('good'); }
+function unhitchCart() { const m = P.mount; if (!m?.hitched) return; m.root.remove(m.cart); const back = -2.4; const x = m.pos.x + Math.sin(m.yaw) * back, z = m.pos.z + Math.cos(m.yaw) * back; const obj = makeCart(); obj.position.set(x, 0, z); obj.rotation.y = m.yaw; scene.add(obj); freeCarts.push({ obj, x, z, col: C.add(x - 1.1, z - 1.1, x + 1.1, z + 1.1, 1.4, -1) }); m.cart = null; m.hitched = false; hero.root.position.set(0, m.A.seatY - (m.A.rigged ? 0.55 : 0.95), 0); toast('Arava ajratildi'); }
 function spawnTrader() { const p = freeSpot(-3.2, 103); const n = addNpc({ x: p.x, z: p.z, ry: Math.PI, role: 'savdogar', pose: 'idle', name: 'Ipak yo\'li savdogari' }); n.trader = true; const mk = new T.Mesh(new T.OctahedronGeometry(0.22), new T.MeshBasicMaterial({ color: '#ffffff' })); mk.position.set(p.x, 2.35, p.z); scene.add(mk); givers.push({ id: null, n, mark: mk }); }
 function freeSpot(x, z) { for (let r = 0; r < 12; r += 1) for (let a = 0; a < 6.28; a += 0.8) { const px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r; if (C.ground(px, pz, 0.2, 0.4) < 0.7) { let ok = true; for (const i of C.near(px, pz)) { const b = C.b[i]; if (px > b.x0 - 0.4 && px < b.x1 + 0.4 && pz > b.z0 - 0.4 && pz < b.z1 + 0.4 && b.top > 0.7) ok = false; } if (ok) return { x: px, z: pz }; } } return { x, z }; }
 function addMount(kind, x, z, ry, o = {}) {
@@ -171,8 +177,8 @@ function updateNpcs(dt) {
     const d2 = n.pos.distanceToSquared(pp); const vis = d2 < 120 * 120; n.R.root.visible = vis;
     n.t += dt; let sp = 0, pose = n.pose || 'idle';
     if (n.state === 'down') { n.downT -= dt; pose = 'lie'; if (n.downT <= 0) { n.state = n.angry ? 'fight' : 'flee'; n.R.root.rotation.x = 0; } }
-    else if (n.state === 'fight') { // qarshi mushtlashadi
-      const d = Math.sqrt(d2); if (d > 18 || P.hp <= 0) { n.state = 'walk'; n.angry = 0; } else if (d > 1.1) { stepToward(n, pp.x, pp.z, 4.2, dt); sp = 4.2; pose = 'walk'; } else { n.yaw += angDiff(n.yaw, Math.atan2(pp.x - n.pos.x, pp.z - n.pos.z)) * dt * 8; pose = 'punch'; n.atkT = (n.atkT || 0) - dt; if (n.atkT <= 0) { n.atkT = 0.9; hurt(8, 'Musht yedingiz!'); n.punchAnim = 0.3; } }
+    else if (n.state === 'fight') { // qarshi mushtlashadi: yaqinlashadi, aylanib yuradi, zarba beradi
+      const d = Math.sqrt(d2); const chaseR = n.owner ? 60 : 22; if (d > chaseR || P.hp <= 0) { n.state = 'walk'; n.angry = 0; } else if (d > 1.3) { const sp2 = P.mode === 'ride' ? 6.5 : 5.2; stepToward(n, pp.x, pp.z, sp2, dt); sp = sp2; pose = 'walk'; } else { n.yaw += angDiff(n.yaw, Math.atan2(pp.x - n.pos.x, pp.z - n.pos.z)) * dt * 8; n.atkT = (n.atkT || 0.6) - dt; n.pt = (n.pt || 0) + dt * 2.6; if (n.atkT > 0.35) { pose = 'guard'; const sx = Math.cos(n.yaw), sz = -Math.sin(n.yaw); n.pos.x += sx * Math.sin(n.t) * dt * 0.8; n.pos.z += sz * Math.sin(n.t) * dt * 0.8; } else { pose = 'punch'; if (n.atkT <= 0) { n.atkT = 0.8 + rnd() * 0.6; n.pt = 0; if (P.mode === 'ride' && n.owner) { dismount(true); toast('Egasi sizni ulovdan tortib tushirdi!'); } else if (P.block) { AU.sfx('tak'); toast('To\'sib qoldingiz'); } else { hurt(n.role === 'posbon' ? 12 : 8, 'Musht yedingiz!'); shake = 0.25; } } } }
     } else if (n.state === 'flee') { const ax = n.pos.x - pp.x, az = n.pos.z - pp.z, l = Math.hypot(ax, az) || 1; stepToward(n, n.pos.x + ax / l * 5, n.pos.z + az / l * 5, 4.5, dt); sp = 4.5; pose = 'walk'; n.fleeT = (n.fleeT || 6) - dt; if (n.fleeT <= 0) { n.state = n.walk ? 'walk' : 'idle'; n.fleeT = 0; } }
     else if (n.kid) { // o'yin: guruh markazi atrofida yugurish, ba'zan sakrash
       n.kt = (n.kt || 0) - dt; if (!n.kp || n.kt <= 0 || Math.hypot(n.kp[0] - n.pos.x, n.kp[1] - n.pos.z) < 0.6) { n.kp = [n.kid.x + (rnd() - 0.5) * 9, n.kid.z + (rnd() - 0.5) * 9]; n.kt = 1 + rnd() * 2.5; n.rest = rnd() < 0.25 ? 1.2 : 0; }
@@ -189,7 +195,9 @@ function updateNpcs(dt) {
       if (d2 < 36 && !n.giver && pose !== 'sit' && pose !== 'work') n.yaw += angDiff(n.yaw, Math.atan2(pp.x - n.pos.x, pp.z - n.pos.z)) * dt * 2;
       if (n.waveT > 0) { n.waveT -= dt; pose = 'wave'; }
     }
-    if (vis && d2 < 70 * 70) { n.R.root.rotation.y = n.yaw; n.pos.y = n.y || Math.max(0, C.ground(n.pos.x, n.pos.z, 0.5)) ; animate(n.R, dt, { pose: pose === 'punch' ? 'kurash' : pose, speed: sp }); }
+    if (n.kb) { n.pos.x += n.kb.x * dt; n.pos.z += n.kb.z * dt; n.kb.x *= 0.85; n.kb.z *= 0.85; C.push(n.pos, 0.35, 0); if (Math.abs(n.kb.x) + Math.abs(n.kb.z) < 0.05) n.kb = null; }
+    if (n.hitT > 0) { n.hitT -= dt; pose = 'hit'; }
+    if (vis && d2 < 70 * 70) { n.R.root.rotation.y = n.yaw; n.pos.y = n.y || Math.max(0, C.ground(n.pos.x, n.pos.z, 0.5)) ; animate(n.R, dt, { pose, speed: sp, pt: pose === 'hit' ? 1 - n.hitT / 0.35 : Math.min(1, n.pt || 0) }); }
   }
   for (const n of npcs) if (n.musician) { const d = n.pos.distanceTo(P.pos); n.noteT = (n.noteT || 0) - dt; if (n.noteT <= 0 && d < 22) { n.noteT = 0.24; AU.streetDutor(Math.max(0, 1 - d / 22)); } }
   for (const g of givers) { if (!g.id) { g.mark.rotation.y += dt * 2; continue; } g.mark.position.set(g.n.pos.x, 2.35 + Math.sin(performance.now() / 300) * 0.1, g.n.pos.z); g.mark.rotation.y += dt * 2; g.mark.visible = !M_ || M_.id !== g.id; }
@@ -213,13 +221,14 @@ async function knockedOut() {
   await say('Choyxonachi', `Hushingizga keldingizmi, bolam? Sizni choyxonaga olib kelishdi. Tabib ${fine} tanga oldi. Endi ehtiyot bo'ling — mahalla hammasini ko'rib turadi.`, ['Rahmat']);
 }
 function punch() {
-  if (P.mode !== 'foot' || P.punchT > 0) return; P.punchT = 0.45; AU.sfx('tak');
+  if (P.mode !== 'foot' || P.punchT > 0.15) return; P.combo = P.punchT > 0 ? (P.combo || 0) + 1 : 0; P.punchT = 0.42; P.punchSide = P.combo % 2 ? -1 : 1; AU.sfx('tak');
+  { const tgt = [...npcs].filter((n) => n.state !== 'down' && n.pos.distanceTo(P.pos) < 2.6).sort((a, b) => a.pos.distanceTo(P.pos) - b.pos.distanceTo(P.pos))[0]; if (tgt) P.yaw = Math.atan2(tgt.pos.x - P.pos.x, tgt.pos.z - P.pos.z); }
   const fx = Math.sin(P.yaw), fz = Math.cos(P.yaw);
   for (const list of [npcs, guards.map((g) => g.n)]) for (const n of list) {
     if (!n || n.state === 'down') continue; const dx = n.pos.x - P.pos.x, dz = n.pos.z - P.pos.z, d = Math.hypot(dx, dz);
     if (d < 1.4 && (dx * fx + dz * fz) / (d || 1) > 0.4) {
-      n.hp -= 1; n.pos.x += fx * 0.4; n.pos.z += fz * 0.4; AU.sfx('step', 2);
-      if (n.hp <= 0) { n.state = 'down'; n.downT = 5; n.hp = 3; n.angry = rnd() < 0.35 && n.role !== 'bola' && n.role !== 'ayol'; toast(n.role === 'oqsoqol' ? 'Kattalarga qo\'l ko\'tarish — uyat!' : 'Yiqitdingiz!'); }
+      const dmg = P.combo >= 2 ? 2 : 1; n.hp -= dmg; n.kb = { x: fx * (dmg > 1 ? 3.5 : 1.8), z: fz * (dmg > 1 ? 3.5 : 1.8) }; n.hitT = 0.35; shake = 0.18 * dmg; AU.sfx('step', 2.5); AU.sfx('tak'); showFoeHp(n);
+      if (n.hp <= 0) { n.state = 'down'; n.downT = 5; n.hp = n.maxHp || 4; n.angry = rnd() < 0.35 && n.role !== 'bola' && n.role !== 'ayol'; toast(n.role === 'oqsoqol' ? 'Kattalarga qo\'l ko\'tarish — uyat!' : 'Yiqitdingiz!'); }
       else if (n.role === 'ishchi' || n.role === 'posbon' || (n.role === 'savdogar' && rnd() < 0.4)) { n.state = 'fight'; n.angry = 1; } else { n.state = 'flee'; n.fleeT = 6; }
       addHeat(n.role === 'oqsoqol' ? 1.2 : 0.6, true); S.obro = Math.max(0, S.obro - (n.role === 'oqsoqol' ? 3 : 1));
       break;
@@ -243,6 +252,8 @@ function updatePlayer(dt) {
   const sp = P.speed; P.pos.x += Math.sin(P.yaw) * sp * dt * (mag > 0.05 ? 1 : 0); P.pos.z += Math.cos(P.yaw) * sp * dt * (mag > 0.05 ? 1 : 0);
   if (mag <= 0.05) P.speed *= 0.8;
   C.push(P.pos, 0.32, P.pos.y);
+  for (const n of npcs) { if (n.state === 'down' || n.y) continue; const dx = P.pos.x - n.pos.x, dz = P.pos.z - n.pos.z, d = Math.hypot(dx, dz); if (d < 0.62 && d > 1e-4) { const k = (0.62 - d) / d; P.pos.x += dx * k * 0.6; P.pos.z += dz * k * 0.6; n.pos.x -= dx * k * 0.4; n.pos.z -= dz * k * 0.4; } }
+  for (const m of mounts) { if (m === P.mount) continue; const dx = P.pos.x - m.pos.x, dz = P.pos.z - m.pos.z, d = Math.hypot(dx, dz), R0 = m.cart ? 1.4 : 0.9; if (d < R0 && d > 1e-4) { P.pos.x = m.pos.x + dx / d * R0; P.pos.z = m.pos.z + dz / d * R0; } }
   // yer va tortishish
   const g0 = C.ground(P.pos.x, P.pos.z, P.pos.y, 0.15), tr = heightAt(P.pos.x, P.pos.z), ground = underground ? g0 : Math.max(g0, tr);
   if (inp.jump && P.onGround && !P.carry) { P.vy = 4.6; P.onGround = false; P.fallFrom = P.pos.y; }
@@ -255,9 +266,10 @@ function updatePlayer(dt) {
   const lim = 255; P.pos.x = clamp(P.pos.x, -lim, lim); P.pos.z = clamp(P.pos.z, -lim, lim);
   // qadam tovushi
   P.stepT = (P.stepT || 0) - dt * sp; if (P.onGround && sp > 0.5 && P.stepT <= 0) { AU.sfx('step', 0.5 + sp * 0.1); P.stepT = 0.8; }
-  let pose = P.pose || (P.punchT > 0 ? 'kurash' : !P.onGround ? 'jump' : P.carry ? 'carry' : 'walk');
+  P.block = (keys.has('KeyV') || inp.block) && P.mode === 'foot';
+  let pose = P.pose || (P.punchT > 0 ? (P.punchSide < 0 ? 'punch2' : 'punch') : P.block ? 'guard' : !P.onGround ? 'jump' : P.carry ? 'carry' : 'walk');
   hero.root.position.copy(P.pos); hero.root.rotation.y = P.yaw;
-  animate(hero, dt, { pose, speed: P.onGround ? sp : 0 });
+  animate(hero, dt, { pose, speed: P.onGround && !P.punchT ? sp : 0, pt: 1 - Math.max(0, P.punchT) / 0.42 });
 }
 function updateRide(dt, mx, mz, mag) {
   const m = P.mount, max = { ot: inp.run ? 12 : 7, eshak: 4.5, tuya: inp.run ? 7.5 : 4.5, arava: inp.run ? 6.5 : 4 }[m.kind];
@@ -276,9 +288,9 @@ function updateRide(dt, mx, mz, mag) {
 }
 function mountUp(m, how = 'own') {
   if (m.riderR) { // chavandozni tushirish (o'g'irlash)
-    const rr = m.riderR; m.root.remove(rr.root); const n = addNpc({ x: m.pos.x + 1.4, z: m.pos.z, role: 'ishchi', walk: true }); scene.remove(n.R.root); n.R = rr; scene.add(rr.root); rr.root.position.copy(n.pos); n.state = 'down'; n.downT = 3; n.angry = rnd() < 0.5;
+    const rr = m.riderR; m.root.remove(rr.root); const n = addNpc({ x: m.pos.x + 1.4, z: m.pos.z, role: 'ishchi', walk: true }); scene.remove(n.R.root); n.R = rr; n.pos = rr.root.position; scene.add(rr.root); rr.root.position.set(m.pos.x + 1.4, 0, m.pos.z); n.state = 'down'; n.downT = 1.8; n.angry = 1; n.owner = true; toast('Egasi: "Ulovimni qaytar!"');
     m.riderR = null; addHeat(1.6, true); toast(m.kind === 'arava' ? 'Aravani tortib oldingiz!' : 'Ulovni tortib oldingiz!');
-  } else if (how === 'steal') { addHeat(1.4, true); toast('Ot o\'g\'irlandi!'); }
+  } else if (how === 'steal') { addHeat(1.4, true); toast('Ot o\'g\'irlandi!'); const p = freeSpot(m.pos.x + 3, m.pos.z + 2); const o = addNpc({ x: p.x, z: p.z, role: 'chavandoz', walk: true }); o.state = 'fight'; o.angry = 1; o.owner = true; }
   if (m.led) { const L = m.led; L.state = 'fight'; L.angry = 1; L.leads = null; m.led = null; addHeat(1.2, true); toast('Karvonchi: "Hoy, yukimni qayoqqa?!"'); }
   m.tied = false; m.owned = true; P.mount = m; P.mode = 'ride';
   hero.root.position.set(0, m.kind === 'arava' ? 1.05 : m.A.seatY - (m.A.rigged ? 0.55 : 0.95), m.kind === 'arava' ? -2.0 : 0); hero.root.rotation.set(0, 0, 0); m.root.add(hero.root);
@@ -319,13 +331,14 @@ function updatePara(dt, ix, iz) {
 /* ================= mahalla e'tibori (qidiruv) ================= */
 const HEAT_TXT = ['', 'Qo\'shni xola derazadan qarab qoldi', 'Oqsoqol xabar topdi', 'Posbonlar safarbar etildi'];
 function addHeat(v, witnessed) { const seen = witnessed && npcs.some((n) => n.state !== 'down' && n.pos.distanceToSquared(P.pos) < 18 * 18); heat = Math.min(3.2, heat + (seen ? v : v * 0.4)); heatCool = 0; }
-function clearGuards() { for (const g of guards) { scene.remove(g.n.R.root); npcs = npcs.filter((n) => n !== g.n); } guards = []; }
+function clearGuards() { for (const g of guards) { scene.remove(g.n.R.root); npcs = npcs.filter((n) => n !== g.n); if (g.horse) { scene.remove(g.horse.root); mounts = mounts.filter((x) => x !== g.horse); } } guards = []; }
 function updateHeat(dt) {
   const lvl = Math.floor(heat);
-  const want = lvl >= 3 ? 4 : lvl >= 2 ? 2 : 0;
-  while (guards.length < want) { const a = rnd() * 6.28, x = P.pos.x + Math.cos(a) * 30, z = P.pos.z + Math.sin(a) * 30; const p = freeSpot(x, z); const n = addNpc({ x: p.x, z: p.z, role: 'posbon', pose: 'walk' }); n.state = 'chase'; guards.push({ n }); AU.sfx('whistle'); }
+  const want = lvl >= 3 ? 5 : lvl >= 2 ? 3 : heat >= 0.9 ? 1 : 0;
+  while (guards.length < want) { const a = rnd() * 6.28, x = P.pos.x + Math.cos(a) * 24, z = P.pos.z + Math.sin(a) * 24; const p = freeSpot(x, z); const n = addNpc({ x: p.x, z: p.z, role: 'posbon', pose: 'walk', name: 'Mirshab' }); n.state = 'chase'; const g = { n }; if (lvl >= 3 && guards.length % 2 === 0) { const m = addMount('ot', p.x, p.z, 0, { rider: true, riderRole: 'posbon' }); g.horse = m; scene.remove(n.R.root); } guards.push(g); AU.sfx('whistle'); toast(guards.length === 1 ? 'Mirshab hushtak chaldi!' : 'Mirshablar quvmoqda!'); }
   let seen = false;
-  for (const g of guards) { const n = g.n; if (n.state === 'down') continue; const d = n.pos.distanceTo(P.pos); if (d < 35) seen = true; n.state = 'chase'; if (d > 1.0) { const sp = lvl >= 3 ? 5.6 : 4.8; stepToward(n, P.pos.x, P.pos.z, sp, dt); animate(n.R, dt, { pose: 'walk', speed: sp }); n.R.root.rotation.y = n.yaw; } else if (P.mode === 'foot') { caught(); return; } }
+  for (const g of guards) { const n = g.n; if (g.horse) { const m = g.horse; const d = m.pos.distanceTo(P.pos); if (d < 40) seen = true; if (d > 2) { stepToward(m, P.pos.x, P.pos.z, P.mode === 'ride' ? 13 : 9, dt, 0.9); m.root.rotation.y = m.yaw; animateAnimal(m.A, dt, 9); if (m.riderR) animate(m.riderR, dt, { pose: 'ride', speed: 9 }); } else if (P.mode === 'ride') { dismount(true); toast('Mirshab sizni otdan tushirdi!'); } else { caught(); return; } n.pos.copy(m.pos); continue; }
+    if (n.state === 'down') continue; const d = n.pos.distanceTo(P.pos); if (d < 35) seen = true; n.state = 'chase'; if (d > 1.0) { const sp = P.mode === 'ride' ? 6.8 : lvl >= 3 ? 6.0 : 5.4; stepToward(n, P.pos.x, P.pos.z, sp, dt); animate(n.R, dt, { pose: 'walk', speed: sp }); n.R.root.rotation.y = n.yaw; } else if (P.mode === 'foot') { caught(); return; } else if (rnd() < dt * 0.8) { dismount(true); toast('Mirshab sizni ulovdan tortib tushirdi!'); } }
   if (heat > 0) { heatCool += dt; const rate = (S.obro >= 50 ? 1 / 7 : 1 / 12) * (seen ? 0.15 : 1); if (heatCool > 3) heat = Math.max(0, heat - dt * rate); if (heat < 1.5 && guards.length) clearGuards(); }
   const el = $('hud-stars'); const l2 = Math.ceil(heat - 0.05);
   el.innerHTML = l2 > 0 ? [1, 2, 3].map((i) => `<span class="${i <= l2 ? 'on' : ''}">!</span>`).join('') + `<em>${HEAT_TXT[Math.min(3, l2)]}</em>` : '';
@@ -335,7 +348,7 @@ async function caught() { const fine = Math.ceil(S.money * 0.2); S.money -= fine
 /* ================= o'zaro ta'sir ================= */
 let curAct = null;
 function findAction() {
-  if (P.mode === 'ride') return { label: 'Ulovdan tushish', key: 'F', run: () => dismount() };
+  if (P.mode === 'ride') { const m = P.mount; if ((m.kind === 'ot' || m.kind === 'eshak') && !m.cart) { const fc = freeCarts.find((c) => Math.hypot(c.x - m.pos.x, c.z - m.pos.z) < 4); if (fc) return { label: 'Aravani ulash · F — tushish', key: 'E', run: () => hitchCart(fc) }; } if (m.hitched) return { label: 'Aravani ajratish · F — tushish', key: 'E', run: () => unhitchCart() }; return { label: 'Ulovdan tushish', key: 'F', run: () => dismount() }; }
   if (P.mode !== 'foot') return null;
   let best = null, bd = 1e9; const consider = (d, a) => { if (d < bd) { bd = d; best = a; } };
   for (const g of givers) { const d = g.n.pos.distanceTo(P.pos); if (d < 2.4 && !M_) consider(d - 1, g.id ? { label: `${g.n.name}: ${MISSIONS[g.id].title}`, key: 'E', run: () => offerMission(g.id, g.n) } : { label: 'Savdo qilish (Ipak yo\'li)', key: 'E', run: () => tradeUI() }); }
@@ -586,7 +599,7 @@ if (isTouch) {
   canvas.addEventListener('pointermove', (e) => { if (e.pointerId !== lid) return; camYaw -= (e.clientX - lp[0]) * 0.006; camPitch = clamp(camPitch + (e.clientY - lp[1]) * 0.004, -0.5, 1.2); lp = [e.clientX, e.clientY]; });
   canvas.addEventListener('pointerup', (e) => { if (e.pointerId === lid) lid = null; });
   document.querySelectorAll('#touch button').forEach((b) => b.addEventListener('pointerdown', (e) => { e.preventDefault(); const k = b.dataset.k; if (qteState) { qteInput('hit'); return; }
-    if (k === 'jump') { if (P.mode === 'carpet') { inp.up = true; setTimeout(() => (inp.up = false), 600); } else if (!P.onGround) inp.para = true; else inp.jump = true; } else if (k === 'use') { eDown = true; curAct?.run?.(); } else if (k === 'mount') { if (P.mode === 'ride') dismount(); else if (curAct?.key === 'F') curAct.run(); else { const m = mounts.find((m) => m.owned && m.pos.distanceTo(P.pos) < 3); if (m) mountUp(m); } } else if (k === 'steal') curAct?.steal?.(); else if (k === 'punch') punch(); else if (k === 'map') openMap(false); else if (k === 'wear') curAct?.wave ? curAct.wave() : null; else if (k === 'radio') toggleRadio(); else if (k === 'gilam') toggleCarpet(); else if (k === 'run') { inp.run = !inp.run; b.classList.toggle('act', inp.run); } }));
+    if (k === 'jump') { if (P.mode === 'carpet') { inp.up = true; setTimeout(() => (inp.up = false), 600); } else if (!P.onGround) inp.para = true; else inp.jump = true; } else if (k === 'use') { eDown = true; curAct?.run?.(); } else if (k === 'mount') { if (P.mode === 'ride') dismount(); else if (curAct?.key === 'F') curAct.run(); else { const m = mounts.find((m) => m.owned && m.pos.distanceTo(P.pos) < 3); if (m) mountUp(m); } } else if (k === 'steal') curAct?.steal?.(); else if (k === 'punch') punch(); else if (k === 'block') { inp.block = !inp.block; b.classList.toggle('act', inp.block); } else if (k === 'map') openMap(false); else if (k === 'wear') curAct?.wave ? curAct.wave() : null; else if (k === 'radio') toggleRadio(); else if (k === 'gilam') toggleCarpet(); else if (k === 'run') { inp.run = !inp.run; b.classList.toggle('act', inp.run); } }));
 }
 
 /* ================= radio ================= */
@@ -617,6 +630,7 @@ function updateHud(dt) {
   $('hp-bar').style.width = clamp(P.hp, 0, 100) + '%'; $('st-bar').style.width = P.st + '%'; $('hud-money').textContent = S.money; $('hud-obro').textContent = `${S.obro} · Yuk: ${invCount(S.inv)}/${capacity(P.mount)}`;
   const h = S.time | 0, mi = (S.time % 1) * 60 | 0; $('hud-clock').textContent = `${String(h).padStart(2, '0')}:${String(mi).padStart(2, '0')}`; $('hud-region').textContent = `${R.name} · ${R.city}`;
   toastT -= dt; if (toastT <= 0) $('hud-toast').hidden = true;
+  foeT -= dt; { const el = $('foe-hp'); if (foe && foeT > 0 && foe.state !== 'down') { el.hidden = false; el.querySelector('i').style.width = Math.max(0, foe.hp / (foe.maxHp || 4)) * 100 + '%'; el.querySelector('span').textContent = foe.name || ({ posbon: 'Mirshab', ishchi: 'Yigit', savdogar: 'Savdogar' }[foe.role] || 'Raqib'); } else el.hidden = true; }
   promptHold -= dt; if (curAct && !dlgOpen && !qteOn) showPrompt(curAct.key, curAct.label); else if (promptHold <= 0) $('hud-prompt').hidden = true;
   // minixarita (yo'nalish bo'yicha aylanadi)
   const Wm = 200, span = 280, k = 512 / (span * 2), zoom = 1.6, cx = Wm / 2; mm.save(); mm.clearRect(0, 0, Wm, Wm); mm.fillStyle = '#cbbd92'; mm.fillRect(0, 0, Wm, Wm); mm.translate(cx, cx);
@@ -639,7 +653,7 @@ function updateCamera(dt) {
   if (isTouch && (P.speed > 0.5 || P.mount?.speed > 1)) camYaw += angDiff(camYaw, P.yaw) * dt * 0.9;
   let d = dist; const dir = new V3(-Math.sin(camYaw) * Math.cos(camPitch), Math.sin(camPitch), -Math.cos(camYaw) * Math.cos(camPitch));
   for (let s = 0.4; s <= dist; s += 0.25) { const p = tgt.clone().addScaledVector(dir, s); if (C.blocked(p.x, p.y, p.z)) { d = Math.max(0.6, s - 0.4); break; } }
-  camT.lerp(tgt, Math.min(1, dt * 12)); camera.position.copy(camT).addScaledVector(dir, d); camera.lookAt(camT);
+  camT.lerp(tgt, Math.min(1, dt * 12)); camera.position.copy(camT).addScaledVector(dir, d); if (shake > 0) { shake -= dt; camera.position.x += (rnd() - 0.5) * shake * 0.6; camera.position.y += (rnd() - 0.5) * shake * 0.6; } camera.lookAt(camT);
 }
 
 /* ================= tutun va effektlar ================= */

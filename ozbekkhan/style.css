@@ -150,3 +150,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .tap-music{margin-top:8px;font-size:13px;color:var(--mut,#b9c6dc);text-align:center;width:min(460px,100%);opacity:.8}
 .objective .ot{font-family:Almendra,Georgia,serif;font-size:17px}
 #title{background:linear-gradient(90deg,rgba(10,29,61,.78) 0%,rgba(10,29,61,.45) 34%,rgba(10,29,61,0) 62%)}
+
+.foe{position:absolute;top:calc(max(14px,env(safe-area-inset-top)) + 40px);left:50%;transform:translateX(-50%);width:min(260px,60vw);text-align:center;font-size:13px}
+.foe .bar{height:7px;border-radius:4px;background:rgba(0,0,0,.5);overflow:hidden;margin-top:3px;box-shadow:0 0 0 1px rgba(245,236,217,.3)}
+.foe .bar i{display:block;height:100%;background:linear-gradient(90deg,#c6382d,#ef6b4f)}

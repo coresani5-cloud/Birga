@@ -131,7 +131,7 @@ export function buildRegion(R, opt = {}) {
   const B = new Batch(mats);
   const wallCol = new T.Color(S.wall).lerp(new T.Color('#ffffff'), 0.55).multiplyScalar(1.05), wallCol2 = new T.Color(S.wall2).lerp(new T.Color('#ffffff'), 0.5);
   const tint = (c, v = 0.08) => { const k = 1 + (r() - 0.5) * v * 2; return c.clone().multiplyScalar(k); };
-  const A = { tools: [], realTrees: [], props: [], stalls: [], doors: [], ladderRoofs: [], lanterns: [], horses: [], trees: [], benches: [], extras: {} };
+  const A = { carts: [], tools: [], realTrees: [], props: [], stalls: [], doors: [], ladderRoofs: [], lanterns: [], horses: [], trees: [], benches: [], extras: {} };
   const pois = [], npcs = [], fx = { fires: [], smoke: [], water: [] };
   const poi = (o) => { pois.push(o); return o; };
   const prop = (id, x, y, z, ry = 0, s = 1, o = {}) => A.props.push({ id, x, y, z, ry, s, ...o });
@@ -216,11 +216,13 @@ export function buildRegion(R, opt = {}) {
   }
   function cart(x, z, ry) {
     const LL = L(x, z, 0), c = Math.cos(ry), s = Math.sin(ry);
-    for (const side of [-1, 1]) { const wx = side * 1.0 * c, wz = -side * 1.0 * s; LL.add('wood', new T.TorusGeometry(0.85, 0.07, 6, 18), wx, 0.9, wz, { ry: ry + Math.PI / 2, col: '#6b4a2e' }); for (let k = 0; k < 8; k++) LL.add('wood', box(0.05, 1.6, 0.05), wx, 0.9, wz, { ry: ry + Math.PI / 2, rz: 0, rx: k * Math.PI / 8, col: '#6b4a2e' }); }
+    for (const side of [-1, 1]) { const wx = side * 1.0 * c, wz = -side * 1.0 * s; LL.add('wood', new T.TorusGeometry(0.85, 0.07, 6, 18), wx, 0.9, wz, { ry: ry + Math.PI / 2, col: '#6b4a2e' }); for (let k = 0; k < 8; k++) LL.add('wood', box(0.05, 1.6, 0.05), wx, 0.9, wz, { ry, rx: k * Math.PI / 8, col: '#6b4a2e' }); LL.add('wood', new T.CylinderGeometry(0.12, 0.12, 0.3, 10), wx, 0.9, wz, { ry, rz: Math.PI / 2, col: '#5d3f26' }); }
+    LL.add('wood', new T.CylinderGeometry(0.05, 0.05, 2.1, 8), 0, 0.9, 0, { ry, rz: Math.PI / 2, col: '#4a321e' });
     LL.add('wood', box(1.9, 0.12, 2.4), 0, 1.25, 0, { ry, col: '#8a6542' }); for (const side of [-1, 1]) LL.add('wood', box(0.08, 0.35, 2.4), side * 0.95 * c, 1.45, -side * 0.95 * s, { ry, col: '#7a5534' });
     for (const side of [-1, 1]) LL.add('wood', box(0.08, 0.08, 2.6), side * 0.55 * c + 2.2 * s, 0.9, -side * 0.55 * s + 2.2 * c, { ry, rx: 0.25, col: '#7a5534' });
     C.add(x - 1.3, z - 1.3, x + 1.3, z + 1.3, 1.3, -1);
   }
+  function parkedCart(x, z, ry) { A.carts.push({ x, z, ry }); }
   function haystack(x, z) { W0.add('earth', tf(jitterIco(1.1, 3, x, 0.12), 0, 0, 0, 0, 0, 0, 1.2, 0.75, 1.2), x, 0.5, z, { uv: 1.2, col: '#f2d68a' }); }
 
   /* ----- uy ----- */
@@ -566,7 +568,7 @@ export function buildRegion(R, opt = {}) {
       house(a0 + Math.max(0, j0), b0 + Math.max(0, j1), a1 - Math.max(0, -j0), b1 - Math.max(0, -j1), { n: Math.abs(b0 - Z0) < 0.1, s: Math.abs(b1 - Z1) < 0.1, w: Math.abs(a0 - X0) < 0.1, e: Math.abs(a1 - X1) < 0.1 });
     }
     if (r() < S.trees * 0.8) tree(cx + (r() - 0.5) * 10, z1 + 2.2, 0.9 + r() * 0.4, r() < 0.3 ? 'terak' : r() < 0.5 ? 'anor' : 'tut');
-    if (r() < 0.12) cart(x1 + 2.0, cz + (r() - 0.5) * 10, Math.PI / 2 * (r() < 0.5 ? 1 : -1) * 0 + 0);
+    if (r() < 0.12) parkedCart(x1 + 2.0, cz + (r() - 0.5) * 10, 0);
   }
 
   // bozor rastasi: janubiy darvozadan maydongacha

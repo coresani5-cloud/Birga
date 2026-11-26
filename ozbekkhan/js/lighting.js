@@ -41,6 +41,11 @@ export function createLighting(renderer, scene, { quality = 1 } = {}) {
   // ob-havo zarrachalari
   const N = quality > 0 ? 6000 : 2000, pg = new T.BufferGeometry(), pp = new Float32Array(N * 3); for (let i = 0; i < N; i++) { pp[i * 3] = (Math.random() - 0.5) * 80; pp[i * 3 + 1] = Math.random() * 40; pp[i * 3 + 2] = (Math.random() - 0.5) * 80; } pg.setAttribute('position', new T.BufferAttribute(pp, 3));
   const pmat = new T.PointsMaterial({ color: '#cfd8e6', size: 0.08, transparent: true, opacity: 0.6, depthWrite: false }); const parts = new T.Points(pg, pmat); parts.frustumCulled = false; parts.visible = false; scene.add(parts);
+  // qushlar (to'da bo'lib aylanadi) va havodagi oltin chang
+  const birds = new T.Group(); const bm = new T.MeshBasicMaterial({ color: '#2a2622', side: T.DoubleSide }); const bg = new T.BufferGeometry().setFromPoints([new T.Vector3(-0.35, 0.08, 0), new T.Vector3(0, 0, 0.12), new T.Vector3(0.35, 0.08, 0), new T.Vector3(0, 0, -0.1)]); bg.setIndex([0, 1, 3, 2, 3, 1]); bg.computeVertexNormals();
+  for (let i = 0; i < 14; i++) { const b = new T.Mesh(bg, bm); b.userData = { r: 25 + Math.random() * 25, a: Math.random() * 6.28, h: 30 + Math.random() * 18, sp: 0.15 + Math.random() * 0.1, f: Math.random() * 6 }; birds.add(b); } scene.add(birds);
+  const DN = quality > 0 ? 500 : 150, dg = new T.BufferGeometry(), dp = new Float32Array(DN * 3); for (let i = 0; i < DN; i++) { dp[i * 3] = (Math.random() - 0.5) * 30; dp[i * 3 + 1] = Math.random() * 8; dp[i * 3 + 2] = (Math.random() - 0.5) * 30; } dg.setAttribute('position', new T.BufferAttribute(dp, 3));
+  const dmat = new T.PointsMaterial({ color: '#ffd9a0', size: 0.045, transparent: true, opacity: 0.5, depthWrite: false, blending: T.AdditiveBlending }); const dust = new T.Points(dg, dmat); dust.frustumCulled = false; scene.add(dust);
   const L = {
     sun, hemi, weather: 'clear', setLanterns(list) { L.lanterns = list; glows.forEach((g) => g.parent?.remove(g)); glows = list.map((p) => { const s = new T.Sprite(glowMat); s.position.copy(p); s.scale.setScalar(1.6); scene.add(s); return s; }); },
     lanterns: [], mats: null, setWeather(w) { L.weather = w; },
@@ -67,6 +72,8 @@ export function createLighting(renderer, scene, { quality = 1 } = {}) {
         scene.fog.color.set(fc); scene.fog.near = W === 'dust' ? 8 : W === 'haze' ? 40 : W === 'rain' ? 25 : 120; scene.fog.far = W === 'dust' ? 160 : W === 'haze' ? 900 : W === 'rain' ? 380 : 2600;
       }
       sun.target.position.copy(focus);
+      birds.visible = !isNight && W !== 'rain'; const tt = performance.now() / 1000; birds.position.set(focus.x, 0, focus.z); for (const b of birds.children) { const u = b.userData; const a = u.a + tt * u.sp; b.position.set(Math.cos(a) * u.r, u.h + Math.sin(tt * 0.7 + u.f) * 2, Math.sin(a) * u.r); b.rotation.y = -a; b.scale.y = 1 + Math.sin(tt * 9 + u.f) * 0.8; }
+      dust.visible = !isNight && W !== 'rain'; dust.position.set(focus.x, 0, focus.z); dmat.opacity = twi ? 0.75 : 0.35; { const dpa = dg.attributes.position; for (let i = 0; i < DN; i++) { let y = dpa.getY(i) + dt * 0.15; if (y > 8) y = 0; dpa.setY(i, y); dpa.setX(i, dpa.getX(i) + Math.sin(tt + i) * dt * 0.08); } dpa.needsUpdate = true; }
       // fonuslar: tunda va shomda yonadi
       const lampK = isNight ? 1 : el < 6 ? 0.6 : 0;
       if (L.mats) L.mats.lamp.emissiveIntensity = lampK * 4;

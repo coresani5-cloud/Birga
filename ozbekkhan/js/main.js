@@ -13,6 +13,7 @@ import { loadRigSource, makeRigged, loadAnimalSource, makeRiggedAnimal } from '.
 import * as TX from './tex.js';
 import { MISSIONS, SIDE } from './missions.js';
 import * as AU from './audio.js';
+import { GOODS, priceAt, localGoods, capacity, invCount, CRAFT } from './econ.js';
 
 const T = THREE, V3 = T.Vector3;
 const $ = (id) => document.getElementById(id);
@@ -27,7 +28,7 @@ const angDiff = (a, b) => { let d = b - a; while (d > Math.PI) d -= Math.PI * 2;
 let Q = +(store.get('oz_q') ?? (isTouch ? 0 : 1)); const QN = ['Past', 'O\'rta', 'Yuqori'];
 const SAVE = 'bek_v1';
 const OUTFITS = { hero: 'Ko\'k-oltin chopon (asosiy)' };
-const defSave = () => ({ region: 'buxoro', money: 40, obro: 0, outfit: 'hero', done: {}, unlock: {}, time: 9.5, hp: 100 });
+const defSave = () => ({ region: 'buxoro', money: 40, obro: 0, outfit: 'hero', done: {}, unlock: {}, time: 9.5, hp: 100, inv: {}, day: 0 });
 let S = (() => { try { const j = JSON.parse(store.get(SAVE)); if (j?.region) return { ...defSave(), ...j }; } catch {} return null; })();
 const save = () => store.set(SAVE, JSON.stringify(S));
 
@@ -47,7 +48,7 @@ const waterMat = new T.MeshStandardMaterial({ color: '#3c7f86', roughness: 0.06,
 
 /* ================= AI personaj modellari ================= */
 const RIG = {}; // rol -> manba
-const RIG_NAMES = ['hero', 'oqsoqol', 'ayol', 'ayol2', 'savdogar', 'ishchi', 'posbon', 'sarboz', 'navkar', 'chavandoz', 'qishki', 'bola'];
+const RIG_NAMES = ['hero', 'oqsoqol', 'ayol', 'ayol2', 'savdogar', 'ishchi', 'posbon', 'sarboz', 'navkar', 'chavandoz', 'qishki', 'darvesh', 'bola'];
 const ANI = {}; const ANI_NAMES = { ot: 1.6, ot_yuk: 1.7, tuya: 2.2, tuya_yuk: 2.3, eshak_yuk: 1.35 };
 async function loadRigs() { await Promise.all(RIG_NAMES.map(async (n) => { const s = await loadRigSource(n); if (s) RIG[n] = s; }).concat(Object.entries(ANI_NAMES).map(async ([n, h]) => { const s = await loadAnimalSource(n, h); if (s) ANI[n] = s; }))); }
 const pickRole = (r) => { const alt = { posbon: ['sarboz', 'navkar', 'posbon'], ayol: ['ayol', 'ayol2'], ishchi: ['ishchi', 'chavandoz', 'qishki'] }[r]; if (!alt) return r; const ok = alt.filter((k) => RIG[k]); return ok.length ? ok[rnd() * ok.length | 0] : r; };
@@ -114,9 +115,11 @@ function spawnWorld() {
   for (const d of A.doors.slice(0, Q > 0 ? 4 : 2)) addNpc({ x: d.x, z: d.z, ry: d.ry, role: 'ishchi', pose: 'work', job: 'supuruvchi' });
   // topshiriq beruvchilar
   const list = (R.mission ? [R.mission] : []).concat(SIDE);
+  spawnTrader();
   for (const id of list) { const M = MISSIONS[id]; if (!M) continue; let g; try { g = M.giver.at(A); } catch { g = null; } if (!g) continue; const p = freeSpot(g.x, g.z); const n = addNpc({ x: p.x, z: p.z, ry: rnd() * 6, role: id === 'mehmon' ? 'ayol' : id === 'kurash' || id === 'kopkari' ? 'posbon' : 'oqsoqol', pose: 'idle', name: M.giver.name, mission: id });
-    const mk = new T.Mesh(new T.OctahedronGeometry(0.22), new T.MeshBasicMaterial({ color: M.side ? '#19b3ad' : '#e6b84c' })); mk.position.set(p.x, 2.35, p.z); scene.add(mk); givers.push({ id, n, mark: mk }); n.giver = true; }
+    const mk = new T.Mesh(new T.OctahedronGeometry(0.22), new T.MeshBasicMaterial({ color: M.job ? '#5ad16a' : M.side ? '#19b3ad' : '#e6b84c' })); mk.position.set(p.x, 2.35, p.z); scene.add(mk); givers.push({ id, n, mark: mk }); n.giver = true; }
 }
+function spawnTrader() { const p = freeSpot(-3.2, 103); const n = addNpc({ x: p.x, z: p.z, ry: Math.PI, role: 'savdogar', pose: 'idle', name: 'Ipak yo\'li savdogari' }); n.trader = true; const mk = new T.Mesh(new T.OctahedronGeometry(0.22), new T.MeshBasicMaterial({ color: '#ffffff' })); mk.position.set(p.x, 2.35, p.z); scene.add(mk); givers.push({ id: null, n, mark: mk }); }
 function freeSpot(x, z) { for (let r = 0; r < 12; r += 1) for (let a = 0; a < 6.28; a += 0.8) { const px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r; if (C.ground(px, pz, 0.2, 0.4) < 0.7) { let ok = true; for (const i of C.near(px, pz)) { const b = C.b[i]; if (px > b.x0 - 0.4 && px < b.x1 + 0.4 && pz > b.z0 - 0.4 && pz < b.z1 + 0.4 && b.top > 0.7) ok = false; } if (ok) return { x: px, z: pz }; } } return { x, z }; }
 function addMount(kind, x, z, ry, o = {}) {
   const aKey = o.pack ? { ot: 'ot_yuk', tuya: 'tuya_yuk', eshak: 'eshak_yuk' }[kind] : { ot: 'ot', tuya: 'tuya', eshak: 'eshak_yuk', arava: 'eshak_yuk' }[kind];
@@ -154,7 +157,7 @@ function updateNpcs(dt) {
     }
     if (vis && d2 < 70 * 70) { n.R.root.rotation.y = n.yaw; n.pos.y = n.y || Math.max(0, C.ground(n.pos.x, n.pos.z, 0.5)) ; animate(n.R, dt, { pose: pose === 'punch' ? 'kurash' : pose, speed: sp }); }
   }
-  for (const g of givers) { g.mark.position.set(g.n.pos.x, 2.35 + Math.sin(performance.now() / 300) * 0.1, g.n.pos.z); g.mark.rotation.y += dt * 2; g.mark.visible = !M_ || M_.id !== g.id; }
+  for (const g of givers) { if (!g.id) { g.mark.rotation.y += dt * 2; continue; } g.mark.position.set(g.n.pos.x, 2.35 + Math.sin(performance.now() / 300) * 0.1, g.n.pos.z); g.mark.rotation.y += dt * 2; g.mark.visible = !M_ || M_.id !== g.id; }
   // ulovlar
   for (const m of mounts) {
     if (m === P.mount) continue;
@@ -279,7 +282,7 @@ function findAction() {
   if (P.mode === 'ride') return { label: 'Ulovdan tushish', key: 'F', run: () => dismount() };
   if (P.mode !== 'foot') return null;
   let best = null, bd = 1e9; const consider = (d, a) => { if (d < bd) { bd = d; best = a; } };
-  for (const g of givers) { const d = g.n.pos.distanceTo(P.pos); if (d < 2.4 && !M_) consider(d - 1, { label: `${g.n.name}: ${MISSIONS[g.id].title}`, key: 'E', run: () => offerMission(g.id, g.n) }); }
+  for (const g of givers) { const d = g.n.pos.distanceTo(P.pos); if (d < 2.4 && !M_) consider(d - 1, g.id ? { label: `${g.n.name}: ${MISSIONS[g.id].title}`, key: 'E', run: () => offerMission(g.id, g.n) } : { label: 'Savdo qilish (Ipak yo\'li)', key: 'E', run: () => tradeUI() }); }
   for (const m of mounts) { if (m === P.mount) continue; const d = m.pos.distanceTo(P.pos); if (d < 2.6) { if (m.riderR) consider(d, { label: m.kind === 'arava' ? 'Aravani tortib olish' : 'Chavandozni tushirib, ulovni olish', key: 'F', run: () => mountUp(m) }); else if (m.owned) consider(d, { label: 'Minish', key: 'F', run: () => mountUp(m) }); else consider(d, { label: `Ijaraga olish (5 tanga) · G — o'g'irlash`, key: 'E', run: () => { if (S.money < 5) return toast('Tanga yetmaydi'); S.money -= 5; AU.sfx('coin'); mountUp(m); }, steal: () => mountUp(m, 'steal') }); } }
   for (const p of RES.pois) { const d = Math.hypot(p.x - P.pos.x, p.z - P.pos.z); if (d < p.r && Math.abs((p.y || 0) - P.pos.y) < 2.5) consider(d + 0.5, poiAction(p)); if (p.top && Math.hypot(p.top.x - P.pos.x, p.top.z - P.pos.z) < 1.6 && Math.abs(p.top.y - P.pos.y) < 0.8) consider(0.2, { label: 'Pastga tushish', key: 'E', run: () => climb({ x: p.x, y: 0, z: p.z }) }); }
   for (const n of npcs) { if (n.giver || n.state === 'down') continue; const d = n.pos.distanceTo(P.pos); if (d < 1.8) consider(d + 0.3, { label: 'Gaplashish · Q — salom berish', key: 'E', run: () => talk(n), wave: () => greet(n) }); }
@@ -304,11 +307,31 @@ async function shopTalk(g) { const t = { doppi: 'Do\'ppilarimiz — Chust, Iroqi
 async function choyxona() { if (S.money < 1) return toast('Choyga ham tanga kerak!'); S.money -= 1; P.hp = 100; P.st = 100; save(); AU.sfx('coin'); const c = await say('Choyxonachi', `Marhamat, ko'k choy! ${R.customs[rnd() * R.customs.length | 0]}.\n\nO'yin saqlandi.`, ['Rahmat', 'Kechgacha dam olish', 'Tonggacha dam olish']); if (c === 1) S.time = 19; if (c === 2) S.time = 6.5; }
 async function hashar() { const s = await qte('meter', { rounds: 5, title: 'G\'ishtni to\'g\'ri qo\'ying — oltin zonada bosing', zone: 0.24 }); const k = Math.round(s * 5); S.money += k * 3; S.obro += k; AU.sfx('good'); toast(`Hashar: ${k}/5 g'isht · +${k * 3} tanga, +${k} obro'`); }
 
+/* ================= Ipak yo'li savdosi ================= */
+function tradeUI() {
+  dlgOpen = true; document.exitPointerLock?.(); S.inv = S.inv || {};
+  const draw = () => {
+    const cap = capacity(P.mount), used = invCount(S.inv), loc = localGoods(R.id);
+    const keys = [...new Set(loc.concat(Object.keys(S.inv).filter((k) => S.inv[k] > 0)).concat(Object.keys(GOODS).slice(0, 0)))];
+    const other = Object.keys(GOODS).filter((k) => !keys.includes(k));
+    $('dlg-who').textContent = `Ipak yo'li savdogari · ${R.city}`;
+    $('dlg-text').innerHTML = `<div style="margin-bottom:8px">Pulingiz: <b>${S.money}</b> tanga · Yuk: <b>${used}/${cap}</b>${P.mount ? '' : ' (ulov bilan ko\'proq sig\'adi)'}</div>` +
+      `<div style="display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap:6px 10px;align-items:center;font-size:14px">` +
+      keys.map((k) => { const p = priceAt(k, R.id, S.day); const sell = Math.max(1, Math.round(p * 0.85)); const own = S.inv[k] || 0; const local = loc.includes(k); return `<div>${esc(GOODS[k].n)}${local ? ' <span style="color:#7fe0d8">(mahalliy)</span>' : ''} · sizda ${own}</div><div>${local ? p + ' t' : ''}</div><button data-b="${k}" ${!local ? 'hidden' : ''}>Olish</button><button data-s="${k}" ${own ? '' : 'disabled'}>Sotish ${sell} t</button>`; }).join('') + `</div>` +
+      `<div style="margin-top:10px;font-size:13px;color:#b9c3d6">Boshqa viloyatlarda qimmat: ${other.slice(0, 6).map((k) => esc(GOODS[k].n) + ' — ' + priceAt(k, R.id, S.day) + ' t').join(', ')}</div>`;
+    $('dlg-btns').innerHTML = '<button id="tr-close">Yopish</button>';
+    $('tr-close').onclick = () => { $('dialog').hidden = true; dlgOpen = false; save(); };
+    $('dlg-text').querySelectorAll('button[data-b]').forEach((b) => b.onclick = () => { const k = b.dataset.b, p = priceAt(k, R.id, S.day); if (S.money < p) return toast('Tanga yetmaydi'); if (invCount(S.inv) >= capacity(P.mount)) return toast('Yuk joyi to\'ldi — ulov oling!'); S.money -= p; S.inv[k] = (S.inv[k] || 0) + 1; AU.sfx('coin'); draw(); });
+    $('dlg-text').querySelectorAll('button[data-s]').forEach((b) => b.onclick = () => { const k = b.dataset.s; if (!S.inv[k]) return; S.inv[k]--; S.money += Math.max(1, Math.round(priceAt(k, R.id, S.day) * 0.85)); AU.sfx('coin'); draw(); });
+  };
+  draw(); $('dialog').hidden = false;
+}
+
 /* ================= topshiriqlar dvigateli ================= */
 let M_ = null; class Fail extends Error {}
 async function offerMission(id, n) {
   const M = MISSIONS[id]; const done = S.done[id + '@' + R.id];
-  const c = await say(M.giver.name, M.intro + (done ? '\n\n(Siz buni bajargansiz — mukofot kamroq bo\'ladi.)' : ''), ['Qabul qilaman', 'Keyinroq']);
+  const c = await say(M.giver.name, M.intro + (done && !M.job ? '\n\n(Siz buni bajargansiz — mukofot kamroq bo\'ladi.)' : ''), [M.job ? 'Ishga kirishaman' : 'Qabul qilaman', 'Keyinroq']);
   if (c !== 0) return; runMission(id);
 }
 async function runMission(id) {
@@ -322,6 +345,7 @@ function endMission(ok, silent, msg) {
   setCarry(null); objHide(); $('hud-timer').hidden = true; qteClose();
   if (silent || ok === null) return;
   const M = MISSIONS[m.id], key = m.id + '@' + R.id;
+  if (ok && M.job) { S.money += M.reward.tanga; S.obro += M.reward.obro; AU.sfx('coin'); banner('Ish tugadi', `${M.title} · +${M.reward.tanga} tanga · +${M.reward.obro} obro'`); save(); return; }
   if (ok) { const first = !S.done[key]; const k = first ? 1 : 0.3; S.money += Math.round(M.reward.tanga * k); S.obro += Math.round(M.reward.obro * k); S.done[key] = true; if (M.reward.unlock) S.unlock[M.reward.unlock] = true; AU.karnay(); banner('Topshiriq bajarildi', `${M.title} · +${Math.round(M.reward.tanga * k)} tanga · +${Math.round(M.reward.obro * k)} obro'`); save(); }
   else { AU.sfx('bad'); banner('Topshiriq bajarilmadi', msg || ''); }
 }
@@ -349,7 +373,8 @@ function propModel(kind) {
   return g;
 }
 const G = {
-  get A() { return A; }, get R() { return R; }, get P() { return P; }, rnd,
+  get A() { return A; }, get R() { return R; }, get P() { return P; }, rnd, get craft() { return CRAFT[R.id]; },
+  addGood(g, n) { S.inv = S.inv || {}; const room = capacity(P.mount) - invCount(S.inv); const k = Math.max(0, Math.min(n, room)); S.inv[g] = (S.inv[g] || 0) + k; if (k < n) toast('Yuk joyi to\'ldi!'); },
   fail(msg) { throw new Fail(msg); },
   obj(title, text, o = {}) { objShow(title, text); if (o.timer) M_.timer = o.timer; },
   setTime(h) { S.time = h; }, radioTo(i) { if (AU.Audio.on) AU.setStation(i); },
@@ -407,8 +432,11 @@ function setCarry(k) {
   if (k === 'lagan') { m(new T.CylinderGeometry(0.32, 0.22, 0.06, 20), '#1f6fa8'); m(new T.SphereGeometry(0.24, 14, 8, 0, 6.3, 0, 1.4), '#c9903c').position.y = 0.03; }
   else if (k === 'non') for (let i = 0; i < 4; i++) m(new T.CylinderGeometry(0.2, 0.19, 0.05, 14), '#c98a3e').position.y = i * 0.055;
   else if (k === 'gul') for (let i = 0; i < 7; i++) m(new T.SphereGeometry(0.06, 6, 4), ['#d9263b', '#f2c230', '#e86aa0'][i % 3]).position.set((rnd() - 0.5) * 0.2, 0.1 + rnd() * 0.1, (rnd() - 0.5) * 0.2);
+  else if (k === 'qop') { const x = m(new T.SphereGeometry(0.32, 10, 8), '#c9a873'); x.scale.set(1.3, 0.8, 0.9); g.position.set(0, 1.72, -0.1); }
+  else if (k === 'choy') { m(new T.SphereGeometry(0.12, 12, 8), '#f1f4f6').position.y = 0.05; m(new T.CylinderGeometry(0.2, 0.18, 0.03, 16), '#d0a24a'); }
+  else if (k === 'mesh') { const x = m(new T.SphereGeometry(0.28, 10, 8), '#6b4a2e'); x.scale.set(0.8, 1.1, 0.7); }
   else m(new T.SphereGeometry(0.2, 10, 8), '#e8dcc0');
-  g.position.set(0, 1.12, 0.38); hero.root.add(g); P.carryObj = g;
+  if (k !== 'qop') g.position.set(0, 1.12, 0.38); hero.root.add(g); P.carryObj = g;
 }
 
 /* ================= UI ================= */
@@ -510,7 +538,7 @@ function drawMap() {
 /* ================= HUD va minixarita ================= */
 const mm = $('minimap').getContext('2d');
 function updateHud(dt) {
-  $('hp-bar').style.width = clamp(P.hp, 0, 100) + '%'; $('st-bar').style.width = P.st + '%'; $('hud-money').textContent = S.money; $('hud-obro').textContent = S.obro;
+  $('hp-bar').style.width = clamp(P.hp, 0, 100) + '%'; $('st-bar').style.width = P.st + '%'; $('hud-money').textContent = S.money; $('hud-obro').textContent = `${S.obro} · Yuk: ${invCount(S.inv)}/${capacity(P.mount)}`;
   const h = S.time | 0, mi = (S.time % 1) * 60 | 0; $('hud-clock').textContent = `${String(h).padStart(2, '0')}:${String(mi).padStart(2, '0')}`; $('hud-region').textContent = `${R.name} · ${R.city}`;
   toastT -= dt; if (toastT <= 0) $('hud-toast').hidden = true;
   promptHold -= dt; if (curAct && !dlgOpen && !qteOn) showPrompt(curAct.key, curAct.label); else if (promptHold <= 0) $('hud-prompt').hidden = true;
@@ -519,7 +547,7 @@ function updateHud(dt) {
   const th = -Math.PI / 2 - Math.atan2(Math.cos(camYaw), Math.sin(camYaw)); mm.rotate(th);
   const px = (P.pos.x + span) * k, pz = (P.pos.z + span) * k; mm.drawImage(mapImg, -px * zoom, -pz * zoom, 512 * zoom, 512 * zoom);
   const dot = (x, z, c, r = 4) => { mm.fillStyle = c; mm.beginPath(); mm.arc((x - P.pos.x) * k * zoom, (z - P.pos.z) * k * zoom, r, 0, 7); mm.fill(); };
-  for (const g of givers) if (!M_) dot(g.n.pos.x, g.n.pos.z, MISSIONS[g.id].side ? '#19b3ad' : '#e6b84c', 5);
+  for (const g of givers) if (!M_) dot(g.n.pos.x, g.n.pos.z, !g.id ? '#ffffff' : MISSIONS[g.id].job ? '#5ad16a' : MISSIONS[g.id].side ? '#19b3ad' : '#e6b84c', 5);
   for (const g of guards) dot(g.n.pos.x, g.n.pos.z, '#d2463a', 4);
   for (const m of markers) { const dx = (m.position.x - P.pos.x) * k * zoom, dz = (m.position.z - P.pos.z) * k * zoom, l = Math.hypot(dx, dz); const s = l > 90 ? 90 / l : 1; mm.fillStyle = '#e6b84c'; mm.beginPath(); mm.arc(dx * s, dz * s, 6, 0, 7); mm.fill(); mm.strokeStyle = '#0f2a57'; mm.lineWidth = 2; mm.stroke(); }
   mm.restore(); mm.save(); mm.translate(cx, cx); mm.rotate(th + Math.atan2(Math.cos(P.yaw), Math.sin(P.yaw)) + Math.PI / 2); mm.fillStyle = '#d2463a'; mm.beginPath(); mm.moveTo(0, -9); mm.lineTo(6, 7); mm.lineTo(0, 3); mm.lineTo(-6, 7); mm.fill(); mm.restore();
@@ -555,7 +583,7 @@ async function frame() {
   const now = performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (!RES || !hero) return;
   if (playing && !paused) {
-    readKeys(); S.time = (S.time + dt / 30) % 24;
+    readKeys(); { const nt = S.time + dt / 30; if (nt >= 24) S.day = (S.day || 0) + 1; S.time = nt % 24; }
     if (P.pose && (P.poseT -= dt) <= 0 && !qteOn) P.pose = null;
     updatePlayer(dt); updateNpcs(dt); updateHeat(dt); updateMission(dt); updateQte(dt);
     curAct = dlgOpen || qteOn ? null : findAction();

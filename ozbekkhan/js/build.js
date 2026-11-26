@@ -116,7 +116,7 @@ export function buildRegion(R, opt = {}) {
     gold: new T.MeshStandardMaterial({ color: '#d9a640', roughness: 0.3, metalness: 1 }),
     leaf: new T.MeshStandardMaterial({ map: TX.leafCard(0), alphaTest: 0.45, side: T.DoubleSide, vertexColors: true, roughness: 0.8 }),
     blob: new T.MeshStandardMaterial({ map: TX.leafTex(), vertexColors: true, roughness: 0.85 }),
-    stone: P('cobble'), sandstone: P('stone'),
+    stone: P('cobble'), sandstone: P('stone'), earth: P(R.land === 'desert' ? 'sand' : 'ground'),
     lamp: new T.MeshStandardMaterial({ color: '#ffcf7a', emissive: '#ffb347', emissiveIntensity: 0, roughness: 0.5 }),
     win: new T.MeshStandardMaterial({ color: '#24170e', emissive: '#ff9440', emissiveIntensity: 0, roughness: 0.9 }),
     fire: new T.MeshBasicMaterial({ color: '#ff8a2a', transparent: true, opacity: 0.9 }),
@@ -181,6 +181,7 @@ export function buildRegion(R, opt = {}) {
     // panjara (suyanchiq)
     for (let i = -5; i <= 5; i++) LL.add('wood', box(0.05, 0.45, 0.05), i * 0.2 * Math.cos(ry) - 0.85 * Math.sin(ry), 0.85, -i * 0.2 * Math.sin(ry) - 0.85 * Math.cos(ry), { col: '#7a5534' });
     LL.add('carpet' + ri(0, 2), new T.PlaneGeometry(2.0, 1.6), 0, 0.66, 0, { rx: -Math.PI / 2, ry, });
+    for (let k = 0; k < 3; k++) { const a = (k - 1) * 0.65; LL.add('carpet' + ri(0, 2), tf(new T.SphereGeometry(0.28, 10, 6), 0, 0, 0, 0, 0, 0, 1.2, 0.45, 0.8), a * Math.cos(ry) - 0.6 * Math.sin(ry), 0.78, -a * Math.sin(ry) - 0.6 * Math.cos(ry), { ry }); }
     if (withTea) { prop('tea_set_01', x, 0.67, z, ry + r(), 1.0); prop('carved_wooden_plate', x + 0.5 * Math.cos(ry), 0.67, z - 0.5 * Math.sin(ry), r() * 6, 1.0); }
     C.add(x - 1.1, z - 1.1, x + 1.1, z + 1.1, 0.66, -1); A.benches.push({ x, z, ry });
   }
@@ -246,6 +247,7 @@ export function buildRegion(R, opt = {}) {
         if (r() < 0.5) { const pp = at(u + 1.5, 0, 0.55); pot(pp[0], pp[2], 1.1); }
       }
       for (let u = -len / 2 + 0.8; u < len / 2 - 0.8; u += 2.2 + r() * 3) if (r() < 0.35) { const pp = at(u, 0, 0.25 + r() * 0.2); prop(r() < 0.6 ? 'grass_medium_01' : 'shrub_03', pp[0], 0, pp[2], r() * 6, 0.5 + r() * 0.5); }
+      if (r() < 0.22 && len > 3) { const u0 = (r() - 0.5) * (len - 3), wv = 1.5 + r() * 2.5, hv = 1.2 + r() * (h * 0.5); for (let k = 0; k < 4; k++) { const [px, py, pz] = at(u0 + (r() - 0.5) * wv, h - hv / 2 + 0.1, 0.12 + k * 0.03); W0.add('leaf', new T.PlaneGeometry(wv * (0.5 + r() * 0.5), hv * (0.6 + r() * 0.5)), px, py, pz, { ry, col: tint(new T.Color('#a8bd78'), 0.15) }); } }
       const nWin = Math.floor(len / 4.5);
       for (let i = 0; i < nWin; i++) { if (r() < 0.4) continue; const u = -len / 2 + (i + 0.5) * len / nWin; const [px, py, pz] = at(u, h - 1.4, 0.04); W0.add(r() < 0.45 ? 'win' : 'dark', box(0.7, 0.9, 0.1), px, py, pz, { ry }); const [qx, qy, qz] = at(u, h - 1.4, 0.1); for (let j = -1; j <= 1; j++) W0.add('wood', box(0.05, 0.9, 0.05), qx + tx * j * 0.22, qy, qz + tz * j * 0.22, { col: '#5d3f26' }); }
       if (Q > 0) for (let u = -len / 2 + 0.5; u < len / 2 - 0.3; u += 0.9) { const [px, py, pz] = at(u, h - 0.25, 0.18); W0.add('wood', new T.CylinderGeometry(0.08, 0.08, 0.4, 5), px, py, pz, { rx: Math.PI / 2, ry, col: '#6b5038' }); }
@@ -416,6 +418,57 @@ export function buildRegion(R, opt = {}) {
       npcs.push({ x: cx - 4, z: cz + 0.4, ry: Math.PI, role: 'kulol', pose: 'work', name: 'Usta kulol' });
       A.extras.rishton = { x: cx, z: cz + 5 };
     },
+    bibixonim: (cx, cz) => { // Bibixonim jome masjidi: ulkan peshtoq, gumbazli asosiy zal, burchak minoralari
+      const LL = L(cx, cz, 0), Wd = 40, D = 44, H = 12;
+      const wall = (x, z, w, d) => { LL.add('brick', box(w, H, d), x, H / 2, z, { uv: 0.45, col: '#ffffff' }); LL.add('band', scaleUV(box(w + 0.05, 1, d + 0.05), Math.max(1, Math.round(Math.max(w, d) / 8)), 1), x, H - 0.6, z, { uv: 0 }); LL.col(x, z, w, d, H + 0.2); };
+      wall(-Wd / 2 + 2, 0, 4, D); wall(Wd / 2 - 2, 0, 4, D); wall(-Wd / 2 + 7, D / 2 - 2, 10, 4); wall(Wd / 2 - 7, D / 2 - 2, 10, 4);
+      portal(LL, 0, D / 2 - 1.6, 20, 30, 4, { towers: true });
+      W0.add('brick', box(24, 18, 16), cx, 9, cz - D / 2 + 8, { uv: 0.45, col: '#ffffff' }); C.add(cx - 12, cz - D / 2, cx + 12, cz - D / 2 + 16, 18);
+      portal(L(cx, cz - D / 2 + 16.2, 0), 0, 0, 18, 26, 2.5, {});
+      dome(cx, 18, cz - D / 2 + 8, 9, { ribbed: true, drum: 0.9, el: 1.3 });
+      for (const sx of [-1, 1]) { W0.add('brick', box(12, 10, 12), cx + sx * 14, 5, cz, { uv: 0.45, col: '#ffffff' }); C.add(cx + sx * 14 - 6, cz - 6, cx + sx * 14 + 6, cz + 6, 10); dome(cx + sx * 14, 10, cz, 4.6, { ribbed: false, drum: 0.5 }); }
+      for (const [sx, sz] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) minaret(cx + sx * Wd / 2, cz + sz * D / 2, 30, 2.6, { bands: 4, tile: sz > 0 });
+      W0.add('stone', new T.PlaneGeometry(Wd - 8, D - 18), cx, 0.03, cz + 4, { rx: -Math.PI / 2, uv: 0.45, col: '#cfc3b0' }); W0.add('sandstone', box(4, 1.4, 2.4), cx, 0.7, cz + 4, { uv: 0.5, col: '#ffffff' }); // tosh lavh (Qur'on kursisi)
+      tree(cx - 9, cz + 8, 1.1, 'chinor'); tree(cx + 9, cz + 8, 1.1, 'chinor');
+      A.extras.bibixonim = { x: cx, z: cz + D / 2 + 4 };
+    },
+    shohizinda: (cx, cz) => { // Shohizinda: tor ko'cha bo'ylab koshinli maqbaralar ansambli
+      const n = 6, step = 7.2, z0 = cz + 18;
+      for (let i = 0; i < 5; i++) W0.add('sandstone', box(5.6, 0.25, 1.2), cx, 0.12 + i * 0.25, z0 + 2 - i * 1.2, { uv: 0.5, col: '#ffffff' });
+      for (let i = 0; i < n; i++) for (const sx of [-1, 1]) {
+        const z = z0 - 6 - i * step, x = cx + sx * 6.2, LL = L(x, z, sx > 0 ? -Math.PI / 2 : Math.PI / 2), h = 8 + (i % 3);
+        LL.add('brick', box(6.4, h, 6.4), 0, h / 2, -3.4, { uv: 0.45, col: '#ffffff' }); LL.col(0, -3.4, 6.4, 6.4, h);
+        portal(LL, 0, 0, 6.6, h + 2.5, 1.2, {});
+        const [dx, dz] = LL.p(0, -3.4); dome(dx, h, dz, 2.6, { ribbed: i % 2 === 0, drum: 0.7, el: 1.2 });
+      }
+      W0.add('stone', new T.PlaneGeometry(5.6, n * step + 4), cx, 0.025, z0 - n * step / 2 - 4, { rx: -Math.PI / 2, uv: 0.45, col: '#cfc3b0' });
+      A.extras.shohizinda = { x: cx, z: z0 + 2 };
+    },
+    observatoriya: () => { // Ulug'bek rasadxonasi: tepalik, aylana bino qoldig'i, yer ostiga tushuvchi ulkan sekstant
+      const cx = 120, cz = -150, y = heightAt(cx, cz);
+      W0.add('earth', tf(jitterIco(1, 3, 3, 0.12), 0, 0, 0, 0, 0, 0, 34, 7, 34), cx, y - 1.5, cz, { uv: 0.2, col: '#ffffff' }); C.add(cx - 26, cz - 26, cx + 26, cz + 26, y + 4.5, y - 5);
+      const ring = new T.CylinderGeometry(15, 15.5, 4.5, 48, 1, true, 0, Math.PI * 1.6); scaleUV(ring, 20, 2); W0.add('brick', ring, cx, y + 7.6, cz, { uv: 0, col: '#ffffff' });
+      W0.add('sandstone', new T.CircleGeometry(15, 48), cx, y + 5.45, cz, { rx: -Math.PI / 2, uv: 0.3, col: '#e8dcc8' });
+      const arc = new T.TorusGeometry(11, 0.5, 8, 40, Math.PI * 0.42); W0.add('sandstone', arc, cx, y + 5.6, cz, { ry: Math.PI / 2, rz: -Math.PI * 0.71, col: '#f2ead8' }); W0.add('gold', new T.TorusGeometry(11, 0.12, 6, 40, Math.PI * 0.42), cx + 0.6, y + 5.6, cz, { ry: Math.PI / 2, rz: -Math.PI * 0.71 });
+      W0.add('dark', box(2.2, 0.1, 13), cx, y + 5.5, cz + 3, {}); C.add(cx - 15, cz - 15, cx + 15, cz + 15, y + 5.45, y - 5); // yer ostiga tushuvchi xandaq og'zi
+      const ml = L(cx + 4, cz + 22, 0); ml.add('brick', box(12, 6, 7), 0, y + 4, 0, { uv: 0.45, col: '#ffffff' }); ml.col(0, 0, 12, 7, y + 6); portal(L(cx + 4, cz + 25.6, 0), 0, 0, 7, 8.5, 1.2, {}); dome(cx + 4, y + 6, cz + 22, 2.6, { drum: 0.5 });
+      A.extras.observatoriya = { x: cx + 4, z: cz + 30 };
+    },
+    ayozqala: () => { // Ayozqal'a: cho'l tepaligidagi qadimiy qal'a xarobalari
+      const cx = 150, cz = 140, y = heightAt(cx, cz);
+      W0.add('earth', tf(jitterIco(1, 3, 7, 0.15), 0, 0, 0, 0, 0, 0, 30, 9, 26), cx, y - 1.5, cz, { uv: 0.2, col: '#ffffff' }); C.add(cx - 22, cz - 18, cx + 22, cz + 18, y + 6, y - 5);
+      const top = y + 7.5, s2 = 13;
+      for (const [x0, z0, x1, z1] of [[-s2, -s2, s2, -s2], [s2, -s2, s2, s2], [s2, s2, -s2, s2], [-s2, s2, -s2, -s2]]) { const n = 7; for (let i = 0; i < n; i++) { if (r() < 0.18) continue; const t = (i + 0.5) / n, x = cx + x0 + (x1 - x0) * t, z = cz + z0 + (z1 - z0) * t, hh = 3 + r() * 4.5; W0.add('wall', frustum(Math.abs(x1 - x0) / n + 0.6 || 2.6, hh, Math.abs(z1 - z0) / n + 0.6 || 2.6, 0.4), x, top + hh / 2, z, { uv: 0.3, col: '#e0c79e' }); C.add(x - 1.4, z - 1.4, x + 1.4, z + 1.4, top + hh); } }
+      for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { const hh = 6 + r() * 3; W0.add('wall', new T.CylinderGeometry(2, 2.8, hh, 10), cx + sx * s2, top + hh / 2, cz + sz * s2, { uv: 0.3, col: '#d9bf92' }); C.add(cx + sx * s2 - 2.4, cz + sz * s2 - 2.4, cx + sx * s2 + 2.4, cz + sz * s2 + 2.4, top + hh); }
+      A.extras.ayozqala = { x: cx, z: cz - 22 };
+    },
+    hazratimom: (cx, cz) => { // Hazrati Imom: Baroqxon madrasasi, Tillashayx masjidi, maydon
+      madrasa(cx, cz - 10, 0, 34, 22, { H: 8, domes: [[-1, -1], [1, -1]], dr: 4, ph: 1.9, ptowers: true, corner: false, trees: false });
+      for (const sx of [-1, 1]) minaret(cx + sx * 13, cz + 12, 26, 1.8, { bands: 3 });
+      W0.add('stone', new T.PlaneGeometry(30, 14), cx, 0.03, cz + 8, { rx: -Math.PI / 2, uv: 0.45, col: '#d8cfc0' });
+      for (let i = 0; i < 4; i++) tree(cx - 12 + i * 8, cz + 14, 0.9, 'chinor');
+      A.extras.hazratimom = { x: cx, z: cz + 6 };
+    },
     jome: () => { madrasa(0, -24, 0, 44, 30, { domes: [[0, -1]], dr: 5, ph: 1.8, mat: 'brick' }); minaret(26, -10, 32, 2.6, { climb: true }); },
     kurash: (cx, cz) => { W0.add('plain', new T.CylinderGeometry(7, 7, 0.15, 32), cx, 0.07, cz, { col: '#d9c49a' }); for (let a = 0; a < 6.28; a += 0.5) { tapchan(cx + Math.cos(a) * 10.5, cz + Math.sin(a) * 10.5, -a + Math.PI / 2, false); } A.extras.kurash = { x: cx, z: cz }; },
   };
@@ -426,9 +479,10 @@ export function buildRegion(R, opt = {}) {
   for (const [i, j] of [[-1, -1], [0, -1], [-1, 0], [0, 0]]) reserved.set(key(i, j), 'plaza');
   reserved.set(key(0, 1), 'choyxona');
   reserved.set(key(-2, 2), 'hashar');
-  const secondary = R.landmarks.slice(1).filter((k) => !['walls_high', 'kopkari', 'temurdarvoza', 'ariq', 'gulbog', 'toqi', 'chorsu'].includes(k));
-  const secCells = [[-3, -3], [2, -3], [2, 2]];
-  secondary.forEach((k, n) => { const [i, j] = secCells[n % 3]; reserved.set(key(i, j), 'lm:' + k); if (k === 'ark' || k === 'kirkkiz') { reserved.set(key(i + 1, j), 'skip'); reserved.set(key(i, j + 1), 'skip'); reserved.set(key(i + 1, j + 1), 'skip'); } });
+  const BIG = ['ark', 'kirkkiz', 'bibixonim', 'shohizinda', 'hazratimom'];
+  const secondary = R.landmarks.slice(1).filter((k) => !['walls_high', 'kopkari', 'temurdarvoza', 'ariq', 'gulbog', 'observatoriya', 'ayozqala', 'toqi', 'chorsu'].includes(k));
+  const secCells = [[-3, -3], [1, -3], [1, 1]];
+  secondary.forEach((k, n) => { const [i, j] = secCells[n % 3]; reserved.set(key(i, j), 'lm:' + k); if (BIG.includes(k)) { reserved.set(key(i + 1, j), 'skip'); reserved.set(key(i, j + 1), 'skip'); reserved.set(key(i + 1, j + 1), 'skip'); } });
 
   // yer
   const groundKind = { desert: 'sand', steppe: 'dust', valley: 'dust', hills: 'dust', mountains: 'dust', fields: 'dust', river: 'dust' }[R.land];
@@ -475,7 +529,7 @@ export function buildRegion(R, opt = {}) {
       A.hashar = { x: cx, z: cz - 4 };
       tree(cx + 5, cz + 6, 1, 'tut'); continue;
     }
-    if (k && k.startsWith('lm:')) { const name = k.slice(3); const big = name === 'ark' || name === 'kirkkiz'; LM[name]?.(big ? cx + CELL / 2 : cx, big ? cz + CELL / 2 : cz); continue; }
+    if (k && k.startsWith('lm:')) { const name = k.slice(3); const big = BIG.includes(name); LM[name]?.(big ? cx + CELL / 2 : cx, big ? cz + CELL / 2 : cz); continue; }
     // mahalla bloki
     const ax = i === -1 ? 4.5 : 0, bx = i === 0 ? 4.5 : 0; // bozor ko'chasi uchun joy
     const bx0 = x0 + (i === -1 ? 0 : 0), bx1 = x1 - ax, bxx0 = x0 + bx;
@@ -498,12 +552,14 @@ export function buildRegion(R, opt = {}) {
   for (let z = 34; z < 100; z += 7.5) for (const side of [-1, 1]) { const g = order[si % order.length]; stall(side * 6.6, z, side > 0 ? Math.PI / 2 : -Math.PI / 2, g, si); si++; }
   if (R.landmarks.includes('toqi') || R.landmarks.includes('chorsu')) LM.toqi(0, 66);
   for (let z = 36; z < 100; z += 15) { lantern(-3.4, 2.6, z, Math.PI / 2); }
+  for (let z = 40; z < 100; z += 9) { const g = new T.PlaneGeometry(13, 0.9, 16, 1), pp = g.attributes.position; for (let i = 0; i < pp.count; i++) { const x = pp.getX(i); pp.setY(i, pp.getY(i) - (1 - (x / 6.5) ** 2) * 1.1); } g.computeVertexNormals(); W0.add('fab' + ri(0, 2), g, 0, 4.6, z, {}); }
   tandir(-9.5, 30); stall(-9.5, 26.5 - 2.6 + 0.4, Math.PI, 'non', 3);
   // asosiy yodgorlik
   LM[R.landmarks[0]]?.();
-  for (const k of ['walls_high', 'kopkari', 'temurdarvoza', 'ariq', 'gulbog']) if (R.landmarks.includes(k) && R.landmarks[0] !== k) LM[k]();
+  for (const k of ['walls_high', 'kopkari', 'temurdarvoza', 'ariq', 'gulbog', 'observatoriya', 'ayozqala']) if (R.landmarks.includes(k) && R.landmarks[0] !== k) LM[k]();
   // maydon chetida daraxtlar va tapchanlar
   for (const [x, z] of [[-22, 22], [22, 22], [-22, -2], [22, -24]]) tree(x, z, 1.3, R.id === 'surxondaryo' ? 'anor' : 'chinor');
+  for (const [x, z] of [[-21, 10], [21, 10], [-21, -14], [21, -14], [-8, 23], [8, 23]]) tree(x, z, 0.75, 'terak');
   // ot bog'lash joyi
   for (const [x, z] of [[-18, 26.5], [-15, 26.5]]) A.horses.push({ x, z, ry: 0 });
   W0.add('wood', box(7, 0.1, 0.1), -16.5, 1.1, 25.5, { col: '#6b4a2e' }); for (const x of [-20, -13]) W0.add('wood', box(0.12, 1.2, 0.12), x, 0.6, 25.5, { col: '#6b4a2e' });

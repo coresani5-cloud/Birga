@@ -21,6 +21,7 @@ P = {
   'chavandoz': "Full body photograph of a Central Asian horseman, 30, bushy moustache, brown fur trimmed hat, quilted red and green striped chapan, yellow sash, tall leather boots",
   'qishki': "Full body photograph of an Uzbek man in winter clothes, 40, black beard, fur hat, thick long sheepskin-lined brown coat with fur collar, wool sash, felt boots",
   'ayol2': "Full body photograph of a middle-aged Uzbek woman, 45, long dark green velvet dress with gold embroidery, colorful patterned headscarf, long robe over shoulders, leather shoes",
+  'darvesh': "Full body photograph of an elderly Central Asian dervish, 60, long dark grey beard, large black turban with a scarf wrapped around the neck, long dark robe, cream inner shirt, wide dark sash, leather sandals",
   'bola': "Full body photograph of an Uzbek boy, 10, small striped blue chapan robe, red sash, black doppi skullcap, small leather boots",
   'navkar': "Full body photograph of a Timurid era Central Asian warrior, 30, short black beard, white turban wrapped around a pointed gilded helmet, polished bronze lamellar breastplate with crossed leather straps, blue long coat with gold trim, brown cloak, wide baggy trousers, bronze greaves over leather boots, empty hands",
   'sarboz': "Full body photograph of a 19th century Bukhara emirate soldier, 35, full brown beard, white turban with a turquoise jewel, dark navy knee-length robe with gold embroidered borders, wide red and brown leather sash belt, leather bracers, dark trousers, tall brown leather boots, empty hands",

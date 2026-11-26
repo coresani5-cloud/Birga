@@ -140,4 +140,20 @@ export const MISSIONS = {
     intro: 'Qishloqdagi onadan o\'g\'liga qurt va xat bor. Uning uyi shaharning narigi chetida. Qisqa yo\'ldan o\'ting — kech qolmang!',
     async run(G) { G.carry('tugun'); const d = G.A.doors.slice().sort((a, b) => a.z - b.z)[0]; await G.collect([{ x: d.x, y: 0, z: d.z }], { model: 'door', title: 'Omonat yetkazish', text: 'Omonatni yetkazing. Qisqa yo\'ldan o\'ting!', radius: 2.2, timer: 75 }); G.carry(null); } },
 };
+
+/* ===================== ISHLAR (har doim qilish mumkin, pul topish yo'llari) ===================== */
+Object.assign(MISSIONS, {
+  hammol: { side: true, job: true, title: 'Hammollik', giver: { name: 'Karvonsaroy boshlig\'i', at: () => ({ x: 7, z: 102 }) }, reward: { tanga: 9, obro: 1 },
+    intro: 'Karvon keldi, yuk ko\'p! Qoplarni darvozadan bozor rastalariga tashib bering — har qopga 3 tanga.',
+    async run(G) { for (let i = 0; i < 3; i++) { G.obj('Hammollik', 'Darvoza yonidagi qopni oling (E).', `${i} / 3`); await G.reach(-4, 104, 2.2, { needE: true }); G.carry('qop'); const s = G.A.stalls[(G.rnd() * G.A.stalls.length) | 0]; G.obj('Hammollik', 'Qopni rastaga eltib bering.', `${i} / 3`); await G.reach(s.x - Math.sin(s.ry) * 1.6, s.z - Math.cos(s.ry) * 1.6, 2.2); G.carry(null); G.toast('+3 tanga'); } } },
+  choy: { side: true, job: true, title: 'Choyxonada xizmat', giver: { name: 'Choyxonachi', at: (A) => ({ x: A.choyxona.x + 3, z: A.choyxona.z + 3 }) }, reward: { tanga: 8, obro: 3 },
+    intro: 'Mehmonlar ko\'p, qo\'lim yetmayapti. Har tapchanga issiq choy eltib bering — choy sovimasin!',
+    async run(G) { const b = G.A.benches.slice(0, 3); for (let i = 0; i < b.length; i++) { G.carry('choy'); G.obj('Choyxonada xizmat', 'Choynakni tapchanga eltib bering.', `${i} / ${b.length}`); await G.reach(b[i].x, b[i].z, 2.2); G.carry(null); G.toast('Mehmon: "Rahmat, bolam!"'); if (i < b.length - 1) { G.obj('Choyxonada xizmat', 'Yangi choy oling.'); await G.reach(G.A.qozon.x + 1.5, G.A.qozon.z + 1.5, 2.2); } } } },
+  suv: { side: true, job: true, title: 'Meshkob (suv tashish)', giver: { name: 'Meshkob bobo', at: (A) => ({ x: A.hovuz.x - A.hovuz.w / 2 - 2.5, z: A.hovuz.z + 3 }) }, reward: { tanga: 9, obro: 4 },
+    intro: 'Qariganman, oyog\'im og\'riydi. Hovuzdan mesh bilan suv olib, uch xonadonga eltib bering.',
+    async run(G) { const h = G.A.hovuz; const ds = G.A.doors.slice().sort(() => G.rnd() - 0.5).slice(0, 3); for (let i = 0; i < 3; i++) { G.obj('Meshkob', 'Hovuzdan suv oling (E).', `${i} / 3`); await G.reach(h.x, h.z - h.d / 2 - 1.8, 2.4, { needE: true }); G.carry('mesh'); G.obj('Meshkob', 'Suvni xonadonga eltib bering.', `${i} / 3`); await G.reach(ds[i].x, ds[i].z, 2.2); G.carry(null); } } },
+  hunar: { side: true, job: true, title: 'Hunar ustaxonasi', giver: { name: 'Usta', at: () => ({ x: -10, z: 16 }) }, reward: { tanga: 4, obro: 2 },
+    intro: 'Shogird kerak! Ustaxonada ishlab, mahsulot tayyorlang — bir qismi sizniki. Uni boshqa viloyatda qimmatroq sotishingiz mumkin.',
+    async run(G) { const s = await G.qte('meter', { rounds: 5, title: G.craft.job + ' — oltin zonada bosing', zone: 0.22 }); const k = Math.round(s * 5); if (k < 2) G.fail('Usta: "Shoshmang, qo\'lingizni o\'rgating."'); G.addGood(G.craft.good, Math.max(1, k - 1)); G.toast(`${k}/5 · mahsulot qo'shildi`); } },
+});
 export const SIDE = Object.keys(MISSIONS).filter((k) => MISSIONS[k].side);

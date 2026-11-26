@@ -143,3 +143,6 @@ button{font:inherit;color:inherit;cursor:pointer}
 
 #fade{position:fixed;inset:0;background:#05101f;opacity:0;pointer-events:none;z-index:30;transition:opacity .5s}
 #fade.on{opacity:1}
+.dlg-text button{background:rgba(245,236,217,.08);border:1px solid rgba(230,184,76,.5);border-radius:8px;padding:6px 10px;font-size:13px;white-space:nowrap}
+.dlg-text button:disabled{opacity:.35}
+.dlg{max-height:80vh;overflow-y:auto}

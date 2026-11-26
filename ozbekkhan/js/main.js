@@ -236,9 +236,9 @@ function updatePlayer(dt) {
   if (P.mode === 'para') return updatePara(dt, ix, iz);
   if (P.mode === 'carpet') return updateCarpet(dt);
   const running = inp.run && P.st > 2 && mag > 0.3 && !P.carry;
-  const target = mag * (running ? 5.4 : P.carry === 'lagan' ? 1.1 : P.carry ? 1.4 : 1.7);
+  const target = mag * (running ? 7.5 : P.carry === 'lagan' ? 2.0 : P.carry ? 3.0 : 4.2);
   P.speed = lerp(P.speed, target, Math.min(1, dt * 8));
-  if (running) P.st = Math.max(0, P.st - dt * 14); else P.st = Math.min(100, P.st + dt * 10);
+  if (running) P.st = Math.max(0, P.st - dt * 9); else P.st = Math.min(100, P.st + dt * 14);
   if (mag > 0.05) P.yaw += angDiff(P.yaw, Math.atan2(mx, mz)) * Math.min(1, dt * 10);
   const sp = P.speed; P.pos.x += Math.sin(P.yaw) * sp * dt * (mag > 0.05 ? 1 : 0); P.pos.z += Math.cos(P.yaw) * sp * dt * (mag > 0.05 ? 1 : 0);
   if (mag <= 0.05) P.speed *= 0.8;
@@ -261,7 +261,7 @@ function updatePlayer(dt) {
 }
 function updateRide(dt, mx, mz, mag) {
   const m = P.mount, max = { ot: inp.run ? 12 : 7, eshak: 4.5, tuya: inp.run ? 7.5 : 4.5, arava: inp.run ? 6.5 : 4 }[m.kind];
-  m.speed = lerp(m.speed, mag * max, Math.min(1, dt * 2.2));
+  m.speed = lerp(m.speed, mag * max, Math.min(1, dt * 3));
   if (mag > 0.05) m.yaw += angDiff(m.yaw, Math.atan2(mx, mz)) * Math.min(1, dt * (m.kind === 'arava' ? 1.6 : 3));
   m.pos.x += Math.sin(m.yaw) * m.speed * dt; m.pos.z += Math.cos(m.yaw) * m.speed * dt;
   if (C.push(m.pos, m.kind === 'arava' ? 1.2 : 0.8, 0)) m.speed *= 0.85;

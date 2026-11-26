@@ -62,16 +62,16 @@ function prepare(scene, height = 1.78) {
     const dArm = Math.min(segD(v, sh, el), segD(v, el, hand)), dTorso = Math.abs(x) - torsoHalf;
     const isArm = y < shY + 0.03 * H && y > hand.y - 0.08 * H && Math.abs(x) > torsoHalf * 0.75 && dArm < 0.07 * H && (dTorso > -0.01 * H || y > 0.74 * H);
     if (isArm) {
-      const tUp = segT(v, sh, hand); const kEl = sm(0.42, 0.58, tUp); const kSh = sm(-0.02, 0.12, tUp);
+      const tUp = segT(v, sh, hand); const kEl = sm(0.34, 0.66, tUp); const kSh = sm(-0.06, 0.22, tUp);
       add('torso', 1 - kSh); add('sh' + sx, kSh * (1 - kEl)); add('el' + sx, kSh * kEl);
-    } else if (y > J.neck.y - 0.02 * H) { const k = sm(J.neck.y - 0.02 * H, J.neck.y + 0.03 * H, y); add('neck', k); add('torso', 1 - k); }
+    } else if (y > J.neck.y - 0.05 * H) { const k = sm(J.neck.y - 0.05 * H, J.neck.y + 0.04 * H, y); add('neck', k); add('torso', 1 - k); }
     else if (y > gapY) { // tana va chopon etagi
-      const kWaist = sm(J.hips.y - 0.02 * H, J.hips.y + 0.06 * H, y); // bel ustida — torso
-      const legShare = (1 - kWaist) * sm(J.hips.y, gapY, y) * 0.55; // etak pastga qarab oyoqqa ergashadi
+      const kWaist = sm(J.hips.y - 0.05 * H, J.hips.y + 0.1 * H, y); // bel ustida — torso
+      const legShare = (1 - kWaist) * sm(J.hips.y, gapY, y) * 0.3; // etak pastga qarab oyoqqa ergashadi
       add('torso', kWaist); add('hips', (1 - kWaist) - legShare); add('hp' + sx, legShare * (Math.abs(x) > 0.01 * H ? 1 : 0.5)); if (Math.abs(x) <= 0.01 * H) add('hp' + (sx === 'L' ? 'R' : 'L'), legShare * 0.5);
     } else { // oyoqlar (etakdan pastda)
-      const kKn = sm(J.knL.y + 0.04 * H, J.knL.y - 0.04 * H, y), kFt = sm(J.ftL.y + 0.03 * H, J.ftL.y - 0.01 * H, y);
-      add('hp' + sx, 1 - kKn); add('kn' + sx, kKn * (1 - kFt)); add('ft' + sx, kKn * kFt);
+      const kKn = sm(J.knL.y + 0.07 * H, J.knL.y - 0.07 * H, y), kFt = sm(J.ftL.y + 0.04 * H, J.ftL.y - 0.02 * H, y);
+      const kHem = sm(gapY + 0.01 * H, gapY - 0.12 * H, y); add('hips', (1 - kHem) * (1 - kKn)); add('hp' + sx, kHem * (1 - kKn)); add('kn' + sx, kKn * (1 - kFt)); add('ft' + sx, kKn * kFt);
     }
     const ents = Object.entries(w).sort((a, b) => b[1] - a[1]).slice(0, 4); const tot = ents.reduce((a, e) => a + e[1], 0) || 1;
     ents.forEach(([k, a], j) => { si[i * 4 + j] = idx[k]; sw[i * 4 + j] = a / tot; }); if (!ents.length) { si[i * 4] = idx.hips; sw[i * 4] = 1; }

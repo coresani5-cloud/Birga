@@ -187,16 +187,23 @@ export function animate(R, dt, st) {
   else if (pose === 'carry') { aL.sh.rotation.x = -1.1; aR.sh.rotation.x = -1.1; aL.el.rotation.x = -0.9; aR.el.rotation.x = -0.9; legSwing = Math.min(1, sp / 4) * 0.5; }
   else if (pose === 'lie') { R.hips.rotation.x = -Math.PI / 2; hipY = 0.2; }
   if (pose === 'walk' || pose === 'carry' || pose === 'idle') {
-    const run = Math.min(1, Math.max(0, (sp - 2.5) / 3)), k = Math.min(1, sp / 2.2);
-    const ph = t * (5 + run * 4);
-    legSwing = (0.45 + run * 0.35) * k; armSwing = (0.35 + run * 0.5) * k;
-    L.hp.rotation.x = Math.sin(ph) * legSwing; Rr.hp.rotation.x = -Math.sin(ph) * legSwing;
-    L.kn.rotation.x = Math.max(0, -Math.sin(ph + 0.6)) * (0.7 + run * 0.9) * k; Rr.kn.rotation.x = Math.max(0, Math.sin(ph + 0.6)) * (0.7 + run * 0.9) * k;
-    if (pose !== 'carry') { aL.sh.rotation.x = -Math.sin(ph) * armSwing; aR.sh.rotation.x = Math.sin(ph) * armSwing; aL.el.rotation.x = -0.25 - run * 0.9; aR.el.rotation.x = -0.25 - run * 0.9; }
-    aL.sh.rotation.z = 0.08; aR.sh.rotation.z = -0.08;
-    bob = Math.abs(Math.sin(ph)) * 0.035 * k; tilt = run * 0.18;
-    R.torso.rotation.x = tilt; R.torso.rotation.y = Math.sin(ph) * 0.08 * k;
-    if (sp < 0.1) { R.torso.rotation.x = Math.sin(t * 1.3) * 0.015; R.head.rotation.y = Math.sin(t * 0.4) * 0.3; aL.sh.rotation.z = 0.1; aR.sh.rotation.z = -0.1; }
+    // qadam fazasi tezlikka bog'langan: oyoq yerda sirpanmaydi (qadam uzunligi yurishda ~0.75 m, yugurishda ~1.2 m)
+    const run = Math.min(1, Math.max(0, (sp - 2.6) / 3.2)), k = Math.min(1, sp / 1.6), stride = (0.75 + run * 0.5) * (R.rigged ? 0.8 : 1);
+    R.ph = (R.ph || 0) + dt * (sp / stride) * Math.PI; const ph = R.ph;
+    const robe = R.rigged ? 0.62 : 1; legSwing = (0.42 + run * 0.3) * k * robe; armSwing = (0.3 + run * (R.rigged ? 0.25 : 0.45)) * k;
+    const s1 = Math.sin(ph), c1 = Math.cos(ph);
+    L.hp.rotation.x = s1 * legSwing; Rr.hp.rotation.x = -s1 * legSwing;
+    // tizza: oldinga ko'tarilayotgan oyoqda ko'proq bukiladi
+    L.kn.rotation.x = (Math.max(0, -c1) * (0.55 + run * 0.7) * robe + 0.05) * k; Rr.kn.rotation.x = (Math.max(0, c1) * (0.55 + run * 0.7) * robe + 0.05) * k;
+    L.ft.rotation.x = -Math.max(0, s1) * 0.25 * k; Rr.ft.rotation.x = Math.max(0, s1) * 0.25 * k;
+    if (pose !== 'carry') { aL.sh.rotation.x = -s1 * armSwing; aR.sh.rotation.x = s1 * armSwing; const eb = R.rigged ? 0.45 : 1.0; aL.el.rotation.x = -0.15 - run * eb - Math.max(0, s1) * 0.12 * k; aR.el.rotation.x = -0.15 - run * eb - Math.max(0, -s1) * 0.12 * k; }
+    aL.sh.rotation.z = 0.1 + run * 0.1; aR.sh.rotation.z = -0.1 - run * 0.1;
+    // son va yelka chayqalishi, yon tebranish, bosh barqaror
+    R.hips.rotation.y = s1 * 0.12 * k; R.hips.rotation.z = c1 * 0.04 * k; R.hips.position.x = c1 * 0.025 * k;
+    R.torso.rotation.y = -s1 * 0.2 * k; tilt = 0.04 * k + run * 0.2; R.torso.rotation.x = tilt;
+    R.head.rotation.y = s1 * 0.08 * k; R.head.rotation.x = -tilt * 0.5;
+    bob = (Math.abs(Math.cos(ph)) - 0.5) * (0.04 + run * 0.04) * k;
+    if (sp < 0.1) { const br = Math.sin(t * 1.4); R.torso.rotation.x = br * 0.012; R.torso.rotation.z = Math.sin(t * 0.37) * 0.01; R.head.rotation.y = Math.sin(t * 0.33) * 0.35; aL.sh.rotation.z = 0.1 + br * 0.01; aR.sh.rotation.z = -0.1 - br * 0.01; aL.el.rotation.x = -0.15; aR.el.rotation.x = -0.15; L.hp.rotation.x = 0.02; Rr.hp.rotation.x = -0.04; Rr.kn.rotation.x = 0.08; R.hips.rotation.z = 0.02; }
   }
   R.hips.position.y = hipY + bob;
   if (R.coat) { R.coat.rotation.x = -tilt * 0.6 - Math.min(0.25, sp * 0.03); }

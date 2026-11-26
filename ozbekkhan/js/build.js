@@ -220,7 +220,7 @@ export function buildRegion(R, opt = {}) {
     for (const side of [-1, 1]) LL.add('wood', box(0.08, 0.08, 2.6), side * 0.55 * c + 2.2 * s, 0.9, -side * 0.55 * s + 2.2 * c, { ry, rx: 0.25, col: '#7a5534' });
     C.add(x - 1.3, z - 1.3, x + 1.3, z + 1.3, 1.3, -1);
   }
-  function haystack(x, z) { W0.add('plain', tf(jitterIco(1.1, 1, x, 0.3), 0, 0, 0, 0, 0, 0, 1.2, 0.7, 1.2), x, 0.55, z, { col: '#d8b765' }); }
+  function haystack(x, z) { W0.add('earth', tf(jitterIco(1.1, 3, x, 0.12), 0, 0, 0, 0, 0, 0, 1.2, 0.75, 1.2), x, 0.5, z, { uv: 1.2, col: '#f2d68a' }); }
 
   /* ----- uy ----- */
   function house(x0, z0, x1, z1, sides) {
@@ -606,7 +606,7 @@ export function buildRegion(R, opt = {}) {
   if (R.id === 'fargona' || R.id === 'namangan' || R.id === 'andijon') { A.extras.tutzor = []; for (let i = 0; i < 10; i++) { const x = 40 + (i % 5) * 9, z = 140 + Math.floor(i / 5) * 12; tree(x, z, 1.1, 'tut'); A.extras.tutzor.push({ x, z }); } }
   if (R.land === 'desert') { for (let i = 0; i < 30; i++) { const a = r() * 6.28, d = 135 + r() * 100, x = Math.cos(a) * d, z = Math.sin(a) * d; W0.add('plain', jitterIco(0.7, 0, i, 0.5), x, heightAt(x, z) + 0.3, z, { col: '#8a8a5a' }); } } // saksovul
   // xirmon: pichan g'aramlari va ayri bilan ishlayotgan dehqonlar
-  for (let i = 0; i < 3; i++) { const x = -40 + i * 9, z = 128 + (i % 2) * 6; haystack(x, z); W0.add('plain', tf(jitterIco(1.4, 1, i + 3, 0.3), 0, 0, 0, 0, 0, 0, 1.3, 1.1, 1.3), x, 1.1, z, { col: '#d4b360' }); C.add(x - 1.6, z - 1.6, x + 1.6, z + 1.6, 2.2, -1); npcs.push({ x: x + 2, z: z + 0.5, ry: -Math.PI / 2, role: 'ishchi', pose: 'pitch', tool: 'vila', name: 'Dehqon' }); }
+  for (let i = 0; i < 3; i++) { const x = -40 + i * 9, z = 128 + (i % 2) * 6; haystack(x, z); W0.add('earth', tf(jitterIco(1.4, 3, i + 3, 0.12), 0, 0, 0, 0, 0, 0, 1.3, 1.1, 1.3), x, 1.0, z, { uv: 1.2, col: '#f0d488' }); C.add(x - 1.6, z - 1.6, x + 1.6, z + 1.6, 2.2, -1); npcs.push({ x: x + 2, z: z + 0.5, ry: -Math.PI / 2, role: 'ishchi', pose: 'pitch', tool: 'vila', name: 'Dehqon' }); }
   A.tools.push({ kind: 'vila', x: -45, y: 0, z: 127, rx: 0.25, ry: 1, s: 1 }); A.tools.push({ kind: 'xaskash', x: -44.5, y: 0, z: 127.3, rx: 0.22, ry: 1.2, s: 1 });
   // tashqaridagi qishloq hovlilari
   for (let i = 0; i < 10; i++) { const a = r() * 6.28, d = 140 + r() * 60, x = Math.cos(a) * d, z = Math.sin(a) * d; if (Math.abs(x) < 12 && z > 0) continue; if (A.extras.paxta && x > -95 && x < -25 && z > 130 && z < 190) continue; const y = heightAt(x, z); if (y > 3) continue; house(x - 4, z - 4, x + 4, z + 4, { n: true, s: true, e: true, w: true }); }

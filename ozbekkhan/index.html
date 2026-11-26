@@ -71,7 +71,7 @@
       <div><b>W A S D</b> yurish</div><div><b>Sichqoncha</b> qarash</div>
       <div><b>Shift</b> yugurish</div><div><b>Probel</b> sakrash / atlas qanot</div>
       <div><b>E</b> harakat (sotib olish, minish, gaplashish)</div><div><b>G</b> o'g'irlash</div>
-      <div><b>F</b> otga minish / tushish</div><div><b>Q</b> salom berish</div>
+      <div><b>F</b> ulovga minish / tortib olish</div><div><b>Q</b> salom berish</div><div><b>LKM</b> musht</div><div><b>G</b> o'g'irlash</div>
       <div><b>M</b> xarita</div><div><b>I</b> kiyimlar</div>
       <div><b>R</b> radio (Shashmaqom)</div><div><b>Esc</b> pauza</div>
     </div>
@@ -115,6 +115,7 @@
   </div>
   <div class="hud-tr">
     <div class="money"><span class="coin"></span><b id="hud-money">0</b> tanga</div>
+    <div class="obro">Obro': <b id="hud-obro">0</b></div>
     <div class="stars" id="hud-stars"></div>
     <div class="clock" id="hud-clock"></div>
     <div class="radio" id="hud-radio" hidden></div>
@@ -124,7 +125,7 @@
   <div class="prompt" id="hud-prompt" hidden></div>
   <div class="toast" id="hud-toast" hidden></div>
   <div class="banner" id="hud-banner" hidden><div class="b1" id="banner-1"></div><div class="b2" id="banner-2"></div></div>
-  <div class="minimap"><canvas id="minimap" width="200" height="200"></canvas><div class="mm-n">Sh</div></div>
+  <div class="minimap"><canvas id="minimap" width="200" height="200"></canvas><div class="mm-n" id="mm-n">Sh</div></div>
   <div class="qte" id="qte" hidden></div>
   <button class="pause-btn" id="pause-btn" aria-label="Pauza">❚❚</button>
 </div>
@@ -136,12 +137,13 @@
     <button data-k="jump">⤒</button>
     <button data-k="use">E</button>
     <button data-k="mount">Ot</button>
+    <button data-k="punch">✊</button>
     <button data-k="run" class="hold">»</button>
     <button data-k="steal">G</button>
   </div>
   <div class="tbtns2">
     <button data-k="map">Xarita</button>
-    <button data-k="wear">Kiyim</button>
+    <button data-k="wear">Salom</button>
     <button data-k="radio">♫</button>
   </div>
 </div>

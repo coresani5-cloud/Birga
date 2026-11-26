@@ -59,8 +59,8 @@ export function createLighting(renderer, scene, { quality = 1 } = {}) {
         scene.fog.color.set('#141a30'); scene.fog.near = 30; scene.fog.far = 420;
       } else {
         sun.position.copy(dir).multiplyScalar(200).add(focus);
-        const warm = Math.max(0, 1 - el / 30); sun.color.set('#fff4e0').lerp(new T.Color('#ff9a50'), warm * 0.8);
-        sun.intensity = (twi ? 2.6 : 3.6) * (1 - overcast * 0.7);
+        const warm = Math.max(0, 1 - el / 40); sun.color.set('#ffeccc').lerp(new T.Color('#ff9440'), warm * 0.85);
+        sun.intensity = (twi ? 3.4 : 4.4) * (1 - overcast * 0.7);
         hemi.color.set(twi ? '#d9a888' : '#b9d3ee'); hemi.groundColor.set('#8a6a4a'); hemi.intensity = 0.15 + overcast * 0.5;
         scene.environmentIntensity = 0.55 + overcast * 0.2; scene.backgroundIntensity = (twi ? 0.85 : 0.75) * (1 - overcast * 0.35); renderer.toneMappingExposure = twi ? 0.85 : 0.75;
         const fc = W === 'dust' ? '#c9a77a' : W === 'haze' ? '#e2d3bd' : twi ? '#c99a78' : overcast ? '#a9b2bc' : '#aebccb';
@@ -84,4 +84,25 @@ export function createLighting(renderer, scene, { quality = 1 } = {}) {
     },
   };
   return L;
+}
+
+// Rang korreksiyasi (kino uslubi): to'yinganlik, kontrast, iliq ohang, keskinlik, vinyetka.
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+export function makeGradePass(o = {}) {
+  return new ShaderPass({
+    uniforms: { tDiffuse: { value: null }, sat: { value: o.sat ?? 1.28 }, con: { value: o.con ?? 1.12 }, warm: { value: o.warm ?? 0.05 }, vig: { value: o.vig ?? 0.32 }, sharp: { value: o.sharp ?? 0.35 }, res: { value: new THREE.Vector2(1280, 720) }, lift: { value: o.lift ?? 0.0 } },
+    vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+    fragmentShader: `uniform sampler2D tDiffuse; uniform float sat, con, warm, vig, sharp, lift; uniform vec2 res; varying vec2 vUv;
+      void main(){
+        vec2 px = 1.0 / res; vec3 c = texture2D(tDiffuse, vUv).rgb;
+        vec3 bl = (texture2D(tDiffuse, vUv + vec2(px.x,0.)).rgb + texture2D(tDiffuse, vUv - vec2(px.x,0.)).rgb + texture2D(tDiffuse, vUv + vec2(0.,px.y)).rgb + texture2D(tDiffuse, vUv - vec2(0.,px.y)).rgb) * 0.25;
+        c += (c - bl) * sharp;
+        float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+        c = mix(vec3(l), c, sat);
+        c = (c - 0.5) * con + 0.5 + lift;
+        c *= vec3(1.0 + warm, 1.0 + warm * 0.35, 1.0 - warm * 0.6);
+        float d = distance(vUv, vec2(0.5)); c *= 1.0 - vig * smoothstep(0.35, 0.85, d);
+        gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
+      }`,
+  });
 }

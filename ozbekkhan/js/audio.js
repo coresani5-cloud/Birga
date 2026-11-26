@@ -131,3 +131,7 @@ export function sfx(kind, vol = 1) {
 }
 export function setAmbience(night) { if (ambBus) ambBus.gain.value = night ? 0.15 : 0.25; }
 export function duck(on) { if (musicBus) musicBus.gain.setTargetAtTime(on ? 0.12 : 0.42, ctx.currentTime, 0.3); }
+// Ko'chadagi sozanda: masofaga qarab ovoz balandligi
+const DUTOR_SC = [0, 2, 3, 5, 7, 8, 10, 12, 14, 15];
+let dutorStep = 0;
+export function streetDutor(vol) { if (!ctx || vol <= 0.01) return; const t = ctx.currentTime; const d = DUTOR_SC[(Math.abs(Math.round(Math.sin(dutorStep * 1.7) * 4 + dutorStep % 5))) % DUTOR_SC.length]; const f = 196 * Math.pow(2, d / 12); playBuf(pluck(f, 1.2, 0.6), t, 0.4 * vol, sfxBus); if (dutorStep % 2 === 0) playBuf(pluck(f * 1.5, 1.0, 0.5), t + 0.01, 0.15 * vol, sfxBus); if (dutorStep % 4 === 0) playBuf(pluck(98, 1.6, 0.3), t, 0.2 * vol, sfxBus); dutorStep++; }

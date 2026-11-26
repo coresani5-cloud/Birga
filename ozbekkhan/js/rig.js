@@ -41,7 +41,7 @@ function prepare(scene, height = 1.78) {
     knL: new T.Vector3(0.058 * H, 0.28 * H, 0), knR: new T.Vector3(-0.058 * H, 0.28 * H, 0),
     ftL: new T.Vector3(0.06 * H, 0.055 * H, 0), ftR: new T.Vector3(-0.06 * H, 0.055 * H, 0),
   };
-  J.elL = J.shL.clone().lerp(handL, 0.5); J.elR = J.shR.clone().lerp(handR, 0.5);
+  J.elL = J.shL.clone().lerp(handL, 0.5); J.elR = J.shR.clone().lerp(handR, 0.5); J.handL = handL; J.handR = handR;
   // --- suyaklar ---
   const B = {}; const mk = (k, parent, pos) => { const b = new T.Bone(); b.name = k; const pp = parent ? J[parent] || (parent === 'root' ? new T.Vector3() : null) : null; b.position.copy(pos).sub(parent && parent !== 'root' ? J[parent] : new T.Vector3()); if (parent && parent !== 'root') B[parent].add(b); B[k] = b; return b; };
   J.torso = J.hips.clone();
@@ -94,6 +94,7 @@ export function makeRigged(src) {
   const leg = (s) => ({ hp: B['hp' + s], kn: B['kn' + s], ft: B['ft' + s], th: {}, sn: {} });
   const R = { root, hips: B.hips, torso: B.torso, head: B.neck, armL: lim('L'), armR: lim('R'), legL: leg('L'), legR: leg('R'), t: Math.random() * 10, rigged: true, hipRest: J.hips.y, mesh };
   R.hatSlot = new T.Group(); B.neck.add(R.hatSlot);
+  R.handR = new T.Group(); R.handR.position.copy(J.handR).sub(J.elR); B.elR.add(R.handR);
   return R;
 }
 

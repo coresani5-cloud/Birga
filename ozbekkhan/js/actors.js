@@ -92,6 +92,7 @@ export function makeHuman(look = {}, o = {}) {
     return { hp, kn, ft, th, sn };
   };
   R.legL = leg(1); R.legR = leg(-1);
+  R.handR = new T.Group(); R.handR.position.y = -0.27; R.armR.el.add(R.handR);
   R.parts = { shirt };
   if (o.female) { // uzun atlas ko'ylak
     const dress = new T.Mesh(new T.CylinderGeometry(0.2, 0.36, 1.05, 16, 1, true), fabMat('atlas', look.skin % 5)); dress.position.y = 0.05; hips.add(dress); R.dress = dress;
@@ -167,6 +168,10 @@ export function animate(R, dt, st) {
   } else if (pose === 'dance') { // lazgi: qo'llar silkinadi, yelka o'ynaydi
     const w = t * 5; R.hips.rotation.y = Math.sin(w * 0.5) * 0.5; aL.sh.rotation.z = 2.3 + Math.sin(w) * 0.4; aR.sh.rotation.z = -2.3 + Math.sin(w + 1) * 0.4; aL.el.rotation.z = Math.sin(w * 2) * 0.8; aR.el.rotation.z = -Math.sin(w * 2) * 0.8; aL.sh.rotation.x = Math.sin(w) * 0.3; aR.sh.rotation.x = -Math.sin(w) * 0.3;
     L.hp.rotation.x = -Math.max(0, Math.sin(w)) * 0.6; L.kn.rotation.x = Math.max(0, Math.sin(w)) * 1.1; Rr.hp.rotation.x = -Math.max(0, -Math.sin(w)) * 0.6; Rr.kn.rotation.x = Math.max(0, -Math.sin(w)) * 1.1; bob = Math.abs(Math.sin(w)) * 0.06; R.head.rotation.z = Math.sin(w * 2) * 0.15;
+  } else if (pose === 'rake') { const w = Math.sin(t * 2.2); R.torso.rotation.x = 0.35; aR.sh.rotation.x = -0.9 + w * 0.45; aL.sh.rotation.x = -0.6 + w * 0.45; aL.sh.rotation.z = -0.25; aR.el.rotation.x = -0.4; aL.el.rotation.x = -0.6; L.hp.rotation.x = -0.25; Rr.hp.rotation.x = 0.2; L.kn.rotation.x = 0.3;
+  } else if (pose === 'pitch') { const w = (Math.sin(t * 1.6) + 1) / 2; R.torso.rotation.x = 0.55 - w * 0.5; R.torso.rotation.y = -0.3 + w * 0.5; aR.sh.rotation.x = -0.5 - w * 1.4; aL.sh.rotation.x = -0.7 - w * 1.2; aL.sh.rotation.z = -0.3; aR.el.rotation.x = -0.5; aL.el.rotation.x = -0.7; L.kn.rotation.x = 0.4 * (1 - w); Rr.kn.rotation.x = 0.4 * (1 - w); hipY = 0.9 + w * 0.05;
+  } else if (pose === 'stir') { const w = t * 2.5; R.torso.rotation.x = 0.3; aR.sh.rotation.x = -1.0 + Math.sin(w) * 0.25; aR.sh.rotation.z = -0.2 + Math.cos(w) * 0.2; aR.el.rotation.x = -0.7; aL.sh.rotation.x = -0.4; aL.el.rotation.x = -1.2;
+  } else if (pose === 'cut') { const w = Math.max(0, Math.sin(t * 6)); R.torso.rotation.x = 0.3; aR.sh.rotation.x = -0.8 - w * 0.4; aR.el.rotation.x = -0.9 + w * 0.5; aL.sh.rotation.x = -0.7; aL.el.rotation.x = -1.0; aL.sh.rotation.z = 0.2;
   } else if (pose === 'dutor') {
     aL.sh.rotation.x = -0.9; aL.sh.rotation.z = 0.7; aL.el.rotation.x = -0.9; aR.sh.rotation.x = -0.6; aR.sh.rotation.z = -0.3; aR.el.rotation.x = -1.2 + Math.sin(t * 14) * 0.15; R.head.rotation.z = Math.sin(t * 3) * 0.08; R.head.rotation.x = 0.1; R.torso.rotation.x = 0.05 + Math.sin(t * 3) * 0.02;
   } else if (pose === 'xdance') {
@@ -198,7 +203,7 @@ export function animate(R, dt, st) {
 
 /* --------- hayvonlar --------- */
 export function makeAnimal(kind = 'ot', o = {}) {
-  const P = { qoy: { body: [0.3, 0.5], col: o.col || '#ece6d6', leg: 0.36, neck: 0.22, headL: 0.24, wool: 1 }, echki: { body: [0.22, 0.46], col: o.col || '#5a4a3a', leg: 0.42, neck: 0.3, headL: 0.24, ears: 0 }, it: { body: [0.18, 0.5], col: o.col || '#9a7448', leg: 0.4, neck: 0.25, headL: 0.26 },
+  const P = { qoy: { body: [0.3, 0.5], col: o.col || '#ece6d6', leg: 0.36, neck: 0.22, headL: 0.24, wool: 1 }, echki: { body: [0.22, 0.46], col: o.col || '#5a4a3a', leg: 0.42, neck: 0.3, headL: 0.24, ears: 0 }, it: { body: [0.18, 0.5], col: o.col || '#9a7448', leg: 0.4, neck: 0.25, headL: 0.26 }, mushuk: { body: [0.1, 0.32], col: o.col || '#c9b394', leg: 0.2, neck: 0.12, headL: 0.12, ears: 0 },
     ot: { body: [0.42, 1.25], col: o.col || '#7a4426', leg: 0.85, neck: 0.75, headL: 0.55, sc: 1 }, eshak: { body: [0.3, 0.9], col: o.col || '#8a8278', leg: 0.6, neck: 0.5, headL: 0.45, sc: 1, ears: 1 }, tuya: { body: [0.48, 1.3], col: o.col || '#b08a5a', leg: 1.25, neck: 1.1, headL: 0.5, sc: 1, hump: 1 } }[kind];
   const root = new T.Group(); const m = std(P.col, { roughness: 0.75 }), dk = std(kind === 'ot' ? '#1d120a' : '#5a5048');
   const body = new T.Group(); body.position.y = P.leg + P.body[0]; root.add(body);
@@ -210,8 +215,8 @@ export function makeAnimal(kind = 'ot', o = {}) {
   const headG = new T.Group(); headG.position.set(0, P.neck * 0.95, P.neck * 0.35 + (kind === 'tuya' ? 0.2 : 0)); neckG.add(headG);
   const head = new T.Mesh(capsule(P.body[0] * 0.38, P.headL, 8), m); head.rotation.x = Math.PI / 2 + 0.5; head.position.set(0, -0.1, 0.18); headG.add(head);
   for (const s of [-1, 1]) { const ear = new T.Mesh(new T.ConeGeometry(0.045, P.ears ? 0.32 : 0.14, 6), m); ear.position.set(s * 0.08, 0.12, -0.02); ear.rotation.z = -s * 0.25; headG.add(ear); const eye = new T.Mesh(new T.SphereGeometry(0.025, 6, 4), std('#0a0a0a')); eye.position.set(s * 0.12, 0, 0.1); headG.add(eye); }
-  if (o.saddle === undefined && (kind === 'qoy' || kind === 'echki' || kind === 'it')) o.saddle = false;
-  if (kind !== 'tuya' && !P.wool && kind !== 'it' && kind !== 'echki') { const mane = new T.Mesh(new T.BoxGeometry(0.06, P.neck * 1.05, 0.16), dk); mane.position.set(0, P.neck * 0.5, 0.0); mane.rotation.x = 0.55; neckG.add(mane); }
+  if (o.saddle === undefined && (kind === 'qoy' || kind === 'echki' || kind === 'it' || kind === 'mushuk')) o.saddle = false;
+  if (kind !== 'tuya' && !P.wool && kind !== 'it' && kind !== 'echki' && kind !== 'mushuk') { const mane = new T.Mesh(new T.BoxGeometry(0.06, P.neck * 1.05, 0.16), dk); mane.position.set(0, P.neck * 0.5, 0.0); mane.rotation.x = 0.55; neckG.add(mane); }
   const tail = new T.Mesh(capsule(0.05, kind === 'ot' ? 0.6 : 0.4, 6), dk); tail.position.set(0, 0.1, -P.body[1] / 2 - 0.35); tail.rotation.x = 0.4; body.add(tail);
   const legs = [];
   for (const [sx, sz] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) {
@@ -278,4 +283,21 @@ export function setRiggedHat(R, id) {
   while (R.hatSlot.children.length) R.hatSlot.remove(R.hatSlot.children[0]);
   if (!id || id === 'asl') return;
   const d = makeDoppi(id); d.position.set(0, 0.155, 0.012); d.rotation.x = -0.08; d.scale.setScalar(1.08); R.hatSlot.add(d);
+}
+
+// Asboblar: pichoq, qoshiq (kapgir), sanchqi, ayri (pichan uchun), xaskash. Uzunligi bo'ylab +Y.
+export function makeTool(kind) {
+  const g = new T.Group(); const metal = std('#b9bec4', { metalness: 0.85, roughness: 0.3 }), dark = std('#1e2226', { metalness: 0.6, roughness: 0.5 }), wood = std('#a8743e', { roughness: 0.7 }), woodD = std('#7a5230', { roughness: 0.8 });
+  const add = (geo, m, x = 0, y = 0, z = 0, rx = 0, rz = 0) => { const o = new T.Mesh(geo, m); o.position.set(x, y, z); o.rotation.set(rx, 0, rz); o.castShadow = true; g.add(o); return o; };
+  if (kind === 'pichoq') { add(new T.CylinderGeometry(0.016, 0.018, 0.13, 8), dark, 0, 0.0); for (let i = 0; i < 4; i++) add(new T.TorusGeometry(0.017, 0.003, 4, 10), dark, 0, -0.05 + i * 0.03, 0, Math.PI / 2); add(new T.BoxGeometry(0.07, 0.008, 0.012), metal, 0, 0.07); const b = add(new T.BoxGeometry(0.032, 0.2, 0.004), metal, 0.002, 0.17); b.scale.x = 1; add(new T.ConeGeometry(0.016, 0.05, 4), metal, 0.002, 0.295, 0, 0, 0).scale.set(1, 1, 0.15); }
+  else if (kind === 'qoshiq') { add(new T.CylinderGeometry(0.012, 0.016, 0.6, 8), wood, 0, 0.1); const bowl = add(new T.SphereGeometry(0.07, 12, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), wood, 0, 0.42, 0.02, -Math.PI / 2); bowl.scale.set(1, 1, 0.6); }
+  else if (kind === 'sanchqi') { add(new T.BoxGeometry(0.02, 0.13, 0.004), metal, 0, 0); for (let i = 0; i < 4; i++) add(new T.BoxGeometry(0.004, 0.06, 0.003), metal, -0.012 + i * 0.008, 0.1); add(new T.BoxGeometry(0.034, 0.012, 0.004), metal, 0, 0.07); }
+  else if (kind === 'vila') { add(new T.CylinderGeometry(0.018, 0.02, 1.35, 7), wood, 0, 0.35); add(new T.CylinderGeometry(0.02, 0.02, 0.18, 7), dark, 0, 1.1); add(new T.BoxGeometry(0.2, 0.025, 0.02), dark, 0, 1.2); for (let i = 0; i < 4; i++) add(new T.ConeGeometry(0.008, 0.32, 5), dark, -0.09 + i * 0.06, 1.37); }
+  else if (kind === 'xaskash') { add(new T.CylinderGeometry(0.018, 0.02, 1.5, 8), wood, 0, 0.42); add(new T.BoxGeometry(0.42, 0.03, 0.025), std('#1f5a2e', { metalness: 0.5, roughness: 0.4 }), 0, 1.18); for (let i = 0; i < 11; i++) add(new T.ConeGeometry(0.007, 0.08, 4), std('#1f5a2e', { metalness: 0.5 }), -0.2 + i * 0.04, 1.14, 0.0, Math.PI, 0); }
+  return g;
+}
+export function attachTool(R, kind) {
+  const t = makeTool(kind); const hand = R.handR || R.armR.el; if (!R.handR) t.position.y = -0.27;
+  if (kind === 'vila' || kind === 'xaskash') { t.position.y += -0.55; t.rotation.x = 0.15; } else t.rotation.x = -1.2;
+  hand.add(t); R.tool = t; return t;
 }

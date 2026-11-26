@@ -6,8 +6,8 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { REGIONS, regionById, UZ_OUTLINE, RIVERS } from './regions.js';
 import { buildRegion, drawMapImage, CELL } from './build.js';
-import { makeHuman, animate, makeAnimal, animateAnimal, makeCart, makePigeon, makeParachute, WEAR, setRiggedHat } from './actors.js';
-import { placeProps } from './props.js';
+import { makeHuman, animate, makeAnimal, animateAnimal, makeCart, makePigeon, makeParachute, WEAR, setRiggedHat, makeTool, attachTool } from './actors.js';
+import { placeProps, placeTrees } from './props.js';
 import { createLighting, regionWeather, WEATHER, makeGradePass } from './lighting.js';
 import { loadRigSource, makeRigged, loadAnimalSource, makeRiggedAnimal } from './rig.js';
 import * as TX from './tex.js';
@@ -48,6 +48,7 @@ const waterMat = new T.MeshStandardMaterial({ color: '#3c7f86', roughness: 0.06,
 
 /* ================= AI personaj modellari ================= */
 const RIG = {}; // rol -> manba
+let TREES_OK = false; fetch('assets/trees/tree_small_02.json').then((r) => (TREES_OK = r.ok)).catch(() => {});
 const RIG_NAMES = ['hero', 'hero_beqasam_yashil', 'hero_adras', 'hero_zardozi', 'oqsoqol', 'ayol', 'ayol2', 'savdogar', 'ishchi', 'posbon', 'sarboz', 'navkar', 'chavandoz', 'qishki', 'darvesh', 'ayol3', 'ayol4', 'ayol5', 'ayol6', 'ayol7', 'olim', 'munajjim', 'kotib', 'savdogar2', 'chopon', 'boyoqchi', 'arab', 'yigit_beqasam', 'qiz_atlas', 'bola', 'bola_oq', 'bola_kok', 'bola_beqasam', 'bola_dutor', 'xitoy_qiz', 'xitoy_bola'];
 const ANI = {}; const ANI_NAMES = { ot: 1.6, ot_yuk: 1.7, tuya: 2.2, tuya_yuk: 2.3, eshak_yuk: 1.35 };
 async function loadRigs() { await Promise.all(RIG_NAMES.map(async (n) => { const s = await loadRigSource(n); if (s) RIG[n] = s; }).concat(Object.entries(ANI_NAMES).map(async ([n, h]) => { const s = await loadAnimalSource(n, h); if (s) ANI[n] = s; }))); }
@@ -58,7 +59,10 @@ function makePerson(role, look = {}, o = {}) {
   const key = role === 'hero' ? (S?.outfit || 'hero') : pickRole(role);
   const fb = !RIG[key] && role !== 'hero' && role !== 'bola' && role !== 'ayol' ? leastUsed(ADULT()) : null;
   const usedKey = RIG[key] ? key : fb; if (usedKey && role !== 'hero') USED[usedKey] = (USED[usedKey] || 0) + 1;
-  const src = RIG[key] || (fb ? RIG[fb] : null) || (role === 'ayol' ? RIG[leastUsed(['ayol', 'ayol2', 'ayol3', 'ayol4', 'ayol5', 'ayol6', 'ayol7'])] : null);
+  let src = RIG[key] || (fb ? RIG[fb] : null) || (role === 'ayol' ? RIG[leastUsed(['ayol', 'ayol2', 'ayol3', 'ayol4', 'ayol5', 'ayol6', 'ayol7', 'qiz_atlas'])] : null);
+  // sodda (procedural) odamlar ishlatilmaydi: mos model bo'lmasa — mavjud realistik modellardan eng kam ishlatilgani
+  if (!src && role !== 'hero') { const any = Object.keys(RIG).filter((k) => !k.startsWith('hero')); const k = leastUsed(any); if (k) { USED[k] = (USED[k] || 0) + 1; src = RIG[k]; } }
+  if (src && role !== 'hero') { const R = makeRigged(src); const m = R.mesh; m.material = src.mat.clone(); const h = rnd(); m.material.color.setRGB(0.82 + h * 0.18, 0.82 + ((h * 7) % 1) * 0.18, 0.82 + ((h * 13) % 1) * 0.18); if (/^(bola|xitoy)/.test(role)) R.root.scale.setScalar(0.7); else R.root.scale.setScalar(0.95 + rnd() * 0.1); return R; }
   if (src) { const R = makeRigged(src); if (/^(bola|xitoy)/.test(role) || /^(bola|xitoy)/.test(key)) R.root.scale.setScalar(0.7); return R; }
   return makeHuman(look, { ...o, child: o.child || /^(bola|xitoy)/.test(role), female: o.female || role === 'xitoy_qiz' });
 }
@@ -79,9 +83,10 @@ async function loadRegion(id, from = 'gate') {
   for (const n of npcs) scene.remove(n.R.root); for (const m of mounts) scene.remove(m.root); for (const g of guards) scene.remove(g.R.root); for (const g of givers) scene.remove(g.mark);
   npcs = []; mounts = []; guards = []; givers = []; heat = 0; endMission(null, true); for (const k in USED) delete USED[k]; for (const c of critters) scene.remove(c.root); critters = [];
   R = regionById(id); S.region = id;
-  RES = buildRegion(R, { quality: Q, shadows: Q > 0, waterMat }); scene.add(RES.group);
+  RES = buildRegion(R, { quality: Q, shadows: Q > 0, waterMat, realTrees: TREES_OK }); scene.add(RES.group);
   C = RES.C; A = RES.A; heightAt = RES.heightAt; mapImg = drawMapImage(RES, R);
-  await placeProps(RES.group, A.props, { shadows: Q > 0 });
+  for (const t of A.tools) { const m = makeTool(t.kind); m.position.set(t.x, t.y, t.z); m.rotation.set(t.rx || 0, t.ry || 0, 0, 'YXZ'); m.scale.setScalar(t.s || 1); RES.group.add(m); }
+  await placeProps(RES.group, A.props, { shadows: Q > 0 }); await placeTrees(RES.group, A.realTrees, { shadows: Q > 0 });
   LG.mats = RES.mats; LG.setLanterns(A.lanterns); LG.setWeather(regionWeather(id));
   spawnWorld();
   P.pos.set(0, 0, 100); P.yaw = Math.PI; camYaw = Math.PI; P.vy = 0; if (P.mount) dismount(true);
@@ -98,12 +103,12 @@ const nodeAt = (x, z) => NODES.reduce((b, n) => (Math.hypot(n[0] - x, n[1] - z) 
 function npcLook(role) { const old = role === 'oqsoqol'; const hats = ['chust', 'iroqi', 'oddiy', R.hat, 'samarqand']; return { skin: rnd() * 5 | 0, beard: old ? 3 : rnd() * 3 | 0, hat: old ? 'salla' : hats[rnd() * hats.length | 0], coat: ['beqasam_0', 'beqasam_1', 'beqasam_3', 'adras_0', 'movut_0'][rnd() * 5 | 0], belt: ['qizil', 'oq', 'yashil'][rnd() * 3 | 0] }; }
 function addNpc(o) {
   const Rr = makePerson(o.role, npcLook(o.role), { female: o.role === 'ayol', child: o.role === 'bola' });
-  Rr.root.position.set(o.x, o.y || 0, o.z); Rr.root.rotation.y = o.ry || 0; scene.add(Rr.root);
+  Rr.root.position.set(o.x, o.y || 0, o.z); Rr.root.rotation.y = o.ry || 0; scene.add(Rr.root); if (o.tool) attachTool(Rr, o.tool);
   const n = { R: Rr, pos: Rr.root.position, yaw: o.ry || 0, ...o, hp: 3, state: o.walk ? 'walk' : 'idle', t: rnd() * 5, target: null, prev: null, lane: (rnd() - 0.5) * 3, speed: o.role === 'bola' ? 2.4 : 1.1 + rnd() * 0.5, angry: 0, talkT: 0, greeted: false };
   npcs.push(n); return n;
 }
 function spawnWorld() {
-  for (const n of RES.npcs) addNpc({ ...n, role: roleOf(n.role), job: n.role, pose: n.pose, name: n.name });
+  for (const n of RES.npcs) addNpc({ ...n, role: n.name === 'Dehqon' || n.name === 'Bog\'bon' ? 'ishchi' : roleOf(n.role), job: n.role, pose: n.pose, name: n.name });
   const night = S.time > 21 || S.time < 5.5, NP = Q > 0 ? (night ? 10 : 26) : 12;
   for (let i = 0; i < NP; i++) { const nd = NODES[rnd() * NODES.length | 0]; const role = ['ishchi', 'savdogar', 'oqsoqol', 'ayol', 'ayol', 'bola', 'ishchi'][rnd() * 7 | 0]; const n = addNpc({ x: nd[0] + (rnd() - 0.5) * 3, z: nd[1] + (rnd() - 0.5) * 3, role, walk: true, pose: 'walk' }); n.target = nd; if (role === 'bola' && rnd() < 0.5) n.play = true; }
   // ulovlar: bog'langan otlar, ko'chada yurgan chavandozlar va aravalar
@@ -115,7 +120,7 @@ function spawnWorld() {
   { const nd = NODES[rnd() * NODES.length | 0]; const m = addMount('ot', nd[0], nd[1], 0, { rider: true, riderRole: 'posbon' }); m.target = nd; } // otliq qo'riqchi
   const herd = (x, z, n, kind = 'qoy') => { const sh = addNpc({ x, z, role: 'chopon', walk: true, pose: 'walk' }); sh.speed = 0.7; for (let i = 0; i < n; i++) addCritter(kind === 'mix' ? (rnd() < 0.7 ? 'qoy' : 'echki') : kind, x + (rnd() - 0.5) * 6, z + (rnd() - 0.5) * 6, sh); };
   herd(25, 135, Q > 0 ? 12 : 6, 'mix'); if (rnd() < 0.6) { const nd = NODES[rnd() * NODES.length | 0]; herd(nd[0], nd[1], Q > 0 ? 6 : 3); }
-  for (let i = 0; i < (Q > 0 ? 4 : 2); i++) { const d = A.doors[rnd() * A.doors.length | 0]; addCritter(rnd() < 0.5 ? 'echki' : 'it', d.x, d.z, null); }
+  for (let i = 0; i < (Q > 0 ? 8 : 3); i++) { const d = A.doors[rnd() * A.doors.length | 0]; const k = ['echki', 'it', 'mushuk', 'mushuk', 'it'][i % 5]; addCritter(k, d.x, d.z, null).col = k; }
   // bolalar: guruh bo'lib quvlashmachoq o'ynashadi
   for (let gI = 0; gI < (Q > 0 ? 3 : 1); gI++) { const nd = gI === 0 ? [-12, 8] : NODES[rnd() * NODES.length | 0]; const gc = { x: nd[0], z: nd[1] }; for (let i = 0; i < 3 + (rnd() * 2 | 0); i++) { const n = addNpc({ x: gc.x + (rnd() - 0.5) * 4, z: gc.z + (rnd() - 0.5) * 4, role: 'bola', pose: 'walk' }); n.kid = gc; n.speed = 3.2; } }
   { const p = freeSpot(14, 14); const n = addNpc({ x: p.x, z: p.z, ry: -2.4, role: 'bola_dutor', pose: 'dutor', name: 'Dutorchi bola' }); n.musician = true; const dt2 = new T.Group(); const body = new T.Mesh(new T.SphereGeometry(0.11, 12, 8), new T.MeshStandardMaterial({ color: '#b07a3a', roughness: 0.6 })); body.scale.set(1, 1.35, 0.55); dt2.add(body); const neck = new T.Mesh(new T.BoxGeometry(0.03, 0.62, 0.02), new T.MeshStandardMaterial({ color: '#6b4220' })); neck.position.y = 0.42; dt2.add(neck); dt2.position.set(0.05, 1.0, 0.2); dt2.rotation.z = 0.9; n.R.root.add(dt2); }

@@ -158,6 +158,7 @@ export const fabricTex = (id, variant = 0) => memo('fab' + id + variant, () => {
 });
 // Do'ppi naqshlari (4 tomonga takrorlanadi)
 export const HATS = {
+  iroqi_yashil: { n: 'Yashil iroqi do\'ppi', p: 35, type: 'doppi', d: 'Kulrang fonda yashil xochsimon chok, barg naqshi.' },
   chust: { n: 'Chust do\'ppi', p: 15, type: 'doppi', d: 'Qora fonda oq "qalampir" (bodom) naqsh — eng mashhur do\'ppi. Namangan, Chust.' },
   iroqi: { n: 'Iroqi do\'ppi', p: 30, type: 'doppi', d: 'Iroqi chok — mayda xochsimon tikuv, rang-barang. Shahrisabz, Buxoro.' },
   zardozi: { n: 'Zardo\'zi do\'ppi', p: 80, type: 'doppi', d: 'Baxmal ustiga oltin ip bilan kashta — Buxoro ustalari ishi.' },
@@ -245,4 +246,33 @@ export const flowerCard = () => memo('flowercard', () => {
   const S = 256, [c, g] = cv(S), r = rng(91);
   for (let i = 0; i < 260; i++) { const a = r() * Math.PI * 2, d = Math.pow(r(), 0.6) * S * 0.45, x = S / 2 + Math.cos(a) * d, y = S / 2 + Math.sin(a) * d * 0.9; const green = r() < 0.35; g.fillStyle = green ? `rgb(${60 + r() * 40 | 0},${100 + r() * 40 | 0},${40 + r() * 20 | 0})` : ['#c23b8a', '#d65aa8', '#a83aa0', '#e07ab8', '#8e3fb0'][r() * 5 | 0]; g.beginPath(); g.ellipse(x, y, green ? 7 : 5, green ? 3.5 : 5, r() * 6, 0, 7); g.fill(); }
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+});
+
+// Haqiqiy namunalar asosida: Chust do'ppi (qora fonda oq bodom + pastki geometrik hoshiya) va yashil iroqi do'ppi (xochsimon chok)
+export const doppiReal = (id) => memo('doppiR' + id, () => {
+  const W = 1024, H = 256, [c, g] = cv(W, H), r = rng(id.length * 7 + 3), Q = W / 4;
+  if (id === 'chust') {
+    g.fillStyle = '#0d0d0f'; g.fillRect(0, 0, W, H);
+    // pastki hoshiya: oq to'rtburchak meandr
+    g.strokeStyle = '#f2f0ea'; g.lineWidth = 3; g.strokeRect(-2, H - 62, W + 4, 46); g.strokeRect(-2, H - 56, W + 4, 34);
+    for (let x = 6; x < W; x += 52) { g.strokeRect(x, H - 50, 38, 22); g.strokeRect(x + 8, H - 44, 22, 10); g.fillStyle = '#f2f0ea'; g.beginPath(); g.arc(x + 46, H - 39, 2.5, 0, 7); g.fill(); }
+    for (let k = 0; k < 4; k++) { const cx = k * Q + Q / 2, cy = 92;
+      g.save(); g.translate(cx, cy); g.rotate(-0.45);
+      for (let ring = 0; ring < 4; ring++) { const s2 = 1 - ring * 0.2; g.strokeStyle = '#f2f0ea'; g.lineWidth = ring ? 3 : 5; g.beginPath(); g.moveTo(0, -78 * s2); g.bezierCurveTo(60 * s2, -64 * s2, 56 * s2, 52 * s2, 0, 74 * s2); g.bezierCurveTo(-34 * s2, 56 * s2, -44 * s2, 6 * s2, -14 * s2, -24 * s2); g.bezierCurveTo(-4 * s2, -40 * s2, -2 * s2, -60 * s2, 0, -78 * s2); g.stroke(); }
+      g.fillStyle = '#f2f0ea'; for (let i = 0; i < 3; i++) { g.beginPath(); g.ellipse(4, 14 + i * 10, 5, 3, 0.3, 0, 7); g.fill(); }
+      g.restore();
+      // kichik gulcha va nuqtalar
+      g.fillStyle = '#f2f0ea'; const fx = cx + Q * 0.38, fy = 40; for (let i = 0; i < 6; i++) { const a = i / 6 * 6.28; g.beginPath(); g.arc(fx + Math.cos(a) * 6, fy + Math.sin(a) * 6, 2.6, 0, 7); g.fill(); } g.beginPath(); g.arc(fx, fy, 2, 0, 7); g.fill();
+      for (let i = 0; i < 5; i++) { g.beginPath(); g.arc(cx - Q * 0.35 + r() * 20, 130 + r() * 40, 2.2, 0, 7); g.fill(); }
+    }
+  } else if (id === 'iroqi_yashil') {
+    g.fillStyle = '#b9bbb4'; g.fillRect(0, 0, W, H); const cs = 8;
+    const px = (x, y, col) => { g.fillStyle = col; g.fillRect(x * cs, y * cs, cs - 1, cs - 1); g.fillStyle = 'rgba(255,255,255,.12)'; g.fillRect(x * cs, y * cs, cs - 1, 2); };
+    for (let y = 0; y < H / cs; y++) for (let x = 0; x < W / cs; x++) { const u = x % 32, v = y; let col = r() < 0.5 ? '#c4c6bf' : '#b2b4ad';
+      if (v >= 27) col = (x + v) % 3 === 0 ? '#1d8a3a' : '#c4c6bf';
+      else if (v === 25 || v === 26) col = '#141414';
+      else { const lx = Math.abs(u - 16), ly = v - 14; if (lx * 0.9 + Math.abs(ly) * 0.55 < 9 && ly > -10) col = '#1f9a42'; if (lx < 1 && ly > -9) col = '#0f5a25'; if ((lx + Math.abs(ly - 2)) % 7 === 0 && lx < 10 && ly < 10 && ly > -8) col = '#141414'; if (v < 4 && (u + v) % 5 < 2) col = '#1f9a42'; }
+      px(x, y, col); }
+  }
+  const t = tex(c); t.wrapT = THREE.ClampToEdgeWrapping; return t;
 });

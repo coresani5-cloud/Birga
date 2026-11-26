@@ -6,7 +6,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { REGIONS, regionById, UZ_OUTLINE, RIVERS } from './regions.js';
 import { buildRegion, drawMapImage, CELL } from './build.js';
-import { makeHuman, animate, makeAnimal, animateAnimal, makeCart, makePigeon, makeParachute, WEAR } from './actors.js';
+import { makeHuman, animate, makeAnimal, animateAnimal, makeCart, makePigeon, makeParachute, WEAR, setRiggedHat } from './actors.js';
 import { placeProps } from './props.js';
 import { createLighting, regionWeather, WEATHER, makeGradePass } from './lighting.js';
 import { loadRigSource, makeRigged, loadAnimalSource, makeRiggedAnimal } from './rig.js';
@@ -48,17 +48,17 @@ const waterMat = new T.MeshStandardMaterial({ color: '#3c7f86', roughness: 0.06,
 
 /* ================= AI personaj modellari ================= */
 const RIG = {}; // rol -> manba
-const RIG_NAMES = ['hero', 'oqsoqol', 'ayol', 'ayol2', 'savdogar', 'ishchi', 'posbon', 'sarboz', 'navkar', 'chavandoz', 'qishki', 'darvesh', 'olim', 'munajjim', 'kotib', 'savdogar2', 'chopon', 'bola'];
+const RIG_NAMES = ['hero', 'hero_beqasam_yashil', 'hero_adras', 'hero_zardozi', 'oqsoqol', 'ayol', 'ayol2', 'savdogar', 'ishchi', 'posbon', 'sarboz', 'navkar', 'chavandoz', 'qishki', 'darvesh', 'ayol3', 'ayol4', 'ayol5', 'ayol6', 'ayol7', 'olim', 'munajjim', 'kotib', 'savdogar2', 'chopon', 'bola'];
 const ANI = {}; const ANI_NAMES = { ot: 1.6, ot_yuk: 1.7, tuya: 2.2, tuya_yuk: 2.3, eshak_yuk: 1.35 };
 async function loadRigs() { await Promise.all(RIG_NAMES.map(async (n) => { const s = await loadRigSource(n); if (s) RIG[n] = s; }).concat(Object.entries(ANI_NAMES).map(async ([n, h]) => { const s = await loadAnimalSource(n, h); if (s) ANI[n] = s; }))); }
-const USED = {}; const ADULT = () => Object.keys(RIG).filter((k) => !['hero', 'bola', 'ayol', 'ayol2'].includes(k));
+const USED = {}; const ADULT = () => Object.keys(RIG).filter((k) => !k.startsWith('ayol') && !['hero', 'bola'].includes(k));
 const leastUsed = (list) => list.filter((k) => RIG[k]).sort((a, b) => (USED[a] || 0) - (USED[b] || 0) || rnd() - 0.5)[0];
-const pickRole = (r) => { const alt = { posbon: ['sarboz', 'navkar', 'posbon'], ayol: ['ayol', 'ayol2'], ishchi: ['ishchi', 'kotib', 'chavandoz', 'savdogar2', 'qishki'], oqsoqol: ['oqsoqol', 'olim', 'darvesh', 'munajjim'], savdogar: ['savdogar', 'savdogar2'], olim: ['olim', 'munajjim', 'kotib'] }[r]; if (!alt) return r; return leastUsed(alt) || r; };
+const pickRole = (r) => { const alt = { posbon: ['sarboz', 'navkar', 'posbon'], ayol: ['ayol', 'ayol2', 'ayol3', 'ayol4', 'ayol5', 'ayol6', 'ayol7'], ishchi: ['ishchi', 'kotib', 'chavandoz', 'savdogar2', 'qishki'], oqsoqol: ['oqsoqol', 'olim', 'darvesh', 'munajjim'], savdogar: ['savdogar', 'savdogar2'], olim: ['olim', 'munajjim', 'kotib'] }[r]; if (!alt) return r; return leastUsed(alt) || r; };
 function makePerson(role, look = {}, o = {}) {
   const key = role === 'hero' ? (S?.outfit || 'hero') : pickRole(role);
   const fb = !RIG[key] && role !== 'hero' && role !== 'bola' && role !== 'ayol' ? leastUsed(ADULT()) : null;
   const usedKey = RIG[key] ? key : fb; if (usedKey && role !== 'hero') USED[usedKey] = (USED[usedKey] || 0) + 1;
-  const src = RIG[key] || (fb ? RIG[fb] : null);
+  const src = RIG[key] || (fb ? RIG[fb] : null) || (role === 'ayol' ? RIG[leastUsed(['ayol', 'ayol2', 'ayol3', 'ayol4', 'ayol5', 'ayol6', 'ayol7'])] : null);
   if (src) { const R = makeRigged(src); if (role === 'bola') R.root.scale.setScalar(0.72); return R; }
   return makeHuman(look, o);
 }
@@ -344,7 +344,26 @@ function poiAction(p) {
 async function climb(top) { fade(true); await wait(400); P.pos.set(top.x, top.y, top.z); P.vy = 0; P.onGround = true; P.fallFrom = top.y; fade(false); }
 async function talk(n) { const lines = R.greet.concat(R.customs.map((c) => 'Bilasizmi? ' + c)); n.yaw = Math.atan2(P.pos.x - n.pos.x, P.pos.z - n.pos.z); await say(n.name || ({ oqsoqol: 'Mo\'ysafid', savdogar: 'Savdogar', ayol: 'Opa', ishchi: 'Yigit', bola: 'Bola', posbon: 'Posbon' }[n.role] || 'O\'tkinchi'), lines[rnd() * lines.length | 0], ['Rahmat']); }
 function greet(n) { n.waveT = 1.6; n.yaw = Math.atan2(P.pos.x - n.pos.x, P.pos.z - n.pos.z); P.pose = 'wave'; P.poseT = 1.2; if (!n.greeted) { n.greeted = true; S.obro += 1; toast('Vaalaykum assalom! (+1 obro\')'); } else toast('Vaalaykum assalom!'); }
-async function shopTalk(g) { if (g === 'gilam' && !S.unlock.gilam) { const c = await say('Gilamfurush', 'Bu oddiy gilam emas, bolam... Bobomdan qolgan uchar gilam! Afsonalarda aytilgan. 150 tanga — sizga arzon beraman.', ['Sotib olaman (150)', 'Yo\'q, rahmat']); if (c === 0) { if (S.money < 150) return toast('Tanga yetmaydi'); S.money -= 150; S.unlock.gilam = true; AU.sfx('good'); save(); await say('Gilamfurush', 'C tugmasi (telefonda "Gilam") — gilamga o\'tirish. Probel — yuqoriga, X — pastga. Ehtiyot bo\'ling, minoralarga urilmang!', ['Rahmat']); } return; } const t = { doppi: 'Do\'ppilarimiz — Chust, Iroqi, Zardo\'zi! Hammasi qo\'l mehnati.', kiyim: 'Beqasam, adras, movut — to\'nlarning eng zo\'ri shu yerda.', mahsi: 'Mahsi-kalish, charm etik — oyog\'ingiz rohat qiladi.', lagan: 'Rishton laganlari — ishqor rangi yuz yilga ham o\'chmaydi!', atlas: 'Marg\'ilon atlasi — abr naqshi qo\'lda bog\'langan.', gilam: 'Qashqadaryo gilami — qizning sepi, uyning ko\'rki.' }[g] || 'Xush kelibsiz!'; await say('Sotuvchi', t + '\n\n(Kiyim do\'koni keyingi yangilanishda: har xil to\'n va do\'ppili realistik qahramon modellari tayyorlanmoqda.)', ['Rahmat']); }
+const OUTFIT_LIST = [['hero', 'Ko\'k-oltin chopon', 0], ['hero_beqasam_yashil', 'Yashil beqasam to\'n', 40], ['hero_adras', 'Adras chopon', 55], ['hero_zardozi', 'Zardo\'zi baxmal to\'n', 180]];
+const HAT_LIST = [['asl', 'Asl do\'ppi', 0], ['chust', 'Chust do\'ppi', 15], ['iroqi_yashil', 'Yashil iroqi do\'ppi', 35], ['zardozi', 'Zardo\'zi do\'ppi', 80], ['samarqand', 'Samarqand do\'ppi', 18], ['shahrisabz', 'Shahrisabz do\'ppi', 25]];
+function rebuildHero() { const pos = hero.root.position.clone(), par = hero.root.parent; par?.remove(hero.root); hero = makePerson('hero'); if (hero.rigged) setRiggedHat(hero, S.hat); hero.root.position.copy(pos); (par || scene).add(hero.root); }
+function openWardrobe(shop) {
+  S.owned = S.owned || { hero: 1, asl: 1 }; paused = true; document.exitPointerLock?.(); $('wardrobe').hidden = false; let tab = 'ton';
+  const prevCam = [camYaw, camPitch, camDist]; camYaw = P.yaw + Math.PI; camPitch = 0.05; camDist = 2.6;
+  const draw = () => {
+    $('wd-title').textContent = shop ? 'Kiyim do\'koni' : 'Kiyimlar'; $('wd-money').textContent = S.money;
+    $('wd-tabs').innerHTML = [['ton', 'To\'n'], ['doppi', 'Do\'ppi']].map(([k, n]) => `<button class="${tab === k ? 'on' : ''}" data-t="${k}">${n}</button>`).join('');
+    const list = tab === 'ton' ? OUTFIT_LIST.filter(([k]) => RIG[k]) : HAT_LIST; const cur = tab === 'ton' ? (S.outfit || 'hero') : (S.hat || 'asl');
+    $('wd-list').innerHTML = list.map(([k, n, p]) => `<button class="wd-item ${k === cur ? 'on' : ''} ${!S.owned[k] && !shop ? 'locked' : ''}" data-k="${k}"><div class="nm">${esc(n)}</div><div class="pr">${S.owned[k] ? (k === cur ? 'Kiyilgan' : 'Sizniki') : p + ' tanga'}</div></button>`).join('') + (tab === 'ton' && list.length < OUTFIT_LIST.length ? '<div class="wd-desc">Yangi to\'nlar (yashil beqasam, adras, zardo\'zi) AI bilan tayyorlanmoqda — tayyor bo\'lgach shu yerda paydo bo\'ladi.</div>' : '');
+    $('wd-desc').textContent = shop ? 'Bosing — kiyib ko\'ring va sotib oling.' : 'Faqat sotib olingan kiyimlar. Ko\'proq — bozordagi kiyim va do\'ppi rastalarida.';
+    $('wd-tabs').querySelectorAll('button').forEach((b) => b.onclick = () => { tab = b.dataset.t; draw(); });
+    $('wd-list').querySelectorAll('.wd-item').forEach((b) => b.onclick = () => { const k = b.dataset.k, it = list.find((x) => x[0] === k); if (!S.owned[k]) { if (!shop) return toast('Bozorda sotib oling'); if (S.money < it[2]) return toast('Tanga yetmaydi'); S.money -= it[2]; S.owned[k] = 1; AU.sfx('coin'); } if (tab === 'ton') { S.outfit = k; rebuildHero(); } else { S.hat = k; if (hero.rigged) setRiggedHat(hero, k); } save(); draw(); });
+  };
+  $('wd-done').onclick = () => { $('wardrobe').hidden = true; paused = false; [camYaw, camPitch, camDist] = prevCam; save(); };
+  $('wd-rot').onclick = () => { P.yaw += Math.PI / 2; hero.root.rotation.y = P.yaw; };
+  draw();
+}
+async function shopTalk(g) { if (g === 'doppi' || g === 'kiyim' || g === 'atlas') return openWardrobe(true); if (g === 'gilam' && !S.unlock.gilam) { const c = await say('Gilamfurush', 'Bu oddiy gilam emas, bolam... Bobomdan qolgan uchar gilam! Afsonalarda aytilgan. 150 tanga — sizga arzon beraman.', ['Sotib olaman (150)', 'Yo\'q, rahmat']); if (c === 0) { if (S.money < 150) return toast('Tanga yetmaydi'); S.money -= 150; S.unlock.gilam = true; AU.sfx('good'); save(); await say('Gilamfurush', 'C tugmasi (telefonda "Gilam") — gilamga o\'tirish. Probel — yuqoriga, X — pastga. Ehtiyot bo\'ling, minoralarga urilmang!', ['Rahmat']); } return; } const t = { doppi: 'Do\'ppilarimiz — Chust, Iroqi, Zardo\'zi! Hammasi qo\'l mehnati.', kiyim: 'Beqasam, adras, movut — to\'nlarning eng zo\'ri shu yerda.', mahsi: 'Mahsi-kalish, charm etik — oyog\'ingiz rohat qiladi.', lagan: 'Rishton laganlari — ishqor rangi yuz yilga ham o\'chmaydi!', atlas: 'Marg\'ilon atlasi — abr naqshi qo\'lda bog\'langan.', gilam: 'Qashqadaryo gilami — qizning sepi, uyning ko\'rki.' }[g] || 'Xush kelibsiz!'; await say('Sotuvchi', t + '\n\n(Kiyim do\'koni keyingi yangilanishda: har xil to\'n va do\'ppili realistik qahramon modellari tayyorlanmoqda.)', ['Rahmat']); }
 async function choyxona() { if (S.money < 1) return toast('Choyga ham tanga kerak!'); S.money -= 1; P.hp = 100; P.st = 100; save(); AU.sfx('coin'); const c = await say('Choyxonachi', `Marhamat, ko'k choy! ${R.customs[rnd() * R.customs.length | 0]}.\n\nO'yin saqlandi.`, ['Rahmat', 'Kechgacha dam olish', 'Tonggacha dam olish']); if (c === 1) S.time = 19; if (c === 2) S.time = 6.5; }
 async function hashar() { const s = await qte('meter', { rounds: 5, title: 'G\'ishtni to\'g\'ri qo\'ying — oltin zonada bosing', zone: 0.24 }); const k = Math.round(s * 5); S.money += k * 3; S.obro += k; AU.sfx('good'); toast(`Hashar: ${k}/5 g'isht · +${k * 3} tanga, +${k} obro'`); }
 
@@ -632,6 +651,7 @@ async function frame() {
     updateHud(dt); updateCamera(dt); updateFx(dt);
     saveT += dt; if (saveT > 30) { saveT = 0; S.pos = [P.pos.x, P.pos.y, P.pos.z]; S.hp = P.hp; save(); }
     birdT -= dt; if (birdT <= 0 && S.time > 6 && S.time < 19) { AU.sfx('bird'); birdT = 2 + rnd() * 6; }
+  } else if (playing && !$('wardrobe').hidden) { updateCamera(dt); animate(hero, dt, { pose: 'idle', speed: 0 });
   } else if (!playing) { // bosh ekran: shahar ustida sekin aylanuvchi kamera
     const t = now / 1000 * 0.05; camera.position.set(Math.sin(t) * 60, 22, Math.cos(t) * 60 + 20); camera.lookAt(0, 12, 0); updateNpcs(dt); updateFx(dt);
   }
@@ -645,7 +665,7 @@ function setPause(on) { if (!playing) return; paused = on; $('pause').hidden = !
 $('pause-btn').onclick = () => setPause(true);
 $('p-resume').onclick = () => setPause(false);
 $('p-map').onclick = () => { $('pause').hidden = true; openMap(false); };
-$('p-wardrobe').onclick = () => { $('pause').hidden = true; paused = false; shopTalk('kiyim'); };
+$('p-wardrobe').onclick = () => { $('pause').hidden = true; paused = false; openWardrobe(false); };
 $('p-help').onclick = () => { $('help').hidden = false; };
 $('help-close').onclick = () => { $('help').hidden = true; };
 $('btn-help').onclick = () => { $('help').hidden = false; };
@@ -667,7 +687,7 @@ $('btn-continue').onclick = () => startGame(false);
 (async () => {
   $('loading').textContent = 'Dunyo yaratilmoqda…';
   await loadRigs();
-  hero = makePerson('hero', {}, {});
+  hero = makePerson('hero', {}, {}); if (hero.rigged && S?.hat) setRiggedHat(hero, S.hat);
   if (!S) S = defSave(); else $('btn-continue').hidden = false;
   await loadRegion(S.region, 'save');
   $('loading').textContent = Object.keys(RIG).length ? '' : 'Eslatma: realistik personaj modellari topilmadi — sodda modellar ishlatilmoqda.';

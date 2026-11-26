@@ -251,3 +251,27 @@ export function makeParachute() {
   const lm = new T.LineBasicMaterial({ color: '#ddd' }); for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; const geo = new T.BufferGeometry().setFromPoints([new T.Vector3(0, 0, 0), new T.Vector3(Math.cos(a) * 2.4, 3.6 - 1.6, Math.sin(a) * 1.6)]); g.add(new T.Line(geo, lm)); }
   g.position.y = 1.6; return g;
 }
+
+// 3D do'ppi: to'rt qirrali, burchaklari yumaloq, tepasi to'rt qirra bo'ylab cho'qqiga yig'iladi (Chust uslubi)
+export function makeDoppi(id) {
+  const tex = (id === 'chust' || id === 'iroqi_yashil') ? TX.doppiReal(id) : TX.doppiTex(id);
+  const geo = new T.CylinderGeometry(1, 1, 1, 48, 10, true); const p = geo.attributes.position, uv = geo.attributes.uv;
+  const R0 = 0.118, wall = 0.085, roof = 0.055;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), z = p.getZ(i), y = p.getY(i) + 0.5; // 0..1
+    const th = Math.atan2(z, x) + Math.PI / 4; const sq = 1 / Math.pow(Math.pow(Math.abs(Math.cos(th)), 5) + Math.pow(Math.abs(Math.sin(th)), 5), 1 / 5);
+    const rr = R0 * (0.9 + 0.1 * sq) * sq * 0.92;
+    let k, yy; if (y < 0.7) { k = 1 - y * 0.06; yy = y / 0.7 * wall; } else { const t = (y - 0.7) / 0.3; k = (1 - 0.042) * (1 - t * 0.97); yy = wall + Math.sin(t * Math.PI / 2) * roof; }
+    const a = Math.atan2(z, x); p.setXYZ(i, Math.cos(a) * rr * k, yy, Math.sin(a) * rr * k);
+    uv.setY(i, y < 0.7 ? y / 0.7 * 0.62 : 0.62 + (y - 0.7) / 0.3 * 0.38);
+  }
+  geo.computeVertexNormals();
+  const m = new T.Mesh(geo, new T.MeshStandardMaterial({ map: tex, roughness: 0.75, side: T.DoubleSide, metalness: id === 'zardozi' ? 0.3 : 0 })); m.castShadow = true;
+  const lining = new T.Mesh(new T.CircleGeometry(R0 * 0.9, 24), new T.MeshStandardMaterial({ color: '#1a1a1a' })); lining.rotation.x = Math.PI / 2; m.add(lining);
+  return m;
+}
+export function setRiggedHat(R, id) {
+  while (R.hatSlot.children.length) R.hatSlot.remove(R.hatSlot.children[0]);
+  if (!id || id === 'asl') return;
+  const d = makeDoppi(id); d.position.set(0, 0.155, 0.012); d.rotation.x = -0.08; d.scale.setScalar(1.08); R.hatSlot.add(d);
+}

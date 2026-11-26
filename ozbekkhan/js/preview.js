@@ -6,7 +6,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { regionById } from './regions.js';
 import { buildRegion } from './build.js';
-import { makeHuman, animate, makeAnimal, animateAnimal } from './actors.js';
+import { makeHuman, animate, makeAnimal, animateAnimal, setRiggedHat } from './actors.js';
 import { placeProps } from './props.js';
 import { createLighting, makeGradePass } from './lighting.js';
 import * as TX from './tex.js';
@@ -29,7 +29,8 @@ const osrc = await loadRigSource('oqsoqol');
 for (const n of res.npcs) { const old = rr() < 0.4; const h = osrc && (n.pose === 'sit' || n.role === 'oshpaz' || rr() < 0.5) ? makeRigged(osrc) : makeHuman({ skin: (rr() * 5) | 0, beard: old ? 3 : (rr() * 3) | 0, hat: old ? 'salla' : hats[(rr() * hats.length) | 0], coat: coats[(rr() * coats.length) | 0], belt: ['qizil', 'oq', 'yashil'][(rr() * 3) | 0] }); h.root.position.set(n.x, n.y || 0, n.z); h.root.rotation.y = n.ry; scene.add(h.root); people.push([h, n.pose === 'sit' ? 'sit' : n.pose === 'work' ? 'work' : 'idle', 0]); }
 for (let i = 0; i < 14; i++) { const fem = rr() < 0.3; const h = makeHuman({ skin: (rr() * 5) | 0, beard: (rr() * 4) | 0, hat: hats[(rr() * hats.length) | 0], coat: coats[(rr() * coats.length) | 0] }, { female: fem }); h.root.position.set((rr() - 0.5) * 5, 0, 30 + rr() * 70); h.root.rotation.y = rr() < 0.5 ? 0 : Math.PI; scene.add(h.root); people.push([h, 'walk', 1.3]); }
 const rsrc = await loadRigSource('hero'); const hero = rsrc ? makeRigged(rsrc) : makeHuman({ skin: 1, beard: 1, hat: 'chust', coat: 'beqasam_1', belt: 'qizil', shoes: 'mahsi' });
-const hp = (q.get('p') || '0,0,62').split(',').map(Number); hero.root.position.set(hp[0], 0, hp[2]); hero.root.rotation.y = +(q.get('ry') ?? Math.PI); scene.add(hero.root); people.push([hero, q.get('pose') || 'walk', +(q.get('sp') || 1.6)]);
+const hp = (q.get('p') || '0,0,62').split(',').map(Number); hero.root.position.set(hp[0], 0, hp[2]); hero.root.rotation.y = +(q.get('ry') ?? Math.PI); scene.add(hero.root); if (q.get('hat') && hero.rigged) setRiggedHat(hero, q.get('hat'));
+people.push([hero, q.get('pose') || 'walk', +(q.get('sp') || 1.6)]);
 if (osrc) for (let i = 0; i < 4; i++) { const h = makeRigged(osrc); h.root.position.set(hp[0] + (rr() - 0.5) * 8, 0, hp[2] - 4 - rr() * 14); h.root.rotation.y = rr() * 6; scene.add(h.root); people.push([h, 'walk', 1.0]); }
 const horse = makeAnimal('ot'); horse.root.position.set(-16.5, 0, 27.5); scene.add(horse.root);
 for (let i = 0; i < 60; i++) for (const [h, pose, sp] of people) animate(h, 0.016, { pose, speed: sp }); animateAnimal(horse, 0.5, 0);

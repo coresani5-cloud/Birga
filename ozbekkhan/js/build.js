@@ -552,7 +552,7 @@ export function buildRegion(R, opt = {}) {
   for (let z = 34; z < 100; z += 7.5) for (const side of [-1, 1]) { const g = order[si % order.length]; stall(side * 6.6, z, side > 0 ? Math.PI / 2 : -Math.PI / 2, g, si); si++; }
   if (R.landmarks.includes('toqi') || R.landmarks.includes('chorsu')) LM.toqi(0, 66);
   for (let z = 36; z < 100; z += 15) { lantern(-3.4, 2.6, z, Math.PI / 2); }
-  for (let z = 40; z < 100; z += 9) { const g = new T.PlaneGeometry(13, 0.9, 16, 1), pp = g.attributes.position; for (let i = 0; i < pp.count; i++) { const x = pp.getX(i); pp.setY(i, pp.getY(i) - (1 - (x / 6.5) ** 2) * 1.1); } g.computeVertexNormals(); W0.add('fab' + ri(0, 2), g, 0, 4.6, z, {}); }
+  for (let z = 40; z < 100; z += 13) { const g = new T.PlaneGeometry(13, 0.5, 16, 1), pp = g.attributes.position; for (let i = 0; i < pp.count; i++) { const x = pp.getX(i); pp.setY(i, pp.getY(i) - (1 - (x / 6.5) ** 2) * 1.1); } g.computeVertexNormals(); W0.add('fab' + ri(0, 2), g, 0, 4.4, z, { col: '#9a9a9a' }); }
   tandir(-9.5, 30); stall(-9.5, 26.5 - 2.6 + 0.4, Math.PI, 'non', 3);
   // asosiy yodgorlik
   LM[R.landmarks[0]]?.();

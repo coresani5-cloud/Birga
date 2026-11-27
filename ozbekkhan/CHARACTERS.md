@@ -6,9 +6,9 @@ Har bir personaj `tools/gen_chars.py <nom>` bilan yaratiladi (qahramon to'nlari 
 |---|---|---|
 | `hero` | Asosiy qahramon | tayyor |
 | `oqsoqol` | Choyxonada o'tiradi, mahalla oqsoqoli | tayyor |
-| `ayol` | Bozorda xarid | rasm bor |
-| `savdogar` | Rasta egasi | kutilmoqda |
-| `ishchi` | Hammol, supuruvchi, karvonchi | kutilmoqda |
+| `ayol` | Bozorda xarid | tayyor |
+| `savdogar` | Rasta egasi | rasm bor |
+| `ishchi` | Hammol, supuruvchi, karvonchi | rasm bor |
 | `posbon` | Tungi qorovul, qidiruv | kutilmoqda |
 | `chavandoz` | Otda yuradi | kutilmoqda |
 | `qishki` | Qishki kiyimda o'tkinchi | kutilmoqda |
@@ -28,6 +28,7 @@ Har bir personaj `tools/gen_chars.py <nom>` bilan yaratiladi (qahramon to'nlari 
 | `arab` | Ipak yo'li savdogari | kutilmoqda |
 | `yigit_beqasam` | O'tkinchi | kutilmoqda |
 | `qiz_atlas` | Raqqosa, to'yda | kutilmoqda |
+| `hero_v2` | Qahramon kiyimi | tayyor |
 | `bola_oq` | O'ynaydi | kutilmoqda |
 | `bola_kok` | O'ynaydi | kutilmoqda |
 | `bola_beqasam` | O'ynaydi | kutilmoqda |
@@ -43,8 +44,10 @@ Har bir personaj `tools/gen_chars.py <nom>` bilan yaratiladi (qahramon to'nlari 
 | `eshak_yuk` | Karvon, arava | kutilmoqda |
 | `eshak` | Qahramon kiyimi | kutilmoqda |
 | `tuya_gilam` | Qahramon kiyimi | kutilmoqda |
-| `echki` | Qahramon kiyimi | kutilmoqda |
-| `qoy` | Qahramon kiyimi | kutilmoqda |
+| `echki` | Qahramon kiyimi | rasm bor |
+| `qoy2` | Qahramon kiyimi | rasm bor |
+| `tovuq` | Qahramon kiyimi | rasm bor |
+| `qoy` | Qahramon kiyimi | rasm bor |
 | `tuya` | Minish | kutilmoqda |
 | `hero_beqasam_yashil` | Qahramon kiyimi | kutilmoqda |
 | `hero_adras` | Qahramon kiyimi | kutilmoqda |

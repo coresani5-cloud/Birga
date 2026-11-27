@@ -117,7 +117,7 @@ function addNpc(o) {
 }
 function spawnWorld() {
   for (const n of RES.npcs) addNpc({ ...n, role: n.name === 'Dehqon' || n.name === 'Bog\'bon' ? 'ishchi' : roleOf(n.role), job: n.role, pose: n.pose, name: n.name });
-  const night = S.time > 21 || S.time < 5.5, NP = Q > 0 ? (night ? 10 : 26) : 12;
+  const night = S.time > 21 || S.time < 5.5, NP = Q > 0 ? (night ? 16 : 48) : 20;
   for (let i = 0; i < NP; i++) { const nd = NODES[rnd() * NODES.length | 0]; const role = ['ishchi', 'savdogar', 'oqsoqol', 'ayol', 'ayol', 'bola', 'ishchi'][rnd() * 7 | 0]; const n = addNpc({ x: nd[0] + (rnd() - 0.5) * 3, z: nd[1] + (rnd() - 0.5) * 3, role, walk: true, pose: 'walk' }); n.target = nd; if (role === 'bola' && rnd() < 0.5) n.play = true; }
   // ulovlar: bog'langan otlar, ko'chada yurgan chavandozlar va aravalar
   for (const h of A.horses) addMount('ot', h.x, h.z, h.ry, { tied: true });
@@ -141,7 +141,7 @@ function spawnWorld() {
   for (const d of A.doors.slice(0, Q > 0 ? 4 : 2)) addNpc({ x: d.x, z: d.z, ry: d.ry, role: 'ishchi', pose: 'work', job: 'supuruvchi' });
   // topshiriq beruvchilar
   const list = (R.mission ? [R.mission] : []).concat(SIDE);
-  spawnTrader(); spawnCarts();
+  spawnTrader(); spawnCarts(); spawnGates();
   for (const id of list) { const M = MISSIONS[id]; if (!M) continue; let g; try { g = M.giver.at(A); } catch { g = null; } if (!g) continue; const p = freeSpot(g.x, g.z); const n = addNpc({ x: p.x, z: p.z, ry: rnd() * 6, role: id === 'mehmon' ? 'ayol' : id === 'kurash' || id === 'kopkari' ? 'posbon' : 'oqsoqol', pose: 'idle', name: M.giver.name, mission: id });
     const mk = new T.Mesh(new T.OctahedronGeometry(0.22), new T.MeshBasicMaterial({ color: M.job ? '#5ad16a' : M.side ? '#19b3ad' : '#e6b84c' })); mk.position.set(p.x, 2.35, p.z); scene.add(mk); givers.push({ id, n, mark: mk }); n.giver = true; }
 }
@@ -161,6 +161,38 @@ let freeCarts = [];
 function spawnCarts() { for (const c of freeCarts) scene.remove(c.obj); freeCarts = []; for (const c of A.carts) { const obj = makeCart(); obj.position.set(c.x, 0, c.z); obj.rotation.y = c.ry; scene.add(obj); C.add(c.x - 1.1, c.z - 1.1, c.x + 1.1, c.z + 1.1, 1.4, -1); freeCarts.push({ obj, x: c.x, z: c.z, col: C.b[C.b.length - 1] }); } }
 function hitchCart(fc) { const m = P.mount; scene.remove(fc.obj); fc.col.top = -999; freeCarts = freeCarts.filter((x) => x !== fc); const cart = makeCart(); cart.position.z = -2.2 - (m.kind === 'ot' ? 0.3 : 0); m.root.add(cart); m.cart = cart; m.hitched = true; hero.root.position.set(0, 1.05, -2.0 - (m.kind === 'ot' ? 0.3 : 0)); toast('Arava ulandi! Endi ko\'proq yuk sig\'adi.'); AU.sfx('good'); }
 function unhitchCart() { const m = P.mount; if (!m?.hitched) return; m.root.remove(m.cart); const back = -2.4; const x = m.pos.x + Math.sin(m.yaw) * back, z = m.pos.z + Math.cos(m.yaw) * back; const obj = makeCart(); obj.position.set(x, 0, z); obj.rotation.y = m.yaw; scene.add(obj); freeCarts.push({ obj, x, z, col: C.add(x - 1.1, z - 1.1, x + 1.1, z + 1.1, 1.4, -1) }); m.cart = null; m.hitched = false; hero.root.position.set(0, m.A.seatY - (m.A.rigged ? 0.55 : 0.95), 0); toast('Arava ajratildi'); }
+let gates = [];
+function spawnGates() {
+  for (const g of gates) scene.remove(g.grp); gates = [];
+  const woodT = TX.pbr('wood');
+  const STY = { xiva: '#6b4424', buxoro: '#4a2e18', samarqand: '#3d2a1a', vodiy: '#7a3f22', qala: '#5a3a20' };
+  for (const G of A.gates) {
+    const grp = new T.Group(); grp.position.set(G.x, 0, G.z); grp.rotation.y = G.sz > 0 ? 0 : Math.PI; scene.add(grp);
+    const mat = new T.MeshStandardMaterial({ map: woodT.map, normalMap: woodT.normalMap, color: STY[G.style], roughness: 0.85 }), iron = new T.MeshStandardMaterial({ color: '#2a2520', metalness: 0.7, roughness: 0.45 });
+    const leaves = [-1, 1].map((side) => {
+      const hinge = new T.Group(); hinge.position.set(side * 4.2, 0, 0); grp.add(hinge);
+      const w = 4.15, h = 6.4; const leaf = new T.Mesh(new T.BoxGeometry(w, h, 0.28), mat); leaf.position.set(-side * w / 2, h / 2, 0); leaf.castShadow = true; hinge.add(leaf);
+      for (let i = 0; i < 3; i++) { const b = new T.Mesh(new T.BoxGeometry(w * 0.96, 0.16, 0.06), iron); b.position.set(-side * w / 2, 0.9 + i * 2.2, 0.17); hinge.add(b); }
+      for (let r0 = 0; r0 < 6; r0++) for (let c = 0; c < 4; c++) { const st = new T.Mesh(new T.SphereGeometry(0.06, 6, 4), iron); st.position.set(-side * (0.5 + c * 1.0), 0.6 + r0 * 1.05, 0.16); hinge.add(st); }
+      if (G.style === 'xiva' || G.style === 'vodiy') { for (let r0 = 0; r0 < 3; r0++) { const p = new T.Mesh(new T.BoxGeometry(1.4, 1.4, 0.05), mat); p.position.set(-side * w / 2, 1.3 + r0 * 1.9, 0.15); p.rotation.z = Math.PI / 4; hinge.add(p); } }
+      const ring = new T.Mesh(new T.TorusGeometry(0.16, 0.03, 6, 14), iron); ring.position.set(-side * (w - 0.5), 3.1, 0.2); hinge.add(ring);
+      return { hinge, side };
+    });
+    gates.push({ grp, leaves, G, open: 0 });
+  }
+}
+function updateGates(dt) {
+  const day = S.time > 5.5 && S.time < 21.5;
+  for (const g of gates) {
+    const d = Math.hypot(P.pos.x - g.G.x, P.pos.z - g.G.z);
+    const near = d < 18 || npcs.some((n) => n.state !== 'down' && Math.hypot(n.pos.x - g.G.x, n.pos.z - g.G.z) < 8) || mounts.some((m) => Math.hypot(m.pos.x - g.G.x, m.pos.z - g.G.z) < 9);
+    const want = (day || d < 10) && (near || day) ? 1 : 0, prev = g.open;
+    g.open += Math.sign(want - g.open) * Math.min(Math.abs(want - g.open), dt * 0.45);
+    for (const l of g.leaves) l.hinge.rotation.y = l.side * g.open * 1.45;
+    g.G.col.top = g.open > 0.55 ? -999 : 7;
+    if ((prev < 0.02 && g.open >= 0.02) || (prev > 0.98 && g.open <= 0.98)) { if (d < 40) AU.sfx('hoof', 0.6); }
+  }
+}
 function spawnTrader() { const p = freeSpot(-3.2, 103); const n = addNpc({ x: p.x, z: p.z, ry: Math.PI, role: 'savdogar', pose: 'idle', name: 'Ipak yo\'li savdogari' }); n.trader = true; const mk = new T.Mesh(new T.OctahedronGeometry(0.22), new T.MeshBasicMaterial({ color: '#ffffff' })); mk.position.set(p.x, 2.35, p.z); scene.add(mk); givers.push({ id: null, n, mark: mk }); }
 function freeSpot(x, z) { for (let r = 0; r < 12; r += 1) for (let a = 0; a < 6.28; a += 0.8) { const px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r; if (C.ground(px, pz, 0.2, 0.4) < 0.7) { let ok = true; for (const i of C.near(px, pz)) { const b = C.b[i]; if (px > b.x0 - 0.4 && px < b.x1 + 0.4 && pz > b.z0 - 0.4 && pz < b.z1 + 0.4 && b.top > 0.7) ok = false; } if (ok) return { x: px, z: pz }; } } return { x, z }; }
 function addMount(kind, x, z, ry, o = {}) {
@@ -683,7 +715,7 @@ async function frame() {
   if (playing && !paused) {
     readKeys(); { const nt = S.time + dt / 30; if (nt >= 24) S.day = (S.day || 0) + 1; S.time = nt % 24; }
     if (P.pose && (P.poseT -= dt) <= 0 && !qteOn) P.pose = null;
-    { const n = Math.max(1, Math.ceil(dt / (1 / 60))); for (let i = 0; i < n; i++) updatePlayer(dt / n); } updateNpcs(dt); updateCritters(dt); updateHeat(dt); updateMission(dt); updateQte(dt);
+    { const n = Math.max(1, Math.ceil(dt / (1 / 60))); for (let i = 0; i < n; i++) updatePlayer(dt / n); } updateNpcs(dt); updateCritters(dt); updateGates(dt); updateHeat(dt); updateMission(dt); updateQte(dt);
     curAct = dlgOpen || qteOn ? null : findAction();
     updateHud(rdt); updateCamera(dt, rdt); updateFx(dt);
     saveT += dt; if (saveT > 30) { saveT = 0; S.pos = [P.pos.x, P.pos.y, P.pos.z]; S.hp = P.hp; save(); }

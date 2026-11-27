@@ -131,7 +131,7 @@ export function buildRegion(R, opt = {}) {
   const B = new Batch(mats);
   const wallCol = new T.Color(S.wall).lerp(new T.Color('#ffffff'), 0.55).multiplyScalar(1.05), wallCol2 = new T.Color(S.wall2).lerp(new T.Color('#ffffff'), 0.5);
   const tint = (c, v = 0.08) => { const k = 1 + (r() - 0.5) * v * 2; return c.clone().multiplyScalar(k); };
-  const A = { carts: [], tools: [], realTrees: [], props: [], stalls: [], doors: [], ladderRoofs: [], lanterns: [], horses: [], trees: [], benches: [], extras: {} };
+  const A = { gates: [], carts: [], tools: [], realTrees: [], props: [], stalls: [], doors: [], ladderRoofs: [], lanterns: [], horses: [], trees: [], benches: [], extras: {} };
   const pois = [], npcs = [], fx = { fires: [], smoke: [], water: [] };
   const poi = (o) => { pois.push(o); return o; };
   const prop = (id, x, y, z, ry = 0, s = 1, o = {}) => A.props.push({ id, x, y, z, ry, s, ...o });
@@ -151,7 +151,7 @@ export function buildRegion(R, opt = {}) {
 
   /* ----- elementlar ----- */
   function lantern(x, y, z, ry) { W0.add('wood', box(0.06, 0.06, 0.5), x, y + 0.25, z, { ry, col: '#555' }); const lx = x + Math.sin(ry) * 0.45, lz = z + Math.cos(ry) * 0.45; const g = W0.add('lamp', new T.SphereGeometry(0.07, 8, 6), lx, y - 0.12, lz); prop('Lantern_01', lx, y - 0.32, lz, ry, 0.9); A.lanterns.push(new T.Vector3(x + Math.sin(ry) * 0.45, y, z + Math.cos(ry) * 0.45)); return g; }
-  function pot(x, z, s = 1, y = 0) { if (Q > 0 || true) { prop(pick(['ceramic_vase_01', 'ceramic_vase_03', 'antique_ceramic_vase_01', 'jug_01', 'planter_pot_clay', 'brass_vase_01']), x, y, z, r() * 6.28, s * (0.9 + r() * 0.4)); return; } const pts = [[0, 0], [0.18, 0.02], [0.28, 0.25], [0.24, 0.5], [0.1, 0.62], [0.09, 0.72], [0.13, 0.76]].map(([a, b]) => new T.Vector2(a * s, b * s)); W0.add('clay', new T.LatheGeometry(pts, 10), x, y, z, { col: tint(new T.Color('#c58a5e'), 0.15) }); }
+  function pot(x, z, s = 1, y = 0) { if (Q > 0 || true) { prop(pick(['ceramic_vase_01', 'ceramic_vase_03', 'antique_ceramic_vase_01', 'jug_01', 'planter_pot_clay', 'brass_vase_01', 'ceramic_pot', 'brass_vase_02', 'brass_pot_02']), x, y, z, r() * 6.28, s * (0.9 + r() * 0.4)); return; } const pts = [[0, 0], [0.18, 0.02], [0.28, 0.25], [0.24, 0.5], [0.1, 0.62], [0.09, 0.72], [0.13, 0.76]].map(([a, b]) => new T.Vector2(a * s, b * s)); W0.add('clay', new T.LatheGeometry(pts, 10), x, y, z, { col: tint(new T.Color('#c58a5e'), 0.15) }); }
   function ladder(x, z, ry, h) { if (h < 7) { prop('wooden_ladder', x, 0, z, ry, h / 3.0, { rx: -0.18 }); return; } const LL = L(x, z, 0); for (const sx of [-0.28, 0.28]) LL.add('wood', box(0.07, h + 0.8, 0.07), sx * Math.cos(ry), (h + 0.8) / 2, -sx * Math.sin(ry), { ry, rx: 0, col: '#8a6a48' }); for (let y = 0.35; y < h + 0.6; y += 0.4) LL.add('wood', box(0.6, 0.05, 0.05), 0, y, 0, { ry, col: '#8a6a48' }); }
   function carpetOnWall(x, y, z, ry, w = 1.4, h = 2) { W0.add('carpet' + ri(0, 2), new T.PlaneGeometry(w, h), x, y, z, { ry }); }
   function crown(x, y, z, R0, n, col, sq = 1) { // barg kartalari: har bir to'p — 3 ta kesishgan tekislik
@@ -206,6 +206,7 @@ export function buildRegion(R, opt = {}) {
     else if (goods === 'ziravor') put((px, pz, i) => { W0.add('wood', new T.CylinderGeometry(0.22, 0.18, 0.12, 10), x + px, top + 0.06, z + pz, { col: '#a07850' }); W0.add('plain', new T.ConeGeometry(0.2, 0.22, 10), x + px, top + 0.22, z + pz, { col: ['#c0392b', '#e1a23a', '#7a4a2a', '#d9c25a', '#5a3a2a', '#9a2a1a'][i] }); });
     else if (goods === 'qurol') { const W = ['antique_estoc', 'wooden_handle_saber', 'machete', 'ornate_medieval_dagger', 'wooden_axe']; put((px, pz, i) => prop(W[i % W.length], x + px, top + 0.03, z + pz, ry + Math.PI / 2, 1, { rx: Math.PI / 2 })); for (let i = 0; i < 3; i++) { const [px, pz] = P(-0.9 + i * 0.9, 0.85); prop('kite_shield', x + px, 1.0, z + pz, ry + Math.PI, 0.9); } }
     else put((px, pz, i) => pot(x + px, z + pz, 0.55, top));
+    if (r() < 0.45) { const [sx2, sz2] = P(0, 1.0); prop('wooden_display_shelves_01', x + sx2, 0, z + sz2, ry + Math.PI, 0.9); }
     { const [px, pz] = P(-1.6, -0.6); prop(pick(['wicker_basket_01', 'wicker_basket_02', 'wooden_crate_01', 'wooden_crate_02', 'barrel_03']), x + px, 0, z + pz, r() * 6, 0.9); const [qx, qz] = P(1.6, -0.5); if (r() < 0.6) prop(pick(['wooden_crate_01', 'wooden_crate_02', 'wooden_bucket_01', 'wooden_bucket_02', 'jug_01', 'metal_jug']), x + qx, 0, z + qz, r() * 6, 1); if (goods === 'qovun' || goods === 'ziravor') { const [bx, bz] = P(0.6, -0.25); prop('wicker_basket_02', x + bx, 0.95, z + bz, r() * 6, 0.6); for (let k = 0; k < 4; k++) prop(goods === 'qovun' ? pick(['food_pomegranate_01', 'food_apple_01', 'lemon']) : 'yellow_onion', x + bx + (r() - 0.5) * 0.25, 1.08, z + bz + (r() - 0.5) * 0.25, r() * 6, 1.1); } }
     const [fx_, fz_] = P(0, -0.2); C.add(x + P(0, 0.2)[0] - 1.35, z + P(0, 0.2)[1] - 0.7, x + P(0, 0.2)[0] + 1.35, z + P(0, 0.2)[1] + 0.7, 0.95, -1);
     const [kx, kz] = P(0, 1.35); const butcher = goods === 'kiyim' && r() < 0.5; npcs.push({ x: x + kx, z: z + kz, ry: ry + Math.PI, role: 'sotuvchi', pose: butcher ? 'cut' : 'stand', tool: butcher ? 'pichoq' : null, goods });
@@ -249,6 +250,8 @@ export function buildRegion(R, opt = {}) {
         const dp = at(u, 0, 1.4); A.doors.push({ x: dp[0], z: dp[2], ry, h });
         if (r() < 0.45) { const lp = at(u + 1.15, 2.3, 0.15); lantern(lp[0], lp[1], lp[2], ry); }
         if (r() < 0.4) { const pp = at(u - 1.4, 0, 0.5); pot(pp[0], pp[2], 0.9); }
+        if (r() < 0.14 && Math.max(Math.abs(cx), Math.abs(cz)) < 108) { const bp = at(u + 1.9, 0, 0.55); W0.add('wood', box(1.6, 0.42, 0.55), bp[0], 0.21, bp[2], { ry, col: '#6e4e30' }); C.add(bp[0] - 0.8, bp[2] - 0.8, bp[0] + 0.8, bp[2] + 0.8, 0.42, -1); npcs.push({ x: bp[0] + Math.sin(ry) * 0.1, z: bp[2] + Math.cos(ry) * 0.1, ry, role: r() < 0.6 ? 'mehmon' : 'kitobxon', pose: 'sit', y: 0.0, name: r() < 0.5 ? 'Qo\'shni' : 'Mahalla oqsoqoli' }); }
+        if (r() < 0.05 && Math.max(Math.abs(cx), Math.abs(cz)) < 108) { const tp = at(u - 3, 0, 2.4); tandir(tp[0], tp[2]); npcs.push({ x: tp[0] + 1.1, z: tp[2], ry: -Math.PI / 2, role: 'ayol', pose: 'work', name: 'Non yopayotgan opa' }); }
         if (r() < 0.08) { const pp = at(u - 2.4, 0, 0.25); A.tools.push({ kind: pick(['ketmon', 'xaskash', 'vila']), x: pp[0], y: 0, z: pp[2], rx: 0.18, ry: ry, s: 1 }); }
         if (r() < 0.12) { const pp = at(u - 1.3, 0, 0.6); prop(pick(['wooden_stool_01', 'WoodenTable_01', 'wooden_bucket_02']), pp[0], 0, pp[2], r() * 6, 1); }
         if (r() < 0.1) { const pp = at(u + 2.2, 0, 0.3); prop('brass_diya_lantern', pp[0], 0, pp[2], ry, 1.2); }
@@ -376,8 +379,15 @@ export function buildRegion(R, opt = {}) {
     for (let t = -mid; t <= mid + 0.1; t += len / 8) for (const [x, z] of [[t, -mid], [t, mid], [-mid, t], [mid, t]]) { if (Math.abs(x) < 9 && Math.abs(z) > 100) continue; W0.add('wall', new T.CylinderGeometry(3.2, 3.9, H + 1, 14), x, (H + 1) / 2, z, { uv: 0.33, col: tint(wallCol, 0.04) }); C.add(x - 3.4, z - 3.4, x + 3.4, z + 3.4, H + 2); }
     for (const sz of [-1, 1]) { // darvozalar
       const z = sz * mid; for (const sx of [-1, 1]) { W0.add('wall', new T.CylinderGeometry(3.6, 4.4, H + 4, 16), sx * 8, (H + 4) / 2, z, { uv: 0.33, col: tint(wallCol, 0.04) }); C.add(sx * 8 - 4, z - 4, sx * 8 + 4, z + 4, H + 5); W0.add('band', scaleUV(new T.CylinderGeometry(3.7, 3.75, 0.9, 16, 1, true), 4, 1), sx * 8, H + 2.6, z); }
-      W0.add('wall', box(9, 3, 5), 0, H + 0.5, z, { uv: 0.33, col: wallCol });
-      W0.add('wood', box(4.2, 5.6, 0.3), -2.6, 2.8, z + sz * 2.3, { ry: sz * 0.9, col: '#5a3a20' }); W0.add('wood', box(4.2, 5.6, 0.3), 2.6, 2.8, z + sz * 2.3, { ry: -sz * 0.9, col: '#5a3a20' });
+      const gst = { xorazm: 'xiva', buxoro: 'buxoro', navoiy: 'buxoro', samarqand: 'samarqand', qashqadaryo: 'samarqand', surxondaryo: 'qala', jizzax: 'qala', sirdaryo: 'qala', toshkent: 'vodiy', namangan: 'vodiy', fargona: 'vodiy', andijon: 'vodiy' }[R.id] || 'buxoro';
+      // darvoza peshtoqi: uslubga qarab (Xiva — baland g'isht tishli; Buxoro — koshin hoshiyali arka; Samarqand — ko'k gumbazchali minoralar; vodiy — yog'och ayvonli; qal'a — oddiy paxsa)
+      const gy = H + 0.5; W0.add(gst === 'xiva' || gst === 'qala' ? 'wall' : 'brick', box(9, 3, 5), 0, gy, z, { uv: 0.33, col: gst === 'xiva' || gst === 'qala' ? wallCol : '#ffffff' });
+      { const ar = new T.Shape(); ar.moveTo(-4.3, 0); ar.lineTo(4.3, 0); ar.lineTo(4.3, 6.2); ar.quadraticCurveTo(0, 9.2, -4.3, 6.2); ar.closePath(); const g2 = new T.ShapeGeometry(ar); for (const zz of [z + sz * 2.52, z - sz * 2.52]) W0.add(gst === 'buxoro' || gst === 'samarqand' ? 'tile' : 'dark', g2.clone(), 0, 0, zz, { ry: zz === z + sz * 2.52 ? (sz > 0 ? 0 : Math.PI) : (sz > 0 ? Math.PI : 0), uv: 0.6 }); }
+      if (gst === 'buxoro' || gst === 'samarqand') W0.add('band', scaleUV(box(9.2, 0.9, 5.2), 2, 1), 0, H + 1.6, z, { uv: 0 });
+      if (gst === 'samarqand') for (const sx of [-1, 1]) dome(sx * 8, H + 4, z, 2.4, { drum: 0.4, el: 1.3 });
+      if (gst === 'xiva') for (let i = 0; i < 6; i++) W0.add('wall', new T.CylinderGeometry(0.55, 0.55, 1.2, 8, 1, false, 0, Math.PI), -3.8 + i * 1.5, H + 2.6, z + sz * 2.6, { ry: sz > 0 ? 0 : Math.PI, uv: 0.33, col: wallCol });
+      if (gst === 'vodiy') { W0.add('wood', box(10, 0.25, 3.4), 0, H + 2.1, z + sz * 3.6, { col: '#6e4e30' }); for (const sx of [-1, 1]) W0.add('wood', new T.CylinderGeometry(0.14, 0.17, H + 2, 10), sx * 4.6, (H + 2) / 2, z + sz * 5.1, { col: '#8a6542' }); }
+      A.gates.push({ x: 0, z: z + sz * 2.6, sz, style: gst, col: C.add(-4.3, z + sz * 2.6 - 0.25, 4.3, z + sz * 2.6 + 0.25, 7, -1) });
       lantern(-5.4, 4.2, z + sz * 2.6, sz > 0 ? 0 : Math.PI); lantern(5.4, 4.2, z + sz * 2.6, sz > 0 ? 0 : Math.PI);
       poi({ x: 0, y: 0, z: z + sz * 5.5, r: 4.5, kind: 'gate', label: 'Karvon yo\'li — boshqa viloyatga' });
       { const gx = 12, gz = z - sz * 6; W0.add('wood', box(2.4, 0.1, 0.4), gx, 1.6, gz, { col: '#6b4a2e' }); for (const dx of [-1.1, 1.1]) W0.add('wood', box(0.12, 1.8, 0.12), gx + dx, 0.9, gz, { col: '#6b4a2e' }); prop('kite_shield', gx - 0.6, 0.9, gz + 0.1, sz > 0 ? Math.PI : 0, 0.9); prop('antique_estoc', gx + 0.4, 0.05, gz + 0.12, 0, 1, { rx: -0.25 }); prop('wooden_handle_saber', gx + 0.8, 0.05, gz + 0.12, 0, 1, { rx: -0.25 }); prop('barrel_03', gx + 2, 0, gz, 0, 1); npcs.push({ x: gx - 1.8, z: gz - sz * 1.2, ry: sz > 0 ? 0 : Math.PI, role: 'posbon', pose: 'idle', name: 'Darvoza qorovuli' }); }
@@ -618,8 +628,17 @@ export function buildRegion(R, opt = {}) {
     npcs.push({ x: fx0 + 17, z: fz0 + 4, ry: Math.PI / 2, role: 'ishchi', pose: 'reap', tool: 'oroq', name: 'O\'roqchi' }); npcs.push({ x: fx0 + 19, z: fz0 + 8, ry: Math.PI / 2, role: 'ishchi', pose: 'reap', tool: 'oroq', name: 'O\'roqchi' });
     A.tools.push({ kind: 'ketmon', x: fx0 - 1, y: 0, z: fz0 - 1, rx: 0.2, ry: 0.5, s: 1 }); }
   A.tools.push({ kind: 'vila', x: -45, y: 0, z: 127, rx: 0.25, ry: 1, s: 1 }); A.tools.push({ kind: 'xaskash', x: -44.5, y: 0, z: 127.3, rx: 0.22, ry: 1.2, s: 1 });
+  // tashqarida: toshlar, kundalar, qurigan daraxtlar, shox-shabba; cho'ponlar gulxani
+  for (let i = 0; i < 40; i++) { const a = r() * 6.28, d = 125 + r() * 140, x = Math.cos(a) * d, z = Math.sin(a) * d; if (Math.abs(x) < 10 && z > 100) continue; const k = r(); const id = k < 0.3 ? pick(['rock_07', 'rock_09', 'stone_01']) : k < 0.5 ? 'namaqualand_boulder_02' : k < 0.65 ? 'tree_stump_01' : k < 0.8 ? 'dry_branches_medium_01' : 'dead_tree_trunk'; prop(id, x, heightAt(x, z) - 0.1, z, r() * 6.28, ({ rock_07: 6, rock_09: 6, stone_01: 4, namaqualand_boulder_02: 1.2, dry_branches_medium_01: 2.2 }[id] || 1) * (0.7 + r() * 0.6)); }
+  for (const [x, z] of [[30, 150], [-60, 170], [140, -40]]) { prop('stone_fire_pit', x, heightAt(x, z), z, r() * 6, 1); const f = new T.Mesh(new T.ConeGeometry(0.22, 0.55, 8), mats.fire); f.position.set(x, heightAt(x, z) + 0.35, z); group.add(f); fx.fires.push({ m: f, x, y: 0.6, z }); fx.smoke.push({ x, y: heightAt(x, z) + 0.8, z, thin: 1 }); }
   // tashqaridagi qishloq hovlilari
-  for (let i = 0; i < 10; i++) { const a = r() * 6.28, d = 140 + r() * 60, x = Math.cos(a) * d, z = Math.sin(a) * d; if (Math.abs(x) < 12 && z > 0) continue; if (A.extras.paxta && x > -95 && x < -25 && z > 130 && z < 190) continue; const y = heightAt(x, z); if (y > 3) continue; house(x - 4, z - 4, x + 4, z + 4, { n: true, s: true, e: true, w: true }); }
+  { // qal'a tashqarisidagi mahallalar: yo'llar bo'ylab qatorlab, keyin tarqoq hovlilar (devor bilan o'ralgan)
+    const taken = (x, z) => (A.extras.paxta && x > -95 && x < -25 && z > 125 && z < 195) || (x > 25 && x < 50 && z > 128 && z < 148) || (x > -50 && x < -20 && z > 120 && z < 140) || Math.hypot(x - 120, z + 150) < 34 || Math.hypot(x - 150, z - 140) < 30 || Math.abs(x) < 6 || heightAt(x, z) > 2.5;
+    const lot = (x, z, w, d) => { if (taken(x, z)) return; house(x - w / 2, z - d / 2, x + w / 2, z + d / 2, { n: true, s: true, e: true, w: true }); };
+    for (const side of [-1, 1]) for (let z = 128; z < 230; z += 11 + r() * 4) { const w = 7 + r() * 3, d = 7 + r() * 3; lot(side * (10 + w / 2 + r() * 2), z, w, d); if (r() < 0.6) lot(side * (24 + w / 2 + r() * 3), z + r() * 3, w, d); }
+    for (const side of [-1, 1]) for (let x = 125; x < 230; x += 11 + r() * 4) { const w = 7 + r() * 3, d = 7 + r() * 3; lot(side * x, (r() < 0.5 ? 1 : -1) * (8 + d / 2), w, d); }
+    for (let i = 0; i < (Q > 0 ? 45 : 22); i++) { const a = r() * 6.28, d = 128 + r() * 95, x = Math.cos(a) * d, z = Math.sin(a) * d; if (Math.max(Math.abs(x), Math.abs(z)) < 124) continue; const w = 6 + r() * 4, dd = 6 + r() * 4; if (taken(x, z)) continue; lot(x, z, w, dd); const hw = w / 2 + 3.5, hd = dd / 2 + 3.5; for (const [a1, b1, ww, dd2] of [[0, -hd, hw * 2, 0.4], [-hw, 0, 0.4, hd * 2], [hw, 0, 0.4, hd * 2]]) { W0.add('wall', box(ww, 1.8, dd2), x + a1, 0.9, z + b1, { uv: 0.33, col: tint(wallCol2, 0.06) }); C.add(x + a1 - ww / 2, z + b1 - dd2 / 2, x + a1 + ww / 2, z + b1 + dd2 / 2, 1.8); } if (r() < 0.5) tree(x + (r() - 0.5) * w, z + hd - 1.5, 0.8, r() < 0.5 ? 'tut' : 'anor'); }
+  }
 
   B.build(group, opt.shadows);
   return { group, C, A, pois, npcs, fx, heightAt, mats };

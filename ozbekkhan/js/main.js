@@ -73,6 +73,12 @@ let RES = null, R = null, C = null, A = null, heightAt = () => 0, mapImg = null;
 const P = { pos: new V3(0, 0, 100), vy: 0, yaw: Math.PI, speed: 0, mode: 'foot', mount: null, hp: 100, st: 100, onGround: true, fallFrom: 0, punchT: 0, hitCd: 0, carry: null, carryObj: null, para: null, pose: null, poseT: 0 };
 let hero = null, camYaw = Math.PI, camPitch = 0.25, camDist = 4.6;
 let shake = 0, foeT = 0, foe = null;
+// game-feel: travma asosidagi silkinish (kuch = travma^2, silliq sinuslar), real vaqtda so'nadi; hit-stop — eng yangi chaqiruv tiklaydi
+let trauma = 0, shakeT = 0, timeScale = 1, hitStopUntil = 0;
+const SHAKE_STRENGTH = (() => { try { return +(localStorage.getItem('bek_shake') ?? 1); } catch { return 1; } })();
+function addTrauma(a) { trauma = Math.min(1, trauma + a); }
+function hitStop(sec = 0.06, slow = 0.05) { timeScale = slow; hitStopUntil = performance.now() + sec * 1000; }
+function feedback(tier) { if (tier === 'small') addTrauma(0.15); else if (tier === 'medium') { addTrauma(0.4); hitStop(0.05); } else { addTrauma(0.85); hitStop(0.12); } }
 function showFoeHp(n) { foe = n; foeT = 3; }
 let critters = [], npcs = [], mounts = [], guards = [], givers = [], fxSmoke = [], props = [], markers = [];
 let heat = 0, heatCool = 0, playing = false, paused = false, underground = false;
@@ -178,7 +184,7 @@ function updateNpcs(dt) {
     n.t += dt; let sp = 0, pose = n.pose || 'idle';
     if (n.state === 'down') { n.downT -= dt; pose = 'lie'; if (n.downT <= 0) { n.state = n.angry ? 'fight' : 'flee'; n.R.root.rotation.x = 0; } }
     else if (n.state === 'fight') { // qarshi mushtlashadi: yaqinlashadi, aylanib yuradi, zarba beradi
-      const d = Math.sqrt(d2); const chaseR = n.owner ? 60 : 22; if (d > chaseR || P.hp <= 0) { n.state = 'walk'; n.angry = 0; } else if (d > 1.3) { const sp2 = P.mode === 'ride' ? 6.5 : 5.2; stepToward(n, pp.x, pp.z, sp2, dt); sp = sp2; pose = 'walk'; } else { n.yaw += angDiff(n.yaw, Math.atan2(pp.x - n.pos.x, pp.z - n.pos.z)) * dt * 8; n.atkT = (n.atkT || 0.6) - dt; n.pt = (n.pt || 0) + dt * 2.6; if (n.atkT > 0.35) { pose = 'guard'; const sx = Math.cos(n.yaw), sz = -Math.sin(n.yaw); n.pos.x += sx * Math.sin(n.t) * dt * 0.8; n.pos.z += sz * Math.sin(n.t) * dt * 0.8; } else { pose = 'punch'; if (n.atkT <= 0) { n.atkT = 0.8 + rnd() * 0.6; n.pt = 0; if (P.mode === 'ride' && n.owner) { dismount(true); toast('Egasi sizni ulovdan tortib tushirdi!'); } else if (P.block) { AU.sfx('tak'); toast('To\'sib qoldingiz'); } else { hurt(n.role === 'posbon' ? 12 : 8, 'Musht yedingiz!'); shake = 0.25; } } } }
+      const d = Math.sqrt(d2); const chaseR = n.owner ? 60 : 22; if (d > chaseR || P.hp <= 0) { n.state = 'walk'; n.angry = 0; } else if (d > 1.3) { const sp2 = P.mode === 'ride' ? 6.5 : 5.2; stepToward(n, pp.x, pp.z, sp2, dt); sp = sp2; pose = 'walk'; } else { n.yaw += angDiff(n.yaw, Math.atan2(pp.x - n.pos.x, pp.z - n.pos.z)) * dt * 8; n.atkT = (n.atkT || 0.6) - dt; n.pt = (n.pt || 0) + dt * 2.6; if (n.atkT > 0.35) { pose = 'guard'; const sx = Math.cos(n.yaw), sz = -Math.sin(n.yaw); n.pos.x += sx * Math.sin(n.t) * dt * 0.8; n.pos.z += sz * Math.sin(n.t) * dt * 0.8; } else { pose = 'punch'; if (n.atkT <= 0) { n.atkT = 0.8 + rnd() * 0.6; n.pt = 0; if (P.mode === 'ride' && n.owner) { dismount(true); toast('Egasi sizni ulovdan tortib tushirdi!'); } else if (P.block) { AU.sfx('tak'); toast('To\'sib qoldingiz'); } else { hurt(n.role === 'posbon' ? 12 : 8, 'Musht yedingiz!'); feedback('medium'); } } } }
     } else if (n.state === 'flee') { const ax = n.pos.x - pp.x, az = n.pos.z - pp.z, l = Math.hypot(ax, az) || 1; stepToward(n, n.pos.x + ax / l * 5, n.pos.z + az / l * 5, 4.5, dt); sp = 4.5; pose = 'walk'; n.fleeT = (n.fleeT || 6) - dt; if (n.fleeT <= 0) { n.state = n.walk ? 'walk' : 'idle'; n.fleeT = 0; } }
     else if (n.kid) { // o'yin: guruh markazi atrofida yugurish, ba'zan sakrash
       n.kt = (n.kt || 0) - dt; if (!n.kp || n.kt <= 0 || Math.hypot(n.kp[0] - n.pos.x, n.kp[1] - n.pos.z) < 0.6) { n.kp = [n.kid.x + (rnd() - 0.5) * 9, n.kid.z + (rnd() - 0.5) * 9]; n.kt = 1 + rnd() * 2.5; n.rest = rnd() < 0.25 ? 1.2 : 0; }
@@ -227,7 +233,7 @@ function punch() {
   for (const list of [npcs, guards.map((g) => g.n)]) for (const n of list) {
     if (!n || n.state === 'down') continue; const dx = n.pos.x - P.pos.x, dz = n.pos.z - P.pos.z, d = Math.hypot(dx, dz);
     if (d < 1.4 && (dx * fx + dz * fz) / (d || 1) > 0.4) {
-      const dmg = P.combo >= 2 ? 2 : 1; n.hp -= dmg; n.kb = { x: fx * (dmg > 1 ? 3.5 : 1.8), z: fz * (dmg > 1 ? 3.5 : 1.8) }; n.hitT = 0.35; shake = 0.18 * dmg; AU.sfx('step', 2.5); AU.sfx('tak'); showFoeHp(n);
+      const dmg = P.combo >= 2 ? 2 : 1; n.hp -= dmg; n.kb = { x: fx * (dmg > 1 ? 3.5 : 1.8), z: fz * (dmg > 1 ? 3.5 : 1.8) }; n.hitT = 0.35; feedback(dmg > 1 ? 'large' : 'medium'); AU.sfx('step', 2.5); AU.sfx('tak'); showFoeHp(n);
       if (n.hp <= 0) { n.state = 'down'; n.downT = 5; n.hp = n.maxHp || 4; n.angry = rnd() < 0.35 && n.role !== 'bola' && n.role !== 'ayol'; toast(n.role === 'oqsoqol' ? 'Kattalarga qo\'l ko\'tarish — uyat!' : 'Yiqitdingiz!'); }
       else if (n.role === 'ishchi' || n.role === 'posbon' || (n.role === 'savdogar' && rnd() < 0.4)) { n.state = 'fight'; n.angry = 1; } else { n.state = 'flee'; n.fleeT = 6; }
       addHeat(n.role === 'oqsoqol' ? 1.2 : 0.6, true); S.obro = Math.max(0, S.obro - (n.role === 'oqsoqol' ? 3 : 1));
@@ -646,14 +652,15 @@ function updateHud(dt) {
 
 /* ================= kamera ================= */
 const camT = new V3();
-function updateCamera(dt) {
+function updateCamera(dt, rdt = dt) {
   const tgt = new V3(P.pos.x, P.pos.y + (P.mode === 'ride' ? 2.4 : 1.6), P.pos.z);
   const dist = P.mode === 'ride' ? camDist + 2.2 : P.mode === 'para' ? camDist + 3 : camDist;
   if (!isTouch && document.pointerLockElement !== canvas && (P.speed > 0.5 || P.mount?.speed > 0.5)) camYaw += angDiff(camYaw, P.yaw) * dt * 1.2; // avtomatik orqadan kuzatish
   if (isTouch && (P.speed > 0.5 || P.mount?.speed > 1)) camYaw += angDiff(camYaw, P.yaw) * dt * 0.9;
   let d = dist; const dir = new V3(-Math.sin(camYaw) * Math.cos(camPitch), Math.sin(camPitch), -Math.cos(camYaw) * Math.cos(camPitch));
   for (let s = 0.4; s <= dist; s += 0.25) { const p = tgt.clone().addScaledVector(dir, s); if (C.blocked(p.x, p.y, p.z)) { d = Math.max(0.6, s - 0.4); break; } }
-  camT.lerp(tgt, Math.min(1, dt * 12)); camera.position.copy(camT).addScaledVector(dir, d); if (shake > 0) { shake -= dt; camera.position.x += (rnd() - 0.5) * shake * 0.6; camera.position.y += (rnd() - 0.5) * shake * 0.6; } camera.lookAt(camT);
+  camT.lerp(tgt, 1 - Math.exp(-12 * rdt)); camera.position.copy(camT).addScaledVector(dir, d); camera.lookAt(camT);
+  if (trauma > 0) { trauma = Math.max(0, trauma - 1.4 * rdt); shakeT += rdt * 30; const k = trauma * trauma * SHAKE_STRENGTH; camera.position.x += 0.18 * k * Math.sin(shakeT * 1.7); camera.position.y += 0.12 * k * Math.sin(shakeT * 2.3); camera.rotateZ(0.04 * k * Math.sin(shakeT * 1.1)); }
 }
 
 /* ================= tutun va effektlar ================= */
@@ -670,14 +677,15 @@ const smokePool = []; function updateFx(dt) {
 let last = performance.now(), envT = 0, saveT = 0, birdT = 0;
 async function frame() {
   requestAnimationFrame(frame);
-  const now = performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const now = performance.now(), rdt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (timeScale < 1 && now >= hitStopUntil) timeScale = 1; const dt = rdt * timeScale;
   if (!RES || !hero) return;
   if (playing && !paused) {
     readKeys(); { const nt = S.time + dt / 30; if (nt >= 24) S.day = (S.day || 0) + 1; S.time = nt % 24; }
     if (P.pose && (P.poseT -= dt) <= 0 && !qteOn) P.pose = null;
-    updatePlayer(dt); updateNpcs(dt); updateCritters(dt); updateHeat(dt); updateMission(dt); updateQte(dt);
+    { const n = Math.max(1, Math.ceil(dt / (1 / 60))); for (let i = 0; i < n; i++) updatePlayer(dt / n); } updateNpcs(dt); updateCritters(dt); updateHeat(dt); updateMission(dt); updateQte(dt);
     curAct = dlgOpen || qteOn ? null : findAction();
-    updateHud(dt); updateCamera(dt); updateFx(dt);
+    updateHud(rdt); updateCamera(dt, rdt); updateFx(dt);
     saveT += dt; if (saveT > 30) { saveT = 0; S.pos = [P.pos.x, P.pos.y, P.pos.z]; S.hp = P.hp; save(); }
     birdT -= dt; if (birdT <= 0 && S.time > 6 && S.time < 19) { AU.sfx('bird'); birdT = 2 + rnd() * 6; }
   } else if (playing && !$('wardrobe').hidden) { updateCamera(dt); animate(hero, dt, { pose: 'idle', speed: 0 });

@@ -41,7 +41,7 @@ const scene = new T.Scene(); scene.fog = new T.Fog('#c9d3dc', 120, 2600);
 const camera = new T.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 4000);
 const LG = createLighting(renderer, scene, { quality: Q });
 let composer = null;
-const grade = makeGradePass({ sharp: Q > 0 ? 0.35 : 0 }); grade.uniforms.res.value.set(innerWidth, innerHeight);
+const grade = makeGradePass({ sharp: Q > 0 ? 0.35 : 0, sat: 1.12, warm: 0.09, con: 1.1, vig: 0.38 }); grade.uniforms.res.value.set(innerWidth, innerHeight);
 composer = new EffectComposer(renderer); composer.addPass(new RenderPass(scene, camera)); if (Q > 1) composer.addPass(new UnrealBloomPass(new T.Vector2(innerWidth, innerHeight), 0.3, 0.5, 0.85)); composer.addPass(new OutputPass()); composer.addPass(grade);
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); composer?.setSize(innerWidth, innerHeight); grade.uniforms.res.value.set(innerWidth, innerHeight); });
 const waterMat = new T.MeshStandardMaterial({ color: '#3c7f86', roughness: 0.06, metalness: 0.3, normalMap: TX.waterNormal(), normalScale: new T.Vector2(0.35, 0.35) }); waterMat.normalMap.repeat.set(3, 3);

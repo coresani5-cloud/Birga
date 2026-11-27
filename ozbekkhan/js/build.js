@@ -231,7 +231,8 @@ export function buildRegion(R, opt = {}) {
     const w = x1 - x0, d = z1 - z0; if (w < 3 || d < 3) return;
     const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, h = 3.6 + r() * 2.6 + (R.id === 'xorazm' ? 1 : 0);
     const col = tint(r() < 0.5 ? wallCol : wallCol2, 0.06);
-    W0.add(r() < 0.3 ? 'wall2' : 'wall', box(w, h, d), cx, h / 2, cz, { uv: 0.33, col });
+    const brickHouse = r() < 0.3; W0.add(brickHouse ? 'brick' : r() < 0.35 ? 'wall2' : 'wall', box(w, h, d), cx, h / 2, cz, { uv: brickHouse ? 0.45 : 0.33, col: brickHouse ? '#f4e2c4' : col });
+    if (!brickHouse && r() < 0.5) W0.add('brick', box(w + 0.06, 1.1, d + 0.06), cx, 0.55, cz, { uv: 0.45, col: '#efdcc0' });
     W0.add('wall', box(w + 0.3, 0.3, d + 0.3), cx, h + 0.15, cz, { uv: 0.33, col: col.clone().multiplyScalar(0.9) });
     W0.add('sandstone', box(w + 0.12, 0.55, d + 0.12), cx, 0.27, cz, { uv: 0.4, col: '#e8dcc8' }); // pastki namlik izi
     C.add(x0 - 0.15, z0 - 0.15, x1 + 0.15, z1 + 0.15, h + 0.3);
@@ -248,6 +249,10 @@ export function buildRegion(R, opt = {}) {
         // eshik usti arka panjarasi
         [px, py, pz] = at(u, 2.7, 0.25); W0.add('dark', new T.CircleGeometry(0.62, 12, 0, Math.PI), px, py, pz, { ry });
         const dp = at(u, 0, 1.4); A.doors.push({ x: dp[0], z: dp[2], ry, h });
+        if (r() < 0.55) { // g'isht arkali eshik ramkasi (peshtoqcha)
+          const ar = new T.Shape(), hl = new T.Path(); ar.moveTo(-1.25, 0); ar.lineTo(1.25, 0); ar.lineTo(1.25, 3.3); ar.lineTo(-1.25, 3.3); ar.closePath(); hl.moveTo(-0.78, 0); hl.lineTo(0.78, 0); hl.lineTo(0.78, 2.35); hl.quadraticCurveTo(0, 3.0, -0.78, 2.35); hl.closePath(); ar.holes.push(hl);
+          const ag = new T.ExtrudeGeometry(ar, { depth: 0.22, bevelEnabled: false }); scaleUV(ag, 0.5, 0.5); const ap = at(u, 0, 0.25); W0.add('brick', ag, ap[0], 0, ap[2], { ry, uv: 0, col: '#f2dcb8' });
+        }
         if (r() < 0.45) { const lp = at(u + 1.15, 2.3, 0.15); lantern(lp[0], lp[1], lp[2], ry); }
         if (r() < 0.4) { const pp = at(u - 1.4, 0, 0.5); pot(pp[0], pp[2], 0.9); }
         if (r() < 0.14 && Math.max(Math.abs(cx), Math.abs(cz)) < 108) { const bp = at(u + 1.9, 0, 0.55); W0.add('wood', box(1.6, 0.42, 0.55), bp[0], 0.21, bp[2], { ry, col: '#6e4e30' }); C.add(bp[0] - 0.8, bp[2] - 0.8, bp[0] + 0.8, bp[2] + 0.8, 0.42, -1); npcs.push({ x: bp[0] + Math.sin(ry) * 0.1, z: bp[2] + Math.cos(ry) * 0.1, ry, role: r() < 0.6 ? 'mehmon' : 'kitobxon', pose: 'sit', y: 0.0, name: r() < 0.5 ? 'Qo\'shni' : 'Mahalla oqsoqoli' }); }
@@ -264,6 +269,8 @@ export function buildRegion(R, opt = {}) {
       if (r() < 0.22 && len > 3) { const u0 = (r() - 0.5) * (len - 3), wv = 1.5 + r() * 2.5, hv = 1.2 + r() * (h * 0.5); for (let k = 0; k < 4; k++) { const [px, py, pz] = at(u0 + (r() - 0.5) * wv, h - hv / 2 + 0.1, 0.12 + k * 0.03); W0.add('leaf', new T.PlaneGeometry(wv * (0.5 + r() * 0.5), hv * (0.6 + r() * 0.5)), px, py, pz, { ry, col: tint(new T.Color('#a8bd78'), 0.15) }); } }
       const nWin = Math.floor(len / 4.5);
       for (let i = 0; i < nWin; i++) { if (r() < 0.4) continue; const u = -len / 2 + (i + 0.5) * len / nWin; const [px, py, pz] = at(u, h - 1.4, 0.04); W0.add(r() < 0.45 ? 'win' : 'dark', box(0.7, 0.9, 0.1), px, py, pz, { ry }); const [qx, qy, qz] = at(u, h - 1.4, 0.1); for (let j = -1; j <= 1; j++) W0.add('wood', box(0.05, 0.9, 0.05), qx + tx * j * 0.22, qy, qz + tz * j * 0.22, { col: '#5d3f26' }); }
+      if (r() < 0.22 && len > 4) { const ow = Math.min(len - 1, 3 + r() * 3), [px, , pz] = at((r() - 0.5) * (len - ow - 1), 0, 0.9); const oy = Math.min(h - 0.6, 2.6 + r() * 0.6); W0.add('wood', box(ow, 0.12, 1.7), px, oy, pz, { ry, col: '#7a5534' }); for (let q = -ow / 2 + 0.15; q <= ow / 2; q += 0.5) { const [bx2, , bz2] = at(0, 0, 0); W0.add('wood', box(0.08, 0.08, 1.8), px + Math.cos(ry) * q, oy + 0.1, pz - Math.sin(ry) * q, { ry, col: '#5d3f26' }); } for (const sx of [-1, 1]) { W0.add('wood', new T.CylinderGeometry(0.06, 0.07, oy, 6), px + Math.cos(ry) * sx * (ow / 2 - 0.1) + Math.sin(ry) * 0.75, oy / 2, pz - Math.sin(ry) * sx * (ow / 2 - 0.1) + Math.cos(ry) * 0.75, { col: '#6b4a2e' }); } }
+      if (r() < 0.12) { const [px, , pz] = at((r() - 0.5) * (len - 2), 0, 0.9); W0.add('earth', tf(jitterIco(0.9, 2, px, 0.2), 0, 0, 0, 0, 0, 0, 1.1, 0.6, 0.8), px, 0.35, pz, { uv: 1.2, col: '#f0d488' }); }
       if (Q > 0) for (let u = -len / 2 + 0.5; u < len / 2 - 0.3; u += 0.9) { const [px, py, pz] = at(u, h - 0.25, 0.18); W0.add('wood', new T.CylinderGeometry(0.08, 0.08, 0.4, 5), px, py, pz, { rx: Math.PI / 2, ry, col: '#6b5038' }); }
       if (r() < 0.12 && len > 4) { const [px, py, pz] = at((r() - 0.5) * (len - 2), h * 0.5, 0.05); carpetOnWall(px, Math.max(1.4, py), pz, ry); }
       // ayvon (Farg'ona vodiysi, Toshkent): ustunli supa
@@ -522,7 +529,7 @@ export function buildRegion(R, opt = {}) {
   }
   cityWalls();
   for (let i = -4; i <= 3; i++) for (let j = -4; j <= 3; j++) {
-    const k = reserved.get(key(i, j)); const x0 = i * CELL + 3.5, z0 = j * CELL + 3.5, x1 = (i + 1) * CELL - 3.5, z1 = (j + 1) * CELL - 3.5;
+    const k = reserved.get(key(i, j)); const IN = Math.abs(i) <= 1 && Math.abs(j) <= 1 ? 3.5 : 2.1; const x0 = i * CELL + IN, z0 = j * CELL + IN, x1 = (i + 1) * CELL - IN, z1 = (j + 1) * CELL - IN;
     const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
     if (k === 'plaza' || k === 'skip') continue;
     if (k === 'choyxona') {
@@ -568,7 +575,7 @@ export function buildRegion(R, opt = {}) {
     }
     if (k && k.startsWith('lm:')) { const name = k.slice(3); const big = BIG.includes(name); LM[name]?.(big ? cx + CELL / 2 : cx, big ? cz + CELL / 2 : cz); continue; }
     // mahalla bloki
-    const ax = i === -1 ? 4.5 : 0, bx = i === 0 ? 4.5 : 0; // bozor ko'chasi uchun joy
+    const ax = i === -1 ? 4.5 + (3.5 - IN) : 0, bx = i === 0 ? 4.5 + (3.5 - IN) : 0; // bozor ko'chasi uchun joy
     const bx0 = x0 + (i === -1 ? 0 : 0), bx1 = x1 - ax, bxx0 = x0 + bx;
     const X0 = bxx0, X1 = bx1, Z0 = z0, Z1 = z1;
     const split = r();

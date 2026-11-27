@@ -38,7 +38,7 @@ for (const [h] of people) h.t = Math.random() * 10; for (let i = 0; i < 60; i++)
 const c = (q.get('cam') || `${hp[0] + 1.2},2.6,${hp[2] + 4.6},${hp[0]},1.5,${hp[2] - 6}`).split(',').map(Number);
 camera.position.set(c[0], c[1], c[2]); camera.lookAt(c[3], c[4], c[5]);
 await LG.update(H, new THREE.Vector3(c[0], 0, c[2] - 20), 0.5);
-const composer = new EffectComposer(renderer); composer.addPass(new RenderPass(scene, camera)); composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.35, 0.5, 0.85)); composer.addPass(new OutputPass()); const gp = makeGradePass(); gp.uniforms.res.value.set(innerWidth, innerHeight); composer.addPass(gp);
+const composer = new EffectComposer(renderer); composer.addPass(new RenderPass(scene, camera)); composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.35, 0.5, 0.85)); composer.addPass(new OutputPass()); const gp = makeGradePass({ sat: 1.12, warm: 0.09, con: 1.1, vig: 0.38 }); gp.uniforms.res.value.set(innerWidth, innerHeight); composer.addPass(gp);
 await TX.texReady();
 composer.render(); requestAnimationFrame(() => { composer.render(); window.__ready = true; });
 if (q.get('pick')) { const [px, py] = q.get('pick').split(',').map(Number); const rc = new THREE.Raycaster(); rc.setFromCamera(new THREE.Vector2(px, py), camera); const hits = rc.intersectObjects(scene.children, true).slice(0, 3); for (const h of hits) { const o = h.object, m = Array.isArray(o.material) ? o.material[0] : o.material; console.warn('PICK', o.type, o.name, m?.type, m?.color?.getHexString(), m?.map?.image?.src?.slice(-40) || (m?.map ? 'canvas' : ''), h.distance.toFixed(1), JSON.stringify(h.point), o.geometry?.type, o.isInstancedMesh ? 'inst' : '', o.geometry?.attributes?.position?.count); } }
